@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util;
 
@@ -16,7 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * A very simple single object cache that allows non-blocking refresh calls
  * triggered by expiry time.
  */
-public abstract class SingleObjectCache<T>{
+public abstract class SingleObjectCache<T> {
 
     private volatile T cached;
     private final Lock refreshLock = new ReentrantLock();
@@ -31,13 +32,12 @@ public abstract class SingleObjectCache<T>{
         cached = initialValue;
     }
 
-
     /**
      * Returns the currently cached object and potentially refreshes the cache before returning.
      */
     public T getOrRefresh() {
         if (needsRefresh()) {
-            if(refreshLock.tryLock()) {
+            if (refreshLock.tryLock()) {
                 try {
                     if (needsRefresh()) { // check again!
                         cached = refresh();

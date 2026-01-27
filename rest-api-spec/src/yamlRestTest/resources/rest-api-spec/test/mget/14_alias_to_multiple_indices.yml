@@ -1,7 +1,7 @@
 ---
 "Multi Get with alias that resolves to multiple indices":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "message was changed to fix grammar in 7.9"
 
   - do:
@@ -29,8 +29,8 @@
       mget:
         body:
           docs:
-            - { _index: test_1, _id: 1}
-            - { _index: test_two_and_three, _id: 2}
+            - { _index: test_1, _id: "1"}
+            - { _index: test_two_and_three, _id: "2"}
 
   - is_true: docs.0.found
   - match: { docs.0._index:     test_1      }

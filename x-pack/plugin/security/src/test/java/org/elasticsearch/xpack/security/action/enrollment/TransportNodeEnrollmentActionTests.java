@@ -7,17 +7,20 @@
 
 package org.elasticsearch.xpack.security.action.enrollment;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
@@ -25,6 +28,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,13 +55,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -74,14 +78,11 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         Path transportPath = tempDir.resolve("transport.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), transportPath);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         final SSLService sslService = mock(SSLService.class);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
-        final Settings httpSettings = Settings.builder()
-            .put("keystore.path", httpCaPath)
-            .setSecureSettings(secureSettings)
-            .build();
+        final Settings httpSettings = Settings.builder().put("keystore.path", httpCaPath).setSecureSettings(secureSettings).build();
         final SslConfiguration httpSslConfiguration = SslSettingsLoader.load(httpSettings, null, env);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(httpSslConfiguration);
         final Settings transportSettings = Settings.builder()
@@ -100,20 +101,28 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         final List<NodesInfoRequest> nodesInfoRequests = new ArrayList<>();
         for (int i = 0; i < numberOfNodes; i++) {
             DiscoveryNode n = node(i);
-            nodeInfos.add(new NodeInfo(Version.CURRENT,
-                null,
-                n,
-                null,
-                null,
-                null,
-                null,
-                null,
-                new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null, false),
-                null,
-                null,
-                null,
-                null,
-                null));
+            nodeInfos.add(
+                new NodeInfo(
+                    Build.current().version(),
+                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
+                    IndexVersion.current(),
+                    Map.of(),
+                    null,
+                    n,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new TransportInfo(new BoundTransportAddress(new TransportAddress[] { n.getAddress() }, n.getAddress()), null),
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            );
         }
         doAnswer(invocation -> {
             NodesInfoRequest nodesInfoRequest = (NodesInfoRequest) invocation.getArguments()[1];
@@ -121,35 +130,44 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             ActionListener<NodesInfoResponse> listener = (ActionListener) invocation.getArguments()[2];
             listener.onResponse(new NodesInfoResponse(new ClusterName("cluster"), nodeInfos, List.of()));
             return null;
-        }).when(client).execute(same(NodesInfoAction.INSTANCE), any(), any());
+        }).when(client).execute(same(TransportNodesInfoAction.TYPE), any(), any());
 
-        final TransportService transportService = new TransportService(Settings.EMPTY,
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
 
-        final TransportNodeEnrollmentAction action =
-            new TransportNodeEnrollmentAction(transportService, sslService, client, mock(ActionFilters.class));
+        final TransportNodeEnrollmentAction action = new TransportNodeEnrollmentAction(
+            transportService,
+            sslService,
+            client,
+            mock(ActionFilters.class)
+        );
         final NodeEnrollmentRequest request = new NodeEnrollmentRequest();
         final PlainActionFuture<NodeEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final NodeEnrollmentResponse response = future.get();
         assertSameCertificate(response.getHttpCaCert(), httpCaPath, "password".toCharArray(), true);
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
-        assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
-        assertThat(nodesInfoRequests.size(), equalTo(1));
+        assertThat(response.getNodesAddresses(), hasSize(numberOfNodes));
+        assertThat(nodesInfoRequests, hasSize(1));
 
-        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
+        assertWarnings(
+            "[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
+        );
     }
 
-    private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{
+    private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception {
         Map<Certificate, Key> originalKeysAndCerts = CertParsingUtils.readPkcs12KeyPairs(original, originalPassword, p -> originalPassword);
         Certificate deserializedCert = CertParsingUtils.readCertificates(
-            new ByteArrayInputStream(Base64.getDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))).get(0);
+            new ByteArrayInputStream(Base64.getDecoder().decode(cert.getBytes(StandardCharsets.UTF_8)))
+        ).get(0);
         assertThat(originalKeysAndCerts, hasKey(deserializedCert));
         assertThat(deserializedCert, instanceOf(X509Certificate.class));
         if (isCa) {
@@ -160,6 +178,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
     }
 
     private DiscoveryNode node(final int id) {
-        return new DiscoveryNode("node-" + id, Integer.toString(id), buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT);
+        return DiscoveryNodeUtils.builder(Integer.toString(id)).name("node-" + id).roles(Set.of()).build();
     }
 }

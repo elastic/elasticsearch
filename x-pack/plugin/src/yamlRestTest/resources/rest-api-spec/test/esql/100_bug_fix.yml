@@ -1,0 +1,392 @@
+---
+"Coalesce and to_ip functions":
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: "fixes in 8.12 or later"
+      test_runner_features: allowed_warnings_regex
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "emp_no": 10, "ip1": "127.0", "ip2": "0.1" }
+          - { "index": { } }
+          - { "emp_no": 20 }
+  - do:
+      allowed_warnings_regex:
+        - "Line 1:37: evaluation of \\[to_ip\\(coalesce\\(ip1.keyword, \\\\\"255.255.255.255\\\\\"\\)\\)\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:37: java.lang.IllegalArgumentException: '127.0' is not an IP string literal."
+        - "No limit defined, adding default limit of \\[.*\\]"
+
+      esql.query:
+        body:
+          query: 'FROM test | sort emp_no | eval ip = to_ip(coalesce(ip1.keyword, "255.255.255.255")) | keep emp_no, ip'
+
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "ip" }
+  - match: { columns.1.type: "ip" }
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, null ] }
+  - match: { values.1: [ 20, "255.255.255.255"] }
+
+
+  - do:
+      allowed_warnings_regex:
+        - "Line 1:98: evaluation of \\[to_ip\\(x2\\)\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:98: java.lang.IllegalArgumentException: '127.00.1' is not an IP string literal."
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test | sort emp_no | eval x1 = concat(ip1, ip2), x2 = coalesce(x1, "255.255.255.255"), x3 = to_ip(x2) | keep emp_no, x*'
+  - match: { columns.0.name: "emp_no" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "x1" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "x2" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "x3" }
+  - match: { columns.3.type: "ip" }
+
+
+  - length: { values: 2 }
+  - match: { values.0: [ 10, "127.00.1", "127.00.1", null ] }
+  - match: { values.1: [ 20, null, "255.255.255.255", "255.255.255.255"] }
+
+---
+"unsupported and invalid mapped fields":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "fixes in 8.13 or later"
+  - do:
+      indices.create:
+        index: index1
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    type: flattened
+  - do:
+      indices.create:
+        index: index2
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: keyword
+  - do:
+      indices.create:
+        index: index3
+        body:
+          mappings:
+            properties:
+              http:
+                properties:
+                  headers:
+                    properties:
+                      location:
+                        type: text
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "index1" } }
+          - { "http.headers": { "location": "RO","code": 123 } }
+          - { "index": { "_index": "index2" } }
+          - { "http.headers.location": "US" }
+          - { "index": { "_index": "index3" } }
+          - { "http.headers.location": "CN" }
+  - do:
+      esql.query:
+        body:
+          query: 'from index* metadata _index | limit 5 | sort _index desc'
+  - match: { columns.0.name: http.headers }
+  - match: { columns.0.type: unsupported }
+  - match: { columns.1.name: http.headers.location }
+  - match: { columns.1.type: unsupported }
+  - match: { columns.2.name: _index }
+  - match: { columns.2.type: keyword }
+  - length: { values: 3 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.0.2: index3 }
+  - match: { values.1.0: null }
+  - match: { values.1.1: null }
+  - match: { values.1.2: index2 }
+  - match: { values.2.0: null }
+  - match: { values.2.1: null }
+  - match: { values.2.2: index1 }
+
+
+---
+"null MappedFieldType on single value detection #103141":
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "fixes in 8.13 or later"
+  - do:
+      indices.create:
+        index: npe_single_value_1
+        body:
+          mappings:
+            properties:
+              field1:
+                type: long
+  - do:
+      indices.create:
+        index: npe_single_value_2
+        body:
+          mappings:
+            properties:
+              field2:
+                type: long
+  - do:
+      indices.create:
+        index: npe_single_value_3
+        body:
+          mappings:
+            properties:
+              field3:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "npe_single_value_1" } }
+          - { "field1": 10 }
+          - { "index": { "_index": "npe_single_value_2" } }
+          - { "field2": 20 }
+          - { "index": { "_index": "npe_single_value_3" } }
+          - { "field3": 30 }
+  - do:
+      esql.query:
+        body:
+          query: 'from npe_single_value* | stats x = avg(field1) | limit 10'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: double }
+  - length: { values: 1 }
+  - match: { values.0.0: 10.0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from npe_single_value* | stats x = avg(field2) | limit 10'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: double }
+  - length: { values: 1 }
+  - match: { values.0.0: 20.0 }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from npe_single_value* | stats x = avg(field3) | limit 10'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: double }
+  - length: { values: 1 }
+  - match: { values.0.0: 30.0 }
+
+
+
+---
+"text in functions #105379":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "fixes in 8.13 or later"
+  - do:
+      indices.create:
+        index: idx_with_date_ip_txt
+        body:
+          mappings:
+            properties:
+              id:
+                type: long
+              date:
+                type: date
+              ip:
+                type: ip
+              text:
+                type: text
+              text2:
+                type: text
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 1, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text":"yyyy-MM-dd", "text2":"year" }
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 2, "date": "2024-03-22T14:50:00.000Z", "ip": "192.168.0.10", "text": "192.168.0.0/16" }
+          - { "index": { "_index": "idx_with_date_ip_txt" } }
+          - { "id": 3, "date": "2024-03-22T14:50:00.000Z", "ip": "10.0.0.10", "text": "192.168.0.0/16" }
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_date_ip_txt | where id == 1 | eval x = date_format(text, date), y = date_extract(text2, date), p = date_parse(text, "2024-03-14") | keep x, y, p | limit 1'
+  - match: { columns.0.name: x }
+  - match: { columns.0.type: keyword }
+  - match: { columns.1.name: y }
+  - match: { columns.1.type: long }
+  - length: { values: 1 }
+  - match: { values.0.0: "2024-03-22" }
+  - match: { values.0.1: 2024 }
+  - match: { values.0.2: "2024-03-14T00:00:00.000Z" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_date_ip_txt | where id > 1 | eval x = cidr_match(ip, text) | sort id | keep id, x | limit 2'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: long }
+  - match: { columns.1.name: x }
+  - match: { columns.1.type: boolean }
+  - length: { values: 2 }
+  - match: { values.0.0: 2 }
+  - match: { values.0.1: true }
+  - match: { values.1.0: 3 }
+  - match: { values.1.1: false }
+
+
+---
+"mv_dedupe from index #104745":
+  - do:
+      indices.create:
+        index: idx_with_multivalues
+        body:
+          mappings:
+            properties:
+              boolean:
+                type: boolean
+              double:
+                type: double
+              integer :
+                type : integer
+              keyword :
+                type : keyword
+              long:
+                type: long
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "idx_with_multivalues" } }
+          - { "boolean": [true,false,false,true], "keyword": [foo,bar,bar,foo], "integer": [1,2,2,1], "long": [1,2,2,1], "double": [1.1,2.2,2.2,1.1] }
+  - do:
+      esql.query:
+        body:
+          query: 'from idx_with_multivalues | eval b = mv_dedupe(boolean), k = mv_dedupe(keyword), i = mv_dedupe(integer), l = mv_dedupe(long), d = mv_dedupe(double) | keep b, k, i, l, d | limit 1'
+  - match: { columns.0.name: b }
+  - match: { columns.0.type: boolean }
+  - match: { columns.1.name: k }
+  - match: { columns.1.type: keyword }
+  - match: { columns.2.name: i }
+  - match: { columns.2.type: integer }
+  - match: { columns.3.name: l }
+  - match: { columns.3.type: long }
+  - match: { columns.4.name: d }
+  - match: { columns.4.type: double }
+  - length: { values: 1 }
+  - match: { values.0.0: [false, true] }
+  - match: { values.0.1: ["bar", "foo"] }
+  - match: { values.0.2: [1, 2] }
+  - match: { values.0.3: [1, 2] }
+  - match: { values.0.4: [1.1, 2.2] }
+
+
+---
+"grok with duplicate names and different types #110533":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [grok_validation]
+      reason: "fixed grok validation with patterns containing the same attribute multiple times with different types"
+  - do:
+      indices.create:
+        index: test_grok
+        body:
+          mappings:
+            properties:
+              first_name :
+                type : keyword
+              last_name:
+                type: keyword
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_grok" } }
+          - { "first_name": "Georgi", "last_name":"Facello" }
+
+  - do:
+      catch: '/Invalid GROK pattern \[%\{NUMBER:foo\} %\{WORD:foo\}\]: the attribute \[foo\] is defined multiple times with different types/'
+      esql.query:
+        body:
+          query: 'FROM test_grok | KEEP name | WHERE last_name == "Facello" | EVAL name = concat("1 ", last_name) | GROK name "%{NUMBER:foo} %{WORD:foo}"'
+---
+"union types with null blocks from missing fields #125850":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [fix_doubly_released_null_blocks_in_valuesourcereader]
+      reason: "fixed handing out already closed null block references in ValueSourceReader"
+  - do:
+      indices.create:
+        index: test1
+        body:
+          mappings:
+            properties:
+              truefalse1 :
+                type : boolean
+              truefalse2 :
+                type: boolean
+  - do:
+      indices.create:
+        index: test2
+        body:
+          mappings:
+            properties:
+              truefalse1 :
+                type : keyword
+              truefalse2 :
+                type: keyword
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test1" } }
+          - { "truefalse1": null}
+          - { "index": { "_index": "test2" } }
+          - { "truefalse1": null }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+
+      esql.query:
+        body:
+          query: 'FROM test* | eval t1 = truefalse1::boolean, t2 = truefalse2::boolean | keep t1, t2'
+  - match: { columns.0.name: t1 }
+  - match: { columns.0.type: boolean }
+  - match: { columns.1.name: t2 }
+  - match: { columns.1.type: boolean }
+  - length: { values: 2 }
+  - match: { values.0.0: null }
+  - match: { values.0.1: null }
+  - match: { values.1.0: null }
+  - match: { values.1.1: null }

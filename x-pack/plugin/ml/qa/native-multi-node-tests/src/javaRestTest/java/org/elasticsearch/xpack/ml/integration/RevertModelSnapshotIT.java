@@ -6,19 +6,18 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
@@ -34,7 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapsho
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.After;
 
 import java.io.IOException;
@@ -49,6 +48,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xpack.core.ml.annotations.AnnotationTests.randomAnnotation;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -65,6 +65,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
+    private static final long DATA_START_TIME = 1761955200000L;
+
     @After
     public void tearDownData() {
         cleanUp();
@@ -75,7 +77,32 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testRevertModelSnapshot_DeleteInterveningResults() throws Exception {
+        // Create and run a unrelated job to chech it is not affected by reverting a different job
+        String jobId = "revert-snapshot-delete-intervening-unrelated-job";
+
+        TimeValue bucketSpan = TimeValue.timeValueHours(1);
+        long startTime = DATA_START_TIME - (bucketSpan.getMillis() * 2);
+        String data = String.join("", generateData(startTime, bucketSpan, 23, List.of("foo"), (bucketIndex, series) -> 10.0));
+
+        Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
+        openJob(job.getId());
+        postData(job.getId(), data);
+        flushJob(job.getId(), true);
+        closeJob(job.getId());
+
+        String snapShotId = getJob(jobId).get(0).getModelSnapshotId();
+        assertThat(snapShotId, is(notNullValue()));
+        List<Bucket> buckets = getBuckets(jobId);
+        assertThat(buckets.size(), greaterThan(0));
+
+        // Run another job and revert to an previous snapshot
         testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job-delete-intervening-results", true);
+
+        // Check snapshot Id and buckets have not changed
+        assertThat(getJob(jobId).getFirst().getModelSnapshotId(), is(snapShotId));
+        List<Bucket> bucketsAfterRevert = getBuckets(jobId);
+        assertThat(bucketsAfterRevert.size(), is(buckets.size()));
+        assertThat(bucketsAfterRevert, is(buckets));
     }
 
     public void testRevertToEmptySnapshot() throws Exception {
@@ -84,8 +111,13 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
 
-        String data = generateData(startTime, bucketSpan, 20, Arrays.asList("foo"),
-            (bucketIndex, series) -> bucketIndex == 19 ? 100.0 : 10.0).stream().collect(Collectors.joining());
+        String data = generateData(
+            startTime,
+            bucketSpan,
+            20,
+            Arrays.asList("foo"),
+            (bucketIndex, series) -> bucketIndex == 19 ? 100.0 : 10.0
+        ).stream().collect(Collectors.joining());
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
@@ -121,14 +153,21 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
     private void testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion(String jobId, boolean deleteInterveningResults) throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
-        long startTime = 1491004800000L;
 
         Job.Builder job = buildAndRegisterJob(jobId, bucketSpan);
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime, bucketSpan, 10, Arrays.asList("foo"),
-                (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(DATA_START_TIME, bucketSpan, 10, Arrays.asList("foo"), (bucketIndex, series) -> bucketIndex == 5 ? 100.0 : 10.0)
+                .stream()
+                .collect(Collectors.joining())
+        );
         flushJob(job.getId(), true);
+        String forecastId = forecast(job.getId(), TimeValue.timeValueHours(10), TimeValue.timeValueDays(100));
+        waitForecastToFinish(job.getId(), forecastId);
         closeJob(job.getId());
+        long numForecastDocs = countForecastDocs(job.getId(), forecastId);
+        assertThat(numForecastDocs, greaterThan(0L));
 
         ModelSizeStats modelSizeStats1 = getJobStats(job.getId()).get(0).getModelSizeStats();
         Quantiles quantiles1 = getQuantiles(job.getId());
@@ -141,8 +180,16 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         waitUntil(() -> false, 1, TimeUnit.SECONDS);
 
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
+                bucketSpan,
+                10,
+                Arrays.asList("foo", "bar"),
+                (bucketIndex, series) -> 10.0
+            ).stream().collect(Collectors.joining())
+        );
         closeJob(job.getId());
 
         ModelSizeStats modelSizeStats2 = getJobStats(job.getId()).get(0).getModelSizeStats();
@@ -167,7 +214,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         ModelSnapshot revertSnapshot = modelSnapshots.get(1);
 
         // Check there are 2 annotations (one per model snapshot)
-        assertThatNumberOfAnnotationsIsEqualTo(2);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 2);
 
         // Add 3 new annotations...
         Instant lastResultTimestamp = revertSnapshot.getLatestResultTimeStamp().toInstant();
@@ -175,14 +222,12 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.plusSeconds(20), Event.MODEL_CHANGE)).actionGet();
         client().index(randomAnnotationIndexRequest(job.getId(), lastResultTimestamp.minusSeconds(10), Event.MODEL_CHANGE)).actionGet();
         // ... and check there are 5 annotations in total now
-        assertThatNumberOfAnnotationsIsEqualTo(5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, 5);
 
         GetJobsStatsAction.Response.JobStats statsBeforeRevert = getJobStats(jobId).get(0);
         Instant timeBeforeRevert = Instant.now();
 
-        assertThat(
-            revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults).status(),
-            equalTo(RestStatus.OK));
+        revertModelSnapshot(job.getId(), revertSnapshot.getSnapshotId(), deleteInterveningResults);
 
         GetJobsStatsAction.Response.JobStats statsAfterRevert = getJobStats(job.getId()).get(0);
 
@@ -201,12 +246,23 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getQuantiles(job.getId()).getTimestamp(), equalTo(revertSnapshot.getLatestResultTimeStamp()));
 
         // Check annotations with event type from {delayed_data, model_change} have been removed if deleteInterveningResults flag is set
-        assertThatNumberOfAnnotationsIsEqualTo(deleteInterveningResults ? 3 : 5);
+        assertThatNumberOfAnnotationsIsEqualTo(jobId, deleteInterveningResults ? 3 : 5);
+
+        // Reverting should not have deleted any forecast docs
+        assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
 
         // Re-run 2nd half of data
         openJob(job.getId());
-        postData(job.getId(), generateData(startTime + 10 * bucketSpan.getMillis(), bucketSpan, 10, Arrays.asList("foo", "bar"),
-                (bucketIndex, series) -> 10.0).stream().collect(Collectors.joining()));
+        postData(
+            job.getId(),
+            generateData(
+                DATA_START_TIME + 10 * bucketSpan.getMillis(),
+                bucketSpan,
+                10,
+                Arrays.asList("foo", "bar"),
+                (bucketIndex, series) -> 10.0
+            ).stream().collect(Collectors.joining())
+        );
         closeJob(job.getId());
 
         List<Bucket> finalPostRevertBuckets = getBuckets(job.getId());
@@ -214,6 +270,9 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         assertThat(finalPostRevertPointBucket.getTimestamp(), equalTo(finalPreRevertPointBucket.getTimestamp()));
         assertThat(finalPostRevertPointBucket.getAnomalyScore(), equalTo(finalPreRevertPointBucket.getAnomalyScore()));
         assertThat(finalPostRevertPointBucket.getEventCount(), equalTo(finalPreRevertPointBucket.getEventCount()));
+
+        // Re-running should not have deleted any forecast docs
+        assertThat(countForecastDocs(job.getId(), forecastId), is(numForecastDocs));
     }
 
     private Job.Builder buildAndRegisterJob(String jobId, TimeValue bucketSpan) throws Exception {
@@ -229,8 +288,13 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         return job;
     }
 
-    private static List<String> generateData(long timestamp, TimeValue bucketSpan, int bucketCount, List<String> series,
-                              BiFunction<Integer, String, Double> timeAndSeriesToValueFunction) throws IOException {
+    private static List<String> generateData(
+        long timestamp,
+        TimeValue bucketSpan,
+        int bucketCount,
+        List<String> series,
+        BiFunction<Integer, String, Double> timeAndSeriesToValueFunction
+    ) throws IOException {
         List<String> data = new ArrayList<>();
         long now = timestamp;
         for (int i = 0; i < bucketCount; i++) {
@@ -252,31 +316,33 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         return data;
     }
 
-    private Quantiles getQuantiles(String jobId) {
-        SearchResponse response = client().prepareSearch(".ml-state*")
-                .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId)))
-                .setSize(1)
-                .get();
-        SearchHits hits = response.getHits();
-        assertThat(hits.getTotalHits().value, equalTo(1L));
-        try {
-            XContentParser parser = JsonXContent.jsonXContent
-                    .createParser(null, LoggingDeprecationHandler.INSTANCE, hits.getAt(0).getSourceAsString());
-            return Quantiles.LENIENT_PARSER.apply(parser, null);
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
+    private Quantiles getQuantiles(String jobId) throws Exception {
+        SetOnce<Quantiles> quantilesSetOnce = new SetOnce<>();
+        assertCheckedResponse(
+            prepareSearch(".ml-state*").setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(jobId))).setSize(1),
+            response -> {
+                SearchHits hits = response.getHits();
+                assertThat(hits.getTotalHits().value(), equalTo(1L));
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        XContentParserConfiguration.EMPTY,
+                        hits.getAt(0).getSourceAsString()
+                    )
+                ) {
+                    quantilesSetOnce.set(Quantiles.LENIENT_PARSER.apply(parser, null));
+                }
+            }
+        );
+        return quantilesSetOnce.get();
     }
 
     private static IndexRequest randomAnnotationIndexRequest(String jobId, Instant timestamp, Event event) throws IOException {
-        Annotation annotation = new Annotation.Builder(randomAnnotation(jobId))
-            .setTimestamp(Date.from(timestamp))
-            .setCreateUsername(XPackUser.NAME)
+        Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setTimestamp(Date.from(timestamp))
+            .setCreateUsername(InternalUsers.XPACK_USER.principal())
             .setEvent(event)
             .build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

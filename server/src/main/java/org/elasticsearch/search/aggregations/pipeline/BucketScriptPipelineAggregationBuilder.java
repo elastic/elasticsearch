@@ -1,36 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<BucketScriptPipelineAggregationBuilder> {
     public static final String NAME = "bucket_script";
@@ -83,7 +85,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     public BucketScriptPipelineAggregationBuilder(StreamInput in) throws IOException {
         super(in, NAME);
         int mapSize = in.readVInt();
-        bucketsPathsMap = new HashMap<>(mapSize);
+        bucketsPathsMap = Maps.newMapWithExpectedSize(mapSize);
         for (int i = 0; i < mapSize; i++) {
             bucketsPathsMap.put(in.readString(), in.readString());
         }
@@ -94,11 +96,7 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(bucketsPathsMap.size());
-        for (Entry<String, String> e : bucketsPathsMap.entrySet()) {
-            out.writeString(e.getKey());
-            out.writeString(e.getValue());
-        }
+        out.writeMap(bucketsPathsMap, StreamOutput::writeString);
         script.writeTo(out);
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
@@ -144,13 +142,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         return this;
     }
 
-    /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
     protected DocValueFormat formatter() {
         if (format != null) {
             return new DocValueFormat.Decimal(format);
@@ -168,13 +159,6 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
         }
         this.gapPolicy = gapPolicy;
         return this;
-    }
-
-    /**
-     * Gets the gap policy to use for this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
     }
 
     @Override
@@ -223,5 +207,10 @@ public class BucketScriptPipelineAggregationBuilder extends AbstractPipelineAggr
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

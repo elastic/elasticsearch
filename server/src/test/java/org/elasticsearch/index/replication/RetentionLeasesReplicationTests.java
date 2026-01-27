@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.replication;
@@ -21,7 +22,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseUtils;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,18 +45,24 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
                 if (leases.isEmpty() == false && rarely()) {
                     RetentionLease leaseToRemove = randomFrom(leases);
                     leases.remove(leaseToRemove);
-                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.wrap(latch::countDown));
+                    group.removeRetentionLease(leaseToRemove.id(), ActionListener.running(latch::countDown));
                 } else {
-                    RetentionLease newLease = group.addRetentionLease(Integer.toString(i), randomNonNegativeLong(), "test-" + i,
-                        ActionListener.wrap(latch::countDown));
+                    RetentionLease newLease = group.addRetentionLease(
+                        Integer.toString(i),
+                        randomNonNegativeLong(),
+                        "test-" + i,
+                        ActionListener.running(latch::countDown)
+                    );
                     leases.add(newLease);
                 }
             }
             RetentionLeases leasesOnPrimary = group.getPrimary().getRetentionLeases();
             assertThat(leasesOnPrimary.version(), equalTo(iterations + group.getReplicas().size() + 1L));
             assertThat(leasesOnPrimary.primaryTerm(), equalTo(group.getPrimary().getOperationPrimaryTerm()));
-            assertThat(RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(leasesOnPrimary).values(),
-                containsInAnyOrder(leases.toArray(new RetentionLease[0])));
+            assertThat(
+                RetentionLeaseUtils.toMapExcludingPeerRecoveryRetentionLeases(leasesOnPrimary).values(),
+                containsInAnyOrder(leases.toArray(new RetentionLease[0]))
+            );
             latch.await();
             for (IndexShard replica : group.getReplicas()) {
                 assertThat(replica.getRetentionLeases(), equalTo(leasesOnPrimary));
@@ -69,8 +76,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId id, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(id, leases)));
             }
         }) {
             group.startAll();
@@ -96,8 +103,8 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
         IndexMetadata indexMetadata = buildIndexMetadata(numberOfReplicas, settings, indexMapping);
         try (ReplicationGroup group = new ReplicationGroup(indexMetadata) {
             @Override
-            protected void syncRetentionLeases(ShardId shardId, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
-                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(shardId, leases)));
+            protected void syncRetentionLeases(ShardId id, RetentionLeases leases, ActionListener<ReplicationResponse> listener) {
+                listener.onResponse(new SyncRetentionLeasesResponse(new RetentionLeaseSyncAction.Request(id, leases)));
             }
         }) {
             group.startAll();
@@ -140,15 +147,20 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
     public void testTurnOffTranslogRetentionAfterAllShardStarted() throws Exception {
         final Settings.Builder settings = Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            settings.put(IndexMetadata.SETTING_VERSION_CREATED, VersionUtils.randomIndexCompatibleVersion(random()));
+            settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomCompatibleWriteVersion());
         }
         try (ReplicationGroup group = createGroup(between(1, 2), settings.build())) {
             group.startAll();
             group.indexDocs(randomIntBetween(1, 10));
             for (IndexShard shard : group) {
-                shard.updateShardState(shard.routingEntry(), shard.getOperationPrimaryTerm(), null, 1L,
+                shard.updateShardState(
+                    shard.routingEntry(),
+                    shard.getOperationPrimaryTerm(),
+                    null,
+                    1L,
                     group.getPrimary().getReplicationGroup().getInSyncAllocationIds(),
-                    group.getPrimary().getReplicationGroup().getRoutingTable());
+                    group.getPrimary().getReplicationGroup().getRoutingTable()
+                );
             }
             group.syncGlobalCheckpoint();
             group.flush();
@@ -163,6 +175,7 @@ public class RetentionLeasesReplicationTests extends ESIndexLevelReplicationTest
 
     static final class SyncRetentionLeasesResponse extends ReplicationResponse {
         final RetentionLeaseSyncAction.Request syncRequest;
+
         SyncRetentionLeasesResponse(RetentionLeaseSyncAction.Request syncRequest) {
             this.syncRequest = syncRequest;
         }

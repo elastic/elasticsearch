@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.github.mustachejava.Code;
 import com.github.mustachejava.DefaultMustacheFactory;
 import com.github.mustachejava.DefaultMustacheVisitor;
@@ -19,16 +19,17 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -38,7 +39,8 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class CustomMustacheFactory extends DefaultMustacheFactory {
+public final class CustomMustacheFactory extends DefaultMustacheFactory {
+
     static final String V7_JSON_MEDIA_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MEDIA_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MEDIA_TYPE = "application/json";
@@ -46,24 +48,47 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     static final String X_WWW_FORM_URLENCODED_MEDIA_TYPE = "application/x-www-form-urlencoded";
 
     private static final String DEFAULT_MEDIA_TYPE = JSON_MEDIA_TYPE;
+    private static final boolean DEFAULT_DETECT_MISSING_PARAMS = false;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
-        V7_JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-        JSON_MEDIA_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-        JSON_MEDIA_TYPE, JsonEscapeEncoder::new,
-        PLAIN_TEXT_MEDIA_TYPE, DefaultEncoder::new,
-        X_WWW_FORM_URLENCODED_MEDIA_TYPE, UrlEncoder::new);
+        V7_JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE_WITH_CHARSET,
+        JsonEscapeEncoder::new,
+        JSON_MEDIA_TYPE,
+        JsonEscapeEncoder::new,
+        PLAIN_TEXT_MEDIA_TYPE,
+        DefaultEncoder::new,
+        X_WWW_FORM_URLENCODED_MEDIA_TYPE,
+        UrlEncoder::new
+    );
 
     private final Encoder encoder;
 
+    /**
+     * Initializes a CustomMustacheFactory object with a specified mediaType.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory(String mediaType) {
-        super();
-        setObjectHandler(new CustomReflectionObjectHandler());
-        this.encoder = createEncoder(mediaType);
+        this(mediaType, DEFAULT_DETECT_MISSING_PARAMS);
     }
 
+    /**
+     * Default constructor for the factory.
+     *
+     * @deprecated Use {@link #builder()} instead to retrieve a {@link Builder} object that can be used to create a factory.
+     */
+    @Deprecated
     public CustomMustacheFactory() {
-        this(DEFAULT_MEDIA_TYPE);
+        this(DEFAULT_MEDIA_TYPE, DEFAULT_DETECT_MISSING_PARAMS);
+    }
+
+    private CustomMustacheFactory(String mediaType, boolean detectMissingParams) {
+        super(resourceName -> null); // we do not resolve templates via files or the classpath, etc.
+        setObjectHandler(new CustomReflectionObjectHandler(detectMissingParams));
+        this.encoder = createEncoder(mediaType);
     }
 
     @Override
@@ -88,7 +113,11 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         return new CustomMustacheVisitor(this);
     }
 
-    class CustomMustacheVisitor extends DefaultMustacheVisitor {
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    private static class CustomMustacheVisitor extends DefaultMustacheVisitor {
 
         CustomMustacheVisitor(DefaultMustacheFactory df) {
             super(df);
@@ -108,12 +137,26 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
                 list.add(new IterableCode(templateContext, df, mustache, variable));
             }
         }
+
+        @Override
+        public void partial(TemplateContext tc, String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException(Strings.format("Cannot expand '%s' because partial templates are not supported", variable));
+        }
+
+        @Override
+        public void dynamicPartial(TemplateContext tc, final String variable, String indent) {
+            // throwing a mustache exception here is important because this gets caught, handled (closing readers, etc.),
+            // and re-thrown in the mustache parser itself
+            throw new MustacheException(Strings.format("Cannot expand '%s' because dynamic partial templates are not supported", variable));
+        }
     }
 
     /**
      * Base class for custom Mustache functions
      */
-    abstract static class CustomCode extends IterableCode {
+    private abstract static class CustomCode extends IterableCode {
 
         private final String code;
 
@@ -153,12 +196,11 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
             try (StringWriter capture = new StringWriter()) {
                 // Variable name is in plain text and has type WriteCode
                 if (codes[0] instanceof WriteCode) {
-                    codes[0].execute(capture, Collections.emptyList());
-                    return capture.toString();
+                    codes[0].execute(capture, List.of());
                 } else {
                     codes[0].identity(capture);
-                    return capture.toString();
                 }
+                return capture.toString();
             } catch (IOException e) {
                 throw new MustacheException("Exception while parsing mustache function [" + fn + "] at line " + tc.line(), e);
             }
@@ -168,7 +210,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function renders {@link Iterable} and {@link Map} as their JSON representation
      */
-    static class ToJsonCode extends CustomCode {
+    private static class ToJsonCode extends CustomCode {
 
         private static final String CODE = "toJson";
 
@@ -214,7 +256,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     /**
      * This function concatenates the values of an {@link Iterable} using a given delimiter
      */
-    static class JoinerCode extends CustomCode {
+    private static class JoinerCode extends CustomCode {
 
         protected static final String CODE = "join";
         private static final String DEFAULT_DELIMITER = ",";
@@ -251,9 +293,9 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static class CustomJoinerCode extends JoinerCode {
+    private static class CustomJoinerCode extends JoinerCode {
 
-        private static final Pattern PATTERN = Pattern.compile("^(?:" + CODE + " delimiter='(.*)')$");
+        private static final Pattern PATTERN = Pattern.compile("^" + CODE + " delimiter='(.*)'$");
 
         CustomJoinerCode(TemplateContext tc, DefaultMustacheFactory df, Mustache mustache, String variable) {
             super(tc, df, mustache, extractDelimiter(variable));
@@ -276,7 +318,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
      * This function encodes a string using the {@link URLEncoder#encode(String, String)} method
      * with the UTF-8 charset.
      */
-    static class UrlEncoderCode extends DefaultMustache {
+    private static class UrlEncoderCode extends DefaultMustache {
 
         private static final String CODE = "url";
         private final Encoder encoder;
@@ -350,7 +392,37 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
 
         @Override
         public void encode(String s, Writer writer) throws IOException {
-            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8.name()));
+            writer.write(URLEncoder.encode(s, StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Build a new {@link CustomMustacheFactory} object.
+     */
+    public static class Builder {
+        private String mediaType = DEFAULT_MEDIA_TYPE;
+        private boolean detectMissingParams = DEFAULT_DETECT_MISSING_PARAMS;
+
+        private Builder() {}
+
+        public Builder mediaType(String mediaType) {
+            this.mediaType = mediaType;
+            return this;
+        }
+
+        /**
+         * Sets the behavior for handling missing parameters during template execution.
+         *
+         * @param detectMissingParams If true, an exception is thrown when executing the template with missing parameters.
+         *                            If false, the template gracefully handles missing parameters without throwing an exception.
+         */
+        public Builder detectMissingParams(boolean detectMissingParams) {
+            this.detectMissingParams = detectMissingParams;
+            return this;
+        }
+
+        public CustomMustacheFactory build() {
+            return new CustomMustacheFactory(mediaType, detectMissingParams);
         }
     }
 }

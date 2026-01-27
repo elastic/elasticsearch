@@ -30,16 +30,16 @@ class JdbcStatement implements Statement, JdbcWrapper {
     protected JdbcResultSet rs;
     final RequestMeta requestMeta;
 
-    JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
+    JdbcStatement(JdbcConnection jdbcConnection) {
         this.con = jdbcConnection;
-        this.cfg = info;
-        this.requestMeta = new RequestMeta(info.pageSize(), info.pageTimeout(), info.queryTimeout());
+        this.cfg = con.config();
+        this.requestMeta = new RequestMeta(cfg.pageSize(), cfg.pageTimeout(), cfg.queryTimeout());
     }
 
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         if (execute(sql) == false) {
-            throw new SQLException("Invalid sql query [" +  sql + "]");
+            throw new SQLException("Invalid sql query [" + sql + "]");
         }
         return rs;
     }
@@ -80,7 +80,6 @@ class JdbcStatement implements Statement, JdbcWrapper {
         }
         return Math.toIntExact(result);
     }
-
 
     @Override
     public long getLargeMaxRows() throws SQLException {
@@ -190,9 +189,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         checkOpen();
-        if (ResultSet.FETCH_REVERSE != direction
-                || ResultSet.FETCH_FORWARD != direction
-                || ResultSet.FETCH_UNKNOWN != direction) {
+        if (ResultSet.FETCH_REVERSE != direction || ResultSet.FETCH_FORWARD != direction || ResultSet.FETCH_UNKNOWN != direction) {
             throw new SQLException("Invalid direction specified");
         }
     }

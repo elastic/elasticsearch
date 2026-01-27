@@ -9,16 +9,20 @@ package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
 import org.hamcrest.Matchers;
-import org.joda.time.Duration;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.NameID;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.emptyIterable;
@@ -27,8 +31,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -58,8 +62,7 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         final String resource = "ece:" + randomAlphaOfLengthBetween(6, 12);
         final Set<String> rolePrivileges = Set.of("role:(.*)");
 
-        final DocumentVersion docVersion = new DocumentVersion(
-            randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), randomNonNegativeLong(), randomNonNegativeLong());
         final SamlServiceProviderDocument document = new SamlServiceProviderDocument();
         document.setEntityId(entityId);
         document.setAuthenticationExpiry(null);
@@ -136,6 +139,37 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider2.getPrivileges().getResource(), equalTo(document2.privileges.resource));
     }
 
+    public void testCacheIsClearedWhenIndexChanges() throws Exception {
+        final SamlServiceProviderDocument document1 = SamlServiceProviderTestUtils.randomDocument(1);
+        final SamlServiceProviderDocument document2 = SamlServiceProviderTestUtils.randomDocument(2);
+        document2.entityId = document1.entityId;
+
+        final DocumentVersion docVersion = new DocumentVersion(randomAlphaOfLength(12), 1, 1);
+
+        mockDocument(document1.entityId, docVersion, document1);
+        final SamlServiceProvider serviceProvider1a = resolveServiceProvider(document1.entityId);
+        final SamlServiceProvider serviceProvider1b = resolveServiceProvider(document1.entityId);
+        assertThat(serviceProvider1b, sameInstance(serviceProvider1a));
+
+        final ClusterState oldState = ClusterState.builder(ClusterName.DEFAULT).build();
+        final ClusterState newState = ClusterState.builder(ClusterName.DEFAULT).build();
+        when(index.getIndex(oldState)).thenReturn(new Index(SamlServiceProviderIndex.INDEX_NAME, randomUUID()));
+        when(index.getIndex(newState)).thenReturn(new Index(SamlServiceProviderIndex.INDEX_NAME, randomUUID()));
+        resolver.clusterChanged(new ClusterChangedEvent(getTestName(), newState, oldState));
+
+        mockDocument(document1.entityId, docVersion, document2);
+        final SamlServiceProvider serviceProvider2 = resolveServiceProvider(document1.entityId);
+
+        assertThat(serviceProvider2, not(sameInstance(serviceProvider1a)));
+        assertThat(serviceProvider2.getEntityId(), equalTo(document2.entityId));
+        assertThat(serviceProvider2.getAssertionConsumerService().toString(), equalTo(document2.acs));
+        assertThat(serviceProvider2.getAttributeNames().principal, equalTo(document2.attributeNames.principal));
+        assertThat(serviceProvider2.getAttributeNames().name, equalTo(document2.attributeNames.name));
+        assertThat(serviceProvider2.getAttributeNames().email, equalTo(document2.attributeNames.email));
+        assertThat(serviceProvider2.getAttributeNames().roles, equalTo(document2.attributeNames.roles));
+        assertThat(serviceProvider2.getPrivileges().getResource(), equalTo(document2.privileges.resource));
+    }
+
     private SamlServiceProvider resolveServiceProvider(String entityId) {
         final PlainActionFuture<SamlServiceProvider> future = new PlainActionFuture<>();
         resolver.resolve(entityId, future);
@@ -148,9 +182,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
     private ServiceProviderDefaults configureIdentityProviderDefaults() {
         final String defaultNameId = NameID.TRANSIENT;
         final String defaultApplication = randomAlphaOfLengthBetween(4, 12);
-        final Duration defaultExpiry = Duration.standardMinutes(12);
-        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            defaultApplication, defaultNameId, defaultExpiry);
+        final Duration defaultExpiry = Duration.ofMinutes(12);
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(defaultApplication, defaultNameId, defaultExpiry);
         when(identityProvider.getServiceProviderDefaults()).thenReturn(defaults);
         return defaults;
     }
@@ -163,8 +196,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
 
             assertThat(args[0], equalTo(entityId));
 
-            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener
-                = (ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
+            ActionListener<Set<SamlServiceProviderIndex.DocumentSupplier>> listener = (ActionListener<
+                Set<SamlServiceProviderIndex.DocumentSupplier>>) args[args.length - 1];
             listener.onResponse(Set.of(new SamlServiceProviderIndex.DocumentSupplier(docVersion, () -> document)));
             return null;
         }).when(index).findByEntityId(anyString(), any(ActionListener.class));

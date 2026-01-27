@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 public class JvmInfoTests extends ESTestCase {
@@ -28,16 +28,13 @@ public class JvmInfoTests extends ESTestCase {
     private boolean isG1GCEnabled() {
         final String argline = System.getProperty("tests.jvm.argline");
         final boolean g1GCEnabled = flagIsEnabled(argline, "UseG1GC");
-        // for JDK 9 the default collector when no collector is specified is G1 GC
-        final boolean versionIsAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-        final boolean noOtherCollectorSpecified =
-                argline == null ||
-                        (flagIsEnabled(argline, "UseParNewGC") == false &&
-                                flagIsEnabled(argline, "UseParallelGC") == false &&
-                                flagIsEnabled(argline, "UseParallelOldGC") == false &&
-                                flagIsEnabled(argline, "UseSerialGC") == false &&
-                                flagIsEnabled(argline, "UseConcMarkSweepGC") == false);
-        return g1GCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
+        final boolean noOtherCollectorSpecified = argline == null
+            || (flagIsEnabled(argline, "UseParNewGC") == false
+                && flagIsEnabled(argline, "UseParallelGC") == false
+                && flagIsEnabled(argline, "UseParallelOldGC") == false
+                && flagIsEnabled(argline, "UseSerialGC") == false
+                && flagIsEnabled(argline, "UseConcMarkSweepGC") == false);
+        return g1GCEnabled || noOtherCollectorSpecified;
     }
 
     private boolean flagIsEnabled(String argline, String flag) {

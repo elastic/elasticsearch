@@ -1,19 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
@@ -23,8 +26,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.StoredFields;
+import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
@@ -63,34 +70,52 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
+
         void onPostingsUsed(String field);
+
         void onTermFrequenciesUsed(String field);
+
         void onPositionsUsed(String field);
+
         void onOffsetsUsed(String field);
+
         void onDocValuesUsed(String field);
+
         void onStoredFieldsUsed(String field);
+
         void onNormsUsed(String field);
+
         void onPayloadsUsed(String field);
+
         void onPointsUsed(String field);
+
         void onTermVectorsUsed(String field);
+
+        void onKnnVectorsUsed(String field);
     }
 
-    public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
+    static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
 
         private final FieldUsageNotifier notifier;
 
-        public FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
+        FieldUsageTrackingLeafReader(LeafReader in, FieldUsageNotifier notifier) {
             super(in);
             this.notifier = notifier;
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            Fields f = super.getTermVectors(docID);
-            if (f != null) {
-                f = new FieldUsageTrackingTermVectorFields(f);
-            }
-            return f;
+        public TermVectors termVectors() throws IOException {
+            TermVectors termVectors = super.termVectors();
+            return new TermVectors() {
+                @Override
+                public Fields get(int doc) throws IOException {
+                    Fields f = termVectors.get(doc);
+                    if (f != null) {
+                        f = new FieldUsageTrackingTermVectorFields(f);
+                    }
+                    return f;
+                }
+            };
         }
 
         @Override
@@ -103,12 +128,18 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
-                super.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
-            } else {
-                super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
-            }
+        public StoredFields storedFields() throws IOException {
+            StoredFields storedFields = super.storedFields();
+            return new StoredFields() {
+                @Override
+                public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                    if (visitor instanceof FieldNamesProvidingStoredFieldsVisitor) {
+                        storedFields.document(docID, new FieldUsageFieldsVisitor((FieldNamesProvidingStoredFieldsVisitor) visitor));
+                    } else {
+                        storedFields.document(docID, new FieldUsageStoredFieldVisitor(visitor));
+                    }
+                }
+            };
         }
 
         @Override
@@ -172,9 +203,42 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+            FloatVectorValues vectorValues = super.getFloatVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public ByteVectorValues getByteVectorValues(String field) throws IOException {
+            ByteVectorValues vectorValues = super.getByteVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
+                notifier.onKnnVectorsUsed(field);
+            }
+        }
+
+        @Override
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, AcceptDocs acceptDocs) throws IOException {
+            super.searchNearestVectors(field, target, collector, acceptDocs);
+            if (collector.visitedCount() > 0) {
+                notifier.onKnnVectorsUsed(field);
+            }
+        }
+
+        @Override
         public String toString() {
-            final StringBuilder sb = new StringBuilder("FieldUsageTrackingLeafReader(reader=");
-            return sb.append(in).append(')').toString();
+            return "FieldUsageTrackingLeafReader(reader=" + in + ')';
         }
 
         @Override
@@ -190,8 +254,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
-                reader.visitDocument(docID, new FieldUsageStoredFieldVisitor(visitor));
+            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
+                reader.document(docID, new FieldUsageStoredFieldVisitor(visitor));
             }
 
             @Override
@@ -213,14 +277,9 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public void close() throws IOException {
                 reader.close();
             }
-
-            @Override
-            public long ramBytesUsed() {
-                return reader.ramBytesUsed();
-            }
         }
 
-        private class FieldUsageTrackingTerms extends FilterTerms {
+        class FieldUsageTrackingTerms extends FilterTerms {
 
             private final String field;
 
@@ -255,8 +314,13 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             }
 
             @Override
-            public long getSumDocFreq() throws IOException {
-                return in.getSumDocFreq();
+            public BytesRef getMin() throws IOException {
+                return in.getMin();
+            }
+
+            @Override
+            public BytesRef getMax() throws IOException {
+                return in.getMax();
             }
         }
 

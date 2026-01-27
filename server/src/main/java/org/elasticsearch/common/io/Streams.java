@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
@@ -12,10 +13,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -49,6 +50,7 @@ public abstract class Streams {
         public void write(int b) {
             // no-op
         }
+
         @Override
         public void write(byte[] b, int off, int len) {
             // no-op
@@ -71,10 +73,9 @@ public abstract class Streams {
         }
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Copy methods for java.io.Reader / java.io.Writer
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Copy the contents of the given Reader to the given Writer.
@@ -137,43 +138,11 @@ public abstract class Streams {
         return out.toString();
     }
 
-    public static int readFully(Reader reader, char[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
-    public static int readFully(InputStream reader, byte[] dest) throws IOException {
-        return readFully(reader, dest, 0, dest.length);
-    }
-
-    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
-        int read = 0;
-        while (read < len) {
-            final int r = reader.read(dest, offset + read, len - read);
-            if (r == -1) {
-                break;
-            }
-            read += r;
-        }
-        return read;
-    }
-
     /**
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return org.elasticsearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.elasticsearch.core.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -207,27 +176,6 @@ public abstract class Streams {
     }
 
     /**
-     * Wraps an {@link OutputStream} such that it's {@code close} method becomes a noop
-     *
-     * @param stream {@code OutputStream} to wrap
-     * @return wrapped {@code OutputStream}
-     */
-    public static OutputStream noCloseStream(OutputStream stream) {
-        return new FilterOutputStream(stream) {
-
-            @Override
-            public void write(byte[] b, int off, int len) throws IOException {
-                out.write(b, off, len);
-            }
-
-            @Override
-            public void close() {
-                // noop
-            }
-        };
-    }
-
-    /**
      * Wraps the given {@link BytesStream} in a {@link StreamOutput} that simply flushes when
      * close is called.
      */
@@ -240,7 +188,7 @@ public abstract class Streams {
      */
     public static BytesReference readFully(InputStream in) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        org.elasticsearch.core.internal.io.Streams.copy(in, out);
+        org.elasticsearch.core.Streams.copy(in, out);
         return out.bytes();
     }
 
@@ -285,13 +233,28 @@ public abstract class Streams {
         }
 
         @Override
-        public void reset() throws IOException {
-            delegate.reset();
+        public BytesReference bytes() {
+            return delegate.bytes();
         }
 
         @Override
-        public BytesReference bytes() {
-            return delegate.bytes();
+        public void seek(long position) {
+            delegate.seek(position);
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            delegate.writeString(str);
+        }
+
+        @Override
+        public void writeOptionalString(@Nullable String str) throws IOException {
+            delegate.writeOptionalString(str);
+        }
+
+        @Override
+        public void writeGenericString(String value) throws IOException {
+            delegate.writeGenericString(value);
         }
     }
 
@@ -346,11 +309,6 @@ public abstract class Streams {
         @Override
         public int available() throws IOException {
             return Math.toIntExact(Math.min(in.available(), currentLimit));
-        }
-
-        @Override
-        public void close() throws IOException {
-            in.close();
         }
 
         @Override

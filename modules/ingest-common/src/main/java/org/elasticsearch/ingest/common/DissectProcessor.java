@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -19,7 +21,7 @@ import java.util.Map;
 public final class DissectProcessor extends AbstractProcessor {
 
     public static final String TYPE = "dissect";
-    //package private members for testing
+    // package private members for testing
     final String field;
     final boolean ignoreMissing;
     final String pattern;
@@ -55,8 +57,13 @@ public final class DissectProcessor extends AbstractProcessor {
     public static final class Factory implements Processor.Factory {
 
         @Override
-        public DissectProcessor create(Map<String, Processor.Factory> registry, String processorTag, String description,
-                                       Map<String, Object> config) {
+        public DissectProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String pattern = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "pattern");
             String appendSeparator = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "append_separator", "");

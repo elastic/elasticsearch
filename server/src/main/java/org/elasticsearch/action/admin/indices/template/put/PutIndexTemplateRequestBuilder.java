@@ -1,33 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.List;
 import java.util.Map;
 
-public class PutIndexTemplateRequestBuilder
-    extends MasterNodeOperationRequestBuilder<PutIndexTemplateRequest, AcknowledgedResponse, PutIndexTemplateRequestBuilder> {
+public class PutIndexTemplateRequestBuilder extends MasterNodeOperationRequestBuilder<
+    PutIndexTemplateRequest,
+    AcknowledgedResponse,
+    PutIndexTemplateRequestBuilder> {
 
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action) {
-        super(client, action, new PutIndexTemplateRequest());
-    }
-
-    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, PutIndexTemplateAction action, String name) {
-        super(client, action, new PutIndexTemplateRequest(name));
+    public PutIndexTemplateRequestBuilder(ElasticsearchClient client, String name) {
+        super(client, TransportPutIndexTemplateAction.TYPE, new PutIndexTemplateRequest(name));
     }
 
     /**

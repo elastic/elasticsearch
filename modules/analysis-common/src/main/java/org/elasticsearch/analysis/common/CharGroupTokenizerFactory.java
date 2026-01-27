@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -19,7 +20,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 import java.util.HashSet;
 import java.util.Set;
 
-public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
+public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
 
     static final String MAX_TOKEN_LENGTH = "max_token_length";
 
@@ -32,7 +33,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
     private boolean tokenizeOnSymbol = false;
 
     public CharGroupTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
-        super(indexSettings, settings, name);
+        super(name);
 
         maxTokenLength = settings.getAsInt(MAX_TOKEN_LENGTH, CharTokenizer.DEFAULT_MAX_WORD_LEN);
 
@@ -43,39 +44,26 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
 
             if (c.length() == 1) {
                 tokenizeOnChars.add((int) c.charAt(0));
-            }
-            else if (c.charAt(0) == '\\') {
+            } else if (c.charAt(0) == '\\') {
                 tokenizeOnChars.add((int) parseEscapedChar(c));
             } else {
                 switch (c) {
-                    case "letter":
-                        tokenizeOnLetter = true;
-                        break;
-                    case "digit":
-                        tokenizeOnDigit = true;
-                        break;
-                    case "whitespace":
-                        tokenizeOnSpace = true;
-                        break;
-                    case "punctuation":
-                        tokenizeOnPunctuation = true;
-                        break;
-                    case "symbol":
-                        tokenizeOnSymbol = true;
-                        break;
-                    default:
-                        throw new RuntimeException("Invalid escaped char in [" + c + "]");
+                    case "letter" -> tokenizeOnLetter = true;
+                    case "digit" -> tokenizeOnDigit = true;
+                    case "whitespace" -> tokenizeOnSpace = true;
+                    case "punctuation" -> tokenizeOnPunctuation = true;
+                    case "symbol" -> tokenizeOnSymbol = true;
+                    default -> throw new RuntimeException("Invalid escaped char in [" + c + "]");
                 }
             }
         }
     }
 
-    private char parseEscapedChar(final String s) {
+    private static char parseEscapedChar(final String s) {
         int len = s.length();
         char c = s.charAt(0);
         if (c == '\\') {
-            if (1 >= len)
-                throw new RuntimeException("Invalid escaped char in [" + s + "]");
+            if (1 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
             c = s.charAt(1);
             switch (c) {
                 case '\\':

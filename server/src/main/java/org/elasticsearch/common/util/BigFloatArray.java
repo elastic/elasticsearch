@@ -1,63 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.RamUsageEstimator;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
-import java.util.Arrays;
-
-import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.FLOAT_PAGE_SIZE;
 
 /**
  * Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigFloatArray extends AbstractBigArray implements FloatArray {
+final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private int[][] pages;
+    static final VarHandle VH_PLATFORM_NATIVE_FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
     /** Constructor. */
     BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(INT_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new int[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newIntPage(i);
-        }
+        super(FLOAT_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override
-    public float set(long index, float value) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        final float ret = Float.intBitsToFloat(page[indexInPage]);
-        page[indexInPage] = Float.floatToRawIntBits(value);
-        return ret;
-    }
-
-    @Override
-    public float increment(long index, float inc) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        final int[] page = pages[pageIndex];
-        return page[indexInPage] = Float.floatToRawIntBits(Float.intBitsToFloat(page[indexInPage]) + inc);
+    public void set(long index, float value) {
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
+        final byte[] page = getPageForWriting(pageIndex);
+        VH_PLATFORM_NATIVE_FLOAT.set(page, indexInPage << 2, value);
     }
 
     @Override
     public float get(long index) {
-        final int pageIndex = pageIndex(index);
-        final int indexInPage = indexInPage(index);
-        return Float.intBitsToFloat(pages[pageIndex][indexInPage]);
+        final int pageIndex = pageIdx(index);
+        final int indexInPage = idxInPage(index);
+        return (float) VH_PLATFORM_NATIVE_FLOAT.get(pages[pageIndex], indexInPage << 2);
     }
 
     @Override
@@ -65,39 +50,28 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         return Float.BYTES;
     }
 
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
-    @Override
-    public void resize(long newSize) {
-        final int numPages = numPages(newSize);
-        if (numPages > pages.length) {
-            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-        }
-        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newIntPage(i);
-        }
-        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
-            pages[i] = null;
-            releasePage(i);
-        }
-        this.size = newSize;
-    }
-
     @Override
     public void fill(long fromIndex, long toIndex, float value) {
         if (fromIndex > toIndex) {
             throw new IllegalArgumentException();
         }
-        final int intBits = Float.floatToRawIntBits(value);
-        final int fromPage = pageIndex(fromIndex);
-        final int toPage = pageIndex(toIndex - 1);
+        final int fromPage = pageIdx(fromIndex);
+        final int toPage = pageIdx(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, intBits);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), idxInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, intBits);
+            fill(getPageForWriting(fromPage), idxInPage(fromIndex), FLOAT_PAGE_SIZE, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], intBits);
+                fill(getPageForWriting(i), 0, FLOAT_PAGE_SIZE, value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, intBits);
+            fill(getPageForWriting(toPage), 0, idxInPage(toIndex - 1) + 1, value);
+        }
+    }
+
+    public static void fill(byte[] page, int from, int to, float value) {
+        if (from < to) {
+            VH_PLATFORM_NATIVE_FLOAT.set(page, from << 2, value);
+            fillBySelfCopy(page, from << 2, to << 2, Float.BYTES);
         }
     }
 
@@ -106,4 +80,18 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         return ESTIMATOR.ramBytesEstimated(size);
     }
 
+    @Override
+    public void set(long index, byte[] buf, int offset, int len) {
+        set(index, buf, offset, len, 2);
+    }
+
+    private static final int PAGE_SHIFT = Integer.numberOfTrailingZeros(FLOAT_PAGE_SIZE);
+
+    private static int pageIdx(long index) {
+        return (int) (index >>> PAGE_SHIFT);
+    }
+
+    private static int idxInPage(long index) {
+        return (int) (index & FLOAT_PAGE_SIZE - 1);
+    }
 }

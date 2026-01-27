@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
@@ -33,6 +34,7 @@ public class NetworkServiceTests extends ESTestCase {
             assertTrue(e.getMessage().contains("invalid: multicast"));
         }
     }
+
     /**
      * ensure exception if we bind to multicast ipv6 address
      */
@@ -77,8 +79,7 @@ public class NetworkServiceTests extends ESTestCase {
      */
     public void testBindAnyLocalV4() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
-        assertEquals(InetAddress.getByName("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" }
-        )[0]);
+        assertEquals(InetAddress.getByName("0.0.0.0"), service.resolveBindHostAddresses(new String[] { "0.0.0.0" })[0]);
     }
 
     /**
@@ -112,7 +113,7 @@ public class NetworkServiceTests extends ESTestCase {
      */
     public void testBindMultipleAddresses() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
-        InetAddress[] addresses = service.resolveBindHostAddresses(new String[]{"127.0.0.1", "127.0.0.2"});
+        InetAddress[] addresses = service.resolveBindHostAddresses(new String[] { "127.0.0.1", "127.0.0.2" });
         assertThat(addresses.length, is(2));
     }
 
@@ -122,7 +123,7 @@ public class NetworkServiceTests extends ESTestCase {
     public void testBindMultipleAddressesWithWildcard() throws Exception {
         NetworkService service = new NetworkService(Collections.emptyList());
         try {
-            service.resolveBindHostAddresses(new String[]{"0.0.0.0", "127.0.0.1"});
+            service.resolveBindHostAddresses(new String[] { "0.0.0.0", "127.0.0.1" });
             fail("should have hit exception");
         } catch (IllegalArgumentException e) {
             assertTrue(e.getMessage().contains("is wildcard, but multiple addresses specified"));

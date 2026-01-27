@@ -7,30 +7,36 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
-import joptsimple.OptionSet;
+
 import org.bouncycastle.asn1.DERIA5String;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DLSequence;
 import org.bouncycastle.asn1.pkcs.Attribute;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.ExtendedKeyUsage;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.KeyPurposeId;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Tuple;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
@@ -39,7 +45,6 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.x500.X500Principal;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,12 +86,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.security.auth.x500.X500Principal;
+
 import static org.elasticsearch.test.FileMatchers.isDirectory;
 import static org.elasticsearch.test.FileMatchers.isRegularFile;
 import static org.elasticsearch.test.FileMatchers.pathExists;
+import static org.elasticsearch.xpack.security.cli.CertGenUtilsTests.assertExpectedKeyUsage;
 import static org.elasticsearch.xpack.security.cli.HttpCertificateCommand.guessFileType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -123,7 +133,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("y"); // generate CSR
 
@@ -151,7 +161,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         Path zipRoot = getZipRoot(outFile);
 
@@ -209,9 +219,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         // No CA in CSR mode
 
-        verifyKibanaDirectory(zipRoot, false, List.of("Certificate Signing Request"),
-            Stream.of(password, csrName)
-            .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+        verifyKibanaDirectory(
+            zipRoot,
+            false,
+            List.of("Certificate Signing Request"),
+            Stream.of(password, csrName).filter(s -> "".equals(s) == false).collect(Collectors.toList())
+        );
     }
 
     public void testGenerateSingleCertificateWithExistingCA() throws Exception {
@@ -231,24 +244,22 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
 
         // randomise between cert+key, key+cert, PKCS12 : the tool is smart enough to handle any of those.
         switch (randomFrom(FileType.PEM_CERT, FileType.PEM_KEY, FileType.PKCS12)) {
-            case PEM_CERT:
+            case PEM_CERT -> {
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
                 terminal.addTextInput(caKeyPath.toAbsolutePath().toString());
-                break;
-            case PEM_KEY:
+            }
+            case PEM_KEY -> {
                 terminal.addTextInput(caKeyPath.toAbsolutePath().toString());
                 terminal.addTextInput(caCertPath.toAbsolutePath().toString());
-                break;
-            case PKCS12:
-                terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
-                break;
+            }
+            case PKCS12 -> terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
         }
         terminal.addSecretInput(caPassword);
 
@@ -281,7 +292,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (password.length() > 50) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -331,9 +342,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // Should not be a CA directory when using an existing CA.
         assertThat(zipRoot.resolve("ca"), not(pathExists()));
 
-        verifyKibanaDirectory(zipRoot, true, List.of("2. elasticsearch-ca.pem"),
+        verifyKibanaDirectory(
+            zipRoot,
+            true,
+            List.of("2. elasticsearch-ca.pem"),
             Stream.of(password, caPassword, caKeyPath.getFileName().toString())
-                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+                .filter(s -> "".equals(s) == false)
+                .collect(Collectors.toList())
+        );
     }
 
     public void testGenerateMultipleCertificateWithNewCA() throws Exception {
@@ -349,7 +365,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput(randomBoolean() ? "n" : ""); // no existing CA
@@ -357,21 +373,25 @@ public class HttpCertificateCommandTests extends ESTestCase {
         final String caDN;
         final int caYears;
         final int caKeySize;
+        final List<String> caKeyUsage;
         // randomise whether to change CA defaults.
         if (randomBoolean()) {
             terminal.addTextInput("y"); // Change defaults
             caDN = "CN=" + randomAlphaOfLengthBetween(3, 8);
             caYears = randomIntBetween(1, 3);
             caKeySize = randomFrom(2048, 3072, 4096);
+            caKeyUsage = randomNonEmptySubsetOf(CertGenUtils.KEY_USAGE_MAPPINGS.keySet());
             terminal.addTextInput(caDN);
             terminal.addTextInput(caYears + "y");
             terminal.addTextInput(Integer.toString(caKeySize));
+            terminal.addTextInput(Strings.collectionToCommaDelimitedString(caKeyUsage));
             terminal.addTextInput("n"); // Don't change values
         } else {
             terminal.addTextInput(randomBoolean() ? "n" : ""); // Don't change defaults
             caDN = HttpCertificateCommand.DEFAULT_CA_NAME.toString();
             caYears = HttpCertificateCommand.DEFAULT_CA_VALIDITY.getYears();
             caKeySize = HttpCertificateCommand.DEFAULT_CA_KEY_SIZE;
+            caKeyUsage = HttpCertificateCommand.DEFAULT_CA_KEY_USAGE;
         }
 
         final String caPassword = randomPassword(randomBoolean());
@@ -418,13 +438,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         }
         terminal.addTextInput("n"); // no more certs
 
-
         final String password = randomPassword(false);
         // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
         if (randomBoolean()) {
             String wrongPassword = randomAlphaOfLengthBetween(8, 20);
-            terminal.addSecretInput(wrongPassword);
-            terminal.addSecretInput("__" + wrongPassword);
+            terminal.addTextInput(wrongPassword);
+            terminal.addTextInput("__" + wrongPassword);
         }
         terminal.addSecretInput(password);
         if ("".equals(password) == false) {
@@ -435,7 +454,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final Environment env = newEnvironment();
         final OptionSet options = command.getParser().parse(new String[0]);
-        command.execute(terminal, options, env);
+        command.execute(terminal, options, env, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
 
         if (expectLongPasswordWarning) {
             assertThat(terminal.getOutput(), containsString("OpenSSL"));
@@ -452,6 +471,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
         verifyCertificate(caCertKey.v1(), caDN.replaceFirst("CN=", ""), caYears, List.of(), List.of());
         assertThat(getRSAKeySize(caCertKey.v1().getPublicKey()), is(caKeySize));
         assertThat(getRSAKeySize(caCertKey.v2()), is(caKeySize));
+        assertExpectedKeyUsage(caCertKey.v1(), caKeyUsage);
 
         assertThat(zipRoot.resolve("elasticsearch"), isDirectory());
 
@@ -475,6 +495,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
             verifyChain(certAndKey.v1(), caCertKey.v1());
             assertThat(getRSAKeySize(certAndKey.v1().getPublicKey()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
             assertThat(getRSAKeySize(certAndKey.v2()), is(HttpCertificateCommand.DEFAULT_CERT_KEY_SIZE));
+            assertExpectedKeyUsage(certAndKey.v1(), HttpCertificateCommand.DEFAULT_CERT_KEY_USAGE);
 
             // Verify the README
             assertThat(readme, containsString(p12Path.getFileName().toString()));
@@ -496,62 +517,64 @@ public class HttpCertificateCommandTests extends ESTestCase {
             }
         }
 
-        verifyKibanaDirectory(zipRoot, true, List.of("2. elasticsearch-ca.pem"),
-            Stream.of(password, caPassword, caPath.getFileName().toString())
-                .filter(s -> "".equals(s) == false).collect(Collectors.toList()));
+        verifyKibanaDirectory(
+            zipRoot,
+            true,
+            List.of("2. elasticsearch-ca.pem"),
+            Stream.of(password, caPassword, caPath.getFileName().toString()).filter(s -> "".equals(s) == false).collect(Collectors.toList())
+        );
     }
 
     public void testParsingValidityPeriod() throws Exception {
-        final HttpCertificateCommand command = new HttpCertificateCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("2y");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
 
         terminal.addTextInput("18m");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(18)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(18)));
 
         terminal.addTextInput("90d");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofDays(90)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofDays(90)));
 
         terminal.addTextInput("1y, 6m");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
 
         // Test: Re-prompt on bad input.
         terminal.addTextInput("2m & 4d");
         terminal.addTextInput("2m 4d");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(2).withDays(4)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofMonths(2).withDays(4)));
 
         terminal.addTextInput("1y, 6m");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(1).withMonths(6)));
 
         // Test: Accept default value
         final Period p = Period.of(randomIntBetween(1, 5), randomIntBetween(0, 11), randomIntBetween(0, 30));
         terminal.addTextInput("");
-        assertThat(command.readPeriodInput(terminal, "", p, 1), is(p));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", p, 1), is(p));
 
         final int y = randomIntBetween(1, 5);
         final int m = randomIntBetween(1, 11);
         final int d = randomIntBetween(1, 30);
         terminal.addTextInput(y + "y " + m + "m " + d + "d");
-        assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.of(y, m, d)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 1), is(Period.of(y, m, d)));
 
         // Test: Minimum Days
         final int shortDays = randomIntBetween(1, 20);
 
         terminal.addTextInput(shortDays + "d");
         terminal.addTextInput("y"); // I'm sure
-        assertThat(command.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(shortDays)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(shortDays)));
 
         terminal.addTextInput(shortDays + "d");
         terminal.addTextInput("n"); // I'm not sure
         terminal.addTextInput("30d");
-        assertThat(command.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(30)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 21), is(Period.ofDays(30)));
 
         terminal.addTextInput("2m");
         terminal.addTextInput("n"); // I'm not sure
         terminal.addTextInput("2y");
-        assertThat(command.readPeriodInput(terminal, "", null, 90), is(Period.ofYears(2)));
+        assertThat(HttpCertificateCommand.readPeriodInput(terminal, "", null, 90), is(Period.ofYears(2)));
     }
 
     public void testValidityPeriodToString() throws Exception {
@@ -568,7 +591,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         final Path caCert = getDataPath("ca.crt");
         final Path caKey = getDataPath("ca.key");
@@ -596,9 +619,11 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testTextFileSubstitutions() throws Exception {
         CheckedBiFunction<String, Map<String, String>, String, Exception> copy = (source, subs) -> {
-            try (InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
-                 StringWriter out = new StringWriter();
-                 PrintWriter writer = new PrintWriter(out)) {
+            try (
+                InputStream in = new ByteArrayInputStream(source.getBytes(StandardCharsets.UTF_8));
+                StringWriter out = new StringWriter();
+                PrintWriter writer = new PrintWriter(out)
+            ) {
                 HttpCertificateCommand.copyWithSubstitutions(in, writer, subs);
                 return out.toString().replace("\r\n", "\n");
             }
@@ -661,8 +686,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         );
     }
 
-    private void verifyCertificationRequest(PKCS10CertificationRequest csr, String certificateName, List<String> hostNames,
-                                            List<String> ipAddresses) throws IOException {
+    private void verifyCertificationRequest(
+        PKCS10CertificationRequest csr,
+        String certificateName,
+        List<String> hostNames,
+        List<String> ipAddresses
+    ) throws IOException {
         // We rebuild the DN from the encoding because BC uses openSSL style toString, but we use LDAP style.
         assertThat(new X500Principal(csr.getSubject().getEncoded()).toString(), is("CN=" + certificateName.replaceAll("\\.", ", DC=")));
         final Attribute[] extensionAttributes = csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest);
@@ -670,9 +699,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertThat(extensionAttributes[0].getAttributeValues(), arrayWithSize(1));
         assertThat(extensionAttributes[0].getAttributeValues()[0], instanceOf(DLSequence.class));
 
-        // We register 1 extension - the subject alternative names
+        // We register 1 extension with the subject alternative names and extended key usage
         final Extensions extensions = Extensions.getInstance(extensionAttributes[0].getAttributeValues()[0]);
         assertThat(extensions, notNullValue());
+        assertThat(
+            extensions.getExtensionOIDs(),
+            arrayContainingInAnyOrder(Extension.subjectAlternativeName, Extension.keyUsage, Extension.extendedKeyUsage)
+        );
+
         final GeneralNames names = GeneralNames.fromExtensions(extensions, Extension.subjectAlternativeName);
         assertThat(names.getNames(), arrayWithSize(hostNames.size() + ipAddresses.size()));
         for (GeneralName name : names.getNames()) {
@@ -685,10 +719,21 @@ public class HttpCertificateCommandTests extends ESTestCase {
                 assertThat(ip, in(ipAddresses));
             }
         }
+
+        ExtendedKeyUsage extendedKeyUsage = ExtendedKeyUsage.fromExtensions(extensions);
+        assertThat(extendedKeyUsage.getUsages(), arrayContainingInAnyOrder(KeyPurposeId.id_kp_serverAuth));
+
+        KeyUsage keyUsage = KeyUsage.fromExtensions(extensions);
+        assertThat(keyUsage, is(equalTo(new KeyUsage(KeyUsage.digitalSignature | KeyUsage.keyEncipherment))));
     }
 
-    private void verifyCertificate(X509Certificate cert, String certificateName, int years,
-                                   List<String> hostNames, List<String> ipAddresses) throws CertificateParsingException {
+    private void verifyCertificate(
+        X509Certificate cert,
+        String certificateName,
+        int years,
+        List<String> hostNames,
+        List<String> ipAddresses
+    ) throws CertificateParsingException {
         assertThat(cert.getSubjectX500Principal().toString(), is("CN=" + certificateName.replaceAll("\\.", ", DC=")));
         final Collection<List<?>> san = cert.getSubjectAlternativeNames();
         final int expectedSanEntries = hostNames.size() + ipAddresses.size();
@@ -746,8 +791,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         assertTrue("PublicKey and PrivateKey are not a matching pair", rsa.verify(signature));
     }
 
-    private void verifyKibanaDirectory(Path zipRoot, boolean expectCAFile, Iterable<String> readmeShouldContain,
-                                       Iterable<String> shouldNotContain) throws IOException {
+    private void verifyKibanaDirectory(
+        Path zipRoot,
+        boolean expectCAFile,
+        Iterable<String> readmeShouldContain,
+        Iterable<String> shouldNotContain
+    ) throws IOException {
         assertThat(zipRoot.resolve("kibana"), isDirectory());
         if (expectCAFile) {
             assertThat(zipRoot.resolve("kibana/elasticsearch-ca.pem"), isRegularFile());
@@ -785,8 +834,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return rsa.getModulus().bitLength();
     }
 
-    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12,
-                                                                     char[] password) throws IOException, GeneralSecurityException {
+    private Tuple<X509Certificate, PrivateKey> readCertificateAndKey(Path pkcs12, char[] password) throws IOException,
+        GeneralSecurityException {
 
         final Map<Certificate, Key> entries = CertParsingUtils.readPkcs12KeyPairs(pkcs12, password, alias -> password);
         assertThat(entries.entrySet(), Matchers.hasSize(1));
@@ -800,8 +849,8 @@ public class HttpCertificateCommandTests extends ESTestCase {
         return new Tuple<>((X509Certificate) cert, (PrivateKey) key);
     }
 
-    private <T> T readPemObject(Path path, String expectedType,
-                                CheckedFunction<? super byte[], T, IOException> factory) throws IOException {
+    private <T> T readPemObject(Path path, String expectedType, CheckedFunction<? super byte[], T, IOException> factory)
+        throws IOException {
         assertThat(path, isRegularFile());
         final PemReader csrReader = new PemReader(Files.newBufferedReader(path));
         final PemObject csrPem = csrReader.readPemObject();

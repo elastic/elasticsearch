@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -65,19 +66,13 @@ public enum SnapshotIndexShardStage {
      * @return state
      */
     public static SnapshotIndexShardStage fromValue(byte value) {
-        switch (value) {
-            case 0:
-                return INIT;
-            case 1:
-                return STARTED;
-            case 2:
-                return FINALIZE;
-            case 3:
-                return DONE;
-            case 4:
-                return FAILURE;
-            default:
-                throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
-        }
+        return switch (value) {
+            case 0 -> INIT;
+            case 1 -> STARTED;
+            case 2 -> FINALIZE;
+            case 3 -> DONE;
+            case 4 -> FAILURE;
+            default -> throw new IllegalArgumentException("No snapshot shard stage for value [" + value + "]");
+        };
     }
 }

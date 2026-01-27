@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -16,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -25,50 +27,95 @@ public class LookupTests extends ESTestCase {
 
     @Before
     public void setup() {
-        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(Collections.singletonList(
-                WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup")
-        ));
+        painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
+            Collections.singletonList(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.lookup")),
+            new HashMap<>(),
+            new HashMap<>()
+        );
     }
 
-    public static class A { }                                                   // in whitelist
-    public static class B extends A { }                                         // not in whitelist
+    public static class A {}                                                   // in whitelist
+
+    public static class B extends A {}                                         // not in whitelist
+
     public static class C extends B {                                           // in whitelist
-        public String getString0() { return "C/0"; }                                // in whitelist
-    }
-    public static class D extends B {                                           // in whitelist
-        public String getString0() { return "D/0"; }                                // in whitelist
-        public String getString1(int param0) { return "D/1 (" + param0 + ")"; }     // in whitelist
+        public String getString0() {
+            return "C/0";
+        }                                // in whitelist
     }
 
-    public interface Z { }              // in whitelist
-    public interface Y { }              // not in whitelist
-    public interface X extends Y, Z { } // not in whitelist
-    public interface V extends Y, Z { } // in whitelist
+    public static class D extends B {                                           // in whitelist
+        public String getString0() {
+            return "D/0";
+        }                                // in whitelist
+
+        public String getString1(int param0) {
+            return "D/1 (" + param0 + ")";
+        }     // in whitelist
+    }
+
+    public interface Z {}              // in whitelist
+
+    public interface Y {}              // not in whitelist
+
+    public interface X extends Y, Z {} // not in whitelist
+
+    public interface V extends Y, Z {} // in whitelist
+
     public interface U extends X {      // in whitelist
         String getString2(int x, int y);    // in whitelist
+
         String getString1(int param0);      // in whitelist
+
         String getString0();                // not in whitelist
     }
+
     public interface T extends V {      // in whitelist
         String getString1(int param0);      // in whitelist
+
         int getInt0();                      // in whitelist
     }
-    public interface S extends U, X { } // in whitelist
 
-    public static class AA implements X { }                           // in whitelist
+    public interface S extends U, X {} // in whitelist
+
+    public static class AA implements X {}                           // in whitelist
+
     public static class AB extends AA implements S {                  // not in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // not in whitelist
-        public String getString1(int param0) { return "" + param0; }      // not in whitelist
-        public String getString0() { return ""; }                         // not in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // not in whitelist
+
+        public String getString1(int param0) {
+            return "" + param0;
+        }      // not in whitelist
+
+        public String getString0() {
+            return "";
+        }                         // not in whitelist
     }
+
     public static class AC extends AB implements V {                  // in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // in whitelist
     }
+
     public static class AD extends AA implements X, S, T {            // in whitelist
-        public String getString2(int x, int y) { return "" + x + y; }     // in whitelist
-        public String getString1(int param0) { return "" + param0; }      // in whitelist
-        public String getString0() { return ""; }                         // not in whitelist
-        public int getInt0() { return 0; }                                // in whitelist
+        public String getString2(int x, int y) {
+            return "" + x + y;
+        }     // in whitelist
+
+        public String getString1(int param0) {
+            return "" + param0;
+        }      // in whitelist
+
+        public String getString0() {
+            return "";
+        }                         // not in whitelist
+
+        public int getInt0() {
+            return 0;
+        }                                // in whitelist
     }
 
     public void testDirectSubClasses() {

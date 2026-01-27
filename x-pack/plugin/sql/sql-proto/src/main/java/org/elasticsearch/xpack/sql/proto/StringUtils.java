@@ -24,59 +24,55 @@ import static java.time.temporal.ChronoField.MILLI_OF_SECOND;
 import static java.time.temporal.ChronoField.MINUTE_OF_HOUR;
 import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
-import static org.elasticsearch.xpack.sql.proto.SqlVersion.DATE_NANOS_SUPPORT_VERSION;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_DATE_NANOS;
 
 public final class StringUtils {
 
     public static final String EMPTY = "";
 
-    public static final DateTimeFormatter ISO_DATETIME_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(ISO_LOCAL_DATE)
-            .appendLiteral('T')
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_DATETIME_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .append(ISO_LOCAL_DATE)
+        .appendLiteral('T')
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_DATETIME_WITH_MILLIS= new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .append(ISO_LOCAL_DATE)
-            .appendLiteral('T')
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_DATETIME_WITH_MILLIS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .append(ISO_LOCAL_DATE)
+        .appendLiteral('T')
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(NANO_OF_SECOND, 3, 9, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_TIME_WITH_NANOS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(NANO_OF_SECOND, 3, 9, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
-    public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .appendValue(HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(SECOND_OF_MINUTE, 2)
-            .appendFraction(MILLI_OF_SECOND, 3, 3, true)
-            .appendOffsetId()
-            .toFormatter(Locale.ROOT);
+    public static final DateTimeFormatter ISO_TIME_WITH_MILLIS = new DateTimeFormatterBuilder().parseCaseInsensitive()
+        .appendValue(HOUR_OF_DAY, 2)
+        .appendLiteral(':')
+        .appendValue(MINUTE_OF_HOUR, 2)
+        .appendLiteral(':')
+        .appendValue(SECOND_OF_MINUTE, 2)
+        .appendFraction(MILLI_OF_SECOND, 3, 3, true)
+        .appendOffsetId()
+        .toFormatter(Locale.ROOT);
 
     private static final int SECONDS_PER_MINUTE = 60;
     private static final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * 60;
@@ -86,7 +82,7 @@ public final class StringUtils {
 
     // This method doesn't support compatibility with older JDBC drivers
     public static String toString(Object value) {
-        return toString(value, DATE_NANOS_SUPPORT_VERSION);
+        return toString(value, INTRODUCING_DATE_NANOS);
     }
 
     public static String toString(Object value, SqlVersion sqlVersion) {
@@ -95,14 +91,14 @@ public final class StringUtils {
         }
 
         if (value instanceof ZonedDateTime) {
-            if (SqlVersion.supportsDateNanos(sqlVersion)) {
+            if (VersionCompatibility.supportsDateNanos(sqlVersion)) {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_NANOS);
             } else {
                 return ((ZonedDateTime) value).format(ISO_DATETIME_WITH_MILLIS);
             }
         }
         if (value instanceof OffsetTime) {
-            if (SqlVersion.supportsDateNanos(sqlVersion)) {
+            if (VersionCompatibility.supportsDateNanos(sqlVersion)) {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_NANOS);
             } else {
                 return ((OffsetTime) value).format(ISO_TIME_WITH_MILLIS);

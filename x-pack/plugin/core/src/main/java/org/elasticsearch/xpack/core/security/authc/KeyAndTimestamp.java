@@ -33,8 +33,13 @@ public final class KeyAndTimestamp implements Writeable {
         key = new SecureString(Arrays.copyOfRange(ref, 0, len));
     }
 
-    public long getTimestamp() { return timestamp; }
-    public SecureString getKey() { return key; }
+    public long getTimestamp() {
+        return timestamp;
+    }
+
+    public SecureString getKey() {
+        return key;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

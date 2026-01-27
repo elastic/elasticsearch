@@ -1,11 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
+
+import org.gradle.api.Project;
+import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,12 +18,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Arrays;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
-import org.gradle.api.Project;
-import org.gradle.testfixtures.ProjectBuilder;
+import static org.junit.Assert.assertEquals;
 
-public class ConcatFilesTaskTests extends GradleUnitTestCase {
+public class ConcatFilesTaskTests {
 
+    @Test
     public void testHeaderAdded() throws IOException {
 
         Project project = createProject();
@@ -39,6 +43,7 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file.delete();
     }
 
+    @Test
     public void testConcatenationWithUnique() throws IOException {
 
         Project project = createProject();
@@ -55,8 +60,8 @@ public class ConcatFilesTaskTests extends GradleUnitTestCase {
         file2.getParentFile().mkdirs();
         file1.createNewFile();
         file2.createNewFile();
-        Files.write(file1.toPath(), ("Hello" + System.lineSeparator() + "Hello").getBytes(StandardCharsets.UTF_8));
-        Files.write(file2.toPath(), ("Hello" + System.lineSeparator() + "नमस्ते").getBytes(StandardCharsets.UTF_8));
+        Files.writeString(file1.toPath(), "Hello" + System.lineSeparator() + "Hello");
+        Files.writeString(file2.toPath(), "Hello" + System.lineSeparator() + "नमस्ते");
 
         concatFilesTask.setFiles(project.fileTree(file1.getParentFile().getParentFile()));
 

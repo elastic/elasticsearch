@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,8 +54,7 @@ public interface Rewriteable<T> {
     static <T extends Rewriteable<T>> T rewrite(T original, QueryRewriteContext context, boolean assertNoAsyncTasks) throws IOException {
         T builder = original;
         int iteration = 0;
-        for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-             rewrittenBuilder = builder.rewrite(context)) {
+        for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder; rewrittenBuilder = builder.rewrite(context)) {
             if (assertNoAsyncTasks && context.hasAsyncActions()) {
                 throw new IllegalStateException("async actions are left after rewrite");
             }
@@ -63,12 +62,14 @@ public interface Rewriteable<T> {
             if (iteration++ >= MAX_REWRITE_ROUNDS) {
                 // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                 // and then we fail to prevent infinite loops
-                throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
-                    "rewritten");
+                throw new IllegalStateException(
+                    "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten"
+                );
             }
         }
         return builder;
     }
+
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
      */
@@ -79,29 +80,34 @@ public interface Rewriteable<T> {
     /**
      * Rewrites the given rewriteable and fetches pending async tasks for each round before rewriting again.
      */
-    static <T extends Rewriteable<T>> void rewriteAndFetch(T original, QueryRewriteContext context, ActionListener<T>
-        rewriteResponse, int iteration) {
+    static <T extends Rewriteable<T>> void rewriteAndFetch(
+        T original,
+        QueryRewriteContext context,
+        ActionListener<T> rewriteResponse,
+        int iteration
+    ) {
         T builder = original;
         try {
-            for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
-                 rewrittenBuilder = builder.rewrite(context)) {
+            for (T rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder; rewrittenBuilder = builder.rewrite(context)) {
                 builder = rewrittenBuilder;
                 if (iteration++ >= MAX_REWRITE_ROUNDS) {
                     // this is some protection against user provided queries if they don't obey the contract of rewrite we allow 16 rounds
                     // and then we fail to prevent infinite loops
-                    throw new IllegalStateException("too many rewrite rounds, rewriteable might return new objects even if they are not " +
-                        "rewritten");
+                    throw new IllegalStateException(
+                        "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten"
+                    );
                 }
                 if (context.hasAsyncActions()) {
                     T finalBuilder = builder;
                     final int currentIterationNumber = iteration;
-                    context.executeAsyncActions(ActionListener.wrap(n -> rewriteAndFetch(finalBuilder, context, rewriteResponse,
-                        currentIterationNumber), rewriteResponse::onFailure));
+                    context.executeAsyncActions(
+                        rewriteResponse.delegateFailureAndWrap((l, n) -> rewriteAndFetch(finalBuilder, context, l, currentIterationNumber))
+                    );
                     return;
                 }
             }
             rewriteResponse.onResponse(builder);
-        } catch (IOException|IllegalArgumentException|ParsingException ex) {
+        } catch (Exception ex) {
             rewriteResponse.onFailure(ex);
         }
     }

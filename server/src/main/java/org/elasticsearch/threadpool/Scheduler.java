@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsAbortPolicy;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.Delayed;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.RunnableFuture;
@@ -42,8 +44,11 @@ public interface Scheduler {
      * @return executor
      */
     static ScheduledThreadPoolExecutor initScheduler(Settings settings, String schedulerName) {
-        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(1,
-                EsExecutors.daemonThreadFactory(settings, schedulerName), new EsAbortPolicy());
+        final ScheduledThreadPoolExecutor scheduler = new SafeScheduledThreadPoolExecutor(
+            1,
+            EsExecutors.daemonThreadFactory(settings, schedulerName),
+            new EsAbortPolicy()
+        );
         scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
         scheduler.setRemoveOnCancelPolicy(true);
@@ -60,8 +65,11 @@ public interface Scheduler {
         return awaitTermination(scheduledThreadPoolExecutor, timeout, timeUnit);
     }
 
-    static boolean awaitTermination(final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
-            final long timeout, final TimeUnit timeUnit) {
+    static boolean awaitTermination(
+        final ScheduledThreadPoolExecutor scheduledThreadPoolExecutor,
+        final long timeout,
+        final TimeUnit timeUnit
+    ) {
         try {
             if (scheduledThreadPoolExecutor.awaitTermination(timeout, timeUnit)) {
                 return true;
@@ -74,19 +82,19 @@ public interface Scheduler {
 
     /**
      * Schedules a one-shot command to be run after a given delay. The command is run in the context of the calling thread.
-     * The command runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
-     * to execute on a different executor, in which case blocking calls are allowed.
+     * Implementations may choose to run the command on the given {@code executor} or on the scheduler thread. If {@code executor} is {@link
+     * EsExecutors#DIRECT_EXECUTOR_SERVICE} then the command runs on the scheduler thread in all cases. Do not run blocking calls on the
+     * scheduler thread.
      *
      * @param command the command to run
      * @param delay delay before the task executes
-     * @param executor the name of the executor that has to execute this task. Ignored in the default implementation but can be used
-     *                 by subclasses that support multiple executors.
-     * @return a ScheduledFuture who's get will return when the task has been added to its target thread pool and throws an exception if
-     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
-     *         the ScheduledFuture cannot interact with it.
+     * @param executor the executor that has to execute this task.
+     * @return a ScheduledFuture whose {@link ScheduledFuture#get()} will return when the task has been added to its target thread pool and
+     *         throws an exception if the task is canceled before it was added to its target thread pool. Once the task has been added to
+     *         its target thread pool the ScheduledFuture cannot interact with it.
      * @throws EsRejectedExecutionException if the task cannot be scheduled for execution
      */
-    ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor);
+    ScheduledCancellable schedule(Runnable command, TimeValue delay, Executor executor);
 
     /**
      * Schedules a periodic action that runs on scheduler thread. Do not run blocking calls on the scheduler thread. Subclasses may allow
@@ -99,8 +107,10 @@ public interface Scheduler {
      * @return a {@link Cancellable} that can be used to cancel the subsequent runs of the command. If the command is running, it will
      *         not be interrupted.
      */
-    default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, String executor) {
-        return new ReschedulingRunnable(command, interval, executor, this, (e) -> {}, (e) -> {});
+    default Cancellable scheduleWithFixedDelay(Runnable command, TimeValue interval, Executor executor) {
+        var runnable = new ReschedulingRunnable(command, interval, executor, this, e -> {}, e -> {});
+        runnable.start();
+        return runnable;
     }
 
     /**
@@ -120,7 +130,6 @@ public interface Scheduler {
     static ScheduledCancellable wrapAsScheduledCancellable(ScheduledFuture<?> scheduledFuture) {
         return new ScheduledCancellableAdapter(scheduledFuture);
     }
-
 
     /**
      * This interface represents an object whose execution may be cancelled during runtime.
@@ -142,7 +151,7 @@ public interface Scheduler {
     /**
      * A scheduled cancellable allow cancelling and reading the remaining delay of a scheduled task.
      */
-    interface ScheduledCancellable extends Delayed, Cancellable { }
+    interface ScheduledCancellable extends Delayed, Cancellable {}
 
     /**
      * This class encapsulates the scheduling of a {@link Runnable} that needs to be repeated on a interval. For example, checking a value
@@ -158,7 +167,7 @@ public interface Scheduler {
 
         private final Runnable runnable;
         private final TimeValue interval;
-        private final String executor;
+        private final Executor executor;
         private final Scheduler scheduler;
         private final Consumer<Exception> rejectionConsumer;
         private final Consumer<Exception> failureConsumer;
@@ -166,21 +175,33 @@ public interface Scheduler {
         private volatile boolean run = true;
 
         /**
-         * Creates a new rescheduling runnable and schedules the first execution to occur after the interval specified
+         * Creates a new rescheduling runnable
          *
          * @param runnable the {@link Runnable} that should be executed periodically
          * @param interval the time interval between executions
          * @param executor the executor where this runnable should be scheduled to run
          * @param scheduler the {@link Scheduler} instance to use for scheduling
          */
-        ReschedulingRunnable(Runnable runnable, TimeValue interval, String executor, Scheduler scheduler,
-                             Consumer<Exception> rejectionConsumer, Consumer<Exception> failureConsumer) {
+        ReschedulingRunnable(
+            Runnable runnable,
+            TimeValue interval,
+            Executor executor,
+            Scheduler scheduler,
+            Consumer<Exception> rejectionConsumer,
+            Consumer<Exception> failureConsumer
+        ) {
             this.runnable = runnable;
             this.interval = interval;
             this.executor = executor;
             this.scheduler = scheduler;
             this.rejectionConsumer = rejectionConsumer;
             this.failureConsumer = failureConsumer;
+        }
+
+        /**
+         * Schedules the first execution of this runnable
+         */
+        void start() {
             scheduler.schedule(this, interval, executor);
         }
 
@@ -206,13 +227,25 @@ public interface Scheduler {
 
         @Override
         public void onFailure(Exception e) {
-            failureConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onFailure(e);
+                }
+            } finally {
+                failureConsumer.accept(e);
+            }
         }
 
         @Override
         public void onRejection(Exception e) {
             run = false;
-            rejectionConsumer.accept(e);
+            try {
+                if (runnable instanceof AbstractRunnable abstractRunnable) {
+                    abstractRunnable.onRejection(e);
+                }
+            } finally {
+                rejectionConsumer.accept(e);
+            }
         }
 
         @Override
@@ -228,11 +261,13 @@ public interface Scheduler {
         }
 
         @Override
+        public boolean isForceExecution() {
+            return runnable instanceof AbstractRunnable abstractRunnable && abstractRunnable.isForceExecution();
+        }
+
+        @Override
         public String toString() {
-            return "ReschedulingRunnable{" +
-                "runnable=" + runnable +
-                ", interval=" + interval +
-                '}';
+            return "ReschedulingRunnable{" + "runnable=" + runnable + ", interval=" + interval + '}';
         }
     }
 

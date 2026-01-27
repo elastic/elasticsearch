@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.support;
 
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -51,7 +51,7 @@ public class SecurityFilesTests extends ESTestCase {
         boolean supportsPosixPermissions = Environment.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
         assumeTrue("Ignoring because posix file attributes are not supported", supportsPosixPermissions);
 
-        Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(path, "foo");
 
         Set<PosixFilePermission> perms = Sets.newHashSet(OWNER_READ, OWNER_WRITE);
         if (randomBoolean()) perms.add(OWNER_EXECUTE);
@@ -77,21 +77,20 @@ public class SecurityFilesTests extends ESTestCase {
     public void testFailure() throws IOException {
         final Path path = createTempFile("existing", "file");
 
-        Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(path, "foo");
 
         final Visitor innerVisitor = new Visitor(path);
-        final RuntimeException re = expectThrows(RuntimeException.class, () -> SecurityFiles.writeFileAtomically(
-                path,
-                Collections.singletonMap("foo", "bar"),
-                e -> {
-                    try {
-                        Files.walkFileTree(path.getParent(), innerVisitor);
-                    } catch (final IOException inner) {
-                        throw new UncheckedIOException(inner);
-                    }
-                    throw new RuntimeException(e.getKey() + " " + e.getValue());
+        final RuntimeException re = expectThrows(
+            RuntimeException.class,
+            () -> SecurityFiles.writeFileAtomically(path, Collections.singletonMap("foo", "bar"), e -> {
+                try {
+                    Files.walkFileTree(path.getParent(), innerVisitor);
+                } catch (final IOException inner) {
+                    throw new UncheckedIOException(inner);
                 }
-        ));
+                throw new RuntimeException(e.getKey() + " " + e.getValue());
+            })
+        );
 
         assertThat(re, hasToString(containsString("foo bar")));
 
@@ -138,8 +137,8 @@ public class SecurityFilesTests extends ESTestCase {
         try (FileSystem fs = Jimfs.newFileSystem(jimFsConfiguration)) {
             Path path = fs.getPath("foo");
             Path tempPath = fs.getPath("bar");
-            Files.write(path, "foo".getBytes(StandardCharsets.UTF_8));
-            Files.write(tempPath, "bar".getBytes(StandardCharsets.UTF_8));
+            Files.writeString(path, "foo");
+            Files.writeString(tempPath, "bar");
 
             PosixFileAttributeView view = Files.getFileAttributeView(path, PosixFileAttributeView.class);
             view.setGroup(fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAlphaOfLength(10)));

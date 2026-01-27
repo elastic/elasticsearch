@@ -26,7 +26,9 @@ public class EmptyConfigUpdateTests extends AbstractWireSerializingTestCase<Empt
         return new EmptyConfigUpdate();
     }
 
-    public void testToConfig() {
-        expectThrows(UnsupportedOperationException.class, () -> new EmptyConfigUpdate().toConfig());
+    @Override
+    protected EmptyConfigUpdate mutateInstance(EmptyConfigUpdate instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
+
 }

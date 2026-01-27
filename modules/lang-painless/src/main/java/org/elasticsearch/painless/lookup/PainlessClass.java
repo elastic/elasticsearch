@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.lookup;
@@ -20,17 +21,24 @@ public final class PainlessClass {
     public final Map<String, PainlessField> staticFields;
     public final Map<String, PainlessField> fields;
     public final PainlessMethod functionalInterfaceMethod;
+    public final Map<Class<?>, Object> annotations;
 
     public final Map<String, PainlessMethod> runtimeMethods;
     public final Map<String, MethodHandle> getterMethodHandles;
     public final Map<String, MethodHandle> setterMethodHandles;
 
-    PainlessClass(Map<String, PainlessConstructor> constructors,
-            Map<String, PainlessMethod> staticMethods, Map<String, PainlessMethod> methods,
-            Map<String, PainlessField> staticFields, Map<String, PainlessField> fields,
-            PainlessMethod functionalInterfaceMethod,
-            Map<String, PainlessMethod> runtimeMethods,
-            Map<String, MethodHandle> getterMethodHandles, Map<String, MethodHandle> setterMethodHandles) {
+    PainlessClass(
+        Map<String, PainlessConstructor> constructors,
+        Map<String, PainlessMethod> staticMethods,
+        Map<String, PainlessMethod> methods,
+        Map<String, PainlessField> staticFields,
+        Map<String, PainlessField> fields,
+        PainlessMethod functionalInterfaceMethod,
+        Map<Class<?>, Object> annotations,
+        Map<String, PainlessMethod> runtimeMethods,
+        Map<String, MethodHandle> getterMethodHandles,
+        Map<String, MethodHandle> setterMethodHandles
+    ) {
 
         this.constructors = Map.copyOf(constructors);
         this.staticMethods = Map.copyOf(staticMethods);
@@ -38,10 +46,11 @@ public final class PainlessClass {
         this.staticFields = Map.copyOf(staticFields);
         this.fields = Map.copyOf(fields);
         this.functionalInterfaceMethod = functionalInterfaceMethod;
+        this.annotations = Map.copyOf(annotations);
 
         this.getterMethodHandles = Map.copyOf(getterMethodHandles);
         this.setterMethodHandles = Map.copyOf(setterMethodHandles);
-        this.runtimeMethods = Map.copyOf(runtimeMethods);
+        this.runtimeMethods = runtimeMethods.equals(methods) ? this.methods : Map.copyOf(runtimeMethods);
     }
 
     @Override
@@ -54,18 +63,19 @@ public final class PainlessClass {
             return false;
         }
 
-        PainlessClass that = (PainlessClass)object;
+        PainlessClass that = (PainlessClass) object;
 
-        return Objects.equals(constructors, that.constructors) &&
-                Objects.equals(staticMethods, that.staticMethods) &&
-                Objects.equals(methods, that.methods) &&
-                Objects.equals(staticFields, that.staticFields) &&
-                Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod);
+        return Objects.equals(constructors, that.constructors)
+            && Objects.equals(staticMethods, that.staticMethods)
+            && Objects.equals(methods, that.methods)
+            && Objects.equals(staticFields, that.staticFields)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod);
+        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations);
     }
 }

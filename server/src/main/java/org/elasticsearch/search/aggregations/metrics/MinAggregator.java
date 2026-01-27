@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -45,12 +46,10 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     MinAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
         super(name, context, parent, metadata);
-        // TODO: Stop using nulls here
-        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            mins = context.bigArrays().newDoubleArray(1, false);
-            mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
-        }
+        assert config.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+        mins = context.bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         this.format = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -62,16 +61,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (pointConverter != null) {
-            Number segMin = findLeafMinValue(ctx.reader(), pointField, pointConverter);
+            Number segMin = findLeafMinValue(aggCtx.getLeafReaderContext().reader(), pointField, pointConverter);
             if (segMin != null) {
                 /*
                  * There is no parent aggregator (see {@link MinAggregator#getPointReaderOrNull}
@@ -84,21 +80,18 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
-        final NumericDoubleValues values = MultiValueMode.MIN.select(allValues);
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final DoubleValues values = MultiValueMode.MIN.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays().grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-                }
                 if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double min = mins.get(bucket);
-                    min = Math.min(min, value);
-                    mins.set(bucket, min);
+                    if (bucket >= mins.size()) {
+                        long from = mins.size();
+                        mins = bigArrays().grow(mins, bucket + 1);
+                        mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                    }
+                    mins.set(bucket, Math.min(mins.get(bucket), values.doubleValue()));
                 }
             }
 
@@ -107,7 +100,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= mins.size()) {
+        if (owningBucketOrd >= mins.size()) {
             return Double.POSITIVE_INFINITY;
         }
         return mins.get(owningBucketOrd);
@@ -115,15 +108,15 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= mins.size()) {
+        if (bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, metadata());
+        return new Min(name, mins.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
+        return Min.createEmptyMin(name, format, metadata());
     }
 
     @Override

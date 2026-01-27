@@ -1,14 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -17,15 +16,19 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
-class CompletionStatsCache implements ReferenceManager.RefreshListener {
+public class CompletionStatsCache implements ReferenceManager.RefreshListener {
 
     private final Supplier<Engine.Searcher> searcherSupplier;
 
@@ -37,12 +40,12 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
      */
     private final AtomicReference<PlainActionFuture<CompletionStats>> completionStatsFutureRef = new AtomicReference<>();
 
-    CompletionStatsCache(Supplier<Engine.Searcher> searcherSupplier) {
+    public CompletionStatsCache(Supplier<Engine.Searcher> searcherSupplier) {
         this.searcherSupplier = searcherSupplier;
     }
 
-    CompletionStats get(String... fieldNamePatterns) {
-        final PlainActionFuture<CompletionStats> newFuture = new PlainActionFuture<>();
+    public CompletionStats get(String... fieldNamePatterns) {
+        final PlainActionFuture<CompletionStats> newFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.MANAGEMENT);
         final PlainActionFuture<CompletionStats> oldFuture = completionStatsFutureRef.compareAndExchange(null, newFuture);
 
         if (oldFuture != null) {
@@ -53,7 +56,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
         // we won the race, nobody else is already computing stats, so it's up to us
         ActionListener.completeWith(newFuture, () -> {
             long sizeInBytes = 0;
-            final ObjectLongHashMap<String> completionFields = new ObjectLongHashMap<>();
+            final Map<String, Long> completionFields = new HashMap<>();
 
             try (Engine.Searcher currentSearcher = searcherSupplier.get()) {
                 for (LeafReaderContext atomicReaderContext : currentSearcher.getIndexReader().leaves()) {
@@ -63,7 +66,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
                         if (terms instanceof CompletionTerms) {
                             // TODO: currently we load up the suggester for reporting its size
                             final long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
-                            completionFields.addTo(info.name, fstSize);
+                            completionFields.merge(info.name, fstSize, Long::sum);
                             sizeInBytes += fstSize;
                         }
                     }
@@ -91,10 +94,10 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
     private static CompletionStats filterCompletionStatsByFieldName(String[] fieldNamePatterns, CompletionStats fullCompletionStats) {
         final FieldMemoryStats fieldMemoryStats;
         if (CollectionUtils.isEmpty(fieldNamePatterns) == false) {
-            final ObjectLongHashMap<String> completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
-            for (ObjectLongCursor<String> fieldCursor : fullCompletionStats.getFields()) {
-                if (Regex.simpleMatch(fieldNamePatterns, fieldCursor.key)) {
-                    completionFields.addTo(fieldCursor.key, fieldCursor.value);
+            final Map<String, Long> completionFields = new HashMap<>(fieldNamePatterns.length);
+            for (var field : fullCompletionStats.getFields()) {
+                if (Regex.simpleMatch(fieldNamePatterns, field.getKey())) {
+                    completionFields.merge(field.getKey(), field.getValue(), Long::sum);
                 }
             }
             fieldMemoryStats = new FieldMemoryStats(completionFields);
@@ -105,8 +108,7 @@ class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     @Override
-    public void beforeRefresh() {
-    }
+    public void beforeRefresh() {}
 
     @Override
     public void afterRefresh(boolean didRefresh) {

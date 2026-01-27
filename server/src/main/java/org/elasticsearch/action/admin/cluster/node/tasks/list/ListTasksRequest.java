@@ -1,25 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 
-import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
@@ -34,16 +37,13 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     private String[] descriptions = ANY_DESCRIPTION;
 
-    public ListTasksRequest() {
-    }
+    public ListTasksRequest() {}
 
     public ListTasksRequest(StreamInput in) throws IOException {
         super(in);
         detailed = in.readBoolean();
         waitForCompletion = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            descriptions = in.readStringArray();
-        }
+        descriptions = in.readStringArray();
     }
 
     @Override
@@ -51,25 +51,24 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(waitForCompletion);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeStringArray(descriptions);
-        }
+        out.writeStringArray(descriptions);
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (descriptions.length > 0 && detailed == false) {
-            validationException = addValidationError("matching on descriptions is not available when [detailed] is false",
-                validationException);
+            validationException = addValidationError(
+                "matching on descriptions is not available when [detailed] is false",
+                validationException
+            );
         }
         return validationException;
     }
 
     @Override
     public boolean match(Task task) {
-        return super.match(task)
-            && (isEmpty(getDescriptions()) || simpleMatch(getDescriptions(), task.getDescription()));
+        return super.match(task) && (isEmpty(getDescriptions()) || simpleMatch(getDescriptions(), task.getDescription()));
     }
 
     /**
@@ -119,4 +118,8 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
         return this;
     }
 
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
 }

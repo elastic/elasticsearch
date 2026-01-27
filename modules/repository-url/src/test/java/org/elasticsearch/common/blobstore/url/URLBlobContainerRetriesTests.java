@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url;
 
 import org.apache.http.ConnectionClosedException;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.hamcrest.Matcher;
@@ -28,6 +29,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.SocketTimeoutException;
 import java.net.URL;
+import java.util.Objects;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
@@ -66,14 +68,20 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         // If the timeout is too tight it's possible that an URLHttpClientIOException is thrown as that
         // exception is thrown before reading data from the response body.
         return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
-            .or(instanceOf(RuntimeException.class)).or(instanceOf(URLHttpClientIOException.class));
+            .or(instanceOf(RuntimeException.class))
+            .or(instanceOf(URLHttpClientIOException.class));
     }
 
     @Override
-    protected BlobContainer createBlobContainer(Integer maxRetries,
-                                                TimeValue readTimeout,
-                                                Boolean disableChunkedEncoding,
-                                                ByteSizeValue bufferSize) {
+    protected BlobContainer createBlobContainer(
+        Integer maxRetries,
+        TimeValue readTimeout,
+        Boolean disableChunkedEncoding,
+        Integer maxConnections,
+        ByteSizeValue bufferSize,
+        Integer maxBulkDeletes,
+        BlobPath blobContainerPath
+    ) {
         Settings.Builder settingsBuilder = Settings.builder();
 
         if (maxRetries != null) {
@@ -87,9 +95,13 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
         try {
             final Settings settings = settingsBuilder.build();
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
-            URLBlobStore urlBlobStore =
-                new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(BlobPath.EMPTY);
+            URLBlobStore urlBlobStore = new URLBlobStore(
+                settings,
+                new URL(getEndpointForServer()),
+                factory.create(httpClientSettings),
+                httpClientSettings
+            );
+            return urlBlobStore.blobContainer(Objects.requireNonNullElse(blobContainerPath, BlobPath.EMPTY));
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

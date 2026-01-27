@@ -11,12 +11,14 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 public class MessagesTests extends ESTestCase {
 
-    public void testGetMessage_NoFormatArgs () {
-        assertEquals(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS,
-                Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+    public void testGetMessage_NoFormatArgs() {
+        assertEquals(
+            Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS,
+            Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS)
+        );
     }
 
-    public void testGetMessage_WithFormatStrings()  {
+    public void testGetMessage_WithFormatStrings() {
         String formattedMessage = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, "field-name", "field-value");
         assertEquals("Invalid field-name value 'field-value' in datafeed configuration", formattedMessage);
 

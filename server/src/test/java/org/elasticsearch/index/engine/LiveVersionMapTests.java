@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.tests.util.RamUsageTester;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.RamUsageTester;
-import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 
@@ -23,18 +25,24 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency;
+import static org.elasticsearch.core.Tuple.tuple;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomIndexVersionValue;
+import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.randomTranslogLocation;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LiveVersionMapTests extends ESTestCase {
-
     public void testRamBytesUsed() throws Exception {
         LiveVersionMap map = new LiveVersionMap();
         for (int i = 0; i < 100000; ++i) {
@@ -44,7 +52,7 @@ public class LiveVersionMapTests extends ESTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        long actualRamBytesUsed = RamUsageTester.sizeOf(map);
+        long actualRamBytesUsed = RamUsageTester.ramUsed(map);
         long estimatedRamBytesUsed = map.ramBytesUsed();
         // less than 50% off
         assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 2);
@@ -60,24 +68,18 @@ public class LiveVersionMapTests extends ESTestCase {
                 map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
             }
         }
-        actualRamBytesUsed = RamUsageTester.sizeOf(map);
+        actualRamBytesUsed = RamUsageTester.ramUsed(map);
         estimatedRamBytesUsed = map.ramBytesUsed();
-        long tolerance;
-        if (Constants.JRE_IS_MINIMUM_JAVA9) {
-            // With Java 9, RamUsageTester computes the memory usage of maps as
-            // the memory usage of an array that would contain exactly all keys
-            // and values. This is an under-estimation of the actual memory
-            // usage since it ignores the impact of the load factor and of the
-            // linked list/tree that is used to resolve collisions. So we use a
-            // bigger tolerance.
-            // less than 50% off
-            tolerance = actualRamBytesUsed / 2;
-        } else {
-            // Java 8 is more accurate by doing reflection into the actual JDK classes
-            // so we give it a lower error bound.
-            // less than 25% off
-            tolerance = actualRamBytesUsed / 4;
-        }
+
+        // Since Java 9, RamUsageTester computes the memory usage of maps as
+        // the memory usage of an array that would contain exactly all keys
+        // and values. This is an under-estimation of the actual memory
+        // usage since it ignores the impact of the load factor and of the
+        // linked list/tree that is used to resolve collisions. So we use a
+        // bigger tolerance.
+        // less than 50% off
+        long tolerance = actualRamBytesUsed / 2;
+
         assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, tolerance);
     }
 
@@ -112,14 +114,14 @@ public class LiveVersionMapTests extends ESTestCase {
             map.afterRefresh(randomBoolean());
             assertNull(map.getUnderLock(uid("test")));
 
-            map.putDeleteUnderLock(uid("test"), new DeleteVersionValue(1,1,1,1));
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            map.putDeleteUnderLock(uid("test"), new DeleteVersionValue(1, 1, 1, 1));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.beforeRefresh();
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.afterRefresh(randomBoolean());
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.pruneTombstones(2, 0);
-            assertEquals(new DeleteVersionValue(1,1,1,1), map.getUnderLock(uid("test")));
+            assertEquals(new DeleteVersionValue(1, 1, 1, 1), map.getUnderLock(uid("test")));
             map.pruneTombstones(2, 1);
             assertNull(map.getUnderLock(uid("test")));
         }
@@ -158,22 +160,31 @@ public class LiveVersionMapTests extends ESTestCase {
                     for (int i = 0; i < randomValuesPerThread; ++i) {
                         BytesRef bytesRef = randomFrom(random(), keyList);
                         try (Releasable r = map.acquireLock(bytesRef)) {
-                            VersionValue versionValue = values.computeIfAbsent(bytesRef,
-                                v -> new IndexVersionValue(
-                                    randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong()));
+                            VersionValue versionValue = values.computeIfAbsent(
+                                bytesRef,
+                                v -> new IndexVersionValue(randomTranslogLocation(), randomLong(), maxSeqNo.incrementAndGet(), randomLong())
+                            );
                             boolean isDelete = versionValue instanceof DeleteVersionValue;
                             if (isDelete) {
                                 map.removeTombstoneUnderLock(bytesRef);
                                 deletes.remove(bytesRef);
                             }
                             if (isDelete == false && rarely()) {
-                                versionValue = new DeleteVersionValue(versionValue.version + 1,
-                                    maxSeqNo.incrementAndGet(), versionValue.term, clock.getAndIncrement());
+                                versionValue = new DeleteVersionValue(
+                                    versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(),
+                                    versionValue.term,
+                                    clock.getAndIncrement()
+                                );
                                 deletes.put(bytesRef, (DeleteVersionValue) versionValue);
                                 map.putDeleteUnderLock(bytesRef, (DeleteVersionValue) versionValue);
                             } else {
-                                versionValue = new IndexVersionValue(randomTranslogLocation(),
-                                    versionValue.version + 1, maxSeqNo.incrementAndGet(), versionValue.term);
+                                versionValue = new IndexVersionValue(
+                                    randomTranslogLocation(),
+                                    versionValue.version + 1,
+                                    maxSeqNo.incrementAndGet(),
+                                    versionValue.term
+                                );
                                 map.putIndexUnderLock(bytesRef, (IndexVersionValue) versionValue);
                             }
                             values.put(bytesRef, versionValue);
@@ -230,13 +241,12 @@ public class LiveVersionMapTests extends ESTestCase {
             assertNotNull(versionValue);
             assertEquals(v, versionValue);
         });
-        Runnable assertTombstones = () ->
-            map.getAllTombstones().entrySet().forEach(e -> {
-                VersionValue versionValue = values.get(e.getKey());
-                assertNotNull(versionValue);
-                assertEquals(e.getValue(), versionValue);
-                assertTrue(versionValue instanceof DeleteVersionValue);
-            });
+        Runnable assertTombstones = () -> map.getAllTombstones().entrySet().forEach(e -> {
+            VersionValue versionValue = values.get(e.getKey());
+            assertNotNull(versionValue);
+            assertEquals(e.getValue(), versionValue);
+            assertTrue(versionValue instanceof DeleteVersionValue);
+        });
         assertTombstones.run();
         map.beforeRefresh();
         assertTombstones.run();
@@ -250,8 +260,10 @@ public class LiveVersionMapTests extends ESTestCase {
                 // have a timestamp that is smaller or equal to the maximum timestamp that we pruned on
                 final DeleteVersionValue delete = e.getValue();
                 if (value == null) {
-                    assertTrue(delete.time + " > " + lastPrunedTimestamp.get() + "," + delete.seqNo + " > " + lastPrunedSeqNo.get(),
-                        delete.time <= lastPrunedTimestamp.get() && delete.seqNo <= lastPrunedSeqNo.get());
+                    assertTrue(
+                        delete.time + " > " + lastPrunedTimestamp.get() + "," + delete.seqNo + " > " + lastPrunedSeqNo.get(),
+                        delete.time <= lastPrunedTimestamp.get() && delete.seqNo <= lastPrunedSeqNo.get()
+                    );
                 } else {
                     assertEquals(value, delete);
                 }
@@ -363,7 +375,7 @@ public class LiveVersionMapTests extends ESTestCase {
         });
         t.start();
         start.countDown();
-        while(done.get() == false) {
+        while (done.get() == false) {
             map.beforeRefresh();
             Thread.yield();
             map.afterRefresh(false);
@@ -386,16 +398,12 @@ public class LiveVersionMapTests extends ESTestCase {
             map.putDeleteUnderLock(uid, new DeleteVersionValue(0, 0, 0, 0));
             map.beforeRefresh(); // refresh otherwise we won't prune since it's tracked by the current map
             map.afterRefresh(false);
-            Thread thread = new Thread(() -> {
-                map.pruneTombstones(Long.MAX_VALUE, 0);
-            });
+            Thread thread = new Thread(() -> { map.pruneTombstones(Long.MAX_VALUE, 0); });
             thread.start();
             thread.join();
             assertEquals(1, map.getAllTombstones().size());
         }
-        Thread thread = new Thread(() -> {
-            map.pruneTombstones(Long.MAX_VALUE, 0);
-        });
+        Thread thread = new Thread(() -> { map.pruneTombstones(Long.MAX_VALUE, 0); });
         thread.start();
         thread.join();
         assertEquals(0, map.getAllTombstones().size());
@@ -435,15 +443,71 @@ public class LiveVersionMapTests extends ESTestCase {
         }
     }
 
-    IndexVersionValue randomIndexVersionValue() {
-        return new IndexVersionValue(randomTranslogLocation(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    public void testVersionLookupRamBytesUsed() {
+        var vl = new LiveVersionMap.VersionLookup(newConcurrentMapWithAggressiveConcurrency());
+        assertEquals(0, vl.ramBytesUsed());
+        Set<BytesRef> existingKeys = new HashSet<>();
+        Supplier<Tuple<BytesRef, IndexVersionValue>> randomEntry = () -> {
+            var key = randomBoolean() || existingKeys.isEmpty() ? uid(randomIdentifier()) : randomFrom(existingKeys);
+            return tuple(key, randomIndexVersionValue());
+        };
+        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
+            switch (randomIntBetween(0, 2)) {
+                case 0: // put
+                    var entry = randomEntry.get();
+                    var previousValue = vl.put(entry.v1(), entry.v2());
+                    if (existingKeys.contains(entry.v1())) {
+                        assertNotNull(previousValue);
+                    } else {
+                        assertNull(previousValue);
+                        existingKeys.add(entry.v1());
+                    }
+                    break;
+                case 1: // remove
+                    if (existingKeys.isEmpty() == false) {
+                        var key = randomFrom(existingKeys);
+                        assertNotNull(vl.remove(key));
+                        existingKeys.remove(key);
+                    }
+                    break;
+                case 2: // merge
+                    var toMerge = new LiveVersionMap.VersionLookup(ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency());
+                    IntStream.range(0, randomIntBetween(1, 100))
+                        .mapToObj(n -> randomEntry.get())
+                        .forEach(kv -> toMerge.put(kv.v1(), kv.v2()));
+                    vl.merge(toMerge);
+                    existingKeys.addAll(toMerge.getMap().keySet());
+                    break;
+                default:
+                    throw new IllegalStateException("branch value unexpected");
+            }
+        });
+        long actualRamBytesUsed = vl.getMap()
+            .entrySet()
+            .stream()
+            .mapToLong(entry -> LiveVersionMap.VersionLookup.mapEntryBytesUsed(entry.getKey(), entry.getValue()))
+            .sum();
+        assertEquals(actualRamBytesUsed, vl.ramBytesUsed());
     }
 
-    Translog.Location randomTranslogLocation() {
-        if (randomBoolean()) {
-            return null;
-        } else {
-            return new Translog.Location(randomNonNegativeLong(), randomNonNegativeLong(), randomInt());
-        }
+    public void testVersionMapReclaimableRamBytes() throws IOException {
+        LiveVersionMap map = new LiveVersionMap();
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
+        IntStream.range(0, randomIntBetween(10, 100)).forEach(i -> {
+            BytesRefBuilder uid = new BytesRefBuilder();
+            uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
+            try (Releasable r = map.acquireLock(uid.toBytesRef())) {
+                map.putIndexUnderLock(uid.toBytesRef(), randomIndexVersionValue());
+            }
+        });
+        assertThat(map.reclaimableRefreshRamBytes(), greaterThan(0L));
+        assertEquals(map.reclaimableRefreshRamBytes(), map.ramBytesUsedForRefresh());
+        map.beforeRefresh();
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
+        assertThat(map.ramBytesUsedForRefresh(), greaterThan(0L));
+        map.afterRefresh(randomBoolean());
+        assertEquals(map.reclaimableRefreshRamBytes(), 0L);
+        assertEquals(map.ramBytesUsedForRefresh(), 0L);
     }
 }

@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -23,24 +22,20 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        this(fieldType, Map.of());
+        this(findSimpleName(fieldType.name()), fieldType, BuilderParams.empty());
     }
 
-    public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
-        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers,
-            MultiFields.empty(), new CopyTo.Builder().build(), false, null);
+    public MockFieldMapper(MappedFieldType fieldType, String simpleName) {
+        super(simpleName, fieldType, BuilderParams.empty());
     }
 
-    public MockFieldMapper(String fullName,
-                           MappedFieldType fieldType,
-                           MultiFields multifields,
-                           CopyTo copyTo) {
-        super(findSimpleName(fullName), fieldType, multifields, copyTo);
+    public MockFieldMapper(String fullName, MappedFieldType fieldType, BuilderParams params) {
+        super(findSimpleName(fullName), fieldType, params);
     }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName());
+        return new Builder(leafName());
     }
 
     static String findSimpleName(String fullName) {
@@ -50,7 +45,7 @@ public class MockFieldMapper extends FieldMapper {
 
     public static class FakeFieldType extends TermBasedFieldType {
         public FakeFieldType(String name) {
-            super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(name, IndexType.terms(true, false), false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -70,8 +65,7 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(DocumentParserContext context) {
-    }
+    protected void parseCreateField(DocumentParserContext context) {}
 
     public static class Builder extends FieldMapper.Builder {
         private final MappedFieldType fieldType;
@@ -82,8 +76,8 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected List<Parameter<?>> getParameters() {
-            return Collections.emptyList();
+        protected Parameter<?>[] getParameters() {
+            return FieldMapper.EMPTY_PARAMETERS;
         }
 
         public Builder addMultiField(Builder builder) {
@@ -92,14 +86,13 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         public Builder copyTo(String field) {
-            this.copyTo.add(field);
+            this.copyTo = copyTo.withAddedFields(List.of(field));
             return this;
         }
 
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
-            MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
+            return new MockFieldMapper(leafName(), fieldType, builderParams(this, context));
         }
     }
 }

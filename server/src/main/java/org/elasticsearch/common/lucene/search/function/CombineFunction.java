@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -26,12 +27,13 @@ public enum CombineFunction implements Writeable {
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation boostExpl = Explanation.match(maxBoost, "maxBoost");
-            Explanation minExpl = Explanation.match(
-                    Math.min(funcExpl.getValue().floatValue(), maxBoost),
-                    "min of:",
-                    funcExpl, boostExpl);
-            return Explanation.match(queryExpl.getValue().floatValue() * minExpl.getValue().floatValue(),
-                    "function score, product of:", queryExpl, minExpl);
+            Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:", funcExpl, boostExpl);
+            return Explanation.match(
+                queryExpl.getValue().floatValue() * minExpl.getValue().floatValue(),
+                "function score, product of:",
+                queryExpl,
+                minExpl
+            );
         }
     },
     REPLACE {
@@ -43,10 +45,7 @@ public enum CombineFunction implements Writeable {
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation boostExpl = Explanation.match(maxBoost, "maxBoost");
-            return Explanation.match(
-                    Math.min(funcExpl.getValue().floatValue(), maxBoost),
-                    "min of:",
-                    funcExpl, boostExpl);
+            return Explanation.match(Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:", funcExpl, boostExpl);
         }
 
     },
@@ -58,10 +57,18 @@ public enum CombineFunction implements Writeable {
 
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:",
-                    funcExpl, Explanation.match(maxBoost, "maxBoost"));
-            return Explanation.match(Math.min(funcExpl.getValue().floatValue(), maxBoost) + queryExpl.getValue().floatValue(), "sum of",
-                    queryExpl, minExpl);
+            Explanation minExpl = Explanation.match(
+                Math.min(funcExpl.getValue().floatValue(), maxBoost),
+                "min of:",
+                funcExpl,
+                Explanation.match(maxBoost, "maxBoost")
+            );
+            return Explanation.match(
+                Math.min(funcExpl.getValue().floatValue(), maxBoost) + queryExpl.getValue().floatValue(),
+                "sum of",
+                queryExpl,
+                minExpl
+            );
         }
 
     },
@@ -73,11 +80,18 @@ public enum CombineFunction implements Writeable {
 
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
-            Explanation minExpl = Explanation.match(Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:",
-                    funcExpl, Explanation.match(maxBoost, "maxBoost"));
+            Explanation minExpl = Explanation.match(
+                Math.min(funcExpl.getValue().floatValue(), maxBoost),
+                "min of:",
+                funcExpl,
+                Explanation.match(maxBoost, "maxBoost")
+            );
             return Explanation.match(
-                    (float) ((Math.min(funcExpl.getValue().floatValue(), maxBoost) + queryExpl.getValue().floatValue()) / 2.0), "avg of",
-                    queryExpl, minExpl);
+                (float) ((Math.min(funcExpl.getValue().floatValue(), maxBoost) + queryExpl.getValue().floatValue()) / 2.0),
+                "avg of",
+                queryExpl,
+                minExpl
+            );
         }
 
     },
@@ -90,11 +104,17 @@ public enum CombineFunction implements Writeable {
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation innerMinExpl = Explanation.match(
-                    Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:",
-                    funcExpl, Explanation.match(maxBoost, "maxBoost"));
+                Math.min(funcExpl.getValue().floatValue(), maxBoost),
+                "min of:",
+                funcExpl,
+                Explanation.match(maxBoost, "maxBoost")
+            );
             return Explanation.match(
-                    Math.min(Math.min(funcExpl.getValue().floatValue(), maxBoost), queryExpl.getValue().floatValue()), "min of",
-                    queryExpl, innerMinExpl);
+                Math.min(Math.min(funcExpl.getValue().floatValue(), maxBoost), queryExpl.getValue().floatValue()),
+                "min of",
+                queryExpl,
+                innerMinExpl
+            );
         }
 
     },
@@ -107,11 +127,17 @@ public enum CombineFunction implements Writeable {
         @Override
         public Explanation explain(Explanation queryExpl, Explanation funcExpl, float maxBoost) {
             Explanation innerMinExpl = Explanation.match(
-                    Math.min(funcExpl.getValue().floatValue(), maxBoost), "min of:",
-                    funcExpl, Explanation.match(maxBoost, "maxBoost"));
+                Math.min(funcExpl.getValue().floatValue(), maxBoost),
+                "min of:",
+                funcExpl,
+                Explanation.match(maxBoost, "maxBoost")
+            );
             return Explanation.match(
-                    Math.max(Math.min(funcExpl.getValue().floatValue(), maxBoost), queryExpl.getValue().floatValue()), "max of:",
-                    queryExpl, innerMinExpl);
+                Math.max(Math.min(funcExpl.getValue().floatValue(), maxBoost), queryExpl.getValue().floatValue()),
+                "max of:",
+                queryExpl,
+                innerMinExpl
+            );
         }
 
     };

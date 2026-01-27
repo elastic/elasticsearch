@@ -13,9 +13,16 @@ public class UpdateCalendarJobActionResquestTests extends AbstractWireSerializin
 
     @Override
     protected UpdateCalendarJobAction.Request createTestInstance() {
-        return new UpdateCalendarJobAction.Request(randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10),
-                randomBoolean() ? null : randomAlphaOfLength(10));
+        return new UpdateCalendarJobAction.Request(
+            randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomAlphaOfLength(10)
+        );
+    }
+
+    @Override
+    protected UpdateCalendarJobAction.Request mutateInstance(UpdateCalendarJobAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -49,6 +51,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.Cardinality;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -84,43 +87,80 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(String type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final MapperBuilderContext context = MapperBuilderContext.ROOT;
-        if (type.equals("string")) {
+        final MapperBuilderContext context = MapperBuilderContext.root(false, false);
+        if (type.equals("keyword_high_cardinality")) {
+            fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).docValues(Cardinality.HIGH)
+                .build(context)
+                .fieldType();
+        } else if (type.equals("string")) {
             if (docValues) {
-                fieldType = new KeywordFieldMapper.Builder(fieldName).build(context).fieldType();
+                fieldType = new KeywordFieldMapper.Builder(fieldName, defaultIndexSettings()).build(context).fieldType();
             } else {
-                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers())
-                    .fielddata(true).build(context).fieldType();
+                fieldType = new TextFieldMapper.Builder(fieldName, createDefaultIndexAnalyzers()).fielddata(true)
+                    .build(context)
+                    .fieldType();
             }
         } else if (type.equals("float")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.FLOAT,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
+        } else if (type.equals("half_float")) {
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.HALF_FLOAT,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("double")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.DOUBLE, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.DOUBLE,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("long")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.LONG, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.LONG,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("int")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.INTEGER, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.INTEGER,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("short")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.SHORT, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.SHORT,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("byte")) {
-            fieldType = new NumberFieldMapper.Builder(fieldName, NumberFieldMapper.NumberType.BYTE, ScriptCompiler.NONE, false, true)
-                    .docValues(docValues).build(context).fieldType();
+            fieldType = new NumberFieldMapper.Builder(
+                fieldName,
+                NumberFieldMapper.NumberType.BYTE,
+                ScriptCompiler.NONE,
+                defaultIndexSettings()
+            ).docValues(docValues).build(context).fieldType();
         } else if (type.equals("geo_point")) {
-            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, false)
-                .docValues(docValues)
+            fieldType = new GeoPointFieldMapper.Builder(fieldName, ScriptCompiler.NONE, defaultIndexSettings()).docValues(docValues)
                 .build(context)
                 .fieldType();
         } else if (type.equals("binary")) {
-            fieldType = new BinaryFieldMapper.Builder(fieldName, docValues).build(context).fieldType();
+            fieldType = new BinaryFieldMapper.Builder(fieldName, SourceFieldMapper.isSynthetic(indexService.getIndexSettings())).docValues(
+                docValues
+            ).build(context).fieldType();
         } else {
             throw new UnsupportedOperationException(type);
         }
-        return searchExecutionContext.getForField(fieldType);
+        return searchExecutionContext.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
     }
 
     @Before
@@ -130,7 +170,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(
-            new ByteBuffersDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
+            new ByteBuffersDirectory(),
+            new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy())
         );
         searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
     }

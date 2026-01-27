@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.flush;
@@ -12,16 +13,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class FlushStats implements Writeable, ToXContentFragment {
 
     private long total;
     private long periodic;
     private long totalTimeInMillis;
+    private long totalTimeExcludingWaitingOnLockInMillis;
 
     public FlushStats() {
 
@@ -31,18 +34,21 @@ public class FlushStats implements Writeable, ToXContentFragment {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
         periodic = in.readVLong();
+        totalTimeExcludingWaitingOnLockInMillis = in.readVLong();
     }
 
-    public FlushStats(long total, long periodic, long totalTimeInMillis) {
+    public FlushStats(long total, long periodic, long totalTimeInMillis, long totalTimeExcludingWaitingOnLockInMillis) {
         this.total = total;
         this.periodic = periodic;
         this.totalTimeInMillis = totalTimeInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis = totalTimeExcludingWaitingOnLockInMillis;
     }
 
-    public void add(long total, long periodic, long totalTimeInMillis) {
+    public void add(long total, long periodic, long totalTimeInMillis, long totalTimeWithoutWaitingInMillis) {
         this.total += total;
         this.periodic += periodic;
         this.totalTimeInMillis += totalTimeInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis += totalTimeWithoutWaitingInMillis;
     }
 
     public void add(FlushStats flushStats) {
@@ -56,6 +62,7 @@ public class FlushStats implements Writeable, ToXContentFragment {
         this.total += flushStats.total;
         this.periodic += flushStats.periodic;
         this.totalTimeInMillis += flushStats.totalTimeInMillis;
+        this.totalTimeExcludingWaitingOnLockInMillis += flushStats.totalTimeExcludingWaitingOnLockInMillis;
     }
 
     /**
@@ -80,10 +87,17 @@ public class FlushStats implements Writeable, ToXContentFragment {
     }
 
     /**
-     * The total time merges have been executed.
+     * The total time flushes have been executed.
      */
     public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
+    }
+
+    /**
+     * The total time flushes have been executed excluding waiting time on locks (in milliseconds).
+     */
+    public long getTotalTimeExcludingWaitingOnLockMillis() {
+        return totalTimeExcludingWaitingOnLockInMillis;
     }
 
     @Override
@@ -92,6 +106,11 @@ public class FlushStats implements Writeable, ToXContentFragment {
         builder.field(Fields.TOTAL, total);
         builder.field(Fields.PERIODIC, periodic);
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, getTotalTime());
+        builder.humanReadableField(
+            Fields.TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS,
+            Fields.TOTAL_TIME_EXCLUDING_WAITING,
+            new TimeValue(getTotalTimeExcludingWaitingOnLockMillis())
+        );
         builder.endObject();
         return builder;
     }
@@ -102,6 +121,8 @@ public class FlushStats implements Writeable, ToXContentFragment {
         static final String PERIODIC = "periodic";
         static final String TOTAL_TIME = "total_time";
         static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
+        static final String TOTAL_TIME_EXCLUDING_WAITING = "total_time_excluding_waiting";
+        static final String TOTAL_TIME_EXCLUDING_WAITING_ON_LOCK_IN_MILLIS = "total_time_excluding_waiting_on_lock_in_millis";
     }
 
     @Override
@@ -109,5 +130,22 @@ public class FlushStats implements Writeable, ToXContentFragment {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
         out.writeVLong(periodic);
+        out.writeVLong(totalTimeExcludingWaitingOnLockInMillis);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        FlushStats that = (FlushStats) o;
+        return total == that.total
+            && totalTimeInMillis == that.totalTimeInMillis
+            && periodic == that.periodic
+            && totalTimeExcludingWaitingOnLockInMillis == that.totalTimeExcludingWaitingOnLockInMillis;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(total, totalTimeInMillis, periodic, totalTimeExcludingWaitingOnLockInMillis);
     }
 }

@@ -37,14 +37,17 @@ public class CustomInMemoryRolesProvider implements BiConsumer<Set<String>, Acti
         for (String role : roles) {
             if (rolePermissionSettings.containsKey(role)) {
                 roleDescriptors.add(
-                new RoleDescriptor(role, new String[] { "all" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .privileges(rolePermissionSettings.get(role))
-                            .indices(INDEX)
-                            .grantedFields("*")
-                            .build()
-                    }, null)
+                    new RoleDescriptor(
+                        role,
+                        new String[] { "all" },
+                        new RoleDescriptor.IndicesPrivileges[] {
+                            RoleDescriptor.IndicesPrivileges.builder()
+                                .privileges(rolePermissionSettings.get(role))
+                                .indices(INDEX)
+                                .grantedFields("*")
+                                .build() },
+                        null
+                    )
                 );
             }
         }

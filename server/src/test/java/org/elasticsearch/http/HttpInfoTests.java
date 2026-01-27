@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.util.Map;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Map;
 
 public class HttpInfoTests extends ESTestCase {
 
@@ -27,10 +29,12 @@ public class HttpInfoTests extends ESTestCase {
         assertPublishAddress(
             new HttpInfo(
                 new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(localhost, port)},
+                    new TransportAddress[] { new TransportAddress(localhost, port) },
                     new TransportAddress(localhost, port)
-                ), 0L
-            ), "localhost/" + NetworkAddress.format(localhost) + ':' + port
+                ),
+                0L
+            ),
+            "localhost/" + NetworkAddress.format(localhost) + ':' + port
         );
     }
 
@@ -40,21 +44,24 @@ public class HttpInfoTests extends ESTestCase {
         assertPublishAddress(
             new HttpInfo(
                 new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(localhost, port)},
+                    new TransportAddress[] { new TransportAddress(localhost, port) },
                     new TransportAddress(localhost, port)
-                ), 0L
-            ), NetworkAddress.format(localhost) + ':' + port
+                ),
+                0L
+            ),
+            NetworkAddress.format(localhost) + ':' + port
         );
     }
 
     public void testCorrectDisplayPublishedIpv6() throws Exception {
         int port = 9200;
-        TransportAddress localhost =
-            new TransportAddress(InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))), port);
+        TransportAddress localhost = new TransportAddress(
+            InetAddress.getByName(NetworkAddress.format(InetAddress.getByName("0:0:0:0:0:0:0:1"))),
+            port
+        );
         assertPublishAddress(
-            new HttpInfo(
-                new BoundTransportAddress(new TransportAddress[]{localhost}, localhost), 0L
-            ), localhost.toString()
+            new HttpInfo(new BoundTransportAddress(new TransportAddress[] { localhost }, localhost), 0L),
+            localhost.toString()
         );
     }
 
@@ -66,8 +73,7 @@ public class HttpInfoTests extends ESTestCase {
         builder.endObject();
         assertEquals(
             expected,
-            ((Map<String, Object>) createParser(builder).map().get(HttpInfo.Fields.HTTP))
-                .get(HttpInfo.Fields.PUBLISH_ADDRESS)
+            ((Map<String, Object>) createParser(builder).map().get(HttpInfo.Fields.HTTP)).get(HttpInfo.Fields.PUBLISH_ADDRESS)
         );
     }
 }

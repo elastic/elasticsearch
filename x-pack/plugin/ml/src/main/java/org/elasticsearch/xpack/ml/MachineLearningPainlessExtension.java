@@ -17,8 +17,10 @@ import java.util.List;
 import java.util.Map;
 
 public class MachineLearningPainlessExtension implements PainlessExtension {
-    private static final Whitelist WHITELIST =
-        WhitelistLoader.loadFromResourceFiles(MachineLearningPainlessExtension.class, "whitelist.txt");
+    private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
+        MachineLearningPainlessExtension.class,
+        "whitelist.txt"
+    );
 
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {

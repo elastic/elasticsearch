@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.rollover;
 
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,17 +28,23 @@ import java.util.Objects;
 /**
  * Class for holding Rollover related information within an index
  */
-public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writeable, ToXContentFragment {
+public class RolloverInfo implements SimpleDiffable<RolloverInfo>, Writeable, ToXContentFragment {
 
     public static final ParseField CONDITION_FIELD = new ParseField("met_conditions");
     public static final ParseField TIME_FIELD = new ParseField("time");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>("rollover_info", false,
-        (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1]));
+    public static final ConstructingObjectParser<RolloverInfo, String> PARSER = new ConstructingObjectParser<>(
+        "rollover_info",
+        false,
+        (a, alias) -> new RolloverInfo(alias, (List<Condition<?>>) a[0], (Long) a[1])
+    );
     static {
-        PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(),
-            (p, c, n) -> p.namedObject(Condition.class, n, c), CONDITION_FIELD);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.constructorArg(),
+            (p, c, n) -> p.namedObject(Condition.class, n, c),
+            CONDITION_FIELD
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), TIME_FIELD);
     }
 
@@ -55,7 +62,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     public RolloverInfo(StreamInput in) throws IOException {
         this.alias = in.readString();
         this.time = in.readVLong();
-        this.metConditions = (List) in.readNamedWriteableList(Condition.class);
+        this.metConditions = (List) in.readNamedWriteableCollectionAsList(Condition.class);
     }
 
     public static RolloverInfo parse(XContentParser parser, String alias) {
@@ -75,14 +82,14 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
     }
 
     public static Diff<RolloverInfo> readDiffFrom(StreamInput in) throws IOException {
-        return readDiffFrom(RolloverInfo::new, in);
+        return SimpleDiffable.readDiffFrom(RolloverInfo::new, in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(alias);
         out.writeVLong(time);
-        out.writeNamedWriteableList(metConditions);
+        out.writeNamedWriteableCollection(metConditions);
     }
 
     @Override
@@ -112,9 +119,7 @@ public class RolloverInfo extends AbstractDiffable<RolloverInfo> implements Writ
             return false;
         }
         RolloverInfo other = (RolloverInfo) obj;
-        return Objects.equals(alias, other.alias) &&
-            Objects.equals(metConditions, other.metConditions) &&
-            Objects.equals(time, other.time);
+        return Objects.equals(alias, other.alias) && Objects.equals(metConditions, other.metConditions) && Objects.equals(time, other.time);
     }
 
     @Override

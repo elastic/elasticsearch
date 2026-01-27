@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdateTests;
@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpd
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfigUpdateTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ResultsFieldUpdate;
-import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
+import org.elasticsearch.xpack.ml.MachineLearningTests;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -44,7 +42,7 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     @Override
     protected List<SearchPlugin> plugins() {
-        return Collections.singletonList(new MachineLearning(Settings.EMPTY, null));
+        return List.of(MachineLearningTests.createTrialLicensedMachineLearning(Settings.EMPTY));
     }
 
     @Override
@@ -63,9 +61,13 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
             .limit(randomIntBetween(1, 4))
             .collect(Collectors.toMap(Function.identity(), (t) -> randomAlphaOfLength(5)));
 
-        InferencePipelineAggregationBuilder builder =
-            new InferencePipelineAggregationBuilder(NAME, new SetOnce<>(mock(ModelLoadingService.class)),
-                mock(XPackLicenseState.class), Settings.EMPTY, bucketPaths);
+        InferencePipelineAggregationBuilder builder = new InferencePipelineAggregationBuilder(
+            NAME,
+            new SetOnce<>(mock(ModelLoadingService.class)),
+            mock(XPackLicenseState.class),
+            Settings.EMPTY,
+            bucketPaths
+        );
         builder.setModelId(randomAlphaOfLength(6));
 
         if (randomBoolean()) {
@@ -99,8 +101,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         aggregationBuilder.setModelId(null);
         aggregationBuilder.validate(validationContext);
@@ -110,8 +114,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate_invalidResultsField() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         RegressionConfigUpdate regressionConfigUpdate = new RegressionConfigUpdate("foo", null);
         aggregationBuilder.setInferenceConfig(regressionConfigUpdate);
@@ -122,8 +128,10 @@ public class InferencePipelineAggregationBuilderTests extends BasePipelineAggreg
 
     public void testValidate_invalidTopClassesField() {
         InferencePipelineAggregationBuilder aggregationBuilder = createTestAggregatorFactory();
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forInsideTree(mock(AggregationBuilder.class), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forInsideTree(
+            mock(AggregationBuilder.class),
+            null
+        );
 
         ClassificationConfigUpdate configUpdate = new ClassificationConfigUpdate(1, null, "some_other_field", null, null);
         aggregationBuilder.setInferenceConfig(configUpdate);

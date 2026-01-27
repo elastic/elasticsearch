@@ -1,34 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.Classpath;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
+import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.process.ExecOperations;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,47 +58,69 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.EXPLODED_BUNDLE_CONFIG;
+import static org.elasticsearch.gradle.testclusters.TestClustersPlugin.BUNDLE_ATTRIBUTE;
+
 public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private static final Logger LOGGER = Logging.getLogger(ElasticsearchNode.class);
-    private static final int CLUSTER_UP_TIMEOUT = 40;
+    private static final int CLUSTER_UP_TIMEOUT = 120;
     private static final TimeUnit CLUSTER_UP_TIMEOUT_UNIT = TimeUnit.SECONDS;
 
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final String path;
     private final String clusterName;
     private final NamedDomainObjectContainer<ElasticsearchNode> nodes;
+    private final FileOperations fileOperations;
     private final File workingDirBase;
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
-    private final Project project;
+    private final transient Project project;
     private final Provider<ReaperService> reaper;
+    private final Provider<TestClustersRegistry> testClustersRegistryProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
     private final Provider<File> runtimeJava;
+    private final Function<Version, Boolean> isReleasedVersion;
     private int nodeIndex = 0;
+
+    private final ConfigurableFileCollection pluginAndModuleConfiguration;
+    private final Provider<JavaLauncher> jdk17FallbackLauncher;
+
+    private boolean shared = false;
+
+    private int claims = 0;
 
     public ElasticsearchCluster(
         String path,
         String clusterName,
         Project project,
         Provider<ReaperService> reaper,
+        Provider<TestClustersRegistry> testClustersRegistryProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
+        FileOperations fileOperations,
         File workingDirBase,
-        Provider<File> runtimeJava
+        Provider<File> runtimeJava,
+        Function<Version, Boolean> isReleasedVersion,
+        Provider<JavaLauncher> jdk17FallbackLauncher
     ) {
         this.path = path;
         this.clusterName = clusterName;
         this.project = project;
         this.reaper = reaper;
+        this.testClustersRegistryProvider = testClustersRegistryProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
+        this.fileOperations = fileOperations;
         this.workingDirBase = workingDirBase;
         this.runtimeJava = runtimeJava;
+        this.isReleasedVersion = isReleasedVersion;
         this.nodes = project.container(ElasticsearchNode.class);
+        this.pluginAndModuleConfiguration = project.getObjects().fileCollection();
+        this.jdk17FallbackLauncher = jdk17FallbackLauncher;
         this.nodes.add(
             new ElasticsearchNode(
                 safeName(clusterName),
@@ -88,15 +128,42 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 clusterName + "-0",
                 project,
                 reaper,
+                testClustersRegistryProvider,
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
+                fileOperations,
                 workingDirBase,
-                runtimeJava
+                runtimeJava,
+                isReleasedVersion,
+                jdk17FallbackLauncher
             )
         );
 
         addWaitForClusterHealth();
+    }
+
+    /**
+     * this cluster si marked as shared across TestClusterAware tasks
+     * */
+    @Internal
+    public boolean isShared() {
+        return shared;
+    }
+
+    protected void setShared(boolean shared) {
+        this.shared = shared;
+    }
+
+    @Classpath
+    public FileCollection getInstalledClasspath() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar"));
+    }
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public FileCollection getInstalledFiles() {
+        return pluginAndModuleConfiguration.getAsFileTree().filter(f -> f.getName().endsWith(".jar") == false);
     }
 
     public void setNumberOfNodes(int numberOfNodes) {
@@ -106,7 +173,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
             throw new IllegalArgumentException("Number of nodes should be >= 1 but was " + numberOfNodes + " for " + this);
         }
 
-        if (numberOfNodes <= nodes.size()) {
+        if (numberOfNodes < nodes.size()) {
             throw new IllegalArgumentException(
                 "Cannot shrink " + this + " to have " + numberOfNodes + " nodes as it already has " + getNumberOfNodes()
             );
@@ -120,13 +187,25 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     clusterName + "-" + i,
                     project,
                     reaper,
+                    testClustersRegistryProvider,
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
+                    fileOperations,
                     workingDirBase,
-                    runtimeJava
+                    runtimeJava,
+                    isReleasedVersion,
+                    jdk17FallbackLauncher
                 )
             );
+        }
+    }
+
+    public void setReadinessEnabled(boolean enabled) {
+        if (enabled) {
+            for (ElasticsearchNode node : nodes) {
+                node.setting("readiness.port", "0"); // ephemeral port
+            }
         }
     }
 
@@ -171,24 +250,70 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(each -> each.setTestDistribution(distribution));
     }
 
-    @Override
-    public void plugin(Provider<RegularFile> plugin) {
-        nodes.all(each -> each.plugin(plugin));
+    private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
+        Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
+        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
+        extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+        extractedConfig.getAttributes().attribute(BUNDLE_ATTRIBUTE, true);
+        pluginAndModuleConfiguration.from(extractedConfig);
     }
 
     @Override
     public void plugin(String pluginProjectPath) {
-        nodes.all(each -> each.plugin(pluginProjectPath));
+        plugin(maybeCreatePluginOrModuleDependency(pluginProjectPath, "zip"));
+    }
+
+    public void plugin(TaskProvider<Zip> plugin) {
+        plugin(plugin.flatMap(AbstractArchiveTask::getArchiveFile));
+    }
+
+    @Override
+    public void plugin(Provider<RegularFile> plugin) {
+        registerExtractedConfig(plugin);
+        nodes.all(each -> each.plugin(plugin));
     }
 
     @Override
     public void module(Provider<RegularFile> module) {
+        registerExtractedConfig(module);
         nodes.all(each -> each.module(module));
+    }
+
+    public void module(TaskProvider<Sync> module) {
+        module(project.getLayout().file(module.map(Sync::getDestinationDir)));
     }
 
     @Override
     public void module(String moduleProjectPath) {
-        nodes.all(each -> each.module(moduleProjectPath));
+        module(maybeCreatePluginOrModuleDependency(moduleProjectPath, EXPLODED_BUNDLE_CONFIG));
+    }
+
+    private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
+
+    // package protected so only TestClustersAware can access
+    @Internal
+    Collection<Configuration> getPluginAndModuleConfigurations() {
+        return pluginAndModuleConfigurations.values();
+    }
+
+    // creates a configuration to depend on the given plugin project, then wraps that configuration
+    // to grab the zip as a file provider
+    private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
+        var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
+            var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
+            return project.getConfigurations().detachedConfiguration(bundleDependency);
+        });
+
+        Provider<File> fileProvider = configuration.getElements()
+            .map(
+                s -> s.stream()
+                    .findFirst()
+                    .orElseThrow(
+                        () -> new IllegalStateException(consumingConfiguration + " configuration of project " + path + " had no files")
+                    )
+                    .getAsFile()
+            );
+        return project.getLayout().file(fileProvider);
     }
 
     @Override
@@ -295,6 +420,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
+        nodes.whenObjectAdded(node -> { throw new IllegalStateException("Cannot add nodes to test cluster after is has been frozen"); });
     }
 
     private void checkFrozen() {
@@ -318,34 +444,21 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         }
         ElasticsearchNode firstNode = null;
         for (ElasticsearchNode node : nodes) {
+            if (node.getTestDistribution().equals(TestDistribution.INTEG_TEST)) {
+                node.defaultConfig.put("xpack.security.enabled", "false");
+            } else {
+                if (hasDeprecationIndexing(node)) {
+                    node.defaultConfig.put("cluster.deprecation_indexing.enabled", "false");
+                }
+            }
+
             // Can only configure master nodes if we have node names defined
             if (nodeNames != null) {
-                if (node.getVersion().onOrAfter("7.0.0")) {
-                    node.defaultConfig.keySet()
-                        .stream()
-                        .filter(name -> name.startsWith("discovery.zen."))
-                        .collect(Collectors.toList())
-                        .forEach(node.defaultConfig::remove);
-                    node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
-                    node.defaultConfig.put("discovery.seed_providers", "file");
-                    node.defaultConfig.put("discovery.seed_hosts", "[]");
-                } else {
-                    node.defaultConfig.put("discovery.zen.master_election.wait_for_joins_timeout", "5s");
-                    if (nodes.size() > 1) {
-                        node.defaultConfig.put("discovery.zen.minimum_master_nodes", Integer.toString(nodes.size() / 2 + 1));
-                    }
-                    if (node.getVersion().onOrAfter("6.5.0")) {
-                        node.defaultConfig.put("discovery.zen.hosts_provider", "file");
-                        node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                    } else {
-                        if (firstNode == null) {
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[]");
-                        } else {
-                            firstNode.waitForAllConditions();
-                            node.defaultConfig.put("discovery.zen.ping.unicast.hosts", "[\"" + firstNode.getTransportPortURI() + "\"]");
-                        }
-                    }
-                }
+                assert node.getVersion().onOrAfter("7.0.0") : node.getVersion();
+                assert node.defaultConfig.keySet().stream().noneMatch(name -> name.startsWith("discovery.zen."));
+                node.defaultConfig.put("cluster.initial_master_nodes", "[" + nodeNames + "]");
+                node.defaultConfig.put("discovery.seed_providers", "file");
+                node.defaultConfig.put("discovery.seed_hosts", "[]");
             }
             if (firstNode == null) {
                 firstNode = node;
@@ -374,7 +487,16 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         node.goToNextVersion();
         commonNodeConfig();
         nodeIndex += 1;
+        if (node.getTestDistribution().equals(TestDistribution.DEFAULT)) {
+            if (hasDeprecationIndexing(node)) {
+                node.setting("cluster.deprecation_indexing.enabled", "false");
+            }
+        }
         node.start();
+    }
+
+    private static boolean hasDeprecationIndexing(ElasticsearchNode node) {
+        return node.getVersion().onOrAfter("7.16.0") && node.getSettingKeys().contains("stateless.enabled") == false;
     }
 
     @Override
@@ -388,8 +510,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     }
 
     @Override
-    public void extraJarFile(File from) {
-        nodes.all(node -> node.extraJarFile(from));
+    public void extraJarFiles(FileCollection from) {
+        nodes.all(node -> node.extraJarFiles(from));
     }
 
     @Override
@@ -397,11 +519,26 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         nodes.all(node -> node.user(userSpec));
     }
 
-    private void writeUnicastHostsFiles() {
+    @Override
+    public void rolesFile(File rolesYml) {
+        nodes.all(node -> node.rolesFile(rolesYml));
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from) {
+        nodes.all(node -> node.requiresFeature(feature, from));
+    }
+
+    @Override
+    public void requiresFeature(String feature, Version from, Version until) {
+        nodes.all(node -> node.requiresFeature(feature, from, until));
+    }
+
+    public void writeUnicastHostsFiles() {
         String unicastUris = nodes.stream().flatMap(node -> node.getAllTransportPortURI().stream()).collect(Collectors.joining("\n"));
         nodes.forEach(node -> {
             try {
-                Files.write(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris.getBytes(StandardCharsets.UTF_8));
+                Files.writeString(node.getConfigDir().resolve("unicast_hosts.txt"), unicastUris);
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to write unicast_hosts for " + this, e);
             }
@@ -424,6 +561,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        waitForAllConditions();
+        return getFirstNode().getReadinessPortURI();
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllHttpSocketURI().stream()).collect(Collectors.toList());
@@ -434,6 +578,20 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return nodes.stream().flatMap(each -> each.getAllTransportPortURI().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllReadinessPortURI().stream()).collect(Collectors.toList());
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllRemoteAccessPortURI() {
+        waitForAllConditions();
+        return nodes.stream().flatMap(each -> each.getAllRemoteAccessPortURI().stream()).collect(Collectors.toList());
     }
 
     public void waitForAllConditions() {
@@ -516,5 +674,13 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     @Override
     public String toString() {
         return "cluster{" + path + ":" + clusterName + "}";
+    }
+
+    int addClaim() {
+        return ++this.claims;
+    }
+
+    int removeClaim() {
+        return --this.claims;
     }
 }

@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Wildcard;
 
-public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTestCase<Wildcard> {
+public class WildcardIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Wildcard> {
 
     @Override
     protected Wildcard createTestInstance() {
@@ -32,22 +33,15 @@ public class WildcardIntervalsSourceProviderTests extends AbstractSerializingTes
     }
 
     @Override
-    protected Wildcard mutateInstance(Wildcard instance) throws IOException {
+    protected Wildcard mutateInstance(Wildcard instance) {
         String wildcard = instance.getPattern();
         String analyzer = instance.getAnalyzer();
         String useField = instance.getUseField();
         switch (between(0, 2)) {
-            case 0:
-                wildcard += "a";
-                break;
-            case 1:
-                analyzer = randomAlphaOfLength(5);
-                break;
-            case 2:
-                useField = useField == null ? randomAlphaOfLength(5) : null;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> wildcard += "a";
+            case 1 -> analyzer = randomAlphaOfLength(5);
+            case 2 -> useField = useField == null ? randomAlphaOfLength(5) : null;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new Wildcard(wildcard, analyzer, useField);
     }

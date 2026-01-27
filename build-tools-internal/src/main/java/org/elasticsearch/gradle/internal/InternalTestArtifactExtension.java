@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -33,19 +34,26 @@ public class InternalTestArtifactExtension {
         JavaPluginExtension javaPluginExtension = project.getExtensions().getByType(JavaPluginExtension.class);
         javaPluginExtension.registerFeature(name + "Artifacts", featureSpec -> {
             featureSpec.usingSourceSet(sourceSet);
-            featureSpec.capability("org.elasticsearch.gradle", project.getName() + "-" + name + "-artifacts", "1.0");
+            featureSpec.capability(project.getGroup().toString(), project.getName() + "-" + sourceSet.getName() + "-artifacts", "1.0");
             // This feature is only used internally in the
             // elasticsearch build so we do not need any publication.
             featureSpec.disablePublication();
         });
 
-        Configuration testApiElements = project.getConfigurations().getByName(sourceSet.getApiElementsConfigurationName());
-        testApiElements.extendsFrom(project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName()));
         DependencyHandler dependencies = project.getDependencies();
         project.getPlugins().withType(JavaPlugin.class, javaPlugin -> {
+            Configuration apiElements = project.getConfigurations().getByName(sourceSet.getApiElementsConfigurationName());
+            Configuration apiElementsTestArtifacts = project.getConfigurations()
+                .create(sourceSet.getApiConfigurationName() + "TestArtifacts");
+            apiElements.extendsFrom(apiElementsTestArtifacts);
             Dependency projectDependency = dependencies.create(project);
-            dependencies.add(sourceSet.getApiElementsConfigurationName(), projectDependency);
-            dependencies.add(sourceSet.getRuntimeElementsConfigurationName(), projectDependency);
+            dependencies.add(apiElementsTestArtifacts.getName(), projectDependency);
+
+            Configuration runtimeElements = project.getConfigurations().getByName(sourceSet.getRuntimeElementsConfigurationName());
+            Configuration runtimeElementsTestArtifacts = project.getConfigurations()
+                .create(sourceSet.getRuntimeElementsConfigurationName() + "TestArtifacts");
+            runtimeElements.extendsFrom(runtimeElementsTestArtifacts);
+            dependencies.add(runtimeElementsTestArtifacts.getName(), projectDependency);
         });
         // PolicyUtil doesn't handle classifier notation well probably.
         // Instead of fixing PoliceUtil we stick to the pattern of changing

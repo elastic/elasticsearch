@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.spatial.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
@@ -19,23 +19,14 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 
 import java.util.function.LongConsumer;
 
-public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
+public class GeoShapeCellIdSource extends ValuesSource.Numeric {
     private final GeoShapeValuesSource valuesSource;
     private final GeoGridTiler encoder;
-    private LongConsumer circuitBreakerConsumer;
+    private final LongConsumer circuitBreakerConsumer;
 
-    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder) {
+    public GeoShapeCellIdSource(GeoShapeValuesSource valuesSource, GeoGridTiler encoder, LongConsumer circuitBreakerConsumer) {
         this.valuesSource = valuesSource;
         this.encoder = encoder;
-        this.circuitBreakerConsumer = (l) -> {};
-    }
-
-    /**
-     * This setter exists since the aggregator's circuit-breaking accounting needs to be
-     * accessible from within the values-source. Problem is that this values-source needs to
-     * be created and passed to the aggregator before we have access to this functionality.
-     */
-    public void setCircuitBreakerConsumer(LongConsumer circuitBreakerConsumer) {
         this.circuitBreakerConsumer = circuitBreakerConsumer;
     }
 
@@ -45,8 +36,8 @@ public class GeoShapeCellIdSource  extends ValuesSource.Numeric {
     }
 
     @Override
-    public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        GeoShapeValues geoValues = valuesSource.geoShapeValues(ctx);
+    public SortedNumericLongValues longValues(LeafReaderContext ctx) {
+        GeoShapeValues geoValues = valuesSource.shapeValues(ctx);
         ValuesSourceType vs = geoValues.valuesSourceType();
         if (GeoShapeValuesSourceType.instance() == vs) {
             // docValues are geo shapes

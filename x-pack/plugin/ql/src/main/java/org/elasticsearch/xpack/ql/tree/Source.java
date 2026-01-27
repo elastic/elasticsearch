@@ -25,6 +25,7 @@ public final class Source {
         this.text = text;
     }
 
+    // TODO: rename to location()
     public Location source() {
         return location;
     }

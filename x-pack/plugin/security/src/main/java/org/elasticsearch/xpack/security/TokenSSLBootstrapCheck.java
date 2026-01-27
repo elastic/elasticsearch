@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.xpack.core.XPackSettings;
 
 import java.util.Locale;
@@ -23,15 +24,20 @@ final class TokenSSLBootstrapCheck implements BootstrapCheck {
         final Boolean tokenServiceEnabled = XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.get(context.settings());
         if (httpsEnabled == false && tokenServiceEnabled) {
             final String message = String.format(
-                    Locale.ROOT,
-                    "HTTPS is required in order to use the token service; "
-                            + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
-                    XPackSettings.HTTP_SSL_ENABLED.getKey(),
-                    XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey());
+                Locale.ROOT,
+                "HTTPS is required in order to use the token service; "
+                    + "please enable HTTPS using the [%s] setting or disable the token service using the [%s] setting",
+                XPackSettings.HTTP_SSL_ENABLED.getKey(),
+                XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey()
+            );
             return BootstrapCheckResult.failure(message);
         } else {
             return BootstrapCheckResult.success();
         }
     }
 
+    @Override
+    public ReferenceDocs referenceDocs() {
+        return ReferenceDocs.BOOTSTRAP_CHECK_TOKEN_SSL;
+    }
 }

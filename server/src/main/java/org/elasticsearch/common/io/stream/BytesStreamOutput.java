@@ -1,27 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Objects;
 
 /**
- * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
- * bytes, which avoids frequent reallocation &amp; copying of the internal data.
+ * A @link {@link StreamOutput} that accumulates the resulting data in memory, using {@link BigArrays} to avoids frequent reallocation &amp;
+ * copying of the internal data once the resulting data grows large enough whilst avoiding excessive overhead in the final result for small
+ * objects.
+ * <p>
+ * A {@link BytesStreamOutput} accumulates data using a non-recycling {@link BigArrays} and, as with an {@link OutputStreamStreamOutput}, it
+ * uses a thread-locally-cached buffer for some of its writes and pushes data to the underlying array in small chunks, causing frequent
+ * calls to {@link BigArrays#resize}. If the array is large enough (≥16kiB) then the resize operations happen in-place, allocating a new
+ * 16kiB {@code byte[]} and appending it to the array, but for smaller arrays these resize operations allocate a completely fresh
+ * {@code byte[]} into which they copy the entire contents of the old one.
+ * <p>
+ * {@link BigArrays#resize} grows smaller arrays more slowly than a {@link ByteArrayOutputStream}, with a target of 12.5% overhead rather
+ * than 100%, which means that a sequence of smaller writes causes more allocations and copying overall. It may be worth adding a
+ * {@link BufferedStreamOutput} wrapper to reduce the frequency of the resize operations, especially if a suitable buffer is already
+ * allocated and available.
+ * <p>
+ * The resulting {@link BytesReference} is a view over the underlying {@code byte[]} pages and involves no significant extra allocation to
+ * obtain. It is oversized: The worst case for overhead is when the data is one byte more than a 16kiB page and therefore the result must
+ * retain two pages even though all but one byte of the second page is unused. For smaller objects the overhead will be 12.5%.
+ * <p>
+ * Any memory allocated in this way is untracked by the {@link org.elasticsearch.common.breaker} subsystem unless the caller takes steps to
+ * add this tracking themselves.
+ *
  */
 public class BytesStreamOutput extends BytesStream {
 
@@ -76,10 +99,7 @@ public class BytesStreamOutput extends BytesStream {
             return;
         }
 
-        // illegal args: offset and/or length exceed array size
-        if (b.length < (offset + length)) {
-            throw new IllegalArgumentException("Illegal offset " + offset + "/length " + length + " for byte[] of length " + b.length);
-        }
+        Objects.checkFromIndexSize(offset, length, b.length);
 
         // get enough pages for new size
         ensureCapacity(((long) count) + length);
@@ -92,6 +112,20 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     @Override
+    public void writeString(String str) throws IOException {
+        StreamOutputHelper.writeString(str, this);
+    }
+
+    @Override
+    public void writeOptionalString(@Nullable String str) throws IOException {
+        StreamOutputHelper.writeOptionalString(str, this);
+    }
+
+    @Override
+    public void writeGenericString(String value) throws IOException {
+        StreamOutputHelper.writeGenericString(value, this);
+    }
+
     public void reset() {
         // shrink list of pages
         if (bytes != null && bytes.size() > PageCacheRecycler.PAGE_SIZE_IN_BYTES) {
@@ -127,7 +161,7 @@ public class BytesStreamOutput extends BytesStream {
      *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
-     * @see java.io.ByteArrayOutputStream#count
+     * @see ByteArrayOutputStream#size()
      */
     public int size() {
         return count;
@@ -147,27 +181,28 @@ public class BytesStreamOutput extends BytesStream {
      * @return copy of the bytes in this instances
      */
     public BytesReference copyBytes() {
-        final byte[] keyBytes = new byte[count];
+        final BytesReference bytesReference = bytes();
+        final byte[] arr = new byte[count];
+        if (bytesReference.hasArray()) {
+            System.arraycopy(bytesReference.array(), bytesReference.arrayOffset(), arr, 0, bytesReference.length());
+        } else {
+            copyToArray(bytesReference, arr);
+        }
+        return new BytesArray(arr);
+    }
+
+    private static void copyToArray(BytesReference bytesReference, byte[] arr) {
         int offset = 0;
-        final BytesRefIterator iterator = bytes().iterator();
+        final BytesRefIterator iterator = bytesReference.iterator();
         try {
             BytesRef slice;
             while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, keyBytes, offset, slice.length);
+                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
                 offset += slice.length;
             }
         } catch (IOException e) {
             throw new AssertionError(e);
         }
-        return new BytesArray(keyBytes);
-    }
-
-    /**
-     * Returns the number of bytes used by the underlying {@link org.elasticsearch.common.util.ByteArray}
-     * @see org.elasticsearch.common.util.ByteArray#ramBytesUsed()
-     */
-    public long ramBytesUsed() {
-        return bytes.ramBytesUsed();
     }
 
     protected void ensureCapacity(long offset) {

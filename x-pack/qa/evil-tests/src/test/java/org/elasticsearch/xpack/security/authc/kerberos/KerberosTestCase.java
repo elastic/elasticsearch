@@ -21,8 +21,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import javax.security.auth.Subject;
-
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -32,6 +30,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import javax.security.auth.Subject;
 
 /**
  * Base Test class for Kerberos.
@@ -59,8 +59,10 @@ public abstract class KerberosTestCase extends ESTestCase {
     /*
      * Arabic and other language have problems due to handling of generalized time in SimpleKdcServer. For more, look at
      * org.apache.kerby.asn1.type.Asn1GeneralizedTime#toBytes
+     *
+     * Note: several unsupported locales were added in CLDR. #109670 included these below.
      */
-    private static Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
+    private static final Set<String> UNSUPPORTED_LOCALE_LANGUAGES = Set.of(
         "ar",
         "ja",
         "th",
@@ -81,14 +83,24 @@ public abstract class KerberosTestCase extends ESTestCase {
         "ur",
         "pa",
         "ig",
-        "sd");
+        "sd",
+        "mni",
+        "sat",
+        "sa",
+        "bgc",
+        "raj",
+        "nqo",
+        "bho"
+    );
 
     @BeforeClass
     public static void setupKerberos() throws Exception {
         if (isLocaleUnsupported()) {
             Logger logger = LogManager.getLogger(KerberosTestCase.class);
-            logger.warn("Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
-                Locale.getDefault());
+            logger.warn(
+                "Attempting to run Kerberos test on {} locale, but that breaks SimpleKdcServer. Switching to English.",
+                Locale.getDefault()
+            );
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
@@ -116,9 +128,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
         // Create SPNs and UPNs
         serviceUserNames = new ArrayList<>();
-        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
-            serviceUserNames.add("HTTP/" + randomAlphaOfLength(8));
-        });
+        Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> { serviceUserNames.add("HTTP/" + randomAlphaOfLength(8)); });
         final Path ktabPathForService = createPrincipalKeyTab(workDir, serviceUserNames.toArray(new String[0]));
         clientUserNames = new ArrayList<>();
         Randomness.get().ints(randomIntBetween(1, 6)).forEach((i) -> {
@@ -130,7 +140,7 @@ public abstract class KerberosTestCase extends ESTestCase {
                 throw ExceptionsHelper.convertToRuntime(e);
             }
         });
-        settings =  KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
+        settings = KerberosRealmTestCase.buildKerberosRealmSettings(REALM_NAME, ktabPathForService.toString());
     }
 
     @After
@@ -142,7 +152,7 @@ public abstract class KerberosTestCase extends ESTestCase {
 
     protected Path getKeytabPath(Environment env) {
         final Setting<String> setting = KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH.getConcreteSettingForNamespace(REALM_NAME);
-        return env.configFile().resolve(setting.get(settings));
+        return env.configDir().resolve(setting.get(settings));
     }
 
     /**

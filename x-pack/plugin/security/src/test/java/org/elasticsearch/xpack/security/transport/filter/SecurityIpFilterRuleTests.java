@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.security.transport.filter;
 import io.netty.handler.ipfilter.IpFilterRule;
 import io.netty.handler.ipfilter.IpFilterRuleType;
 import io.netty.handler.ipfilter.IpSubnetFilterRule;
-import org.elasticsearch.core.Tuple;
+
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
@@ -63,7 +64,7 @@ public class SecurityIpFilterRuleTests extends ESTestCase {
             getRule(randomBoolean(), "127.0.0.0/24," + randomFrom("name", "127.0.0.1", "192.0.0.0/24"));
             fail("expected an exception to be thrown because only one subnet can be specified at a time");
         } catch (IllegalArgumentException e) {
-            //expected
+            // expected
         }
     }
 

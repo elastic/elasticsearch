@@ -21,8 +21,15 @@ public class ForecastParams {
     private final Long maxModelMemory;
     private final Long minAvailableDiskSpace;
 
-    private ForecastParams(String forecastId, long createTime, long duration, long expiresIn, String tmpStorage, Long maxModelMemory,
-                           Long minAvailableDiskSpace) {
+    private ForecastParams(
+        String forecastId,
+        long createTime,
+        long duration,
+        long expiresIn,
+        String tmpStorage,
+        Long maxModelMemory,
+        Long minAvailableDiskSpace
+    ) {
         this.forecastId = forecastId;
         this.createTime = createTime;
         this.duration = duration;
@@ -92,12 +99,12 @@ public class ForecastParams {
         }
         ForecastParams other = (ForecastParams) obj;
         return Objects.equals(forecastId, other.forecastId)
-                && Objects.equals(createTime, other.createTime)
-                && Objects.equals(duration, other.duration)
-                && Objects.equals(expiresIn, other.expiresIn)
-                && Objects.equals(tmpStorage, other.tmpStorage)
-                && Objects.equals(maxModelMemory, other.maxModelMemory)
-                && Objects.equals(minAvailableDiskSpace, other.minAvailableDiskSpace);
+            && Objects.equals(createTime, other.createTime)
+            && Objects.equals(duration, other.duration)
+            && Objects.equals(expiresIn, other.expiresIn)
+            && Objects.equals(tmpStorage, other.tmpStorage)
+            && Objects.equals(maxModelMemory, other.maxModelMemory)
+            && Objects.equals(minAvailableDiskSpace, other.minAvailableDiskSpace);
     }
 
     public static Builder builder() {
@@ -148,9 +155,15 @@ public class ForecastParams {
         }
 
         public ForecastParams build() {
-            return new ForecastParams(forecastId, createTimeEpochSecs, durationSecs, expiresInSecs, tmpStorage, maxModelMemory,
-                minAvailableDiskSpace);
+            return new ForecastParams(
+                forecastId,
+                createTimeEpochSecs,
+                durationSecs,
+                expiresInSecs,
+                tmpStorage,
+                maxModelMemory,
+                minAvailableDiskSpace
+            );
         }
     }
 }
-

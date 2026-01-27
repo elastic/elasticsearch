@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -13,22 +14,24 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
+import java.util.function.ToLongFunction;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link ValuesSource} from a {@link Script} or
@@ -168,11 +171,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                     if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
                         ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
-                        return new OrdinalValuesSource(
+                        long maxOrd;
+                        try {
+                            maxOrd = vs.globalMaxOrd(reader);
+                        } catch (IOException e) {
+                            throw new UnsupportedOperationException(e);
+                        }
+                        return new GlobalOrdinalValuesSource(
                             bigArrays,
-                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            vs::ordinalsValues,
+                            maxOrd,
+                            vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             compositeValuesSourceConfig.missingOrder(),
@@ -208,5 +217,14 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (script() == null) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(field());
+            return cardinality != -1 && cardinality <= TermsAggregationBuilder.KEY_ORDER_CONCURRENCY_THRESHOLD;
+        }
+        return false;
     }
 }

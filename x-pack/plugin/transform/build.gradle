@@ -1,20 +1,29 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'transform'
-  description 'A plugin to transform data'
-  classname 'org.elasticsearch.xpack.transform.Transform'
+  name = 'transform'
+  description = 'A plugin to transform data'
+  classname ='org.elasticsearch.xpack.transform.Transform'
   extendedPlugins = ['x-pack-core']
 }
 
 dependencies {
   compileOnly project(":server")
-
   compileOnly project(path: xpackModule('core'))
+
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('analytics'))
-  testImplementation project(path: ':modules:aggs-matrix-stats')
+  testImplementation project(path: ':modules:aggregations')
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(":test:x-content")
+
+  internalClusterTestImplementation project(":modules:reindex")
 }
 
-addQaCheckDependencies()
+restResources {
+  restApi {
+    include '*'
+  }
+}
+
+addQaCheckDependencies(project)

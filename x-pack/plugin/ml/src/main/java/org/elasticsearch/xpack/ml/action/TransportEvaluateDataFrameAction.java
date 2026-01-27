@@ -7,16 +7,20 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -32,28 +36,40 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
-public class TransportEvaluateDataFrameAction extends HandledTransportAction<EvaluateDataFrameAction.Request,
+public class TransportEvaluateDataFrameAction extends HandledTransportAction<
+    EvaluateDataFrameAction.Request,
     EvaluateDataFrameAction.Response> {
 
     private final ThreadPool threadPool;
     private final Client client;
     private final AtomicReference<Integer> maxBuckets = new AtomicReference<>();
     private final SecurityContext securityContext;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportEvaluateDataFrameAction(TransportService transportService,
-                                            Settings settings,
-                                            ActionFilters actionFilters,
-                                            ThreadPool threadPool,
-                                            Client client,
-                                            ClusterService clusterService) {
-        super(EvaluateDataFrameAction.NAME, transportService, actionFilters, EvaluateDataFrameAction.Request::new);
+    public TransportEvaluateDataFrameAction(
+        TransportService transportService,
+        Settings settings,
+        ActionFilters actionFilters,
+        ThreadPool threadPool,
+        Client client,
+        ClusterService clusterService
+    ) {
+        super(
+            EvaluateDataFrameAction.NAME,
+            transportService,
+            actionFilters,
+            EvaluateDataFrameAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.threadPool = threadPool;
         this.client = client;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.maxBuckets.set(MAX_BUCKET_SETTING.get(clusterService.getSettings()));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBuckets);
+        this.clusterService = clusterService;
     }
 
     private void setMaxBuckets(int maxBuckets) {
@@ -61,21 +77,27 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
     }
 
     @Override
-    protected void doExecute(Task task,
-                             EvaluateDataFrameAction.Request request,
-                             ActionListener<EvaluateDataFrameAction.Response> listener) {
-        ActionListener<List<Void>> resultsListener = ActionListener.wrap(
-            unused -> {
-                EvaluateDataFrameAction.Response response =
-                    new EvaluateDataFrameAction.Response(request.getEvaluation().getName(), request.getEvaluation().getResults());
-                listener.onResponse(response);
-            },
-            listener::onFailure
+    protected void doExecute(
+        Task task,
+        EvaluateDataFrameAction.Request request,
+        ActionListener<EvaluateDataFrameAction.Response> listener
+    ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        ActionListener<List<Void>> resultsListener = listener.delegateFailureAndWrap(
+            (delegate, unused) -> delegate.onResponse(
+                new EvaluateDataFrameAction.Response(request.getEvaluation().getName(), request.getEvaluation().getResults())
+            )
         );
 
         // Create an immutable collection of parameters to be used by evaluation metrics.
         EvaluationParameters parameters = new EvaluationParameters(maxBuckets.get());
-        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(threadPool, client, parameters, request, securityContext);
+        EvaluationExecutor evaluationExecutor = new EvaluationExecutor(
+            threadPool,
+            new ParentTaskAssigningClient(client, parentTaskId),
+            parameters,
+            request,
+            securityContext
+        );
         evaluationExecutor.execute(resultsListener);
     }
 
@@ -100,12 +122,14 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
         private final Evaluation evaluation;
         private final SecurityContext securityContext;
 
-        EvaluationExecutor(ThreadPool threadPool,
-                           Client client,
-                           EvaluationParameters parameters,
-                           EvaluateDataFrameAction.Request request,
-                           SecurityContext securityContext) {
-            super(threadPool.generic(), unused -> true, unused -> true);
+        EvaluationExecutor(
+            ThreadPool threadPool,
+            Client client,
+            EvaluationParameters parameters,
+            EvaluateDataFrameAction.Request request,
+            SecurityContext securityContext
+        ) {
+            super(threadPool.generic(), Predicates.always(), Predicates.always());
             this.client = client;
             this.parameters = parameters;
             this.request = request;
@@ -119,19 +143,16 @@ public class TransportEvaluateDataFrameAction extends HandledTransportAction<Eva
             return listener -> {
                 SearchSourceBuilder searchSourceBuilder = evaluation.buildSearch(parameters, request.getParsedQuery());
                 SearchRequest searchRequest = new SearchRequest(request.getIndices()).source(searchSourceBuilder);
-                useSecondaryAuthIfAvailable(securityContext,
-                    () -> client.execute(
-                        SearchAction.INSTANCE,
-                        searchRequest,
-                        ActionListener.wrap(
-                            searchResponse -> {
-                                evaluation.process(searchResponse);
-                                if (evaluation.hasAllResults() == false) {
-                                    add(nextTask());
-                                }
-                                listener.onResponse(null);
-                            },
-                            listener::onFailure)));
+                useSecondaryAuthIfAvailable(
+                    securityContext,
+                    () -> client.execute(TransportSearchAction.TYPE, searchRequest, listener.delegateFailureAndWrap((l, searchResponse) -> {
+                        evaluation.process(searchResponse);
+                        if (evaluation.hasAllResults() == false) {
+                            add(nextTask());
+                        }
+                        l.onResponse(null);
+                    }))
+                );
             };
         }
     }

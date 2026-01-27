@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -13,10 +14,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -40,7 +41,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
-    implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -58,7 +61,7 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         super(in);
     }
 
-    private DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
+    DeleteByQueryRequest(SearchRequest search, boolean setDefaults) {
         super(search, setDefaults);
         // Delete-By-Query does not require the source
         if (setDefaults) {
@@ -122,6 +125,11 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
     }
 
     @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = super.validate();
         if (getSearchRequest().indices() == null || getSearchRequest().indices().length == 0) {
@@ -148,8 +156,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return b.toString();
     }
 
-    //delete by query deletes all documents that match a query. The indices and indices options that affect how
-    //indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
+    // delete by query deletes all documents that match a query. The indices and indices options that affect how
+    // indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
     @Override
     public DeleteByQueryRequest indices(String... indices) {
         assert getSearchRequest() != null;

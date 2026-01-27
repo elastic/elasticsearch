@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -47,9 +48,9 @@ public class StatsBucketTests extends AbstractBucketMetricsTestCase<StatsBucketP
         assertThat(
             validate(aggBuilders, new StatsBucketPipelineAggregationBuilder("name", "global>metric")),
             equalTo(
-                "Validation Failed: 1: The first aggregation in "
+                "Validation Failed: 1: Unable to find unqualified multi-bucket aggregation in "
                     + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + ". Path must include a multi-bucket aggregation for aggregation [name] found :"
                     + GlobalAggregationBuilder.class.getName()
                     + " for buckets path: global>metric;"
             )

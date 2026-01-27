@@ -1,51 +1,55 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.dangling.delete;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.indices.dangling.DanglingIndexInfo;
-import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesAction;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
+import org.elasticsearch.action.admin.indices.dangling.list.TransportListDanglingIndicesAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexAction},
+ * Implements the deletion of a dangling index. When handling a {@link DeleteDanglingIndexRequest},
  * this class first checks that such a dangling index exists. It then submits a cluster state update
  * to add the index to the index graveyard.
  */
 public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMasterNodeAction<DeleteDanglingIndexRequest> {
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/indices/dangling/delete");
     private static final Logger logger = LogManager.getLogger(TransportDeleteDanglingIndexAction.class);
 
     private final Settings settings;
@@ -57,19 +61,17 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Settings settings,
         NodeClient nodeClient
     ) {
         super(
-            DeleteDanglingIndexAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
             actionFilters,
             DeleteDanglingIndexRequest::new,
-            indexNameExpressionResolver,
-            ThreadPool.Names.GENERIC
+            threadPool.executor(ThreadPool.Names.GENERIC)
         );
         this.settings = settings;
         this.nodeClient = nodeClient;
@@ -102,14 +104,12 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
 
                 final String taskSource = "delete-dangling-index [" + indexName + "] [" + indexUUID + "]";
 
-                clusterService.submitStateUpdateTask(
-                    taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            return deleteDanglingIndex(currentState, indexToDelete);
-                        }
+                submitUnbatchedTask(taskSource, new AckedClusterStateUpdateTask(deleteRequest, clusterStateUpdatedListener) {
+                    @Override
+                    public ClusterState execute(final ClusterState currentState) {
+                        return deleteDanglingIndex(currentState, indexToDelete);
                     }
-                );
+                });
             }
 
             @Override
@@ -120,11 +120,16 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         });
     }
 
-    private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
-        final Metadata metaData = currentState.getMetadata();
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
+    }
 
-        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
-            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+    private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
+        final var project = currentState.metadata().getProject();
+
+        for (Map.Entry<String, IndexMetadata> each : project.indices().entrySet()) {
+            if (indexToDelete.getUUID().equals(each.getValue().getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
                         + indexToDelete
@@ -138,18 +143,13 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
         // By definition, a dangling index is an index not present in the cluster state and with no tombstone,
         // so we shouldn't reach this point if these conditions aren't met. For super-safety, however, check
         // that a tombstone doesn't already exist for this index.
-        if (metaData.indexGraveyard().containsIndex(indexToDelete)) {
+        if (project.indexGraveyard().containsIndex(indexToDelete)) {
             return currentState;
         }
 
-        Metadata.Builder metaDataBuilder = Metadata.builder(metaData);
-
-        final IndexGraveyard newGraveyard = IndexGraveyard.builder(metaDataBuilder.indexGraveyard())
-            .addTombstone(indexToDelete)
-            .build(settings);
-        metaDataBuilder.indexGraveyard(newGraveyard);
-
-        return ClusterState.builder(currentState).metadata(metaDataBuilder.build()).build();
+        final IndexGraveyard newGraveyard = IndexGraveyard.builder(project.indexGraveyard()).addTombstone(indexToDelete).build(settings);
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(project).indexGraveyard(newGraveyard).build();
+        return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
     }
 
     @Override
@@ -158,8 +158,10 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
     }
 
     private void findDanglingIndex(String indexUUID, ActionListener<Index> listener) {
-        this.nodeClient.execute(ListDanglingIndicesAction.INSTANCE, new ListDanglingIndicesRequest(indexUUID), listener.delegateFailure(
-            (l, response) -> {
+        this.nodeClient.execute(
+            TransportListDanglingIndicesAction.TYPE,
+            new ListDanglingIndicesRequest(indexUUID),
+            listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
                     ElasticsearchException e = new ElasticsearchException("Failed to query nodes [" + nodeIds + "]");
@@ -184,6 +186,7 @@ public class TransportDeleteDanglingIndexAction extends AcknowledgedTransportMas
                     }
                 }
                 l.onFailure(new IllegalArgumentException("No dangling index found for UUID [" + indexUUID + "]"));
-        }));
+            })
+        );
     }
 }

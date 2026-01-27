@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
 
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.url.URLBlobContainer;
 import org.elasticsearch.common.blobstore.url.URLBlobStore;
 
@@ -22,32 +24,36 @@ public class HttpURLBlobContainer extends URLBlobContainer {
     private final URLHttpClient httpClient;
     private final URLHttpClientSettings httpClientSettings;
 
-    public HttpURLBlobContainer(URLBlobStore blobStore,
-                                BlobPath blobPath,
-                                URL path,
-                                URLHttpClient httpClient,
-                                URLHttpClientSettings httpClientSettings) {
+    public HttpURLBlobContainer(
+        URLBlobStore blobStore,
+        BlobPath blobPath,
+        URL path,
+        URLHttpClient httpClient,
+        URLHttpClientSettings httpClientSettings
+    ) {
         super(blobStore, blobPath, path);
         this.httpClient = httpClient;
         this.httpClientSettings = httpClientSettings;
     }
 
     @Override
-    public InputStream readBlob(String name, long position, long length) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String name, long position, long length) throws IOException {
         if (length == 0) {
             return new ByteArrayInputStream(new byte[0]);
         }
 
-        return new RetryingHttpInputStream(name,
+        return new RetryingHttpInputStream(
+            name,
             getURIForBlob(name),
             position,
             Math.addExact(position, length) - 1,
             httpClient,
-            httpClientSettings.getMaxRetries());
+            httpClientSettings.getMaxRetries()
+        );
     }
 
     @Override
-    public InputStream readBlob(String name) throws IOException {
+    public InputStream readBlob(OperationPurpose purpose, String name) throws IOException {
         return new RetryingHttpInputStream(name, getURIForBlob(name), httpClient, httpClientSettings.getMaxRetries());
     }
 

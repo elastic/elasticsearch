@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.ilm.action.RemoveIndexLifecyclePolicyAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
 
@@ -34,11 +36,17 @@ public class RestRemoveIndexLifecyclePolicyAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String[] indexes = Strings.splitStringByCommaToArray(restRequest.param("index"));
-        RemoveIndexLifecyclePolicyAction.Request changePolicyRequest = new RemoveIndexLifecyclePolicyAction.Request(indexes);
-        changePolicyRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", changePolicyRequest.masterNodeTimeout()));
+        RemoveIndexLifecyclePolicyAction.Request changePolicyRequest = new RemoveIndexLifecyclePolicyAction.Request(
+            getMasterNodeTimeout(restRequest),
+            getAckTimeout(restRequest),
+            indexes
+        );
         changePolicyRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, changePolicyRequest.indicesOptions()));
 
-        return channel ->
-                client.execute(RemoveIndexLifecyclePolicyAction.INSTANCE, changePolicyRequest, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            RemoveIndexLifecyclePolicyAction.INSTANCE,
+            changePolicyRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

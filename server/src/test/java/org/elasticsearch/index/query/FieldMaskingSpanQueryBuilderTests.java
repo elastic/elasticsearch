@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.lucene.queries.SpanMatchNoDocsQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -37,9 +38,16 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     @Override
-    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder,
-                                       Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected FieldMaskingSpanQueryBuilder createQueryWithInnerQuery(QueryBuilder queryBuilder) {
+        if (queryBuilder instanceof FieldMaskingSpanQueryBuilder) {
+            return new FieldMaskingSpanQueryBuilder((FieldMaskingSpanQueryBuilder) queryBuilder, "field");
+        }
+        return new FieldMaskingSpanQueryBuilder(new SpanTermQueryBuilder("field", "value"), "field");
+    }
+
+    @Override
+    protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
@@ -56,68 +64,65 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"" + NAME.getPreferredName() + "\" : {\n" +
-                "    \"query\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"value\" : {\n" +
-                "          \"value\" : 0.5,\n" +
-                "          \"boost\" : 0.23\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"field\" : \"mapped_geo_shape\",\n" +
-                "    \"boost\" : 42.0,\n" +
-                "    \"_name\" : \"KPI\"\n" +
-                "  }\n" +
-                "}";
+        String json = Strings.format("""
+            {
+              "%s" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : 0.5,
+                      "boost" : 0.23
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""", NAME.getPreferredName());
         Exception exception = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(exception.getMessage(),
-            equalTo(NAME.getPreferredName() + " [query] as a nested span clause can't have non-default boost value [0.23]"));
-    }
-
-    public void testJsonWithTopLevelBoost() throws IOException {
-        String json =
-            "{\n" +
-                "  \"" + NAME.getPreferredName() + "\" : {\n" +
-                "    \"query\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"value\" : {\n" +
-                "          \"value\" : \"foo\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"field\" : \"mapped_geo_shape\",\n" +
-                "    \"boost\" : 42.0,\n" +
-                "    \"_name\" : \"KPI\"\n" +
-                "  }\n" +
-                "}";
-        Query q = parseQuery(json).toQuery(createSearchExecutionContext());
-        assertEquals(
-            new BoostQuery(
-                new FieldMaskingSpanQuery(new SpanTermQuery(new Term("value", "foo")), "mapped_geo_shape"),
-                42.0f),
-            q
+        assertThat(
+            exception.getMessage(),
+            equalTo(NAME.getPreferredName() + " [query] as a nested span clause can't have non-default boost value [0.23]")
         );
     }
 
+    public void testJsonWithTopLevelBoost() throws IOException {
+        String json = Strings.format("""
+            {
+              "%s" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : "foo"
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""", NAME.getPreferredName());
+        Query q = parseQuery(json).toQuery(createSearchExecutionContext());
+        assertEquals(new BoostQuery(new FieldMaskingSpanQuery(new SpanMatchNoDocsQuery("value", null), "mapped_geo_shape"), 42.0f), q);
+    }
+
     public void testJsonWithDeprecatedName() throws IOException {
-        String json =
-            "{\n" +
-                "  \"field_masking_span\" : {\n" +
-                "    \"query\" : {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"value\" : {\n" +
-                "          \"value\" : \"foo\"\n" +
-                "        }\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"field\" : \"mapped_geo_shape\",\n" +
-                "    \"boost\" : 42.0,\n" +
-                "    \"_name\" : \"KPI\"\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "field_masking_span" : {
+                "query" : {
+                  "span_term" : {
+                    "value" : {
+                      "value" : "foo"
+                    }
+                  }
+                },
+                "field" : "mapped_geo_shape",
+                "boost" : 42.0,
+                "_name" : "KPI"
+              }
+            }""";
         Query q = parseQuery(json).toQuery(createSearchExecutionContext());
         assertWarnings("Deprecated field [field_masking_span] used, expected [" + NAME.getPreferredName() + "] instead");
     }

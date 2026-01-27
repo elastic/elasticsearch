@@ -6,26 +6,48 @@
  */
 package org.elasticsearch.xpack.core.rollup;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
+public class RollupFeatureSetUsage extends XPackFeatureUsage {
+
+    private final int numberOfRollupJobs;
 
     public RollupFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
+        this.numberOfRollupJobs = input.readVInt();
     }
 
-    public RollupFeatureSetUsage() {
+    public RollupFeatureSetUsage(int numberOfRollupJobs) {
         super(XPackField.ROLLUP, true, true);
+        this.numberOfRollupJobs = numberOfRollupJobs;
+    }
+
+    public int getNumberOfRollupJobs() {
+        return numberOfRollupJobs;
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeVInt(numberOfRollupJobs);
+    }
+
+    @Override
+    protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerXContent(builder, params);
+        builder.field("number_of_rollup_jobs", numberOfRollupJobs);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
 }

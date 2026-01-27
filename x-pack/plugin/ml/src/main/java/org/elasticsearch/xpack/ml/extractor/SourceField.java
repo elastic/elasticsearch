@@ -27,22 +27,23 @@ public class SourceField extends AbstractField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        Map<String, Object> source = hit.getSourceAsMap();
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        // This is the only one that might be problematic
+        Map<String, Object> sourceMap = source.get();
         int level = 0;
-        while (source != null && level < path.length - 1) {
-            source = getNextLevel(source, path[level]);
+        while (sourceMap != null && level < path.length - 1) {
+            sourceMap = getNextLevel(sourceMap, path[level]);
             level++;
         }
-        if (source != null) {
-            Object values = source.get(path[level]);
+        if (sourceMap != null) {
+            Object values = sourceMap.get(path[level]);
             if (values != null) {
                 if (values instanceof List<?>) {
                     @SuppressWarnings("unchecked")
                     List<Object> asList = (List<Object>) values;
                     return asList.toArray(new Object[0]);
                 } else {
-                    return new Object[]{values};
+                    return new Object[] { values };
                 }
             }
         }
@@ -55,8 +56,7 @@ public class SourceField extends AbstractField {
         if (nextLevel instanceof Map<?, ?>) {
             return (Map<String, Object>) source.get(key);
         }
-        if (nextLevel instanceof List<?>) {
-            List<?> asList = (List<?>) nextLevel;
+        if (nextLevel instanceof List<?> asList) {
             if (asList.isEmpty() == false) {
                 Object firstElement = asList.get(0);
                 if (firstElement instanceof Map<?, ?>) {

@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.watcher.input.chain;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
@@ -65,11 +65,7 @@ public class ExecutableChainInputTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         Wid wid = new Wid(randomAlphaOfLength(5), now);
-        return mockExecutionContextBuilder(wid.watchId())
-                .wid(wid)
-                .payload(new Payload.Simple())
-                .time(wid.watchId(), now)
-                .buildMock();
+        return mockExecutionContextBuilder(wid.watchId()).wid(wid).payload(new Payload.Simple()).time(wid.watchId(), now).buildMock();
     }
 
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -19,14 +18,13 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedResponse> {
 
     public static final DeleteTrainedModelAliasAction INSTANCE = new DeleteTrainedModelAliasAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/delete";
 
     private DeleteTrainedModelAliasAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -37,6 +35,7 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
         private final String modelId;
 
         public Request(String modelAlias, String modelId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelAlias = ExceptionsHelper.requireNonNull(modelAlias, MODEL_ALIAS);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
         }
@@ -56,15 +55,10 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws  IOException {
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelAlias);
             out.writeString(modelId);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -72,8 +66,7 @@ public class DeleteTrainedModelAliasAction extends ActionType<AcknowledgedRespon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(modelAlias, request.modelAlias)
-                && Objects.equals(modelId, request.modelId);
+            return Objects.equals(modelAlias, request.modelAlias) && Objects.equals(modelId, request.modelId);
         }
 
         @Override

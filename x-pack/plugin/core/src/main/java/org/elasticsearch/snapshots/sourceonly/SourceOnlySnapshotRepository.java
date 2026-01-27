@@ -8,7 +8,6 @@ package org.elasticsearch.snapshots.sourceonly;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
@@ -21,25 +20,29 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.repositories.FilterRepository;
 import org.elasticsearch.repositories.FinalizeSnapshotContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 
 import java.io.Closeable;
@@ -53,6 +56,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * <p>
@@ -71,10 +76,14 @@ import java.util.function.Supplier;
  * match_all scroll searches in order to reindex the data.
  */
 public final class SourceOnlySnapshotRepository extends FilterRepository {
-    private static final Setting<String> DELEGATE_TYPE = new Setting<>("delegate_type", "", Function.identity(), Setting.Property
-        .NodeScope);
-    public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting("index.source_only", false, Setting
-        .Property.IndexScope, Setting.Property.Final, Setting.Property.PrivateIndex);
+    private static final Setting<String> DELEGATE_TYPE = Setting.simpleString("delegate_type", Setting.Property.NodeScope);
+    public static final Setting<Boolean> SOURCE_ONLY = Setting.boolSetting(
+        "index.source_only",
+        false,
+        Setting.Property.IndexScope,
+        Setting.Property.Final,
+        Setting.Property.PrivateIndex
+    );
 
     private static final Logger logger = LogManager.getLogger(SourceOnlySnapshotRepository.class);
 
@@ -91,23 +100,29 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         // required engine, that the index is read-only and the mapping to a default mapping
         super.finalizeSnapshot(
             new FinalizeSnapshotContext(
+                finalizeSnapshotContext.serializeProjectMetadata(),
                 finalizeSnapshotContext.updatedShardGenerations(),
                 finalizeSnapshotContext.repositoryStateId(),
                 metadataToSnapshot(
-                    finalizeSnapshotContext.updatedShardGenerations().indices(),
+                    finalizeSnapshotContext.updatedShardGenerations().liveIndices().indices(),
                     finalizeSnapshotContext.clusterMetadata()
                 ),
                 finalizeSnapshotContext.snapshotInfo(),
                 finalizeSnapshotContext.repositoryMetaVersion(),
-                finalizeSnapshotContext
+                finalizeSnapshotContext,
+                finalizeSnapshotContext::onDone
             )
         );
     }
 
     private static Metadata metadataToSnapshot(Collection<IndexId> indices, Metadata metadata) {
-        Metadata.Builder builder = Metadata.builder(metadata);
+        return Metadata.builder(metadata).put(projectMetadataToSnapshot(indices, metadata.getProject())).build();
+    }
+
+    private static ProjectMetadata projectMetadataToSnapshot(Collection<IndexId> indices, ProjectMetadata projectMetadata) {
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectMetadata);
         for (IndexId indexId : indices) {
-            IndexMetadata index = metadata.index(indexId.getName());
+            IndexMetadata index = projectMetadata.index(indexId.getName());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index);
             // for a minimal restore we basically disable indexing on all fields and only create an index
             // that is valid from an operational perspective. ie. it will have all metadata fields like version/
@@ -118,46 +133,57 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 final String mapping = "{ \"_doc\" : { \"enabled\": false, \"_meta\": " + mmd.source().string() + " } }";
                 indexMetadataBuilder.putMapping(mapping);
             }
-            indexMetadataBuilder.settings(Settings.builder().put(index.getSettings())
-                .put(SOURCE_ONLY.getKey(), true)
-                .put("index.blocks.write", true)); // read-only!
+            indexMetadataBuilder.settings(
+                Settings.builder().put(index.getSettings()).put(SOURCE_ONLY.getKey(), true).put("index.blocks.write", true)
+            ); // read-only!
             indexMetadataBuilder.settingsVersion(1 + indexMetadataBuilder.settingsVersion());
             builder.put(indexMetadataBuilder);
         }
         return builder.build();
     }
 
-
     @Override
     public void snapshotShard(SnapshotShardContext context) {
         final MapperService mapperService = context.mapperService();
-        if (mapperService.documentMapper() != null // if there is no mapping this is null
-            && mapperService.documentMapper().sourceMapper().isComplete() == false) {
+        if ((mapperService.documentMapper() != null // if there is no mapping this is null
+            && mapperService.documentMapper().sourceMapper().isComplete() == false)
+            || (mapperService.documentMapper() == null && SourceFieldMapper.isStored(mapperService.getIndexSettings()) == false)) {
             context.onFailure(
-                new IllegalStateException("Can't snapshot _source only on an index that has incomplete source ie. has _source disabled " +
-                    "or filters the source"));
+                new IllegalStateException(
+                    "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source"
+                )
+            );
             return;
         }
         final Store store = context.store();
         Directory unwrap = FilterDirectory.unwrap(store.directory());
         if (unwrap instanceof FSDirectory == false) {
-            throw new AssertionError("expected FSDirectory but got " + unwrap.toString());
+            context.onFailure(
+                new IllegalStateException(
+                    context.indexCommit()
+                        + " is not a regular index, but ["
+                        + unwrap.toString()
+                        + "]  and cannot be snapshotted into a source-only repository"
+                )
+            );
+            return;
         }
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
         final List<Closeable> toClose = new ArrayList<>(3);
         try {
-            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(
-                new NIOFSDirectory(snapPath));
+            SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(new NIOFSDirectory(snapPath));
             toClose.add(overlayDir);
             Store tempStore = new Store(store.shardId(), store.indexSettings(), overlayDir, new ShardLock(store.shardId()) {
                 @Override
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY);
-            Supplier<Query> querySupplier = mapperService.hasNested() ? Queries::newNestedFilter : null;
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
+            Supplier<Query> querySupplier = mapperService.hasNested()
+                ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
+                : null;
             // SourceOnlySnapshot will take care of soft- and hard-deletes no special casing needed here
             SourceOnlySnapshot snapshot;
             snapshot = new SourceOnlySnapshot(overlayDir, querySupplier);
@@ -165,8 +191,10 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             try {
                 snapshot.syncSnapshot(snapshotIndexCommit);
             } catch (NoSuchFileException | CorruptIndexException | FileAlreadyExistsException e) {
-                logger.warn(() -> new ParameterizedMessage(
-                        "Existing staging directory [{}] appears corrupted and will be pruned and recreated.", snapPath), e);
+                logger.warn(
+                    () -> format("Existing staging directory [%s] appears corrupted and will be pruned and recreated.", snapPath),
+                    e
+                );
                 Lucene.cleanLuceneIndex(overlayDir);
                 snapshot.syncSnapshot(snapshotIndexCommit);
             }
@@ -174,15 +202,29 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
             SegmentInfos segmentInfos = tempStore.readLastCommittedSegmentsInfo();
             final long maxDoc = segmentInfos.totalMaxDoc();
             tempStore.bootstrapNewHistory(maxDoc, maxDoc);
-            store.incRef();
-            toClose.add(store::decRef);
+            try (var ignored = context.withCommitRef()) {
+                // obtain commit ref first, ensuring the store is still open here, or else reporting aborted snapshots properly
+                store.incRef();
+                toClose.add(store::decRef);
+            }
             DirectoryReader reader = DirectoryReader.open(tempStore.directory());
             toClose.add(reader);
             IndexCommit indexCommit = reader.getIndexCommit();
-            super.snapshotShard(new SnapshotShardContext(tempStore, mapperService, context.snapshotId(), context.indexId(),
-                    new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose)), context.stateIdentifier(),
-                    context.status(), context.getRepositoryMetaVersion(), context.userMetadata(), context));
-        } catch (IOException e) {
+            super.snapshotShard(
+                new SnapshotShardContext(
+                    tempStore,
+                    mapperService,
+                    context.snapshotId(),
+                    context.indexId(),
+                    new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit, () -> IOUtils.close(toClose))),
+                    context.stateIdentifier(),
+                    context.status(),
+                    context.getRepositoryMetaVersion(),
+                    context.snapshotStartTime(),
+                    context
+                )
+            );
+        } catch (Exception e) {
             try {
                 IOUtils.close(toClose);
             } catch (IOException ex) {
@@ -196,8 +238,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
      * Returns an {@link EngineFactory} for the source only snapshots.
      */
     public static EngineFactory getEngineFactory() {
-        return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true,
-            readerWrapper(config), true, false);
+        return config -> new ReadOnlyEngine(config, null, new TranslogStats(0, 0, 0, 0, 0), true, readerWrapper(config), true, false);
     }
 
     public static Function<DirectoryReader, DirectoryReader> readerWrapper(EngineConfig engineConfig) {
@@ -217,19 +258,21 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         return new Repository.Factory() {
 
             @Override
-            public Repository create(RepositoryMetadata metadata) {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public Repository create(RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup) throws Exception {
+            public Repository create(ProjectId projectId, RepositoryMetadata metadata, Function<String, Repository.Factory> typeLookup)
+                throws Exception {
                 String delegateType = DELEGATE_TYPE.get(metadata.settings());
                 if (Strings.hasLength(delegateType) == false) {
                     throw new IllegalArgumentException(DELEGATE_TYPE.getKey() + " must be set");
                 }
                 Repository.Factory factory = typeLookup.apply(delegateType);
-                return new SourceOnlySnapshotRepository(factory.create(new RepositoryMetadata(metadata.name(),
-                    delegateType, metadata.settings()), typeLookup));
+                return new SourceOnlySnapshotRepository(
+                    factory.create(projectId, new RepositoryMetadata(metadata.name(), delegateType, metadata.settings()), typeLookup)
+                );
             }
         };
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -185,13 +186,13 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(chain, notNullValue());
             assertThat(chain, arrayWithSize(1));
             final X509Certificate certificate = chain[0];
-            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
-            assertThat(certificate.getSubjectDN().getName(), is("CN=" + name));
+            assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
+            assertThat(certificate.getSubjectX500Principal().getName(), is("CN=" + name));
             assertThat(certificate.getSubjectAlternativeNames(), iterableWithSize(2));
-            assertThat(certificate.getSubjectAlternativeNames(), containsInAnyOrder(
-                Arrays.asList(DNS_NAME, "localhost"),
-                Arrays.asList(IP_NAME, "127.0.0.1")
-            ));
+            assertThat(
+                certificate.getSubjectAlternativeNames(),
+                containsInAnyOrder(Arrays.asList(DNS_NAME, "localhost"), Arrays.asList(IP_NAME, "127.0.0.1"))
+            );
         }
 
         final List<Tuple<PrivateKey, X509Certificate>> keys = keyConfig.getKeys(true);
@@ -202,7 +203,7 @@ public class StoreKeyConfigTests extends ESTestCase {
             assertThat(privateKey.getAlgorithm(), is("RSA"));
 
             final X509Certificate certificate = tup.v2();
-            assertThat(certificate.getIssuerDN().getName(), is("CN=Test CA 1"));
+            assertThat(certificate.getIssuerX500Principal().getName(), is("CN=Test CA 1"));
         }
     }
 

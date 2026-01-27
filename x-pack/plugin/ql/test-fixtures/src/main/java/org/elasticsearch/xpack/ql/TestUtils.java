@@ -8,17 +8,19 @@
 package org.elasticsearch.xpack.ql;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -30,6 +32,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -58,9 +64,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -70,6 +74,7 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -77,13 +82,14 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.TestUtils.StringContainsRegex.containsRegex;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.Assert.assertEquals;
 
 public final class TestUtils {
 
     public static final ZoneId UTC = ZoneId.of("Z");
-    public static final Configuration TEST_CFG = new Configuration(UTC, null, null, x -> Collections.emptySet());
+    public static final Configuration TEST_CFG = new Configuration(UTC, null, null);
 
     private static final String MATCHER_TYPE_CONTAINS = "CONTAINS";
     private static final String MATCHER_TYPE_REGEX = "REGEX";
@@ -91,11 +97,11 @@ public final class TestUtils {
     private TestUtils() {}
 
     public static Configuration randomConfiguration() {
-        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(randomZone(), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Configuration randomConfiguration(ZoneId zoneId) {
-        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10), x -> Collections.emptySet());
+        return new Configuration(zoneId, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public static Literal of(Object value) {
@@ -142,6 +148,14 @@ public final class TestUtils {
 
     public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
         return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
+    }
+
+    public static WildcardLike wildcardLike(Expression left, String exp) {
+        return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
+    }
+
+    public static RLike rlike(Expression left, String exp) {
+        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -273,7 +287,7 @@ public final class TestUtils {
     public static Tuple<String, String> pathAndName(String string) {
         String folder = StringUtils.EMPTY;
         String file = string;
-        int lastIndexOf = string.lastIndexOf("/");
+        int lastIndexOf = string.lastIndexOf('/');
         if (lastIndexOf > 0) {
             folder = string.substring(0, lastIndexOf - 1);
             if (lastIndexOf + 1 < string.length()) {
@@ -283,16 +297,34 @@ public final class TestUtils {
         return new Tuple<>(folder, file);
     }
 
-    public static TestNodes buildNodeAndVersions(RestClient client) throws IOException {
+    public static TestNodes buildNodeAndVersions(RestClient client, String bwcNodesVersion) throws IOException {
         Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
-        TestNodes nodes = new TestNodes();
+        TestNodes nodes = new TestNodes(bwcNodesVersion);
         for (String id : nodesAsMap.keySet()) {
+            String nodeVersion = objectPath.evaluate("nodes." + id + ".version");
+
+            Object tvField;
+            TransportVersion transportVersion = null;
+            if ((tvField = objectPath.evaluate("nodes." + id + ".transport_version")) != null) {
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // in which case the transport_version field won't exist. Just ignore it for now.
+                transportVersion = TransportVersion.fromString(tvField.toString());
+            } else { // no transport_version field
+                // this json might be from a node <8.8.0, but about a node >=8.8.0
+                // In that case the transport_version field won't exist. Just ignore it for now.
+                Version version = Version.fromString(nodeVersion);
+                if (version.before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
+                    transportVersion = TransportVersion.fromId(version.id);
+                }
+            }
+
             nodes.add(
                 new TestNode(
                     id,
-                    Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
+                    nodeVersion,
+                    transportVersion,
                     HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))
                 )
             );
@@ -317,10 +349,10 @@ public final class TestUtils {
 
     public static Map<String, Object> randomRuntimeMappings() {
         int count = between(1, 100);
-        Map<String, Object> runtimeFields = new HashMap<>(count);
+        Map<String, Object> runtimeFields = Maps.newMapWithExpectedSize(count);
         while (runtimeFields.size() < count) {
             int size = between(1, 10);
-            Map<String, Object> config = new HashMap<>(size);
+            Map<String, Object> config = Maps.newMapWithExpectedSize(size);
             while (config.size() < size) {
                 config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }
@@ -387,16 +419,11 @@ public final class TestUtils {
                             String matcherType = matcherAndExpectation[0];
                             String expectation = matcherAndExpectation[1];
                             switch (matcherType.toUpperCase(Locale.ROOT)) {
-                                case MATCHER_TYPE_CONTAINS:
-                                    matchers.add(containsString(expectation));
-                                    break;
-                                case MATCHER_TYPE_REGEX:
-                                    matchers.add(containsRegex(expectation));
-                                    break;
-                                default:
-                                    throw new IllegalArgumentException(
-                                        "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
-                                    );
+                                case MATCHER_TYPE_CONTAINS -> matchers.add(containsString(expectation));
+                                case MATCHER_TYPE_REGEX -> matchers.add(containsRegex(expectation));
+                                default -> throw new IllegalArgumentException(
+                                    "unsupported matcher on line " + testFileName + ":" + lineNumber + ": " + matcherType
+                                );
                             }
                         }
                     }
@@ -417,6 +444,14 @@ public final class TestUtils {
             }
         }
         return arr;
+    }
+
+    public static FieldAttribute getFieldAttribute(String name) {
+        return getFieldAttribute(name, INTEGER);
+    }
+
+    public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
+        return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
     }
 
     // Matcher which extends the functionality of org.hamcrest.Matchers.matchesPattern(String)}

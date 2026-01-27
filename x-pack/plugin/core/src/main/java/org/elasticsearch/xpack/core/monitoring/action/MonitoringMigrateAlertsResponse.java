@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.core.monitoring.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,20 +30,17 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
     }
 
     public MonitoringMigrateAlertsResponse(StreamInput in) throws IOException {
-        super(in);
-        this.exporters = in.readList(ExporterMigrationResult::new);
+        this.exporters = in.readCollectionAsList(ExporterMigrationResult::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(exporters);
+        out.writeCollection(exporters);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        return builder.startObject()
-            .array("exporters", exporters)
-            .endObject();
+        return builder.startObject().array("exporters", exporters).endObject();
     }
 
     public List<ExporterMigrationResult> getExporters() {
@@ -65,9 +62,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
 
     @Override
     public String toString() {
-        return "MonitoringMigrateAlertsResponse{" +
-            "exporters=" + exporters +
-            '}';
+        return "MonitoringMigrateAlertsResponse{" + "exporters=" + exporters + '}';
     }
 
     public static class ExporterMigrationResult implements Writeable, ToXContentObject {
@@ -137,9 +132,7 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ExporterMigrationResult that = (ExporterMigrationResult) o;
-            return migrationComplete == that.migrationComplete &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(type, that.type);
+            return migrationComplete == that.migrationComplete && Objects.equals(name, that.name) && Objects.equals(type, that.type);
         }
 
         @Override
@@ -149,12 +142,18 @@ public class MonitoringMigrateAlertsResponse extends ActionResponse implements T
 
         @Override
         public String toString() {
-            return "ExporterMigrationResult{" +
-                "name='" + name + '\'' +
-                ", type='" + type + '\'' +
-                ", migrationComplete=" + migrationComplete +
-                ", reason=" + reason +
-                '}';
+            return "ExporterMigrationResult{"
+                + "name='"
+                + name
+                + '\''
+                + ", type='"
+                + type
+                + '\''
+                + ", migrationComplete="
+                + migrationComplete
+                + ", reason="
+                + reason
+                + '}';
         }
     }
 }

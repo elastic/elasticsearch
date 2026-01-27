@@ -8,11 +8,6 @@ package org.elasticsearch.xpack.ql.querydsl.query;
 
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
-import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
-import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -24,11 +19,18 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class BoolQueryTests extends ESTestCase {
     static BoolQuery randomBoolQuery(int depth) {
-        return new BoolQuery(SourceTests.randomSource(), randomBoolean(),
-                NestedQueryTests.randomQuery(depth), NestedQueryTests.randomQuery(depth));
+        return new BoolQuery(
+            SourceTests.randomSource(),
+            randomBoolean(),
+            NestedQueryTests.randomQuery(depth),
+            NestedQueryTests.randomQuery(depth)
+        );
     }
 
     public void testEqualsAndHashCode() {
@@ -36,15 +38,16 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private static BoolQuery copy(BoolQuery query) {
-        return new BoolQuery(query.source(), query.isAnd(), query.left(), query.right());
+        return new BoolQuery(query.source(), query.isAnd(), query.queries());
     }
 
     private static BoolQuery mutate(BoolQuery query) {
         List<Function<BoolQuery, BoolQuery>> options = Arrays.asList(
-            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.source(), false == q.isAnd(), q.left(), q.right()),
-            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(q.left(), () -> NestedQueryTests.randomQuery(5)), q.right()),
-            q -> new BoolQuery(q.source(), q.isAnd(), q.left(), randomValueOtherThan(q.right(), () -> NestedQueryTests.randomQuery(5))));
+            q -> new BoolQuery(SourceTests.mutate(q.source()), q.isAnd(), left(q), right(q)),
+            q -> new BoolQuery(q.source(), false == q.isAnd(), left(q), right(q)),
+            q -> new BoolQuery(q.source(), q.isAnd(), randomValueOtherThan(left(q), () -> NestedQueryTests.randomQuery(5)), right(q)),
+            q -> new BoolQuery(q.source(), q.isAnd(), left(q), randomValueOtherThan(right(q), () -> NestedQueryTests.randomQuery(5)))
+        );
         return randomFrom(options).apply(query);
     }
 
@@ -85,14 +88,21 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     private Query boolQueryWithoutNestedChildren() {
-        return new BoolQuery(SourceTests.randomSource(), randomBoolean(), new MatchAll(SourceTests.randomSource()),
-                new MatchAll(SourceTests.randomSource()));
+        return new BoolQuery(
+            SourceTests.randomSource(),
+            randomBoolean(),
+            new MatchAll(SourceTests.randomSource()),
+            new MatchAll(SourceTests.randomSource())
+        );
     }
 
     private Query boolQueryWithNestedChildren(String path, String field) {
-        NestedQuery match = new NestedQuery(SourceTests.randomSource(), path,
-                singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), null)),
-                new MatchAll(SourceTests.randomSource()));
+        NestedQuery match = new NestedQuery(
+            SourceTests.randomSource(),
+            path,
+            singletonMap(field, new SimpleImmutableEntry<>(randomBoolean(), null)),
+            new MatchAll(SourceTests.randomSource())
+        );
         Query matchAll = new MatchAll(SourceTests.randomSource());
         Query left;
         Query right;
@@ -107,9 +117,54 @@ public class BoolQueryTests extends ESTestCase {
     }
 
     public void testToString() {
-        assertEquals("BoolQuery@1:2[ExistsQuery@1:2[f1] AND ExistsQuery@1:8[f2]]",
-                new BoolQuery(new Source(1, 1, StringUtils.EMPTY), true,
-                    new ExistsQuery(new Source(1, 1, StringUtils.EMPTY), "f1"),
-                    new ExistsQuery(new Source(1, 7, StringUtils.EMPTY), "f2")).toString());
+        assertEquals(
+            "BoolQuery@1:2[ExistsQuery@1:2[f1] AND ExistsQuery@1:8[f2]]",
+            new BoolQuery(
+                new Source(1, 1, StringUtils.EMPTY),
+                true,
+                new ExistsQuery(new Source(1, 1, StringUtils.EMPTY), "f1"),
+                new ExistsQuery(new Source(1, 7, StringUtils.EMPTY), "f2")
+            ).toString()
+        );
     }
+
+    public void testNotAllNegated() {
+        var q = new BoolQuery(Source.EMPTY, true, new ExistsQuery(Source.EMPTY, "f1"), new ExistsQuery(Source.EMPTY, "f2"));
+        assertThat(q.negate(Source.EMPTY), equalTo(new NotQuery(Source.EMPTY, q)));
+    }
+
+    public void testNotSomeNegated() {
+        var q = new BoolQuery(
+            Source.EMPTY,
+            true,
+            new ExistsQuery(Source.EMPTY, "f1"),
+            new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "f2"))
+        );
+        assertThat(
+            q.negate(Source.EMPTY),
+            equalTo(
+                new BoolQuery(
+                    Source.EMPTY,
+                    false,
+                    new NotQuery(Source.EMPTY, new ExistsQuery(Source.EMPTY, "f1")),
+                    new ExistsQuery(Source.EMPTY, "f2")
+                )
+            )
+        );
+    }
+
+    public static Query left(BoolQuery bool) {
+        return indexOf(bool, 0);
+    }
+
+    public static Query right(BoolQuery bool) {
+        return indexOf(bool, 1);
+    }
+
+    private static Query indexOf(BoolQuery bool, int index) {
+        List<Query> queries = bool.queries();
+        assertThat(queries, hasSize(greaterThanOrEqualTo(2)));
+        return queries.get(index);
+    }
+
 }

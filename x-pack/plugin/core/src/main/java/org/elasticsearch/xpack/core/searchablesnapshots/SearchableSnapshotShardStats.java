@@ -6,17 +6,16 @@
  */
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -24,7 +23,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableList;
-import static java.util.stream.Collectors.toList;
 
 public class SearchableSnapshotShardStats implements Writeable, ToXContentObject {
 
@@ -33,8 +31,12 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
     private final SnapshotId snapshotId;
     private final IndexId indexId;
 
-    public SearchableSnapshotShardStats(ShardRouting shardRouting, SnapshotId snapshotId, IndexId indexId,
-                                        List<CacheIndexInputStats> stats) {
+    public SearchableSnapshotShardStats(
+        ShardRouting shardRouting,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        List<CacheIndexInputStats> stats
+    ) {
         this.shardRouting = Objects.requireNonNull(shardRouting);
         this.snapshotId = Objects.requireNonNull(snapshotId);
         this.indexId = Objects.requireNonNull(indexId);
@@ -45,7 +47,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         this.shardRouting = new ShardRouting(in);
         this.snapshotId = new SnapshotId(in);
         this.indexId = new IndexId(in);
-        this.inputStats = in.readList(CacheIndexInputStats::new);
+        this.inputStats = in.readCollectionAsList(CacheIndexInputStats::new);
     }
 
     @Override
@@ -53,7 +55,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         shardRouting.writeTo(out);
         snapshotId.writeTo(out);
         indexId.writeTo(out);
-        out.writeList(inputStats);
+        out.writeCollection(inputStats);
     }
 
     public ShardRouting getShardRouting() {
@@ -92,7 +94,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             builder.startArray("files");
             {
                 List<CacheIndexInputStats> stats = inputStats.stream()
-                    .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt)).collect(toList());
+                    .sorted(Comparator.comparing(CacheIndexInputStats::getFileExt))
+                    .toList();
                 for (CacheIndexInputStats stat : stats) {
                     stat.toXContent(builder, params);
                 }
@@ -148,15 +151,29 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         private final Counter luceneBytesRead;
         private final long currentIndexCacheFills;
 
-        public CacheIndexInputStats(String fileExt, long numFiles, ByteSizeValue totalSize, ByteSizeValue minSize, ByteSizeValue maxSize,
-                                    long openCount, long closeCount,
-                                    Counter forwardSmallSeeks, Counter backwardSmallSeeks,
-                                    Counter forwardLargeSeeks, Counter backwardLargeSeeks,
-                                    Counter contiguousReads, Counter nonContiguousReads,
-                                    Counter cachedBytesRead, Counter indexCacheBytesRead,
-                                    TimedCounter cachedBytesWritten, TimedCounter directBytesRead, TimedCounter optimizedBytesRead,
-                                    Counter blobStoreBytesRequested, Counter luceneBytesRead,
-                                    long currentIndexCacheFills) {
+        public CacheIndexInputStats(
+            String fileExt,
+            long numFiles,
+            ByteSizeValue totalSize,
+            ByteSizeValue minSize,
+            ByteSizeValue maxSize,
+            long openCount,
+            long closeCount,
+            Counter forwardSmallSeeks,
+            Counter backwardSmallSeeks,
+            Counter forwardLargeSeeks,
+            Counter backwardLargeSeeks,
+            Counter contiguousReads,
+            Counter nonContiguousReads,
+            Counter cachedBytesRead,
+            Counter indexCacheBytesRead,
+            TimedCounter cachedBytesWritten,
+            TimedCounter directBytesRead,
+            TimedCounter optimizedBytesRead,
+            Counter blobStoreBytesRequested,
+            Counter luceneBytesRead,
+            long currentIndexCacheFills
+        ) {
             this.fileExt = fileExt;
             this.numFiles = numFiles;
             this.totalSize = totalSize;
@@ -181,23 +198,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         CacheIndexInputStats(final StreamInput in) throws IOException {
-            if (in.getVersion().before(Version.V_7_12_0)) {
-                // This API is currently only used internally for testing, so BWC breaking changes are OK.
-                // We just throw an exception here to get a better error message in case this would be called
-                // in a mixed version cluster
-                throw new IllegalArgumentException("BWC breaking change for internal API");
-            }
             this.fileExt = in.readString();
             this.numFiles = in.readVLong();
-            if (in.getVersion().before(Version.V_7_13_0)) {
-                this.totalSize = new ByteSizeValue(in.readVLong());
-                this.minSize = ByteSizeValue.ZERO;
-                this.maxSize = ByteSizeValue.ZERO;
-            } else {
-                this.totalSize = new ByteSizeValue(in);
-                this.minSize = new ByteSizeValue(in);
-                this.maxSize = new ByteSizeValue(in);
-            }
+            this.totalSize = ByteSizeValue.readFrom(in);
+            this.minSize = ByteSizeValue.readFrom(in);
+            this.maxSize = ByteSizeValue.readFrom(in);
             this.openCount = in.readVLong();
             this.closeCount = in.readVLong();
             this.forwardSmallSeeks = new Counter(in);
@@ -212,26 +217,23 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             this.directBytesRead = new TimedCounter(in);
             this.optimizedBytesRead = new TimedCounter(in);
             this.blobStoreBytesRequested = new Counter(in);
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-                this.luceneBytesRead = new Counter(in);
-            } else {
-                this.luceneBytesRead = new Counter(0, 0, 0, 0);
-            }
+            this.luceneBytesRead = new Counter(in);
             this.currentIndexCacheFills = in.readVLong();
         }
 
         public static CacheIndexInputStats combine(CacheIndexInputStats cis1, CacheIndexInputStats cis2) {
             if (cis1.getFileExt().equals(cis2.getFileExt()) == false) {
                 assert false : "can only combine same file extensions";
-                throw new IllegalArgumentException("can only combine same file extensions but was " +
-                    cis1.fileExt + " and " + cis2.fileExt);
+                throw new IllegalArgumentException(
+                    "can only combine same file extensions but was " + cis1.fileExt + " and " + cis2.fileExt
+                );
             }
             return new CacheIndexInputStats(
                 cis1.fileExt,
                 cis1.numFiles + cis2.numFiles,
-                new ByteSizeValue(Math.addExact(cis1.totalSize.getBytes(), cis2.totalSize.getBytes())),
-                new ByteSizeValue(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
-                new ByteSizeValue(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.addExact(cis1.totalSize.getBytes(), cis2.totalSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.min(cis1.minSize.getBytes(), cis2.minSize.getBytes())),
+                ByteSizeValue.ofBytes(Math.max(cis1.maxSize.getBytes(), cis2.maxSize.getBytes())),
                 cis1.openCount + cis2.openCount,
                 cis1.closeCount + cis2.closeCount,
                 cis1.forwardSmallSeeks.add(cis2.forwardSmallSeeks),
@@ -253,21 +255,11 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().before(Version.V_7_12_0)) {
-                // This API is currently only used internally for testing, so BWC breaking changes are OK.
-                // We just throw an exception here to get a better error message in case this would be called
-                // in a mixed version cluster
-                throw new IllegalArgumentException("BWC breaking change for internal API");
-            }
             out.writeString(fileExt);
             out.writeVLong(numFiles);
-            if (out.getVersion().before(Version.V_7_13_0)) {
-                out.writeVLong(totalSize.getBytes());
-            } else {
-                totalSize.writeTo(out);
-                minSize.writeTo(out);
-                maxSize.writeTo(out);
-            }
+            totalSize.writeTo(out);
+            minSize.writeTo(out);
+            maxSize.writeTo(out);
             out.writeVLong(openCount);
             out.writeVLong(closeCount);
 
@@ -283,9 +275,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             directBytesRead.writeTo(out);
             optimizedBytesRead.writeTo(out);
             blobStoreBytesRequested.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                luceneBytesRead.writeTo(out);
-            }
+            luceneBytesRead.writeTo(out);
             out.writeVLong(currentIndexCacheFills);
         }
 
@@ -310,8 +300,8 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public ByteSizeValue getAverageSize() {
-            final double average = (double) totalSize.getBytes()/ (double) numFiles;
-            return new ByteSizeValue(Math.round(average));
+            final double average = (double) totalSize.getBytes() / (double) numFiles;
+            return ByteSizeValue.ofBytes(Math.round(average));
         }
 
         public long getOpenCount() {
@@ -454,15 +444,29 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
 
         @Override
         public int hashCode() {
-            return Objects.hash(fileExt, numFiles, totalSize,
-                minSize, maxSize,
-                openCount, closeCount,
-                forwardSmallSeeks, backwardSmallSeeks,
-                forwardLargeSeeks, backwardLargeSeeks,
-                contiguousReads, nonContiguousReads,
-                cachedBytesRead, indexCacheBytesRead,
-                cachedBytesWritten, directBytesRead, optimizedBytesRead,
-                blobStoreBytesRequested, luceneBytesRead, currentIndexCacheFills);
+            return Objects.hash(
+                fileExt,
+                numFiles,
+                totalSize,
+                minSize,
+                maxSize,
+                openCount,
+                closeCount,
+                forwardSmallSeeks,
+                backwardSmallSeeks,
+                forwardLargeSeeks,
+                backwardLargeSeeks,
+                contiguousReads,
+                nonContiguousReads,
+                cachedBytesRead,
+                indexCacheBytesRead,
+                cachedBytesWritten,
+                directBytesRead,
+                optimizedBytesRead,
+                blobStoreBytesRequested,
+                luceneBytesRead,
+                currentIndexCacheFills
+            );
         }
     }
 
@@ -488,8 +492,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public Counter add(Counter counter) {
-            return new Counter(count + counter.count, total + counter.total,
-                Math.min(min, counter.min), Math.max(max, counter.max));
+            return new Counter(count + counter.count, total + counter.total, Math.min(min, counter.min), Math.max(max, counter.max));
         }
 
         @Override
@@ -514,8 +517,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
             return builder;
         }
 
-        void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        }
+        void innerToXContent(XContentBuilder builder, Params params) throws IOException {}
 
         public long getCount() {
             return count;
@@ -542,10 +544,7 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
                 return false;
             }
             Counter that = (Counter) other;
-            return count == that.count
-                && total == that.total
-                && min == that.min
-                && max == that.max;
+            return count == that.count && total == that.total && min == that.min && max == that.max;
         }
 
         @Override
@@ -569,8 +568,13 @@ public class SearchableSnapshotShardStats implements Writeable, ToXContentObject
         }
 
         public TimedCounter add(TimedCounter counter) {
-            return new TimedCounter(count + counter.count, total + counter.total,
-                Math.min(min, counter.min), Math.max(max, counter.max), totalNanoseconds + counter.totalNanoseconds);
+            return new TimedCounter(
+                count + counter.count,
+                total + counter.total,
+                Math.min(min, counter.min),
+                Math.max(max, counter.max),
+                totalNanoseconds + counter.totalNanoseconds
+            );
         }
 
         @Override

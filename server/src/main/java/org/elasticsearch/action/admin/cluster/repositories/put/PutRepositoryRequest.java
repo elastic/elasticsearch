@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.repositories.put;
@@ -13,17 +14,16 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * Register repository request.
@@ -39,7 +39,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
 
     private boolean verify = true;
 
-    private Settings settings = EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     public PutRepositoryRequest(StreamInput in) throws IOException {
         super(in);
@@ -49,12 +49,15 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
     }
 
-    public PutRepositoryRequest() {}
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout, ackTimeout);
+    }
 
     /**
      * Constructs a new put repository request with the provided name.
      */
-    public PutRepositoryRequest(String name) {
+    public PutRepositoryRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String name) {
+        this(masterNodeTimeout, ackTimeout);
         this.name = name;
     }
 
@@ -208,7 +211,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         super.writeTo(out);
         out.writeString(name);
         out.writeString(type);
-        writeSettingsToStream(settings, out);
+        settings.writeTo(out);
         out.writeBoolean(verify);
     }
 

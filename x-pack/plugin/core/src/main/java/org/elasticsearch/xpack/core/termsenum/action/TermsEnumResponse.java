@@ -8,19 +8,13 @@ package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * The response of the _terms_enum action.
@@ -30,35 +24,13 @@ public class TermsEnumResponse extends BroadcastResponse {
     public static final String TERMS_FIELD = "terms";
     public static final String COMPLETE_FIELD = "complete";
 
-    @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<TermsEnumResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "term_enum_results",
-        true,
-        arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
-            return new TermsEnumResponse(
-                (List<String>) arg[1],
-                response.getTotalShards(),
-                response.getSuccessfulShards(),
-                response.getFailedShards(),
-                Arrays.asList(response.getShardFailures()),
-                (Boolean) arg[2]
-            );
-        }
-    );
-    static {
-        declareBroadcastFields(PARSER);
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TERMS_FIELD));
-        PARSER.declareBoolean(optionalConstructorArg(), new ParseField(COMPLETE_FIELD));
-    }
-
     private final List<String> terms;
 
-    private boolean complete;
+    private final boolean complete;
 
     TermsEnumResponse(StreamInput in) throws IOException {
         super(in);
-        terms = in.readStringList();
+        terms = in.readStringCollectionAsList();
         complete = in.readBoolean();
     }
 
@@ -67,7 +39,8 @@ public class TermsEnumResponse extends BroadcastResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures, boolean complete
+        List<DefaultShardOperationFailedException> shardFailures,
+        boolean complete
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.terms = terms == null ? Collections.emptyList() : terms;
@@ -104,7 +77,4 @@ public class TermsEnumResponse extends BroadcastResponse {
         builder.field(COMPLETE_FIELD, complete);
     }
 
-    public static TermsEnumResponse fromXContent(XContentParser parser) {
-        return PARSER.apply(parser, null);
-    }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport.netty4;
@@ -17,7 +18,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.transport.TransportInfo;
 
 import java.net.Inet4Address;
@@ -56,7 +56,7 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
         ensureStableCluster(2); // fails if port of publish address does not match corresponding bound address
 
         logger.info("--> checking if boundAddress matching publishAddress has same port");
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().get();
+        NodesInfoResponse nodesInfoResponse = clusterAdmin().prepareNodesInfo().get();
         for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
             BoundTransportAddress boundTransportAddress = nodeInfo.getInfo(TransportInfo.class).getAddress();
             if (nodeInfo.getNode().getName().equals(ipv4OnlyNode)) {

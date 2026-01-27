@@ -62,12 +62,16 @@
           repository: test_cat_snapshots_1
           snapshot: snap1
           wait_for_completion: true
+          body:
+            feature_states: ["none"]
 
   - do:
         snapshot.create:
           repository: test_cat_snapshots_1
           snapshot: snap2
           wait_for_completion: true
+          body:
+            feature_states: ["none"]
 
   - do:
       cat.snapshots:

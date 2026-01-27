@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
@@ -45,6 +45,11 @@ public class TransformStoredDocTests extends AbstractSerializingTransformTestCas
     @Override
     protected TransformStoredDoc createTestInstance() {
         return randomTransformStoredDoc();
+    }
+
+    @Override
+    protected TransformStoredDoc mutateInstance(TransformStoredDoc instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

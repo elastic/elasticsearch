@@ -42,16 +42,17 @@ public final class Scripts {
 
     private static final int PKG_LENGTH = "org.elasticsearch.xpack.".length();
 
-    private Scripts() {
-    }
+    private Scripts() {}
 
-    static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(Stream.of(
-        new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
-        new SimpleEntry<>(QL_SCRIPTS, INTERNAL_QL_SCRIPT_UTILS),
-        new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_EQL_SCRIPT_UTILS),
-        new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SQL_SCRIPT_UTILS),
-        new SimpleEntry<>(PARAM, "params.%s"))
-        .collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new)));
+    static final Map<Pattern, String> FORMATTING_PATTERNS = unmodifiableMap(
+        Stream.of(
+            new SimpleEntry<>(DOC_VALUE, QL_SCRIPTS + ".docValue(doc,{})"),
+            new SimpleEntry<>(QL_SCRIPTS, INTERNAL_QL_SCRIPT_UTILS),
+            new SimpleEntry<>(EQL_SCRIPTS, INTERNAL_EQL_SCRIPT_UTILS),
+            new SimpleEntry<>(SQL_SCRIPTS, INTERNAL_SQL_SCRIPT_UTILS),
+            new SimpleEntry<>(PARAM, "params.%s")
+        ).collect(toMap(e -> Pattern.compile(e.getKey(), Pattern.LITERAL), Map.Entry::getValue, (a, b) -> a, LinkedHashMap::new))
+    );
     static final Pattern qlDocValuePattern = Pattern.compile(DOC_VALUE_PARAMS_REGEX);
 
     /**
@@ -71,19 +72,23 @@ public final class Scripts {
     }
 
     public static ScriptTemplate nullSafeFilter(ScriptTemplate script) {
-        return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{ql}.nullSafeFilter(%s)", script.template())),
-                script.params(),
-                DataTypes.BOOLEAN);
+        return new ScriptTemplate(
+            formatTemplate(format(Locale.ROOT, "{ql}.nullSafeFilter(%s)", script.template())),
+            script.params(),
+            DataTypes.BOOLEAN
+        );
     }
 
     public static ScriptTemplate nullSafeSort(ScriptTemplate script) {
         DataType outputType = script.outputType();
-        String methodName = outputType.isNumeric() ? (outputType.isRational() ? "nullSafeSortNumeric" : "nullSafeSortLong") : "nullSafeSortString";
-        return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{ql}.%s(%s)", methodName, script.template())),
-                script.params(),
-                script.outputType());
+        String methodName = outputType.isNumeric()
+            ? (outputType.isRational() ? "nullSafeSortNumeric" : "nullSafeSortLong")
+            : "nullSafeSortString";
+        return new ScriptTemplate(
+            formatTemplate(format(Locale.ROOT, "{ql}.%s(%s)", methodName, script.template())),
+            script.params(),
+            script.outputType()
+        );
     }
 
     public static ScriptTemplate and(ScriptTemplate left, ScriptTemplate right) {
@@ -94,18 +99,25 @@ public final class Scripts {
         return binaryMethod("{ql}", "or", left, right, DataTypes.BOOLEAN);
     }
 
-    public static ScriptTemplate binaryMethod(String prefix, String methodName, ScriptTemplate leftScript, ScriptTemplate rightScript,
-            DataType dataType) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("%s.%s(%s,%s)"),
-            formatTemplate(prefix),
-            methodName,
-            leftScript.template(),
-            rightScript.template()),
-            paramsBuilder()
-                .script(leftScript.params())
-                .script(rightScript.params())
-                .build(),
-            dataType);
+    public static ScriptTemplate binaryMethod(
+        String prefix,
+        String methodName,
+        ScriptTemplate leftScript,
+        ScriptTemplate rightScript,
+        DataType dataType
+    ) {
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("%s.%s(%s,%s)"),
+                formatTemplate(prefix),
+                methodName,
+                leftScript.template(),
+                rightScript.template()
+            ),
+            paramsBuilder().script(leftScript.params()).script(rightScript.params()).build(),
+            dataType
+        );
     }
 
     public static String classPackageAsPrefix(Class<?> function) {
@@ -177,7 +189,7 @@ public final class Scripts {
         }
 
         // iterate over the fields in reverse order and add a multiValueDocValues call for each
-        for(int i = fieldVars.size() - 1; i >= 0; i--) {
+        for (int i = fieldVars.size() - 1; i >= 0; i--) {
             newTemplate.insert(0, "InternalEqlScriptUtils.multiValueDocValues(doc,params.%s,X" + i + " -> ");
             newTemplate.append(")");
         }
@@ -204,7 +216,7 @@ public final class Scripts {
         ArrayList<String> matchList = new ArrayList<>();
         Matcher m = pattern.matcher(input);
 
-        while(m.find()) {
+        while (m.find()) {
             if (index != m.start()) {
                 matchList.add(input.subSequence(index, m.start()).toString()); // add the segment before the match
             }
@@ -216,7 +228,7 @@ public final class Scripts {
 
         // if no match was found, return this
         if (index == 0) {
-            return new String[] {input};
+            return new String[] { input };
         }
 
         // add remaining segment and avoid an empty element in matches list

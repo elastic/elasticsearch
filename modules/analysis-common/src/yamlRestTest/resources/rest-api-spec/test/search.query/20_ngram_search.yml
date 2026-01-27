@@ -25,7 +25,7 @@
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "text": "foo bar baz" }
         refresh: true
 
@@ -71,7 +71,7 @@
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  { "origin": "C.A1234.5678" }
         refresh: true
 

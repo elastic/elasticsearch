@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
-import org.joda.time.ReadableDuration;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Set;
 
 /**
@@ -29,19 +29,25 @@ public interface SamlServiceProvider {
 
     URL getAssertionConsumerService();
 
-    ReadableDuration getAuthnExpiry();
+    Duration getAuthnExpiry();
 
     class AttributeNames {
         public final String principal;
         public final String name;
         public final String email;
         public final String roles;
+        public final Set<String> allowedExtensions;
 
-        public AttributeNames(String principal, String name, String email, String roles) {
+        public AttributeNames(String principal, String name, String email, String roles, Set<String> allowedExtensions) {
             this.principal = principal;
             this.name = name;
             this.email = email;
             this.roles = roles;
+            this.allowedExtensions = allowedExtensions == null ? Set.of() : Set.copyOf(allowedExtensions);
+        }
+
+        public boolean isAllowedExtension(String attributeName) {
+            return this.allowedExtensions.contains(attributeName);
         }
     }
 

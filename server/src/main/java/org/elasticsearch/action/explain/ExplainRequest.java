@@ -1,27 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -41,12 +40,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     private String[] storedFields;
     private FetchSourceContext fetchSourceContext;
 
-    private AliasFilter filteringAlias = new AliasFilter(null, Strings.EMPTY_ARRAY);
+    private AliasFilter filteringAlias = AliasFilter.EMPTY;
 
     long nowInMillis;
 
-    public ExplainRequest() {
-    }
+    public ExplainRequest() {}
 
     public ExplainRequest(String index, String id) {
         this.index = index;
@@ -55,17 +53,13 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     ExplainRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type);
-        }
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         query = in.readNamedWriteable(QueryBuilder.class);
-        filteringAlias = new AliasFilter(in);
+        filteringAlias = AliasFilter.readFrom(in);
         storedFields = in.readOptionalStringArray();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
     }
 
@@ -125,7 +119,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         return fetchSourceContext;
     }
 
-
     public String[] storedFields() {
         return storedFields;
     }
@@ -162,9 +155,6 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);

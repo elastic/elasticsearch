@@ -1,29 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongSet;
-import com.carrotsearch.hppc.cursors.LongCursor;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
 
 public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery {
-    private final LongSet terms;
+    private final Set<Long> terms;
 
     /**
      * Build the query.
      * @param terms The terms converted to a long with {@link Double#doubleToLongBits(double)}.
      */
-    public DoubleScriptFieldTermsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, LongSet terms) {
+    public DoubleScriptFieldTermsQuery(Script script, DoubleFieldScript.LeafFactory leafFactory, String fieldName, Set<Long> terms) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
     }
@@ -63,11 +63,6 @@ public class DoubleScriptFieldTermsQuery extends AbstractDoubleScriptFieldQuery 
     }
 
     double[] terms() {
-        double[] result = new double[terms.size()];
-        int i = 0;
-        for (LongCursor lc : terms) {
-            result[i++] = Double.longBitsToDouble(lc.value);
-        }
-        return result;
+        return terms.stream().mapToDouble(Double::longBitsToDouble).toArray();
     }
 }

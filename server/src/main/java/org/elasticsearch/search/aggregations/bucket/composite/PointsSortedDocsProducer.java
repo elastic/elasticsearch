@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -12,11 +13,10 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.DocIdSetBuilder;
-import org.apache.lucene.util.FutureArrays;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.ToLongFunction;
 
 /**
@@ -35,8 +35,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
     }
 
     @Override
-    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet)
-        throws IOException {
+    DocIdSet processLeaf(CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException {
         final PointValues values = context.reader().getPointValues(field);
         if (values == null) {
             // no value for the field
@@ -59,7 +58,7 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
             }
             upperBucket = (Long) upperValue;
         }
-        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values, field) : null;
+        DocIdSetBuilder builder = fillDocIdSet ? new DocIdSetBuilder(context.reader().maxDoc(), values) : null;
         Visitor visitor = new Visitor(context, queue, builder, values.getBytesPerDimension(), lowerBucket, upperBucket);
         try {
             values.intersect(visitor);
@@ -142,10 +141,9 @@ class PointsSortedDocsProducer extends SortedDocsProducer {
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            if ((upperPointQuery != null
-                && FutureArrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
+            if ((upperPointQuery != null && Arrays.compareUnsigned(minPackedValue, 0, bytesPerDim, upperPointQuery, 0, bytesPerDim) > 0)
                 || (lowerPointQuery != null
-                    && FutureArrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
+                    && Arrays.compareUnsigned(maxPackedValue, 0, bytesPerDim, lowerPointQuery, 0, bytesPerDim) < 0)) {
                 // does not match the query
                 return PointValues.Relation.CELL_OUTSIDE_QUERY;
             }

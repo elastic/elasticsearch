@@ -1,75 +1,59 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.elasticsearch.gradle.OS
 
 apply plugin: 'elasticsearch.build'
 
-archivesBaseName = 'elasticsearch-plugin-cli'
-
-dependencies {
-  compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "org.bouncycastle:bcpg-fips:1.0.4"
-  api "org.bouncycastle:bc-fips:1.0.2"
-  testImplementation project(":test:framework")
-  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
-  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
+base {
+  archivesName = 'elasticsearch-plugin-cli'
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /bc.*/, to: 'bouncycastle'
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(":libs:cli")
+  implementation project(":libs:plugin-api")
+  implementation project(":libs:plugin-scanner")
+  implementation project(":libs:entitlement")
+  implementation project(path: "bc", configuration: 'shadow')
+  // TODO: asm is picked up from the plugin scanner and entitlements, we should consolidate so it is not defined twice
+  implementation 'org.ow2.asm:asm:9.9'
+  implementation 'org.ow2.asm:asm-tree:9.9'
+
+  testImplementation project(":test:framework")
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
+  testRuntimeOnly "com.google.guava:guava:${versions.jimfs_guava}"
+
+  testImplementation "org.bouncycastle:bcpg-jdk18on:1.83"
+  testImplementation "org.bouncycastle:bcprov-jdk18on:1.83"
+  testImplementation "org.bouncycastle:bcutil-jdk18on:1.83"
 }
 
 tasks.named("test").configure {
   // TODO: find a way to add permissions for the tests in this module
   systemProperty 'tests.security.manager', 'false'
+  // These tests are "heavy" on the secure number generator. On Linux, the NativePRNG defaults to /dev/random for the seeds, and
+  // its entropy is quite limited, to the point that it's known to hang: https://bugs.openjdk.org/browse/JDK-6521844
+  // We force the seed to be initialized from /dev/urandom, which is less secure, but in case of unit tests is not important.
+  if (OS.current() == OS.LINUX) {
+    systemProperty 'java.security.egd', 'file:/dev/urandom'
+  }
 }
 
-/*
- * these two classes intentionally use the following JDK internal APIs in order to offer the necessary
- * functionality
- *
- * sun.security.internal.spec.TlsKeyMaterialParameterSpec
- * sun.security.internal.spec.TlsKeyMaterialSpec
- * sun.security.internal.spec.TlsMasterSecretParameterSpec
- * sun.security.internal.spec.TlsPrfParameterSpec
- * sun.security.internal.spec.TlsRsaPremasterSecretParameterSpec
- * sun.security.provider.SecureRandom
- *
- */
-tasks.named("thirdPartyAudit").configure {
-  ignoreViolations(
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider$CoreSecureRandom',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$BaseTLSKeyGeneratorSpi',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSKeyMaterialGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSPRFKeyGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
-          'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
-  )
-}
-
-tasks.named('splitPackagesAudit').configure {
-    // o.e.plugins is owned by server, these shouldb be renamed to plugincli
-  ignoreClasses 'org.elasticsearch.plugins.InstallPluginAction',
-    'org.elasticsearch.plugins.InstallPluginCommand',
-    'org.elasticsearch.plugins.ListPluginsCommand',
-    'org.elasticsearch.plugins.PluginCli',
-    'org.elasticsearch.plugins.ProgressInputStream',
-    'org.elasticsearch.plugins.RemovePluginAction',
-    'org.elasticsearch.plugins.RemovePluginCommand',
-    'org.elasticsearch.plugins.PluginDescriptor'
+if (buildParams.inFipsJvm) {
+  // Disable tests in FIPS mode due to JAR hell between plugin-cli's
+  // BC dependencies and the BC FIPS dependencies added by the FIPS gradle config
+  // We support running plugin-cli with BC FIPS JARs in ES lib via shadowing.
+  // Running these tests with the JVM in FIPS mode isn't related.
+  tasks.named("test").configure { enabled = false }
 }

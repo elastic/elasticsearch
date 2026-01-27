@@ -1,28 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.apache.tools.ant.filters.ReplaceTokens
 
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 // The integ-test-distribution is published to maven
 apply plugin: 'elasticsearch.publish'
 
 group = "org.elasticsearch.distribution.integ-test-zip"
 
-tasks.named("processTestResources").configure {
+tasks.named("processJavaRestTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
   filter("tokens" : project(':distribution').restTestExpansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }
 
 // make the pom file name use elasticsearch instead of the project name
-archivesBaseName = "elasticsearch"
+base {
+  archivesName = "elasticsearch"
+}
 ext.buildDist = parent.tasks.named("buildIntegTestZip")
 
 publishing {
@@ -31,22 +33,5 @@ publishing {
       pom.packaging = 'zip'
       artifact(buildDist.flatMap { it.archiveFile })
     }
-  }
-}
-
-tasks.named("integTest").configure {
-  dependsOn "assemble"
-  /*
-   * There are two unique things going on here:
-   * 1. These tests can be run against an external cluster with
-   *    -Dtests.rest.cluster=whatever and -Dtest.cluster=whatever
-   * 2. *One* of these tests is incompatible with that and should be skipped
-   *    when running against an external cluster.
-   */
-  if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
-    nonInputProperties.systemProperty 'tests.logfile',
-      "${-> testClusters.integTest.singleNode().getServerLog()}"
-  } else {
-    systemProperty 'tests.logfile', '--external--'
   }
 }

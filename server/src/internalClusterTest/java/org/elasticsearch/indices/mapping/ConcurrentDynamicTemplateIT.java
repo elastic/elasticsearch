@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.mapping;
 
-
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -29,18 +30,28 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{" +
-                "\"dynamic_templates\": ["
-                + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"text\"," + "\"store\": true,"
-                + "\"analyzer\": \"whitespace\" } } } ] }";
+        final String mapping = Strings.format("""
+            {
+              "dynamic_templates": [
+                {
+                  "%s": {
+                    "path_match": "*",
+                    "mapping": {
+                      "type": "text",
+                      "store": true,
+                      "analyzer": "whitespace"
+                    }
+                  }
+                }
+              ]
+            }""", fieldName);
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
         int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
             cluster().wipeIndices("test");
-            assertAcked(prepareCreate("test")
-                    .setMapping(mapping));
+            assertAcked(prepareCreate("test").setMapping(mapping));
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();
@@ -48,10 +59,9 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(
-                    new ActionListener<IndexResponse>() {
+                prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(new ActionListener<DocWriteResponse>() {
                     @Override
-                    public void onResponse(IndexResponse response) {
+                    public void onResponse(DocWriteResponse response) {
                         latch.countDown();
                     }
 
@@ -65,8 +75,8 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             latch.await();
             assertThat(throwable, emptyIterable());
             refresh();
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")).get(), numDocs);
-            assertHitCount(client().prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")).get(), 0);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test-user")), numDocs);
+            assertHitCount(prepareSearch("test").setQuery(QueryBuilders.matchQuery(fieldName, "test user")), 0);
 
         }
     }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -18,71 +17,91 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getReferencedModelKeys;
+import static org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction.getModelAliases;
 
 /**
- * Class for transporting stop trained model deloyment requests.
+ * Class for transporting stop trained model deployment requests.
  *
  * NOTE: this class gets routed to each individual deployment running on the nodes. This way when the request returns, we are assured
  * that the model is not running any longer on any node.
  */
-public class TransportStopTrainedModelDeploymentAction extends TransportTasksAction<TrainedModelDeploymentTask,
-    StopTrainedModelDeploymentAction.Request, StopTrainedModelDeploymentAction.Response, StopTrainedModelDeploymentAction.Response> {
+public class TransportStopTrainedModelDeploymentAction extends TransportTasksAction<
+    TrainedModelDeploymentTask,
+    StopTrainedModelDeploymentAction.Request,
+    StopTrainedModelDeploymentAction.Response,
+    StopTrainedModelDeploymentAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportStopTrainedModelDeploymentAction.class);
 
-    private final Client client;
-    private final IngestService ingestService;
-    private final TrainedModelAllocationService trainedModelAllocationService;
-    private final TrainedModelAllocationClusterService trainedModelAllocationClusterService;
+    private final OriginSettingClient client;
+    private final TrainedModelAssignmentClusterService trainedModelAssignmentClusterService;
+    private final InferenceAuditor auditor;
 
     @Inject
-    public TransportStopTrainedModelDeploymentAction(ClusterService clusterService, TransportService transportService,
-                                                     ActionFilters actionFilters, Client client, IngestService ingestService,
-                                                     TrainedModelAllocationService trainedModelAllocationService,
-                                                     TrainedModelAllocationClusterService trainedModelAllocationClusterService) {
-        super(StopTrainedModelDeploymentAction.NAME, clusterService, transportService, actionFilters,
-            StopTrainedModelDeploymentAction.Request::new, StopTrainedModelDeploymentAction.Response::new,
-            StopTrainedModelDeploymentAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStopTrainedModelDeploymentAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        TrainedModelAssignmentClusterService trainedModelAssignmentClusterService,
+        InferenceAuditor auditor
+    ) {
+        super(
+            StopTrainedModelDeploymentAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            StopTrainedModelDeploymentAction.Request::new,
+            StopTrainedModelDeploymentAction.Response::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
-        this.ingestService = ingestService;
-        this.trainedModelAllocationService = trainedModelAllocationService;
-        this.trainedModelAllocationClusterService = trainedModelAllocationClusterService;
+        this.trainedModelAssignmentClusterService = trainedModelAssignmentClusterService;
+        this.auditor = Objects.requireNonNull(auditor);
     }
 
     @Override
-    protected void doExecute(Task task, StopTrainedModelDeploymentAction.Request request,
-                             ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        StopTrainedModelDeploymentAction.Request request,
+        ActionListener<StopTrainedModelDeploymentAction.Response> listener
+    ) {
         ClusterState state = clusterService.state();
         DiscoveryNodes nodes = state.nodes();
         // Master node is required for initial pre-checks and deletion preparation
@@ -91,162 +110,222 @@ public class TransportStopTrainedModelDeploymentAction extends TransportTasksAct
             return;
         }
 
-        logger.debug("[{}] Received request to undeploy", request.getId());
+        logger.debug(() -> format("[%s] Received request to undeploy%s", request.getId(), request.isForce() ? " (force)" : ""));
 
-        ActionListener<GetTrainedModelsAction.Response> getModelListener = ActionListener.wrap(
-            getModelsResponse -> {
-                List<TrainedModelConfig> models = getModelsResponse.getResources().results();
-                if (models.isEmpty()) {
-                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                    return;
-                }
-                if (models.size() > 1) {
-                    listener.onFailure(ExceptionsHelper.badRequestException("cannot undeploy multiple models at the same time"));
-                    return;
-                }
-
-                Optional<TrainedModelAllocation> maybeAllocation = TrainedModelAllocationMetadata.allocationForModelId(
-                    clusterService.state(),
-                    models.get(0).getModelId()
-                );
-
-                if (maybeAllocation.isEmpty()) {
-                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                    return;
-                }
-                final String modelId = models.get(0).getModelId();
-
-                IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-                Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
-
-                if (referencedModels.contains(modelId)) {
-                    listener.onFailure(new ElasticsearchStatusException(
-                        "Cannot stop allocation for model [{}] as it is still referenced by ingest processors",
-                        RestStatus.CONFLICT, modelId)
-                    );
-                    return;
-                }
-
-                // NOTE, should only run on Master node
-                trainedModelAllocationClusterService.setModelAllocationToStopping(
-                    modelId,
-                    ActionListener.wrap(
-                        setToStopping -> normalUndeploy(task, models.get(0).getModelId(), maybeAllocation.get(), request, listener),
-                        failure -> {
-                            if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
-                                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
-                                return;
-                            }
-                            listener.onFailure(failure);
-                        }
-                    )
-                );
-            },
-            listener::onFailure
+        // TODO check for alias
+        // TODO model or deployment?
+        Optional<TrainedModelAssignment> maybeAssignment = TrainedModelAssignmentMetadata.assignmentForDeploymentId(
+            clusterService.state(),
+            request.getId()
         );
 
-        GetTrainedModelsAction.Request getModelRequest = new GetTrainedModelsAction.Request(
-            request.getId(), null, Collections.emptySet());
-        getModelRequest.setAllowNoResources(request.isAllowNoMatch());
-        client.execute(GetTrainedModelsAction.INSTANCE, getModelRequest, getModelListener);
-    }
+        if (maybeAssignment.isEmpty()) {
+            if (request.isAllowNoMatch() == false) {
+                listener.onFailure(ExceptionsHelper.missingModelDeployment(request.getId()));
+            } else {
+                listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+            }
+            return;
+        }
 
-    private void redirectToMasterNode(DiscoveryNode masterNode, StopTrainedModelDeploymentAction.Request request,
-                                      ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
-        if (masterNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException());
+        IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
+
+        if (request.isForce() == false) {
+            if (referencedModels.contains(request.getId())) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot stop deployment [{}] as it is referenced by ingest processors; " + "use force to stop the deployment",
+                        RestStatus.CONFLICT,
+                        request.getId()
+                    )
+                );
+                return;
+            }
+            List<String> modelAliases = getModelAliases(state, request.getId());
+            Optional<String> referencedModelAlias = modelAliases.stream().filter(referencedModels::contains).findFirst();
+            if (referencedModelAlias.isPresent()) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot stop deployment [{}] as it has a model_alias [{}] that is still referenced"
+                            + " by ingest processors; use force to stop the deployment",
+                        RestStatus.CONFLICT,
+                        request.getId(),
+                        referencedModelAlias.get()
+                    )
+                );
+                return;
+            }
+        }
+
+        // NOTE, should only run on Master node
+        assert clusterService.localNode().isMasterNode();
+
+        if (request.isForce() == false) {
+            checkIfUsedByInferenceEndpoint(
+                request.getId(),
+                ActionListener.wrap(canStop -> stopDeployment(task, request, maybeAssignment.get(), listener), listener::onFailure)
+            );
         } else {
-            transportService.sendRequest(masterNode, actionName, request,
-                new ActionListenerResponseHandler<>(listener, StopTrainedModelDeploymentAction.Response::new));
+            stopDeployment(task, request, maybeAssignment.get(), listener);
         }
     }
 
-    private void normalUndeploy(Task task,
-                                String modelId,
-                                TrainedModelAllocation modelAllocation,
-                                StopTrainedModelDeploymentAction.Request request,
-                                ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
-        request.setNodes(modelAllocation.getNodeRoutingTable().keySet().toArray(String[]::new));
-        ActionListener<StopTrainedModelDeploymentAction.Response> finalListener = ActionListener.wrap(
-            r -> {
-                waitForTaskRemoved(modelId, modelAllocation, request, r, ActionListener.wrap(
-                    waited -> {
-                        trainedModelAllocationService.deleteModelAllocation(
-                            modelId,
-                            ActionListener.wrap(
-                                deleted -> listener.onResponse(r),
-                                deletionFailed -> {
-                                    logger.error(
-                                        () -> new ParameterizedMessage(
-                                            "[{}] failed to delete model allocation after nodes unallocated the deployment",
-                                            modelId
-                                        ),deletionFailed);
-                                    listener.onFailure(ExceptionsHelper.serverError(
-                                        "failed to delete model allocation after nodes unallocated the deployment. Attempt to stop again",
-                                        deletionFailed
-                                    ));
-                                }
-                            )
-                        );
-                    },
-                    // TODO should we attempt to delete the deployment here?
-                    listener::onFailure
-                ));
+    private void stopDeployment(
+        Task task,
+        StopTrainedModelDeploymentAction.Request request,
+        TrainedModelAssignment assignment,
+        ActionListener<StopTrainedModelDeploymentAction.Response> listener
+    ) {
+        trainedModelAssignmentClusterService.setModelAssignmentToStopping(
+            request.getId(),
+            ActionListener.wrap(setToStopping -> normalUndeploy(task, request.getId(), assignment, request, listener), failure -> {
+                if (ExceptionsHelper.unwrapCause(failure) instanceof ResourceNotFoundException) {
+                    listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+                    return;
+                }
+                listener.onFailure(failure);
+            })
+        );
+    }
 
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
-                    // A node has dropped out of the cluster since we started executing the requests.
-                    // Since undeploying an already undeployed trained model is not an error we can try again.
-                    // The tasks that were running on the node that dropped out of the cluster
-                    // will just have their persistent tasks cancelled. Tasks that were stopped
-                    // by the previous attempt will be noops in the subsequent attempt.
-                    doExecute(task, request, listener);
-                } else {
-                    listener.onFailure(e);
+    private void checkIfUsedByInferenceEndpoint(String deploymentId, ActionListener<Boolean> listener) {
+
+        GetInferenceModelAction.Request getAllEndpoints = new GetInferenceModelAction.Request("*", TaskType.ANY);
+        client.execute(GetInferenceModelAction.INSTANCE, getAllEndpoints, listener.delegateFailureAndWrap((l, response) -> {
+            // filter by the ml node services
+            var mlNodeEndpoints = response.getEndpoints()
+                .stream()
+                .filter(model -> model.getService().equals("elasticsearch") || model.getService().equals("elser"))
+                .toList();
+
+            var endpointOwnsDeployment = mlNodeEndpoints.stream()
+                .filter(model -> model.getInferenceEntityId().equals(deploymentId))
+                .findFirst();
+            if (endpointOwnsDeployment.isPresent()) {
+                l.onFailure(
+                    new ElasticsearchStatusException(
+                        "Cannot stop deployment [{}] as it was created by inference endpoint [{}]",
+                        RestStatus.CONFLICT,
+                        deploymentId,
+                        endpointOwnsDeployment.get().getInferenceEntityId()
+                    )
+                );
+                return;
+            }
+
+            // The inference endpoint may have been created by attaching to an existing deployment.
+            for (var endpoint : mlNodeEndpoints) {
+                var serviceSettingsXContent = XContentHelper.toXContent(endpoint.getServiceSettings(), XContentType.JSON, false);
+                var settingsMap = XContentHelper.convertToMap(serviceSettingsXContent, false, XContentType.JSON).v2();
+                // Endpoints with the deployment_id setting are attached to an existing deployment.
+                var deploymentIdFromSettings = (String) settingsMap.get("deployment_id");
+                if (deploymentIdFromSettings != null && deploymentIdFromSettings.equals(deploymentId)) {
+                    // The endpoint was created to use this deployment
+                    l.onFailure(
+                        new ElasticsearchStatusException(
+                            "Cannot stop deployment [{}] as it is used by inference endpoint [{}]",
+                            RestStatus.CONFLICT,
+                            deploymentId,
+                            endpoint.getInferenceEntityId()
+                        )
+                    );
+                    return;
                 }
             }
-        );
+
+            l.onResponse(true);
+        }));
+    }
+
+    private void redirectToMasterNode(
+        DiscoveryNode masterNode,
+        StopTrainedModelDeploymentAction.Request request,
+        ActionListener<StopTrainedModelDeploymentAction.Response> listener
+    ) {
+        if (masterNode == null) {
+            listener.onFailure(new MasterNotDiscoveredException());
+        } else {
+            transportService.sendRequest(
+                masterNode,
+                actionName,
+                request,
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    StopTrainedModelDeploymentAction.Response::new,
+                    TransportResponseHandler.TRANSPORT_WORKER
+                )
+            );
+        }
+    }
+
+    private void normalUndeploy(
+        Task task,
+        String modelId,
+        TrainedModelAssignment modelAssignment,
+        StopTrainedModelDeploymentAction.Request request,
+        ActionListener<StopTrainedModelDeploymentAction.Response> listener
+    ) {
+        request.setNodes(modelAssignment.getNodeRoutingTable().keySet().toArray(String[]::new));
+        ActionListener<StopTrainedModelDeploymentAction.Response> finalListener = ActionListener.wrap(r -> {
+            assert clusterService.localNode().isMasterNode();
+            trainedModelAssignmentClusterService.removeModelAssignment(modelId, ActionListener.wrap(deleted -> {
+                auditor.info(modelId, Messages.INFERENCE_DEPLOYMENT_STOPPED);
+                listener.onResponse(r);
+            }, deletionFailed -> {
+                logger.error(
+                    () -> format("[%s] failed to delete model assignment after nodes unallocated the deployment", modelId),
+                    deletionFailed
+                );
+                listener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to delete model assignment after nodes unallocated the deployment. Attempt to stop again",
+                        deletionFailed
+                    )
+                );
+            }));
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof FailedNodeException) {
+                // A node has dropped out of the cluster since we started executing the requests.
+                // Since undeploying an already undeployed trained model is not an error we can try again.
+                // The tasks that were running on the node that dropped out of the cluster
+                // will just have their persistent tasks cancelled. Tasks that were stopped
+                // by the previous attempt will be noops in the subsequent attempt.
+                doExecute(task, request, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        });
         super.doExecute(task, request, finalListener);
     }
 
-    void waitForTaskRemoved(String modelId,
-                            TrainedModelAllocation trainedModelAllocation,
-                            StopTrainedModelDeploymentAction.Request request,
-                            StopTrainedModelDeploymentAction.Response response,
-                            ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
-        final Set<String> nodesOfConcern = trainedModelAllocation.getNodeRoutingTable().keySet();
-        client.admin()
-            .cluster()
-            .prepareListTasks(nodesOfConcern.toArray(String[]::new))
-            .setDetailed(true)
-            .setWaitForCompletion(true)
-            .setActions(modelId)
-            .setTimeout(request.getTimeout())
-            .execute(ActionListener.wrap(
-                complete -> listener.onResponse(response),
-                listener::onFailure
-            ));
-    }
-
     @Override
-    protected StopTrainedModelDeploymentAction.Response newResponse(StopTrainedModelDeploymentAction.Request request,
-                                                                    List<StopTrainedModelDeploymentAction.Response> tasks,
-                                                                    List<TaskOperationFailure> taskOperationFailures,
-                                                                    List<FailedNodeException> failedNodeExceptions) {
+    protected StopTrainedModelDeploymentAction.Response newResponse(
+        StopTrainedModelDeploymentAction.Request request,
+        List<StopTrainedModelDeploymentAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
+            throw ExceptionsHelper.taskOperationFailureToStatusException(taskOperationFailures.get(0));
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
+            throw failedNodeExceptions.get(0);
         } else {
             return new StopTrainedModelDeploymentAction.Response(true);
         }
     }
 
     @Override
-    protected void taskOperation(StopTrainedModelDeploymentAction.Request request, TrainedModelDeploymentTask task,
-                                 ActionListener<StopTrainedModelDeploymentAction.Response> listener) {
-        task.stop("undeploy_trained_model (api)");
-        listener.onResponse(new StopTrainedModelDeploymentAction.Response(true));
+    protected void taskOperation(
+        CancellableTask actionTask,
+        StopTrainedModelDeploymentAction.Request request,
+        TrainedModelDeploymentTask task,
+        ActionListener<StopTrainedModelDeploymentAction.Response> listener
+    ) {
+        task.stop(
+            "undeploy_trained_model (api)",
+            request.shouldFinishPendingWork(),
+            ActionListener.wrap(r -> listener.onResponse(new StopTrainedModelDeploymentAction.Response(true)), listener::onFailure)
+        );
     }
 }

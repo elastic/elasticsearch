@@ -29,7 +29,11 @@ setup:
                 {
                   "names": ["*"],
                   "privileges": ["read"],
-                  "query": {"match": {"marker": "test_1"}}
+                  "query": {"match": {"marker": "test_1"}},
+                  "field_security" : {
+                    "grant" : [ "*" ],
+                    "except" : [ "forbidden_field" ]
+                  }
                 }
               ]
             }
@@ -72,7 +76,7 @@ setup:
 
   - do:
       indices.create:
-        index: test_index
+        index: test_index1
         body:
           mappings:
             properties:
@@ -80,6 +84,29 @@ setup:
                 properties:
                   city:
                     type: "keyword"
+              created_at:
+                type: date # add date field to trigger can-match phase in searches
+                format: "yyyy-MM-dd"
+
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      indices.create:
+        index: test_index2
+        body:
+          mappings:
+            properties:
+              location:
+                properties:
+                  city:
+                    type: "keyword"
+              created_at:
+                type: date # add date field to trigger can-match phase in searches
+                format: "yyyy-MM-dd"
+
           settings:
             index:
               number_of_shards: 1
@@ -89,10 +116,14 @@ setup:
       bulk:
         refresh: true
         body:
-          - '{"index": {"_index": "test_index"}}'
-          - '{"marker": "test_1", "location.city": "bos"}'
-          - '{"index": {"_index": "test_index"}}'
-          - '{"marker": "test_2", "location.city": "ams"}'
+          - '{"index": {"_index": "test_index1"}}'
+          - '{"marker": "test_1", "location.city": "bos", "forbidden_field" : 1, "created_at": "2016-01-01"}'
+          - '{"index": {"_index": "test_index1"}}'
+          - '{"marker": "test_2", "location.city": "ams", "forbidden_field" : 2, "created_at": "2016-01-01"}'
+          - '{"index": {"_index": "test_index2"}}'
+          - '{"marker": "test_2", "location.city": "bos", "forbidden_field" : 1, "created_at": "2019-01-02"}'
+          - '{"index": {"_index": "test_index2"}}'
+          - '{"marker": "test_2", "location.city": "ams", "forbidden_field" : 2, "created_at": "2019-01-02"}'
 
   - do:
       snapshot.create:
@@ -102,7 +133,11 @@ setup:
 
   - do:
       indices.delete:
-        index: test_index
+        index: test_index1
+
+  - do:
+      indices.delete:
+        index: test_index2
 
 ---
 teardown:
@@ -136,8 +171,22 @@ teardown:
         wait_for_completion: true
         storage: full_copy
         body:
-          index: test_index
-          renamed_index: test_index
+          index: test_index1
+          renamed_index: test_index1
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: full_copy
+        body:
+          index: test_index2
+          renamed_index: test_index2
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }
@@ -147,16 +196,22 @@ teardown:
       headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
       search:
         rest_total_hits_as_int: true
-        index: test_index
+        index: test_index*
         size: 0
         from: 0
         body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
           aggs:
             cities:
               terms:
                 field: location.city
 
-  - match: { _shards.total: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
   - match: { hits.total: 2 }
   - length: { aggregations.cities.buckets: 2 }
   - match: { aggregations.cities.buckets.0.key: "ams" }
@@ -168,16 +223,22 @@ teardown:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
         rest_total_hits_as_int: true
-        index: test_index
+        index: test_index*
         size: 0
         from: 0
         body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
           aggs:
             cities:
               terms:
                 field: location.city
 
-  - match: { _shards.total: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
   - match: { hits.total: 1 }
   - length: { aggregations.cities.buckets: 1 }
   - match: { aggregations.cities.buckets.0.key: "bos" }
@@ -185,7 +246,7 @@ teardown:
 
   - do:
       indices.delete:
-        index: test_index
+        index: test_index*
 
 ---
 "Test doc level security with different users on shared_cache index":
@@ -197,8 +258,22 @@ teardown:
         wait_for_completion: true
         storage: shared_cache
         body:
-          index: test_index
-          renamed_index: test_index
+          index: test_index1
+          renamed_index: test_index1
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        storage: shared_cache
+        body:
+          index: test_index2
+          renamed_index: test_index2
 
   - match: { snapshot.snapshot: snapshot }
   - match: { snapshot.shards.failed: 0 }
@@ -208,16 +283,22 @@ teardown:
       headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
       search:
         rest_total_hits_as_int: true
-        index: test_index
+        index: test_index*
         size: 0
         from: 0
         body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
           aggs:
             cities:
               terms:
                 field: location.city
 
-  - match: { _shards.total: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
   - match: { hits.total: 2 }
   - length: { aggregations.cities.buckets: 2 }
   - match: { aggregations.cities.buckets.0.key: "ams" }
@@ -229,16 +310,22 @@ teardown:
       headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
         rest_total_hits_as_int: true
-        index: test_index
+        index: test_index*
         size: 0
         from: 0
         body:
+          query:
+            range:
+              created_at:
+                "gte": "2016-01-01"
+                "lt": "2018-02-01"
           aggs:
             cities:
               terms:
                 field: location.city
 
-  - match: { _shards.total: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
   - match: { hits.total: 1 }
   - length: { aggregations.cities.buckets: 1 }
   - match: { aggregations.cities.buckets.0.key: "bos" }
@@ -246,4 +333,4 @@ teardown:
 
   - do:
       indices.delete:
-        index: test_index
+        index: test_index*

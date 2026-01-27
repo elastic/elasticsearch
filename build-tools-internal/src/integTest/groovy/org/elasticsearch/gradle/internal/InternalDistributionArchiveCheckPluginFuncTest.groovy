@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -117,7 +118,7 @@ Copyright 2009-2018 Acme Coorp"""
         result.task(":darwin-tar:checkNotice").outcome == TaskOutcome.FAILED
         result.output.contains("> expected line [2] in " +
                 "[./darwin-tar/build/tar-extracted/elasticsearch-${VersionProperties.getElasticsearch()}/NOTICE.txt] " +
-                "to be [Copyright 2009-2021 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
+                "to be [Copyright 2009-2024 Elasticsearch] but was [Copyright 2009-2018 Acme Coorp]")
     }
 
     def "fails on unexpected ml notice content"() {
@@ -125,7 +126,7 @@ Copyright 2009-2018 Acme Coorp"""
         elasticLicense()
         elasticLicense(file("LICENSE.txt"))
         file("NOTICE.txt").text = """Elasticsearch
-Copyright 2009-2021 Elasticsearch"""
+Copyright 2009-2024 Elasticsearch"""
 
         file("ml/NOTICE.txt").text = "Boost Software License - Version 1.0 - August 17th, 2003"
         file('darwin-tar/build.gradle') << """

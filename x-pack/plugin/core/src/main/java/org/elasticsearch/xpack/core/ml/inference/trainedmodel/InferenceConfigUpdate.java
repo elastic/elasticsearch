@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -15,22 +15,26 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-
-public interface InferenceConfigUpdate extends NamedWriteable {
-    Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(Arrays.asList(
-        WarningInferenceResults.WARNING.getPreferredName(),
-        TrainedModelConfig.MODEL_ID.getPreferredName()));
-
-    InferenceConfig apply(InferenceConfig originalConfig);
-
-    InferenceConfig toConfig();
+public interface InferenceConfigUpdate extends VersionedNamedWriteable {
+    Set<String> RESERVED_ML_FIELD_NAMES = new HashSet<>(
+        Arrays.asList(WarningInferenceResults.WARNING.getPreferredName(), TrainedModelConfig.MODEL_ID.getPreferredName())
+    );
 
     boolean isSupported(InferenceConfig config);
+
+    /**
+     * Is this an empty update.
+     * @return True if empty
+     */
+    default boolean isEmpty() {
+        return false;
+    }
 
     String getResultsField();
 
     interface Builder<T extends Builder<T, U>, U extends InferenceConfigUpdate> {
         U build();
+
         T setResultsField(String resultsField);
     }
 
@@ -43,7 +47,7 @@ public interface InferenceConfigUpdate extends NamedWriteable {
     static void checkFieldUniqueness(String... fieldNames) {
         Set<String> duplicatedFieldNames = new HashSet<>();
         Set<String> currentFieldNames = new HashSet<>(RESERVED_ML_FIELD_NAMES);
-        for(String fieldName : fieldNames) {
+        for (String fieldName : fieldNames) {
             if (fieldName == null) {
                 continue;
             }
@@ -54,9 +58,10 @@ public interface InferenceConfigUpdate extends NamedWriteable {
             }
         }
         if (duplicatedFieldNames.isEmpty() == false) {
-            throw ExceptionsHelper.badRequestException("Invalid inference config." +
-                    " More than one field is configured as {}",
-                duplicatedFieldNames);
+            throw ExceptionsHelper.badRequestException(
+                "Invalid inference config." + " More than one field is configured as {}",
+                duplicatedFieldNames
+            );
         }
     }
 }

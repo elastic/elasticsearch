@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -25,7 +24,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * <p>
  * Contains information about the client mode that can be used to generate different responses based on the caller type.
  */
-public abstract class AbstractSqlRequest extends ActionRequest implements ToXContent {
+public abstract class AbstractSqlRequest extends LegacyActionRequest {
 
     private RequestInfo requestInfo;
 

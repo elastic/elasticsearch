@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
 
-import org.elasticsearch.core.Nullable;
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -41,7 +42,7 @@ public final class QueryParserHelper {
             float boost = 1.0f;
             if (boostIndex != -1) {
                 fieldName = field.substring(0, boostIndex);
-                boost = Float.parseFloat(field.substring(boostIndex+1));
+                boost = Float.parseFloat(field.substring(boostIndex + 1));
             } else {
                 fieldName = field;
             }
@@ -54,8 +55,7 @@ public final class QueryParserHelper {
         return fieldsAndWeights;
     }
 
-    public static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
-                                                          Map<String, Float> fieldsAndWeights) {
+    public static Map<String, Float> resolveMappingFields(SearchExecutionContext context, Map<String, Float> fieldsAndWeights) {
         return resolveMappingFields(context, fieldsAndWeights, null);
     }
 
@@ -68,9 +68,11 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
-                                                   Map<String, Float> fieldsAndWeights,
-                                                   String fieldSuffix) {
+    static Map<String, Float> resolveMappingFields(
+        SearchExecutionContext context,
+        Map<String, Float> fieldsAndWeights,
+        String fieldSuffix
+    ) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
@@ -93,7 +95,7 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields.size(), context, null);
+        checkForTooManyFields(resolvedFields.size(), null);
         return resolvedFields;
     }
 
@@ -110,8 +112,14 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight,
-                                                  boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
+    static Map<String, Float> resolveMappingField(
+        SearchExecutionContext context,
+        String fieldOrPattern,
+        float weight,
+        boolean acceptAllTypes,
+        boolean acceptMetadataField,
+        String fieldSuffix
+    ) {
         Set<String> allFields = context.getMatchingFieldNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
@@ -127,7 +135,7 @@ public final class QueryParserHelper {
             }
 
             if (acceptAllTypes == false) {
-                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
+                if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE || fieldType.mayExistInIndex(context) == false) {
                     continue;
                 }
             }
@@ -144,8 +152,8 @@ public final class QueryParserHelper {
         return fields;
     }
 
-    static void checkForTooManyFields(int numberOfFields, SearchExecutionContext context, @Nullable String inputPattern) {
-        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+    static void checkForTooManyFields(int numberOfFields, @Nullable String inputPattern) {
+        int limit = IndexSearcher.getMaxClauseCount();
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.search.DocValueFormat;
@@ -25,7 +26,7 @@ import org.elasticsearch.search.sort.SortOrder;
 public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTests {
 
     public static IndexFieldData<LeafFieldData> hideOrdinals(final IndexFieldData<?> in) {
-        return new IndexFieldData<LeafFieldData>() {
+        return new IndexFieldData<>() {
             @Override
             public String getFieldName() {
                 return in.getFieldName();
@@ -53,8 +54,16 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-                    SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+            public BucketedSort newBucketedSort(
+                BigArrays bigArrays,
+                Object missingValue,
+                MultiValueMode sortMode,
+                Nested nested,
+                SortOrder sortOrder,
+                DocValueFormat format,
+                int bucketSize,
+                BucketedSort.ExtraData extra
+            ) {
                 throw new UnsupportedOperationException();
             }
 
@@ -70,5 +79,15 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
     @Override
     public void testTermsEnum() throws Exception {
         assumeTrue("We can't test this, since the returned IFD instance doesn't implement IndexFieldData.WithOrdinals", false);
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
     }
 }

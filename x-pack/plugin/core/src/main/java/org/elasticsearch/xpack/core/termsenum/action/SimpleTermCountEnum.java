@@ -7,34 +7,35 @@
 package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.apache.lucene.index.ImpactsEnum;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 
 /**
  * A utility class for fields that need to support autocomplete via
- * {@link MappedFieldType#getTerms(boolean, String, org.elasticsearch.index.query.SearchExecutionContext, String)}
+ * {@link MappedFieldType#getTerms(IndexReader, String, boolean, String)}
  * but can't return a raw Lucene TermsEnum.
  */
 public class SimpleTermCountEnum extends TermsEnum {
-    int index =-1;
-    TermCount[] sortedTerms;
-    TermCount current = null;
-    
-    public SimpleTermCountEnum(TermCount[] terms) {
+    int index = -1;
+    String[] sortedTerms;
+    String current = null;
+
+    public SimpleTermCountEnum(String[] terms) {
         sortedTerms = Arrays.copyOf(terms, terms.length);
-        Arrays.sort(sortedTerms, Comparator.comparing(TermCount::getTerm));
+        Arrays.sort(sortedTerms);
     }
-    
-    public SimpleTermCountEnum(TermCount termCount) {
-        sortedTerms = new TermCount[1];
+
+    public SimpleTermCountEnum(String termCount) {
+        sortedTerms = new String[1];
         sortedTerms[0] = termCount;
     }
 
@@ -43,8 +44,8 @@ public class SimpleTermCountEnum extends TermsEnum {
         if (current == null) {
             return null;
         }
-        return new BytesRef(current.getTerm());
-    }    
+        return new BytesRef(current);
+    }
 
     @Override
     public BytesRef next() throws IOException {
@@ -56,20 +57,21 @@ public class SimpleTermCountEnum extends TermsEnum {
         }
         return term();
     }
-    
+
     @Override
     public int docFreq() throws IOException {
-        if (current == null) {
-            return 0;
-        }
-        return (int) current.getDocCount();
-    }    
+        throw new UnsupportedOperationException();
+    }
 
-    
-    //===============  All other TermsEnum methods not supported =================
-    
+    // =============== All other TermsEnum methods not supported =================
+
     @Override
     public AttributeSource attributes() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
         throw new UnsupportedOperationException();
     }
 

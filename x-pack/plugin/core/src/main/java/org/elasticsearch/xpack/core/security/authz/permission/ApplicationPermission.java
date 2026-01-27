@@ -10,8 +10,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -33,7 +34,7 @@ public final class ApplicationPermission {
 
     public static final ApplicationPermission NONE = new ApplicationPermission(Collections.emptyList());
 
-    private final Logger logger;
+    private static final Logger logger = LogManager.getLogger(ApplicationPermission.class);
     private final List<PermissionEntry> permissions;
 
     /**
@@ -42,7 +43,6 @@ public final class ApplicationPermission {
      *                               applied. The resources are treated as a wildcard {@link Automatons#pattern}.
      */
     ApplicationPermission(List<Tuple<ApplicationPrivilege, Set<String>>> privilegesAndResources) {
-        this.logger = LogManager.getLogger(getClass());
         Map<ApplicationPrivilege, PermissionEntry> permissionsByPrivilege = new HashMap<>();
         privilegesAndResources.forEach(tup -> permissionsByPrivilege.compute(tup.v1(), (appPriv, existing) -> {
             final Set<String> resourceNames = tup.v2();
@@ -50,8 +50,11 @@ public final class ApplicationPermission {
             if (existing == null) {
                 return new PermissionEntry(appPriv, resourceNames, patterns);
             } else {
-                return new PermissionEntry(appPriv, Sets.union(existing.resourceNames, resourceNames),
-                    Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns)));
+                return new PermissionEntry(
+                    appPriv,
+                    Sets.union(existing.resourceNames, resourceNames),
+                    Automatons.unionAndMinimize(Arrays.asList(existing.resourceAutomaton, patterns))
+                );
             }
         }));
         this.permissions = List.copyOf(permissionsByPrivilege.values());
@@ -95,31 +98,44 @@ public final class ApplicationPermission {
      * @param checkForPrivilegeNames check permission grants for the set of privilege names
      * @param storedPrivileges stored {@link ApplicationPrivilegeDescriptor} for an application against which the access checks are
      *        performed
-     * @return an instance of {@link ResourcePrivilegesMap}
+     * @param resourcePrivilegesMapBuilder out-parameter for returning the details on which privilege over which resource is granted or not.
+     *                                     Can be {@code null} when no such details are needed so the method can return early, after
+     *                                     encountering the first privilege that is not granted over some resource.
+     * @return {@code true} when all the privileges are granted over all the resources, or {@code false} otherwise
      */
-    public ResourcePrivilegesMap checkResourcePrivileges(final String applicationName, Set<String> checkForResources,
-                                                         Set<String> checkForPrivilegeNames,
-                                                         Collection<ApplicationPrivilegeDescriptor> storedPrivileges) {
-        final ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder = ResourcePrivilegesMap.builder();
+    public boolean checkResourcePrivileges(
+        final String applicationName,
+        Set<String> checkForResources,
+        Set<String> checkForPrivilegeNames,
+        Collection<ApplicationPrivilegeDescriptor> storedPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
+    ) {
+        boolean allMatch = true;
         for (String checkResource : checkForResources) {
             for (String checkPrivilegeName : checkForPrivilegeNames) {
                 final Set<String> nameSet = Collections.singleton(checkPrivilegeName);
                 final Set<ApplicationPrivilege> checkPrivileges = ApplicationPrivilege.get(applicationName, nameSet, storedPrivileges);
                 logger.trace("Resolved privileges [{}] for [{},{}]", checkPrivileges, applicationName, nameSet);
                 for (ApplicationPrivilege checkPrivilege : checkPrivileges) {
-                    assert Automatons.predicate(applicationName).test(checkPrivilege.getApplication()) : "Privilege " + checkPrivilege +
-                        " should have application " + applicationName;
+                    assert Automatons.predicate(applicationName).test(checkPrivilege.getApplication())
+                        : "Privilege " + checkPrivilege + " should have application " + applicationName;
                     assert checkPrivilege.name().equals(nameSet) : "Privilege " + checkPrivilege + " should have name " + nameSet;
-
                     if (grants(checkPrivilege, checkResource)) {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.TRUE);
+                        }
                     } else {
-                        resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                        if (resourcePrivilegesMapBuilder != null) {
+                            resourcePrivilegesMapBuilder.addResourcePrivilege(checkResource, checkPrivilegeName, Boolean.FALSE);
+                            allMatch = false;
+                        } else {
+                            return false;
+                        }
                     }
                 }
             }
         }
-        return resourcePrivilegesMapBuilder.build();
+        return allMatch;
     }
 
     @Override
@@ -128,9 +144,7 @@ public final class ApplicationPermission {
     }
 
     public Set<String> getApplicationNames() {
-        return permissions.stream()
-            .map(e -> e.privilege.getApplication())
-            .collect(Collectors.toSet());
+        return permissions.stream().map(e -> e.privilege.getApplication()).collect(Collectors.toSet());
     }
 
     public Set<ApplicationPrivilege> getPrivileges(String application) {
@@ -173,7 +187,7 @@ public final class ApplicationPermission {
         }
 
         private boolean grants(ApplicationPrivilege other, Automaton resource) {
-            return matchesPrivilege(other) && Operations.subsetOf(resource, this.resourceAutomaton);
+            return matchesPrivilege(other) && Automatons.subsetOf(resource, this.resourceAutomaton);
         }
 
         private boolean matchesPrivilege(ApplicationPrivilege other) {
@@ -183,12 +197,12 @@ public final class ApplicationPermission {
             if (this.application.test(other.getApplication()) == false) {
                 return false;
             }
-            if (Operations.isTotal(privilege.getAutomaton())) {
+            if (privilege.grantsAll()) {
                 return true;
             }
             return Operations.isEmpty(privilege.getAutomaton()) == false
                 && Operations.isEmpty(other.getAutomaton()) == false
-                && Operations.subsetOf(other.getAutomaton(), privilege.getAutomaton());
+                && Automatons.subsetOf(other.getAutomaton(), privilege.getAutomaton());
         }
 
         @Override

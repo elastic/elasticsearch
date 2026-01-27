@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.breaker;
@@ -24,23 +25,19 @@ public class BreakerSettingsTests extends ESTestCase {
             .put(BreakerSettings.breakerTypeSettingKey("bar"), CircuitBreaker.Type.MEMORY)
             .build();
 
-        BreakerSettings breakerFoo = BreakerSettings.updateFromSettings(new BreakerSettings("foo",
-            10L,
-            1.2d,
-            CircuitBreaker.Type.NOOP,
-            CircuitBreaker.Durability.TRANSIENT),
-            clusterSettings);
+        BreakerSettings breakerFoo = BreakerSettings.updateFromSettings(
+            new BreakerSettings("foo", 10L, 1.2d, CircuitBreaker.Type.NOOP, CircuitBreaker.Durability.TRANSIENT),
+            clusterSettings
+        );
         assertThat(breakerFoo.getDurability(), equalTo(CircuitBreaker.Durability.TRANSIENT));
         assertThat(breakerFoo.getLimit(), equalTo(100L));
         assertThat(breakerFoo.getOverhead(), equalTo(1.2));
         assertThat(breakerFoo.getType(), equalTo(CircuitBreaker.Type.NOOP));
 
-        BreakerSettings breakerBar = BreakerSettings.updateFromSettings(new BreakerSettings("bar",
-            5L,
-            0.5d,
-            CircuitBreaker.Type.NOOP,
-            CircuitBreaker.Durability.PERMANENT),
-            clusterSettings);
+        BreakerSettings breakerBar = BreakerSettings.updateFromSettings(
+            new BreakerSettings("bar", 5L, 0.5d, CircuitBreaker.Type.NOOP, CircuitBreaker.Durability.PERMANENT),
+            clusterSettings
+        );
         assertThat(breakerBar.getDurability(), equalTo(CircuitBreaker.Durability.PERMANENT));
         assertThat(breakerBar.getLimit(), equalTo(150L));
         assertThat(breakerBar.getOverhead(), equalTo(2.5));

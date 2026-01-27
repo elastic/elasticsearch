@@ -6,18 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -30,17 +30,16 @@ import java.util.Objects;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-
 public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
 
     public static final UpdateFilterAction INSTANCE = new UpdateFilterAction();
     public static final String NAME = "cluster:admin/xpack/ml/filters/update";
 
     private UpdateFilterAction() {
-        super(NAME, PutFilterAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField ADD_ITEMS = new ParseField("add_items");
         public static final ParseField REMOVE_ITEMS = new ParseField("remove_items");
@@ -60,8 +59,9 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
                 request.filterId = filterId;
             } else if (Strings.isNullOrEmpty(filterId) == false && filterId.equals(request.filterId) == false) {
                 // If we have both URI and body filter ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(),
-                        request.filterId, filterId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, MlFilter.ID.getPreferredName(), request.filterId, filterId)
+                );
             }
             return request;
         }
@@ -72,8 +72,7 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
         private SortedSet<String> addItems = Collections.emptySortedSet();
         private SortedSet<String> removeItems = Collections.emptySortedSet();
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -129,8 +128,8 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             super.writeTo(out);
             out.writeString(filterId);
             out.writeOptionalString(description);
-            out.writeStringArray(addItems.toArray(new String[addItems.size()]));
-            out.writeStringArray(removeItems.toArray(new String[removeItems.size()]));
+            out.writeStringCollection(addItems);
+            out.writeStringCollection(removeItems);
         }
 
         @Override
@@ -165,9 +164,9 @@ public class UpdateFilterAction extends ActionType<PutFilterAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(filterId, other.filterId)
-                    && Objects.equals(description, other.description)
-                    && Objects.equals(addItems, other.addItems)
-                    && Objects.equals(removeItems, other.removeItems);
+                && Objects.equals(description, other.description)
+                && Objects.equals(addItems, other.addItems)
+                && Objects.equals(removeItems, other.removeItems);
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -14,31 +15,8 @@ import java.util.Map;
 
 public class AnnotationTestObject {
 
-    public static class TestAnnotation {
-
+    public record TestAnnotation(String one, String two, String three) {
         public static final String NAME = "test_annotation";
-
-        private final String one;
-        private final String two;
-        private final String three;
-
-        public TestAnnotation(String one, String two, String three) {
-            this.one = one;
-            this.two = two;
-            this.three = three;
-        }
-
-        public String getOne() {
-            return one;
-        }
-
-        public String getTwo() {
-            return two;
-        }
-
-        public String getThree() {
-            return three;
-        }
     }
 
     public static class TestAnnotationParser implements WhitelistAnnotationParser {

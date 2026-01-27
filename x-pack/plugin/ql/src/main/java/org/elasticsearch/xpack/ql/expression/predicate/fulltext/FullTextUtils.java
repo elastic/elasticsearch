@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.fulltext;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.FullTextPredicate.Operator;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -27,7 +28,7 @@ abstract class FullTextUtils {
             return emptyMap();
         }
         String[] list = Strings.delimitedListToStringArray(options, DELIMITER);
-        Map<String, String> op = new LinkedHashMap<>(list.length);
+        Map<String, String> op = Maps.newLinkedHashMapWithExpectedSize(list.length);
 
         for (String entry : list) {
             String[] split = splitInTwo(entry, "=");
@@ -62,16 +63,14 @@ abstract class FullTextUtils {
                 String[] split = splitInTwo(fieldName, "^");
                 if (split == null) {
                     fields.put(fieldName, defaultBoost);
-                }
-                else {
+                } else {
                     try {
                         fields.put(split[0], Float.parseFloat(split[1]));
                     } catch (NumberFormatException nfe) {
                         throw new ParsingException(source, "Cannot parse boosting for {}", fieldName);
                     }
                 }
-            }
-            else {
+            } else {
                 fields.put(fieldName, defaultBoost);
             }
         }

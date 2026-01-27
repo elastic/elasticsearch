@@ -1,0 +1,343 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "Mixed cluster tests don't work with the changed error message from sort"
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
+
+  - do:
+      indices.create:
+        index: geo_points
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        index: geo_points
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "location": "POINT(1 -1)" }
+          - { "index": { } }
+          - { "id": 2, "location": "POINT(-1 1)" }
+
+  - do:
+      indices.create:
+        index: cartesian_points
+        body:
+          mappings:
+            properties:
+              location:
+                type: point
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        index: cartesian_points
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "location": "POINT(4321 -1234)" }
+          - { "index": { } }
+          - { "id": 2, "location": "POINT(-4321 1234)" }
+
+  - do:
+      indices.create:
+        index: geo_shapes
+        body:
+          mappings:
+            properties:
+              shape:
+                type: geo_shape
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        index: geo_shapes
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "shape": "POINT(0 0)" }
+          - { "index": { } }
+          - { "id": 2, "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+
+  - do:
+      indices.create:
+        index: cartesian_shapes
+        body:
+          mappings:
+            properties:
+              shape:
+                type: shape
+              id:
+                type: integer
+
+  - do:
+      bulk:
+        index: cartesian_shapes
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "id": 1, "shape": "POINT(0 0)" }
+          - { "index": { } }
+          - { "id": 2, "shape": "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+
+---
+geo_point:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from geo_points | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: location }
+  - match: { columns.1.type: geo_point }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (1.0 -1.0)" }
+  - match: { values.1.1: "POINT (-1.0 1.0)" }
+
+---
+geo_point unsortable:
+  - do:
+      catch: /cannot sort on geo_point/
+      esql.query:
+        body:
+          query: 'from geo_points | sort location'
+
+---
+geo_point unsortable status:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_points | sort location'
+
+---
+geo_point unsortable with limit:
+  - do:
+      catch: /cannot sort on geo_point/
+      esql.query:
+        body:
+          query: 'from geo_points | LIMIT 10 | sort location'
+
+---
+geo_point unsortable with limit status:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_points | LIMIT 10 | sort location'
+
+---
+geo_point unsortable with limit from row:
+  - do:
+      catch: /cannot sort on geo_point/
+      esql.query:
+        body:
+          query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
+
+---
+values supported for geo_point:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ agg_values_spatial ]
+      reason: "Spatial types added to values aggregation in 8.19.0"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM geo_points | STATS locations = VALUES(location) | EVAL locations = MV_SORT(TO_STRING(locations))'
+  - length: { columns: 1 }
+  - match: { columns.0.name: locations }
+  - match: { columns.0.type: keyword }
+  - length: { values: 1 }
+  - match: { values.0.0: ["POINT (-1.0 1.0)", "POINT (1.0 -1.0)"] }
+
+---
+cartesian_point:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from cartesian_points | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: location }
+  - match: { columns.1.type: cartesian_point }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (4321.0 -1234.0)" }
+  - match: { values.1.1: "POINT (-4321.0 1234.0)" }
+
+---
+cartesian_point unsortable:
+  - do:
+      catch: /cannot sort on cartesian_point/
+      esql.query:
+        body:
+          query: 'from cartesian_points | sort location'
+
+---
+cartesian_point unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_points | sort location'
+
+---
+cartesian_point unsortable with limit:
+  - do:
+      catch: /cannot sort on cartesian_point/
+      esql.query:
+        body:
+          query: 'from cartesian_points | LIMIT 10 | sort location'
+
+---
+cartesian_point unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_points | LIMIT 10 | sort location'
+
+---
+cartesian_point unsortable with limit from row:
+  - do:
+      catch: /cannot sort on cartesian_point/
+      esql.query:
+        body:
+          query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL pt = TO_CARTESIANPOINT(wkt) | limit 5 | sort pt'
+
+---
+geo_shape:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from geo_shapes | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: shape }
+  - match: { columns.1.type: geo_shape }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (0.0 0.0)" }
+  - match: { values.1.1: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
+
+---
+geo_shape unsortable:
+  - do:
+      catch: /cannot sort on geo_shape/
+      esql.query:
+        body:
+          query: 'from geo_shapes | sort shape'
+
+---
+geo_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_shapes | sort shape'
+
+---
+geo_shape unsortable with limit:
+  - do:
+      catch: /cannot sort on geo_shape/
+      esql.query:
+        body:
+          query: 'from geo_shapes | LIMIT 10 | sort shape'
+
+---
+geo_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_shapes | LIMIT 10 | sort shape'
+
+---
+geo_shape unsortable with limit from row:
+  - do:
+      catch: /cannot sort on geo_shape/
+      esql.query:
+        body:
+          query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape'
+
+---
+cartesian_shape:
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | sort id'
+  - match: { columns.0.name: id }
+  - match: { columns.0.type: integer }
+  - match: { columns.1.name: shape }
+  - match: { columns.1.type: cartesian_shape }
+  - length: { values: 2 }
+  - match: { values.0.0: 1 }
+  - match: { values.1.0: 2 }
+  - match: { values.0.1: "POINT (0.0 0.0)" }
+  - match: { values.1.1: "POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))" }
+
+---
+cartesian_shape unsortable:
+  - do:
+      catch: /cannot sort on cartesian_shape/
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | sort shape'
+
+---
+cartesian_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | sort shape'
+
+---
+cartesian_shape unsortable with limit:
+  - do:
+      catch: /cannot sort on cartesian_shape/
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | LIMIT 10 | sort shape'
+
+---
+cartesian_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | LIMIT 10 | sort shape'
+
+---
+cartesian_shape unsortable with limit from row:
+  - do:
+      catch: /cannot sort on cartesian_shape/
+      esql.query:
+        body:
+          query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape'

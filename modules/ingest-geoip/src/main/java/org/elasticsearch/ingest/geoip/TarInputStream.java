@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -32,7 +33,7 @@ class TarInputStream extends FilterInputStream {
 
     public TarEntry getNextEntry() throws IOException {
         if (currentEntry != null) {
-            //go to the end of the current entry
+            // go to the end of the current entry
             skipN(remaining);
             if (reminder != 0) {
                 skipN(512 - reminder);
@@ -53,7 +54,7 @@ class TarInputStream extends FilterInputStream {
 
         boolean notFile = (buf[156] != 0 && buf[156] != '0') || name.endsWith("/");
 
-        if(notFile){
+        if (notFile) {
             remaining = 0;
             reminder = 0;
         } else {
@@ -103,22 +104,5 @@ class TarInputStream extends FilterInputStream {
         }
     }
 
-    static class TarEntry {
-        private final String name;
-        private final boolean notFile;
-
-        TarEntry(String name, boolean notFile) {
-            this.name = name;
-            this.notFile = notFile;
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public boolean isNotFile() {
-            return notFile;
-        }
-    }
+    record TarEntry(String name, boolean notFile) {}
 }
-

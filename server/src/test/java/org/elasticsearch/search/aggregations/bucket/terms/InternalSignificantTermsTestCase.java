@@ -1,29 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class InternalSignificantTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalSignificantTerms<?, ?>> {
 
@@ -33,6 +38,29 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
     public void setUp() throws Exception {
         super.setUp();
         significanceHeuristic = randomSignificanceHeuristic();
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(
+        InternalSignificantTerms<?, ?> sampled,
+        InternalSignificantTerms<?, ?> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertThat(sampled.getSubsetSize(), equalTo(samplingContext.scaleUp(reduced.getSubsetSize())));
+        assertThat(sampled.getSupersetSize(), equalTo(samplingContext.scaleUp(reduced.getSupersetSize())));
+        assertEquals(sampled.getBuckets().size(), reduced.getBuckets().size());
+        Iterator<? extends InternalSignificantTerms.Bucket<?>> sampledIt = sampled.getBuckets().iterator();
+        for (InternalSignificantTerms.Bucket<?> reducedBucket : reduced.getBuckets()) {
+            InternalSignificantTerms.Bucket<?> sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.subsetDf, samplingContext.scaleUp(reducedBucket.subsetDf));
+            assertEquals(sampledBucket.supersetDf, samplingContext.scaleUp(reducedBucket.supersetDf));
+            assertThat(sampledBucket.score, closeTo(reducedBucket.score, 1e-14));
+        }
     }
 
     @Override
@@ -112,42 +140,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             expectedReducedCounts.keySet().retainAll(reducedCounts.keySet());
             assertEquals(expectedReducedCounts, reducedCounts);
         }
-    }
-
-    @Override
-    protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        super.assertMultiBucketsAggregation(expected, actual, checkOrder);
-
-        assertTrue(expected instanceof InternalSignificantTerms);
-        assertTrue(actual instanceof ParsedSignificantTerms);
-
-        InternalSignificantTerms<?, ?> expectedSigTerms = (InternalSignificantTerms<?, ?>) expected;
-        ParsedSignificantTerms actualSigTerms = (ParsedSignificantTerms) actual;
-        assertEquals(expectedSigTerms.getSubsetSize(), actualSigTerms.getSubsetSize());
-        assertEquals(expectedSigTerms.getSupersetSize(), actualSigTerms.getSupersetSize());
-
-        for (SignificantTerms.Bucket bucket : (SignificantTerms) expected) {
-            String key = bucket.getKeyAsString();
-            assertBucket(expectedSigTerms.getBucketByKey(key), actualSigTerms.getBucketByKey(key), checkOrder);
-        }
-    }
-
-    @Override
-    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
-        super.assertBucket(expected, actual, checkOrder);
-
-        assertTrue(expected instanceof InternalSignificantTerms.Bucket);
-        assertTrue(actual instanceof ParsedSignificantTerms.ParsedBucket);
-
-        SignificantTerms.Bucket expectedSigTerm = (SignificantTerms.Bucket) expected;
-        SignificantTerms.Bucket actualSigTerm = (SignificantTerms.Bucket) actual;
-
-        assertEquals(expectedSigTerm.getSignificanceScore(), actualSigTerm.getSignificanceScore(), 0.0);
-        assertEquals(expectedSigTerm.getSubsetDf(), actualSigTerm.getSubsetDf());
-        assertEquals(expectedSigTerm.getDocCount(), actualSigTerm.getSubsetDf());
-        assertEquals(expectedSigTerm.getSupersetDf(), actualSigTerm.getSupersetDf());
-        assertEquals(expectedSigTerm.getSubsetSize(), actualSigTerm.getSubsetSize());
-        assertEquals(expectedSigTerm.getSupersetSize(), actualSigTerm.getSupersetSize());
     }
 
     private static Map<Object, Long> toCounts(

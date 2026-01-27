@@ -15,8 +15,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,12 +37,13 @@ public class CountAccumulator implements Writeable {
     }
 
     public CountAccumulator(StreamInput in) throws IOException {
-        this.counts = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.counts = in.readMap(StreamInput::readLong);
     }
 
     public void merge(CountAccumulator other) {
-        counts = Stream.of(counts, other.counts).flatMap(m -> m.entrySet().stream())
-                .collect(Collectors.toMap(Entry::getKey, Entry::getValue, (x, y) -> x + y));
+        counts = Stream.of(counts, other.counts)
+            .flatMap(m -> m.entrySet().stream())
+            .collect(Collectors.toMap(Entry::getKey, Entry::getValue, (x, y) -> x + y));
     }
 
     public void add(String key, Long count) {
@@ -54,12 +55,15 @@ public class CountAccumulator implements Writeable {
     }
 
     public static CountAccumulator fromTermsAggregation(StringTerms termsAggregation) {
-        return new CountAccumulator(termsAggregation.getBuckets().stream()
-                .collect(Collectors.toMap(bucket -> bucket.getKeyAsString(), bucket -> bucket.getDocCount())));
+        return new CountAccumulator(
+            termsAggregation.getBuckets()
+                .stream()
+                .collect(Collectors.toMap(bucket -> bucket.getKeyAsString(), bucket -> bucket.getDocCount()))
+        );
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(counts, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(counts, StreamOutput::writeLong);
     }
 
     @Override

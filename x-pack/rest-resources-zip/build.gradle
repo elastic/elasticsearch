@@ -1,37 +1,67 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 apply plugin: 'base'
 
 configurations {
   apis
+  compatApis
   freeTests
+  freeCompatTests
   platinumTests
+  platinumCompatTests
 }
 
 dependencies {
   apis project(path: ':rest-api-spec', configuration: 'restSpecs')
   freeTests project(path: ':rest-api-spec', configuration: 'restTests')
+  freeTests project(path: ':modules:aggregations', configuration: 'restTests')
+  freeTests project(path: ':modules:analysis-common', configuration: 'restTests')
+  freeTests project(path: ':modules:data-streams', configuration: 'restTests')
+  freeTests project(path: ':modules:ingest-geoip', configuration: 'restTests')
+  freeTests project(path: ':modules:reindex', configuration: 'restTests')
+  freeTests project(path: ':modules:streams', configuration: 'restTests')
+  compatApis project(path: ':rest-api-spec', configuration: 'restCompatSpecs')
+  compatApis project(path: ':x-pack:plugin', configuration: 'restCompatSpecs')
+  freeCompatTests project(path: ':rest-api-spec', configuration: 'restCompatTests')
   platinumTests project(path: ':x-pack:plugin', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:downsample:qa:rest', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:ent-search', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:inference', configuration: 'restXpackTests')
+  platinumTests project(path: ':x-pack:plugin:watcher', configuration: 'restXpackTests')
+  platinumCompatTests project(path: ':x-pack:plugin', configuration: 'restCompatTests')
+  platinumCompatTests project(path: ':x-pack:plugin:eql:qa:rest', configuration: 'restCompatTests')
 }
 
-tasks.register('restResourcesZip', Zip).configure {
+def restResourcesZip = tasks.register('restResourcesZip', Zip) {
   description = 'Build archive containing all REST API specifications and YAML tests'
 
   destinationDirectory = layout.buildDirectory.dir('distributions')
   from(configurations.apis) {
     into 'rest-api-spec/api'
   }
+  from(configurations.compatApis) {
+    into 'rest-api-spec/compatApi'
+    duplicatesStrategy = 'exclude'
+  }
   from(configurations.freeTests) {
     into 'rest-api-spec/test/free'
+  }
+  from(configurations.freeCompatTests) {
+    into 'rest-api-spec/compatTest/free'
   }
   from(configurations.platinumTests) {
     into 'rest-api-spec/test/platinum'
   }
+  from(configurations.platinumCompatTests) {
+    into 'rest-api-spec/compatTest/platinum'
+  }
 }
 
-tasks.named("assemble").configure { dependsOn 'restResourcesZip' }
+tasks.named('assemble').configure {
+  dependsOn restResourcesZip
+}

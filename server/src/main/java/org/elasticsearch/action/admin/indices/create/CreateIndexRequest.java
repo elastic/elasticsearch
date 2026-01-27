@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -18,22 +18,22 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -42,17 +42,14 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
- * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
+ * A request to create an index.
  * <p>
  * The index created can optionally be created with {@link #settings(org.elasticsearch.common.settings.Settings)}.
  *
- * @see org.elasticsearch.client.IndicesAdminClient#create(CreateIndexRequest)
- * @see org.elasticsearch.client.Requests#createIndexRequest(String)
+ * @see org.elasticsearch.client.internal.IndicesAdminClient#create(CreateIndexRequest)
  * @see CreateIndexResponse
  */
 public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> implements IndicesRequest {
@@ -65,9 +62,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     private String index;
 
-    private Settings settings = EMPTY_SETTINGS;
+    private boolean requireDataStream;
 
-    private String mappings = "{}";
+    private boolean initializeFailureStore;
+
+    private Settings settings = Settings.EMPTY;
+    public static final String EMPTY_MAPPINGS = "{}";
+
+    private String mappings = EMPTY_MAPPINGS;
 
     private final Set<Alias> aliases = new HashSet<>();
 
@@ -84,30 +86,19 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         cause = in.readString();
         index = in.readString();
         settings = readSettingsFromStream(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            int size = in.readVInt();
-            assert size <= 1 : "Expected to read 0 or 1 mappings, but received " + size;
-            if (size == 1) {
-                String type = in.readString();
-                if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
-                    throw new IllegalArgumentException("Expected to receive mapping type of [_doc] but got [" + type + "]");
-                }
-                mappings = in.readString();
-            }
-        } else {
-            mappings = in.readString();
-        }
+        mappings = in.readString();
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
             aliases.add(new Alias(in));
         }
         waitForActiveShards = ActiveShardCount.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            origin = in.readString();
-        }
+        origin = in.readString();
+        requireDataStream = in.readBoolean();
+        initializeFailureStore = in.readBoolean();
     }
 
     public CreateIndexRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
     }
 
     /**
@@ -116,7 +107,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param index the name of the index
      */
     public CreateIndexRequest(String index) {
-        this(index, EMPTY_SETTINGS);
+        this(index, Settings.EMPTY);
     }
 
     /**
@@ -126,6 +117,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      * @param settings the settings to apply to the index
      */
     public CreateIndexRequest(String index, Settings settings) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.index = index;
         this.settings = settings;
     }
@@ -141,7 +133,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     @Override
     public String[] indices() {
-        return new String[]{index};
+        return new String[] { index };
     }
 
     @Override
@@ -271,11 +263,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        // wrap it in a type map if its not
-        if (source.size() != 1 || source.containsKey(type) == false) {
+        if (source.isEmpty()) {
+            // If no source is provided we return empty mappings
+            return mapping(EMPTY_MAPPINGS);
+        } else if (source.size() != 1 || source.containsKey(type) == false) {
+            // wrap it in a type map if its not
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source);
-        }
-        else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
+        } else if (MapperService.SINGLE_MAPPING_NAME.equals(type) == false) {
             // if it has a different type name, then unwrap and rewrap with _doc
             source = Map.of(MapperService.SINGLE_MAPPING_NAME, source.get(type));
         }
@@ -328,15 +322,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      */
     public CreateIndexRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
-            //move to the first alias
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }
@@ -394,22 +387,29 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         for (Map.Entry<String, ?> entry : source.entrySet()) {
             String name = entry.getKey();
             if (SETTINGS.match(name, deprecationHandler)) {
-                if (entry.getValue() instanceof Map == false) {
-                    throw new ElasticsearchParseException("key [settings] must be an object");
-                }
+                validateIsMap(SETTINGS.getPreferredName(), entry.getValue());
                 settings((Map<String, Object>) entry.getValue());
             } else if (MAPPINGS.match(name, deprecationHandler)) {
+                validateIsMap(MAPPINGS.getPreferredName(), entry.getValue());
                 Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
                 for (Map.Entry<String, Object> entry1 : mappings.entrySet()) {
+                    validateIsMap(entry1.getKey(), entry1.getValue());
                     mapping(entry1.getKey(), (Map<String, Object>) entry1.getValue());
                 }
             } else if (ALIASES.match(name, deprecationHandler)) {
+                validateIsMap(ALIASES.getPreferredName(), entry.getValue());
                 aliases((Map<String, Object>) entry.getValue());
             } else {
                 throw new ElasticsearchParseException("unknown key [{}] for create index", name);
             }
         }
         return this;
+    }
+
+    static void validateIsMap(String key, Object value) {
+        if (value instanceof Map == false) {
+            throw new ElasticsearchParseException("key [{}] must be an object", key);
+        }
     }
 
     public String mappings() {
@@ -452,31 +452,49 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return waitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
+    public boolean isRequireDataStream() {
+        return requireDataStream;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest requires a data stream. The data stream may be pre-existing or to-be-created.
+     */
+    public CreateIndexRequest requireDataStream(boolean requireDataStream) {
+        this.requireDataStream = requireDataStream;
+        return this;
+    }
+
+    /**
+     * Returns whether the failure store should be initialized. N.B. If true, failure store index creation will be performed regardless of
+     * whether the template indicates that the failure store is enabled.
+     */
+    public boolean isInitializeFailureStore() {
+        return initializeFailureStore;
+    }
+
+    /**
+     * Set whether this CreateIndexRequest should initialize the failure store on data stream creation. This can be necessary when, for
+     * example, a failure occurs while trying to ingest a document into a data stream that has to be auto-created. N.B. If true, failure
+     * store index creation will be performed regardless of whether the template indicates that the failure store is enabled. It is the
+     * caller's responsibility to ensure that this is correct.
+     */
+    public CreateIndexRequest initializeFailureStore(boolean initializeFailureStore) {
+        this.initializeFailureStore = initializeFailureStore;
+        return this;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(cause);
         out.writeString(index);
-        writeSettingsToStream(settings, out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            if ("{}".equals(mappings)) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(1);
-                out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                out.writeString(mappings);
-            }
-        } else {
-            out.writeString(mappings);
-        }
-        out.writeVInt(aliases.size());
-        for (Alias alias : aliases) {
-            alias.writeTo(out);
-        }
+        settings.writeTo(out);
+        out.writeString(mappings);
+        out.writeCollection(aliases);
         waitForActiveShards.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeString(origin);
-        }
+        out.writeString(origin);
+        out.writeBoolean(this.requireDataStream);
+        out.writeBoolean(this.initializeFailureStore);
     }
 
     @Override
@@ -484,13 +502,13 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         CreateIndexRequest that = (CreateIndexRequest) obj;
-        return Objects.equals(cause, that.cause) &&
-            Objects.equals(index, that.index) &&
-            Objects.equals(settings, that.settings) &&
-            Objects.equals(mappings, that.mappings) &&
-            Objects.equals(aliases, that.aliases) &&
-            Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
-            Objects.equals(origin, that.origin);
+        return Objects.equals(cause, that.cause)
+            && Objects.equals(index, that.index)
+            && Objects.equals(settings, that.settings)
+            && Objects.equals(mappings, that.mappings)
+            && Objects.equals(aliases, that.aliases)
+            && Objects.equals(waitForActiveShards, that.waitForActiveShards)
+            && Objects.equals(origin, that.origin);
     }
 
     @Override

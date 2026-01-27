@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -17,8 +17,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
@@ -28,8 +30,8 @@ import org.mockito.stubbing.Answer;
 import java.util.Collections;
 
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -58,51 +60,53 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
     }
 
     public void testAvailable() throws Exception {
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, clusterState, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(task, null, clusterState, future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(true));
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
         assertThat(serializedUsage.available(), is(true));
         verify(client, times(1)).execute(any(), any(), any());
         verifyNoMoreInteractions(client);
     }
 
     public void testEnabled() throws Exception {
-        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(mock(TransportService.class), mock(ActionFilters.class));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        AnalyticsInfoTransportAction featureSet = new AnalyticsInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
         assertTrue(featureSet.enabled());
         Client client = mockClient();
         AnalyticsUsageTransportAction usageAction = new AnalyticsUsageTransportAction(
-            mock(TransportService.class),
+            transportService,
             clusterService,
-            null,
+            threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, clusterState, future);
-        XPackFeatureSet.Usage usage = future.get().getUsage();
+        usageAction.localClusterStateOperation(task, null, clusterState, future);
+        XPackFeatureUsage usage = future.get().getUsage();
         assertTrue(usage.enabled());
 
         BytesStreamOutput out = new BytesStreamOutput();
         usage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new AnalyticsFeatureSetUsage(out.bytes().streamInput());
         assertTrue(serializedUsage.enabled());
         verify(client, times(1)).execute(any(), any(), any());
         verifyNoMoreInteractions(client);

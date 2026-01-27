@@ -7,23 +7,26 @@
 
 package org.elasticsearch.xpack.idp.saml.support;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.XmlUtils;
 import org.w3c.dom.bootstrap.DOMImplementationRegistry;
 import org.w3c.dom.ls.DOMImplementationLS;
 import org.w3c.dom.ls.LSInput;
 import org.w3c.dom.ls.LSResourceResolver;
+import org.xml.sax.SAXNotRecognizedException;
+import org.xml.sax.SAXNotSupportedException;
 
-import javax.xml.XMLConstants;
-import javax.xml.transform.stream.StreamSource;
-import javax.xml.validation.Schema;
-import javax.xml.validation.SchemaFactory;
-import javax.xml.validation.Validator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+
+import javax.xml.transform.stream.StreamSource;
+import javax.xml.validation.Schema;
+import javax.xml.validation.SchemaFactory;
+import javax.xml.validation.Validator;
 
 /**
  * Validates an XML stream against a specified schema.
@@ -33,25 +36,22 @@ public class XmlValidator {
     private final SchemaFactory schemaFactory;
     private final String xsdName;
 
-    public XmlValidator(String xsdName) {
-        this.schemaFactory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+    public XmlValidator(String xsdName) throws SAXNotSupportedException, SAXNotRecognizedException {
+        this.schemaFactory = XmlUtils.getHardenedSchemaFactory();
         this.xsdName = xsdName;
     }
 
     public void validate(String xml) throws Exception {
-        try(InputStream stream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8))) {
+        try (InputStream stream = new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8))) {
             validate(stream);
         }
     }
 
     public void validate(InputStream xml) throws Exception {
-        try (InputStream xsdStream = loadSchema(xsdName);
-             ResourceResolver resolver = new ResourceResolver()) {
+        try (InputStream xsdStream = loadSchema(xsdName); ResourceResolver resolver = new ResourceResolver()) {
             schemaFactory.setResourceResolver(resolver);
             Schema schema = schemaFactory.newSchema(new StreamSource(xsdStream));
-            Validator validator = schema.newValidator();
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-            validator.setProperty(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+            Validator validator = XmlUtils.getHardenedValidator(schema);
             validator.validate(new StreamSource(xml));
         }
     }

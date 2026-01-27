@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -22,25 +23,31 @@ public class TransportSearchHelperTests extends ESTestCase {
 
     public static AtomicArray<SearchPhaseResult> generateQueryResults() {
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
-        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("b", 12), node2);
-        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("c", 42), node3);
-        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode node2 = DiscoveryNodeUtils.create("node_2");
+        DiscoveryNode node3 = DiscoveryNodeUtils.create("node_3");
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("a", 1),
+            node1
+        );
+        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x"));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("b", 12),
+            node2
+        );
+        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y"));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("c", 42),
+            node3
+        );
+        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         return array;
     }
 
-    public void testParseScrollId()  {
+    public void testParseScrollId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         String scrollId = TransportSearchHelper.buildScrollId(queryResults);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);

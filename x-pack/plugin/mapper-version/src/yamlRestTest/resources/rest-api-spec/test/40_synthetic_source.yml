@@ -1,0 +1,105 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ver:
+                type: version
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ver": "1.0.0" }
+          { "index": {"_id" : "2"} }
+          { "ver": "1.2.3-abc+def" }
+          { "index": {"_id" : "3"} }
+          { "ver": "1.2.3.4.5" }
+          { "index": {"_id" : "4"} }
+          { "ver": ["6.7.8", "5.4.3"] }
+
+---
+fetch source:
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ver: desc } ]
+
+  - match:
+      hits.hits.0._source:
+        ver: ["5.4.3", "6.7.8"]
+  - match:
+      hits.hits.1._source:
+        ver: "1.2.3.4.5"
+  - match:
+      hits.hits.2._source:
+        ver: "1.2.3-abc+def"
+  - match:
+      hits.hits.3._source:
+        ver: "1.0.0"
+
+---
+script values:
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ver: desc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('ver').get(new Version(''))"
+
+  - match: { hits.hits.0.fields.field.0: "5.4.3" }
+  - match: { hits.hits.1.fields.field.0: "1.2.3.4.5" }
+  - match: { hits.hits.2.fields.field.0: "1.2.3-abc+def" }
+  - match: { hits.hits.3.fields.field.0: "1.0.0" }
+
+---
+synthetic source with copy_to:
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              ver:
+                type: version
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      bulk:
+        index: synthetic_source_test
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ver": "1.2.3-abc+def" }
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.ver: "1.2.3-abc+def"
+  - match:
+      hits.hits.0.fields.copy.0: "1.2.3-abc+def"

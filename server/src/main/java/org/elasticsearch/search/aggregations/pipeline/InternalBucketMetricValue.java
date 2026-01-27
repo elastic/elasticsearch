@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,14 +28,13 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     public static final String NAME = "bucket_metric_value";
     static final ParseField KEYS_FIELD = new ParseField("keys");
 
-    private double value;
-    private String[] keys;
+    private final double value;
+    private final String[] keys;
 
     public InternalBucketMetricValue(String name, String[] keys, double value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.value = value;
-        this.format = formatter;
     }
 
     /**
@@ -41,7 +42,6 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
      */
     public InternalBucketMetricValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readDouble();
         keys = in.readStringArray();
     }
@@ -73,7 +73,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -97,11 +97,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
         }
-        builder.startArray(KEYS_FIELD.getPreferredName());
-        for (String key : keys) {
-            builder.value(key);
-        }
-        builder.endArray();
+        builder.array(KEYS_FIELD.getPreferredName(), keys);
         return builder;
     }
 

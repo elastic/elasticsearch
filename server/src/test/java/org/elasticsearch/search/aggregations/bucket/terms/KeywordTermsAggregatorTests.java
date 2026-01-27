@@ -1,24 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -48,7 +47,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMatchNoDocs() throws IOException {
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -56,7 +55,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         );
 
         testSearchCase(
-            new MatchNoDocsQuery(),
+            Queries.NO_DOCS_INSTANCE,
             dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
             agg -> assertEquals(0, agg.getBuckets().size()),
@@ -65,7 +64,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchAllDocs() throws IOException {
-        Query query = new MatchAllDocsQuery();
+        Query query = Queries.ALL_DOCS_INSTANCE;
 
         testSearchCase(query, dataset, aggregation -> aggregation.field(KEYWORD_FIELD), agg -> {
             assertEquals(9, agg.getBuckets().size());
@@ -97,28 +96,24 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
         Consumer<InternalMappedTerms<?, ?>> verify,
         ValueType valueType
     ) throws IOException {
-        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(
-            KEYWORD_FIELD,
-            randomBoolean(),
-            true,
-            Collections.emptyMap()
-        );
+        boolean indexed = randomBoolean();
+        MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD, indexed, true, Collections.emptyMap());
+        FieldType luceneFieldType = new FieldType(KeywordFieldMapper.Defaults.FIELD_TYPE);
+        if (indexed == false) {
+            luceneFieldType.setIndexOptions(IndexOptions.NONE);
+        }
+        luceneFieldType.freeze();
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 for (String value : dataset) {
-                    document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(value)));
-                    if (keywordFieldType.isSearchable()) {
-                        document.add(new Field(KEYWORD_FIELD, new BytesRef(value), KeywordFieldMapper.Defaults.FIELD_TYPE));
-                    }
+                    document.add(new Field(KEYWORD_FIELD, new BytesRef(value), luceneFieldType));
                     indexWriter.addDocument(document);
                     document.clear();
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
                 if (valueType != null) {
                     aggregationBuilder.userValueTypeHint(valueType);
@@ -127,7 +122,10 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     configure.accept(aggregationBuilder);
                 }
 
-                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(indexSearcher, query, aggregationBuilder, keywordFieldType);
+                InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
+                    indexReader,
+                    new AggTestConfig(aggregationBuilder, keywordFieldType).withQuery(query)
+                );
                 verify.accept(rareTerms);
             }
         }

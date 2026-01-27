@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.w3c.dom.Document;
@@ -29,7 +30,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
-import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -111,6 +111,7 @@ public class XmlTextStructureFinder implements TextStructureFinder {
                 .setJodaTimestampFormats(timeField.v2().getJodaTimestampFormats())
                 .setJavaTimestampFormats(timeField.v2().getJavaTimestampFormats())
                 .setNeedClientTimezone(needClientTimeZone)
+                .setEcsCompatibility(overrides.getEcsCompatibility())
                 .setIngestPipeline(
                     TextStructureUtils.makeIngestPipelineDefinition(
                         null,
@@ -120,13 +121,14 @@ public class XmlTextStructureFinder implements TextStructureFinder {
                         topLevelTag + "." + timeField.v1(),
                         timeField.v2().getJavaTimestampFormats(),
                         needClientTimeZone,
-                        timeField.v2().needNanosecondPrecision()
+                        timeField.v2().needNanosecondPrecision(),
+                        overrides.getEcsCompatibility()
                     )
                 );
         }
 
         Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker);
+            .guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, overrides.getTimestampFormat());
 
         if (mappingsAndFieldStats.v2() != null) {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
@@ -150,21 +152,9 @@ public class XmlTextStructureFinder implements TextStructureFinder {
     }
 
     private static DocumentBuilderFactory makeDocBuilderFactory() throws ParserConfigurationException {
-
-        DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilderFactory docBuilderFactory = XmlUtils.getHardenedBuilderFactory();
         docBuilderFactory.setNamespaceAware(false);
         docBuilderFactory.setValidating(false);
-        docBuilderFactory.setXIncludeAware(false);
-        docBuilderFactory.setExpandEntityReferences(false);
-        docBuilderFactory.setIgnoringComments(true);
-        docBuilderFactory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-        docBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-        // The next 5 should be irrelevant given the previous 1, but it doesn't hurt to set them just in case
-        docBuilderFactory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-        docBuilderFactory.setFeature("http://xml.org/sax/features/external-general-entities", false);
-        docBuilderFactory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
-        docBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
-        docBuilderFactory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
         return docBuilderFactory;
     }
 

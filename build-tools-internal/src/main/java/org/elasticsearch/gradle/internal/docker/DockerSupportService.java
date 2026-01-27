@@ -1,36 +1,46 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
 
+import com.avast.gradle.dockercompose.ServiceInfo;
+
+import org.elasticsearch.gradle.Architecture;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.process.ExecOperations;
-import org.gradle.process.ExecResult;
 
-import javax.inject.Inject;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.inject.Inject;
+
+import static java.util.function.Predicate.not;
 
 /**
  * Build service for detecting available Docker installation and checking for compatibility with Elasticsearch Docker image build
@@ -38,18 +48,23 @@ import java.util.stream.Collectors;
  */
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
-    private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
+    private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
     // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
-    private static String[] DOCKER_COMPOSE_BINARIES = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DOCKER_BINARIES = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    private static final String[] DOCKER_COMPOSE_BINARIES = {
+        "/usr/local/bin/docker-compose",
+        "/usr/bin/docker-compose",
+        "/usr/libexec/docker/cli-plugins/docker-compose" };
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
-    private final ExecOperations execOperations;
+    private final ProviderFactory providerFactory;
     private DockerAvailability dockerAvailability;
+    private Map<String, Map<Integer, Integer>> tcpPorts;
+    private Map<String, Map<Integer, Integer>> udpPorts;
 
     @Inject
-    public DockerSupportService(ExecOperations execOperations) {
-        this.execOperations = execOperations;
+    public DockerSupportService(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
     }
 
     /**
@@ -59,11 +74,13 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     public DockerAvailability getDockerAvailability() {
         if (this.dockerAvailability == null) {
-            String dockerPath = null;
-            Result lastResult = null;
+            String dockerPath;
+            String dockerComposePath = null;
+            DockerResult lastResult = null;
             Version version = null;
             boolean isVersionHighEnough = false;
             boolean isComposeAvailable = false;
+            Set<Architecture> supportedArchitectures = EnumSet.noneOf(Architecture.class);
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -72,27 +89,48 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
                 lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
-
-                var lastResultOutput = lastResult.stdout.trim();
+                var lastResultOutput = lastResult.getStdout().trim();
                 // docker returns 0/success if the daemon is not running, so we need to check the
                 // output before continuing
                 if (lastResult.isSuccess() && dockerDaemonIsRunning(lastResultOutput)) {
-
                     version = Version.fromString(lastResultOutput, Version.Mode.RELAXED);
-
                     isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
 
                     if (isVersionHighEnough) {
                         // Check that we can execute a privileged command
-                        lastResult = runCommand(dockerPath, "images");
+                        lastResult = runCommand(Arrays.asList(dockerPath, "images"), input -> "");
 
-                        // If docker all checks out, see if docker-compose is available and working
                         Optional<String> composePath = getDockerComposePath();
                         if (lastResult.isSuccess() && composePath.isPresent()) {
                             isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                            dockerComposePath = composePath.get();
+                        }
+
+                        // Now let's check if buildx is available and what supported platforms exist
+                        if (lastResult.isSuccess()) {
+                            DockerResult buildxResult = runCommand(
+                                Arrays.asList(dockerPath, "buildx", "inspect", "--bootstrap"),
+                                input -> input.lines().filter(l -> l.startsWith("Platforms:")).collect(Collectors.joining("\n"))
+                            );
+                            if (buildxResult.isSuccess()) {
+                                supportedArchitectures = buildxResult.getStdout()
+                                    .lines()
+                                    .filter(l -> l.startsWith("Platforms:"))
+                                    .map(l -> l.substring(10))
+                                    .flatMap(l -> Arrays.stream(l.split(",")).filter(not(String::isBlank)))
+                                    .map(String::trim)
+                                    .map(s -> Arrays.stream(Architecture.values()).filter(a -> a.dockerPlatform.equals(s)).findAny())
+                                    .filter(Optional::isPresent)
+                                    .map(Optional::get)
+                                    .collect(Collectors.toSet());
+                            } else {
+                                supportedArchitectures = Set.of(Architecture.current());
+                            }
                         }
                     }
                 }
+            } else {
+                dockerPath = null;
             }
 
             boolean isAvailable = isVersionHighEnough && lastResult != null && lastResult.isSuccess();
@@ -102,12 +140,29 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 isComposeAvailable,
                 isVersionHighEnough,
                 dockerPath,
+                dockerComposePath,
                 version,
-                lastResult
+                lastResult,
+                supportedArchitectures
             );
         }
 
         return this.dockerAvailability;
+    }
+
+    public boolean isArchitectureSupported(Architecture architecture) {
+        return getDockerAvailability().supportedArchitectures().contains(architecture);
+    }
+
+    private DockerResult runCommand(List args, DockerValueSource.OutputFilter outputFilter) {
+        return providerFactory.of(DockerValueSource.class, params -> {
+            params.getParameters().getArgs().addAll(args);
+            params.getParameters().getOutputFilter().set(outputFilter);
+        }).get();
+    }
+
+    private DockerResult runCommand(String... args) {
+        return runCommand(Arrays.asList(args), input -> input);
     }
 
     private boolean dockerDaemonIsRunning(String lastResultOutput) {
@@ -153,14 +208,17 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // Some other problem, print the error
         final String message = String.format(
             Locale.ROOT,
-            "a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s: \n%s\n"
-                + "the problem is that Docker exited with exit code [%d] with standard error output:\n%s",
+            """
+                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:
+                %s
+                the problem is that Docker exited with exit code [%d] with standard error output:
+                %s""",
             availability.path,
             availability.version == null ? "" : " v" + availability.version,
             tasks.size() > 1 ? "s" : "",
             String.join("\n", tasks),
-            availability.lastCommand.exitCode,
-            availability.lastCommand.stderr.trim()
+            availability.lastCommand.getExitCode(),
+            availability.lastCommand.getStderr().trim()
         );
         throwDockerRequiredException(message);
     }
@@ -169,8 +227,13 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // We don't attempt to check the current flavor and version of Linux unless we're
         // running in CI, because we don't want to stop people running the Docker tests in
         // their own environments if they really want to.
-        if (BuildParams.isCi() == false) {
+        if (getParameters().getIsCI().get().booleanValue() == false) {
             return false;
+        }
+
+        // Even if for some reason Docker exists on Windows agents, flag it as unsupported
+        if (OS.current() == OS.WINDOWS) {
+            return true;
         }
 
         // Only some hosts in CI are configured with Docker. We attempt to work out the OS
@@ -250,7 +313,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerPath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     /**
@@ -261,7 +324,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      */
     private Optional<String> getDockerComposePath() {
         // Check if the Docker binary exists
-        return List.of(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return Stream.of(DOCKER_COMPOSE_BINARIES).filter(path -> new File(path).exists()).findFirst();
     }
 
     private void throwDockerRequiredException(final String message) {
@@ -275,37 +338,28 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         );
     }
 
-    /**
-     * Runs a command and captures the exit code, standard output and standard error.
-     *
-     * @param args the command and any arguments to execute
-     * @return a object that captures the result of running the command. If an exception occurring
-     * while running the command, or the process was killed after reaching the 10s timeout,
-     * then the exit code will be -1.
-     */
-    private Result runCommand(String... args) {
-        if (args.length == 0) {
-            throw new IllegalArgumentException("Cannot execute with no command");
-        }
+    public void storeInfo(Map<String, ServiceInfo> servicesInfos) {
+        tcpPorts = servicesInfos.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getTcpPorts()));
+        udpPorts = servicesInfos.entrySet()
+            .stream()
+            .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getUdpPorts()));
+    }
 
-        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+    public Map<String, Map<Integer, Integer>> getTcpPorts() {
+        return tcpPorts;
+    }
 
-        final ExecResult execResult = execOperations.exec(spec -> {
-            // The redundant cast is to silence a compiler warning.
-            spec.setCommandLine((Object[]) args);
-            spec.setStandardOutput(stdout);
-            spec.setErrorOutput(stderr);
-            spec.setIgnoreExitValue(true);
-        });
-        return new Result(execResult.getExitValue(), stdout.toString(), stderr.toString());
+    public Map<String, Map<Integer, Integer>> getUdpPorts() {
+        return udpPorts;
     }
 
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
-    public static class DockerAvailability {
-        /**
+    public record DockerAvailability(
+        /*
          * Indicates whether Docker is available and meets the required criteria.
          * True if, and only if, Docker is:
          * <ul>
@@ -315,76 +369,35 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
          *     <li>Can execute a command that requires privileges</li>
          * </ul>
          */
-        public final boolean isAvailable;
+        boolean isAvailable,
 
-        /**
-         * True if docker-compose is available.
-         */
-        public final boolean isComposeAvailable;
+        // True if docker-compose is available.
+        boolean isComposeAvailable,
 
-        /**
-         * True if the installed Docker version is &gt;= 17.05
-         */
-        public final boolean isVersionHighEnough;
+        // True if the installed Docker version is &gt,= 17.05
+        boolean isVersionHighEnough,
 
-        /**
-         * The path to the Docker CLI, or null
-         */
-        public final String path;
+        // The path to the Docker CLI, or null
+        String path,
 
-        /**
-         * The installed Docker version, or null
-         */
-        public final Version version;
+        // The path to the Docker Compose CLI, or null
+        String dockerComposePath,
 
-        /**
-         * Information about the last command executes while probing Docker, or null.
-         */
-        final Result lastCommand;
+        // The installed Docker version, or null
+        Version version,
 
-        DockerAvailability(
-            boolean isAvailable,
-            boolean isComposeAvailable,
-            boolean isVersionHighEnough,
-            String path,
-            Version version,
-            Result lastCommand
-        ) {
-            this.isAvailable = isAvailable;
-            this.isComposeAvailable = isComposeAvailable;
-            this.isVersionHighEnough = isVersionHighEnough;
-            this.path = path;
-            this.version = version;
-            this.lastCommand = lastCommand;
-        }
-    }
+        // Information about the last command executes while probing Docker, or null.
+        DockerResult lastCommand,
 
-    /**
-     * This class models the result of running a command. It captures the exit code, standard output and standard error.
-     */
-    private static class Result {
-        final int exitCode;
-        final String stdout;
-        final String stderr;
-
-        Result(int exitCode, String stdout, String stderr) {
-            this.exitCode = exitCode;
-            this.stdout = stdout;
-            this.stderr = stderr;
-        }
-
-        boolean isSuccess() {
-            return exitCode == 0;
-        }
-
-        public String toString() {
-            return "exitCode = [" + exitCode + "] " + "stdout = [" + stdout.trim() + "] " + "stderr = [" + stderr.trim() + "]";
-        }
-    }
+        // Supported build architectures
+        Set<Architecture> supportedArchitectures
+    ) {}
 
     interface Parameters extends BuildServiceParameters {
         File getExclusionsFile();
 
         void setExclusionsFile(File exclusionsFile);
+
+        Property<Boolean> getIsCI();
     }
 }

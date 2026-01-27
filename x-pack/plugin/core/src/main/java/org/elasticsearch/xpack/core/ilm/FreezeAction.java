@@ -6,46 +6,44 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 
 /**
- * A {@link LifecycleAction} which freezes the index.
+ * A noop {@link LifecycleAction} that replaces the removed freeze action. We keep it for backwards compatibility purposes in case we
+ * encounter a policy or an index that refers to this action and its steps in the lifecycle state.
+ * At 10.x we would like to sanitize the freeze action from input and expunge from the lifecycle execution
+ * state of indices.
  */
+@Deprecated
+@UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
 public class FreezeAction implements LifecycleAction {
-    private static final Logger logger = LogManager.getLogger(FreezeAction.class);
 
     public static final String NAME = "freeze";
     public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
 
-    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, FreezeAction::new);
+    public static final FreezeAction INSTANCE = new FreezeAction();
+
+    private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static FreezeAction parse(XContentParser parser) {
+
         return PARSER.apply(parser, null);
     }
 
-    public FreezeAction() {
-    }
-
-    public FreezeAction(StreamInput in) {
-    }
+    private FreezeAction() {}
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -68,29 +66,11 @@ public class FreezeAction implements LifecycleAction {
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preFreezeMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
-        StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
-
-        BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
-                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
-                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
-                        "Skipping this action", FreezeAction.NAME, index.getName(), policyName);
-                    return true;
-                }
-                if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
-                    logger.debug("skipping [{}] action for index [{}] in policy [{}] as the index is already frozen", FreezeAction.NAME,
-                        index.getName(), policyName);
-                    return true;
-                }
-                return false;
-            });
-        CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
-            freezeStepKey);
-        FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
-        return Arrays.asList(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
+        StepKey freezeStepKey = new StepKey(phase, NAME, NAME);
+        NoopStep conditionalSkipFreezeStep = new NoopStep(preFreezeMergeBranchingKey, nextStepKey);
+        NoopStep checkNoWriteIndexStep = new NoopStep(checkNotWriteIndex, nextStepKey);
+        NoopStep freezeStep = new NoopStep(freezeStepKey, nextStepKey);
+        return List.of(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
     }
 
     @Override

@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.time.DateTimeFormatterTimestampConverter;
@@ -109,8 +108,11 @@ public class DataDescription implements ToXContentObject, Writeable {
     public static final ObjectParser<Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<Builder, Void> parser =
-            new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, Void> parser = new ObjectParser<>(
+            DATA_DESCRIPTION_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            Builder::new
+        );
 
         if (ignoreUnknownFields == false) {
             // The strict parser needs to tolerate this field as it's documented, but there's only one value so we don't need to store it
@@ -128,36 +130,14 @@ public class DataDescription implements ToXContentObject, Writeable {
     }
 
     public DataDescription(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            DataFormat.readFromStream(in);
-        }
         timeFieldName = in.readString();
         timeFormat = in.readString();
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            // fieldDelimiter
-            if (in.readBoolean()) {
-                in.read();
-            }
-            // quoteCharacter
-            if (in.readBoolean()) {
-                in.read();
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            DataFormat.XCONTENT.writeTo(out);
-        }
         out.writeString(timeFieldName);
         out.writeString(timeFormat);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            // fieldDelimiter
-            out.writeBoolean(false);
-            // quoteCharacter
-            out.writeBoolean(false);
-        }
     }
 
     @Override
@@ -254,7 +234,9 @@ public class DataDescription implements ToXContentObject, Writeable {
                         DateTimeFormatterTimestampConverter.ofPattern(format, ZoneOffset.UTC);
                     } catch (IllegalArgumentException e) {
                         throw ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format), e.getCause());
+                            Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, format),
+                            e.getCause()
+                        );
                     }
             }
             timeFormat = format;

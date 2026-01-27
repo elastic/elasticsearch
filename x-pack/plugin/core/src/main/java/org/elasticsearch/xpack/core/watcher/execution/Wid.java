@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.watcher.execution;
 
-
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -33,12 +32,12 @@ public class Wid {
 
     public Wid(String watchId, ZonedDateTime executionTime) {
         this.watchId = watchId;
-        this.value = watchId + "_" + UUID.randomUUID().toString() + "-" +  formatter.format(executionTime);
+        this.value = watchId + "_" + UUID.randomUUID().toString() + "-" + formatter.format(executionTime);
     }
 
     public Wid(String value) {
         this.value = value;
-        int index = value.lastIndexOf("_");
+        int index = value.lastIndexOf('_');
         if (index <= 0) {
             throw illegalArgument("invalid watcher execution id [{}]", value);
         }

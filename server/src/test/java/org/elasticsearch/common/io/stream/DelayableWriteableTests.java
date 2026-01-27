@@ -1,21 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io.stream;
 
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
@@ -56,19 +58,23 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private static class NamedHolder implements Writeable {
-        private final Example e;
+        private final Example e1;
+        private final Example e2;
 
         NamedHolder(Example e) {
-            this.e = e;
+            this.e1 = e;
+            this.e2 = e;
         }
 
         NamedHolder(StreamInput in) throws IOException {
-            e = in.readNamedWriteable(Example.class);
+            e1 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
+            e2 = ((DelayableWriteable.Deduplicator) in).deduplicate(in.readNamedWriteable(Example.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeNamedWriteable(e);
+            out.writeNamedWriteable(e1);
+            out.writeNamedWriteable(e2);
         }
 
         @Override
@@ -77,29 +83,29 @@ public class DelayableWriteableTests extends ESTestCase {
                 return false;
             }
             NamedHolder other = (NamedHolder) obj;
-            return e.equals(other.e);
+            return e1.equals(other.e1) && e2.equals(other.e2);
         }
 
         @Override
         public int hashCode() {
-            return e.hashCode();
+            return Objects.hash(e1, e2);
         }
     }
 
     private static class SneakOtherSideVersionOnWire implements Writeable {
-        private final Version version;
+        private final TransportVersion version;
 
         SneakOtherSideVersionOnWire() {
-            version = Version.CURRENT;
+            version = TransportVersion.current();
         }
 
         SneakOtherSideVersionOnWire(StreamInput in) throws IOException {
-            version = Version.readVersion(in);
+            version = TransportVersion.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Version.writeVersion(out.getVersion(), out);
+            TransportVersion.writeVersion(out.getTransportVersion(), out);
         }
     }
 
@@ -129,24 +135,25 @@ public class DelayableWriteableTests extends ESTestCase {
         DelayableWriteable<NamedHolder> original = DelayableWriteable.referencing(n).asSerialized(NamedHolder::new, writableRegistry());
         assertTrue(original.isSerialized());
         roundTripTestCase(original, NamedHolder::new);
+        NamedHolder copy = original.expand();
+        // objects have been deduplicated
+        assertSame(copy.e1, copy.e2);
     }
 
     public void testRoundTripFromDelayedFromOldVersion() throws IOException {
         Example e = new Example(randomAlphaOfLength(5));
         DelayableWriteable<Example> original = roundTrip(DelayableWriteable.referencing(e), Example::new, randomOldVersion());
-        assertTrue(original.isSerialized());
         roundTripTestCase(original, Example::new);
     }
 
     public void testRoundTripFromDelayedFromOldVersionWithNamedWriteable() throws IOException {
         NamedHolder n = new NamedHolder(new Example(randomAlphaOfLength(5)));
         DelayableWriteable<NamedHolder> original = roundTrip(DelayableWriteable.referencing(n), NamedHolder::new, randomOldVersion());
-        assertTrue(original.isSerialized());
         roundTripTestCase(original, NamedHolder::new);
     }
 
     public void testSerializesWithRemoteVersion() throws IOException {
-        Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion remoteVersion = TransportVersionUtils.randomCompatibleVersion();
         DelayableWriteable<SneakOtherSideVersionOnWire> original = DelayableWriteable.referencing(new SneakOtherSideVersionOnWire());
         assertThat(roundTrip(original, SneakOtherSideVersionOnWire::new, remoteVersion).expand().version, equalTo(remoteVersion));
     }
@@ -159,24 +166,42 @@ public class DelayableWriteableTests extends ESTestCase {
     }
 
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
-        DelayableWriteable<T> roundTripped = roundTrip(original, reader, Version.CURRENT);
-        assertTrue(roundTripped.isSerialized());
+        DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
-    private <T extends Writeable> DelayableWriteable<T> roundTrip(DelayableWriteable<T> original,
-            Writeable.Reader<T> reader, Version version) throws IOException {
-        return copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
-            in -> DelayableWriteable.delayed(reader, in), version);
+    private <T extends Writeable> DelayableWriteable<T> roundTrip(
+        DelayableWriteable<T> original,
+        Writeable.Reader<T> reader,
+        TransportVersion version
+    ) throws IOException {
+        DelayableWriteable<T> delayed = copyInstance(
+            original,
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.delayed(reader, in),
+            version
+        );
+        assertTrue(delayed.isSerialized());
+
+        DelayableWriteable<T> referencing = copyInstance(
+            original,
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.referencing(reader, in),
+            version
+        );
+        assertFalse(referencing.isSerialized());
+
+        return randomFrom(delayed, referencing);
     }
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(singletonList(
-                new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
+        return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
     }
 
-    private static Version randomOldVersion() {
-        return randomValueOtherThanMany(Version.CURRENT::before, () -> VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+    private static TransportVersion randomOldVersion() {
+        return TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
     }
 }

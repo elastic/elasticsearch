@@ -20,7 +20,7 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        return new RawInferenceResults(results, randomBoolean() ? new double[0][] : new double[][]{{1.08}} );
+        return new RawInferenceResults(results, randomBoolean() ? new double[0][] : new double[][] { { 1.08 } });
     }
 
     public void testEqualityAndHashcode() {
@@ -29,9 +29,7 @@ public class RawInferenceResultsTests extends ESTestCase {
         for (int i = 0; i < n; i++) {
             results[i] = randomDouble();
         }
-        double[][] importance = randomBoolean() ?
-            new double[0][] :
-            new double[][]{{1.08, 42.0}};
+        double[][] importance = randomBoolean() ? new double[0][] : new double[][] { { 1.08, 42.0 } };
         RawInferenceResults lft = new RawInferenceResults(results, importance);
         RawInferenceResults rgt = new RawInferenceResults(Arrays.copyOf(results, n), importance);
         assertThat(lft, equalTo(rgt));

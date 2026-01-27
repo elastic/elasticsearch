@@ -1,0 +1,220 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.10.0" ]
+      reason: Introduced in 8.10.0
+
+---
+teardown:
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-ruleset
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: test-query-ruleset-recreating
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: invalid_numeric_test
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: multiple_values_test
+        ignore: 404
+
+---
+'Create Query Ruleset':
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ kibana ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id3'
+                  - '_index': 'test-index2'
+                    '_id': 'id4'
+            - rule_id: query-rule-id3
+              type: exclude
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ logstash ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id4'
+                  - '_index': 'test-index2'
+                    '_id': 'id5'
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.get_ruleset:
+        ruleset_id: test-ruleset
+  - match: { ruleset_id: test-ruleset }
+  - match:
+      rules:
+        - rule_id: query-rule-id1
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ elastic ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+        - rule_id: query-rule-id2
+          type: pinned
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ kibana ]
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id3'
+              - '_index': 'test-index2'
+                '_id': 'id4'
+        - rule_id: query-rule-id3
+          type: exclude
+          criteria:
+            - type: exact
+              metadata: query_string
+              values: [ logstash ]
+          actions:
+            docs:
+              - '_index': 'test-index1'
+                '_id': 'id4'
+              - '_index': 'test-index2'
+                '_id': 'id5'
+
+---
+'Create Query Ruleset - Resource already exists':
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-query-ruleset-recreating
+        body:
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'elastic' ]
+            actions:
+              ids:
+                - 'id1'
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rules.put_ruleset:
+        ruleset_id: test-query-ruleset-recreating
+        body:
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'elastic' ]
+            actions:
+              ids:
+                - 'id2'
+
+  - match: { result: 'updated' }
+
+---
+'Create Query Ruleset - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rules.put_ruleset:
+        ruleset_id: forbidden-query-ruleset
+        body:
+          rules:
+            rule_id: 'test-rule-1'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'elastic' ]
+            actions:
+              ids:
+                - 'id1'
+                - 'id2'
+
+  - match: { error.type: 'security_exception' }
+
+---
+"Test numeric comparison rule validation":
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: "query_rules.numeric_validation"
+      reason: "Fixed bug to enforce numeric rule validation starting with 8.19"
+
+  - do:
+      catch: /Input \[not_a_number\] is not valid for CriteriaType \[lte\]/
+      query_rules.put_ruleset:
+        ruleset_id: invalid_numeric_test
+        body:
+          rules:
+            - rule_id: invalid_numeric_rule
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: price
+                  values: ["not_a_number"]
+              actions:
+                ids: ["1"]
+
+---
+"Test numeric comparison with multiple values":
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: "query_rules.numeric_validation"
+      reason: "Fixed bug to enforce numeric rule validation starting with 8.19"
+
+  - do:
+      catch: /Input \[not_a_number\] is not valid for CriteriaType \[lte\]/
+      query_rules.put_ruleset:
+        ruleset_id: multiple_values_test
+        body:
+          rules:
+            - rule_id: multiple_values_rule
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: price
+                  values: ["100", "not_a_number"]
+              actions:
+                ids: ["1"]

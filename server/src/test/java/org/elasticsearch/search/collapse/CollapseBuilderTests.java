@@ -1,34 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -41,7 +42,7 @@ import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
+public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -95,24 +96,23 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
     protected CollapseBuilder mutateInstance(CollapseBuilder instance) throws IOException {
         CollapseBuilder newBuilder;
         switch (between(0, 2)) {
-        case 0:
-            newBuilder = new CollapseBuilder(instance.getField() + randomAlphaOfLength(10));
-            newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests());
-            newBuilder.setInnerHits(instance.getInnerHits());
-            break;
-        case 1:
-            newBuilder = copyInstance(instance);
-            newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests() + between(1, 20));
-            break;
-        case 2:
-        default:
-            newBuilder = copyInstance(instance);
-            List<InnerHitBuilder> innerHits = new ArrayList<>(newBuilder.getInnerHits());
-            for (int i = 0; i < between(1, 5); i++) {
-                innerHits.add(InnerHitBuilderTests.randomInnerHits());
+            case 0 -> {
+                newBuilder = new CollapseBuilder(instance.getField() + randomAlphaOfLength(10));
+                newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests());
+                newBuilder.setInnerHits(instance.getInnerHits());
             }
-            newBuilder.setInnerHits(innerHits);
-            break;
+            case 1 -> {
+                newBuilder = copyInstance(instance);
+                newBuilder.setMaxConcurrentGroupRequests(instance.getMaxConcurrentGroupRequests() + between(1, 20));
+            }
+            default -> {
+                newBuilder = copyInstance(instance);
+                List<InnerHitBuilder> innerHits = new ArrayList<>(newBuilder.getInnerHits());
+                for (int i = 0; i < between(1, 5); i++) {
+                    innerHits.add(InnerHitBuilderTests.randomInnerHits());
+                }
+                newBuilder.setInnerHits(innerHits);
+            }
         }
         return newBuilder;
     }
@@ -136,28 +136,51 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         try (IndexReader reader = DirectoryReader.open(dir)) {
             when(searchExecutionContext.getIndexReader()).thenReturn(reader);
 
-            MappedFieldType numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
+            MappedFieldType numberFieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG);
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             CollapseBuilder builder = new CollapseBuilder("field");
             CollapseContext collapseContext = builder.build(searchExecutionContext);
             assertEquals(collapseContext.getFieldType(), numberFieldType);
 
-            numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, true, false,
-                    false, false, null, Collections.emptyMap(), null, false);
+            numberFieldType = new NumberFieldMapper.NumberFieldType(
+                "field",
+                NumberFieldMapper.NumberType.LONG,
+                IndexType.points(true, false),
+                false,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null,
+                false
+            );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(exc.getMessage(), "cannot collapse on field `field` without `doc_values`");
 
-            numberFieldType =
-                new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG, false, false,
-                    true, false, null, Collections.emptyMap(), null, false);
+            numberFieldType = new NumberFieldMapper.NumberFieldType(
+                "field",
+                NumberFieldMapper.NumberType.LONG,
+                IndexType.docValuesOnly(),
+                false,
+                false,
+                null,
+                Collections.emptyMap(),
+                null,
+                false,
+                null,
+                null,
+                false
+            );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
+            builder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
+            assertEquals(
+                exc.getMessage(),
+                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
+            );
 
             MappedFieldType keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field");
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
@@ -172,10 +195,12 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
+            kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
-            assertEquals(exc.getMessage(),
-                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`");
+            assertEquals(
+                exc.getMessage(),
+                "cannot expand `inner_hits` for collapse field `field`, only indexed field can retrieve `inner_hits`"
+            );
 
         }
     }
@@ -189,7 +214,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
         }
 
         {
-            MappedFieldType fieldType = new MappedFieldType("field", true, false, true, TextSearchInfo.NONE, Collections.emptyMap()) {
+            MappedFieldType fieldType = new MappedFieldType("field", IndexType.points(true, true), false, Collections.emptyMap()) {
                 @Override
                 public String typeName() {
                     return "some_type";
@@ -223,7 +248,7 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
     @Override
     protected String[] getShuffleFieldsExceptions() {
-        //disable xcontent shuffling on the highlight builder
-        return new String[]{"fields"};
+        // disable xcontent shuffling on the highlight builder
+        return new String[] { "fields" };
     }
 }

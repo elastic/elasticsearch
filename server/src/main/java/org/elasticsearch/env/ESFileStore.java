@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.env;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -137,12 +138,12 @@ class ESFileStore extends FileStore {
 
     @Override
     public Object getAttribute(String attribute) throws IOException {
-        switch(attribute) {
+        return switch (attribute) {
             // for the partition
-            case "lucene:major_device_number": return majorDeviceNumber;
-            case "lucene:minor_device_number": return minorDeviceNumber;
-            default: return in.getAttribute(attribute);
-        }
+            case "lucene:major_device_number" -> majorDeviceNumber;
+            case "lucene:minor_device_number" -> minorDeviceNumber;
+            default -> in.getAttribute(attribute);
+        };
     }
 
     @Override

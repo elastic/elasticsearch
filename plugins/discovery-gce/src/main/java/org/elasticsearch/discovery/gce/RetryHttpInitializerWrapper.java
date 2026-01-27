@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.gce;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.googleapis.testing.auth.oauth2.MockGoogleCredential;
 import com.google.api.client.http.HttpBackOffIOExceptionHandler;
@@ -20,8 +19,10 @@ import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
-import org.elasticsearch.cloud.gce.util.Access;
+
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,8 +50,7 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     }
 
     // Use only for testing.
-    RetryHttpInitializerWrapper(
-            Credential wrappedCredential, Sleeper sleeper, TimeValue maxWait) {
+    RetryHttpInitializerWrapper(Credential wrappedCredential, Sleeper sleeper, TimeValue maxWait) {
         this.wrappedCredential = Objects.requireNonNull(wrappedCredential);
         this.sleeper = sleeper;
         this.maxWait = maxWait;
@@ -59,50 +59,40 @@ public class RetryHttpInitializerWrapper implements HttpRequestInitializer {
     // Use only for testing
     static MockGoogleCredential.Builder newMockCredentialBuilder() {
         // TODO: figure out why GCE is so bad like this
-        return Access.doPrivileged(MockGoogleCredential.Builder::new);
+        return new MockGoogleCredential.Builder();
     }
 
     @Override
     public void initialize(HttpRequest httpRequest) {
-        final HttpUnsuccessfulResponseHandler backoffHandler =
-                new HttpBackOffUnsuccessfulResponseHandler(
-                        new ExponentialBackOff.Builder()
-                                .setMaxElapsedTimeMillis(((int) maxWait.getMillis()))
-                                .build())
-                        .setSleeper(sleeper);
+        final HttpUnsuccessfulResponseHandler backoffHandler = new HttpBackOffUnsuccessfulResponseHandler(
+            new ExponentialBackOff.Builder().setMaxElapsedTimeMillis(((int) maxWait.getMillis())).build()
+        ).setSleeper(sleeper);
 
         httpRequest.setInterceptor(wrappedCredential);
-        httpRequest.setUnsuccessfulResponseHandler(
-                new HttpUnsuccessfulResponseHandler() {
-                    int retry = 0;
+        httpRequest.setUnsuccessfulResponseHandler(new HttpUnsuccessfulResponseHandler() {
+            int retry = 0;
 
-                    @Override
-                    public boolean handleResponse(HttpRequest request, HttpResponse response, boolean supportsRetry) throws IOException {
-                        if (wrappedCredential.handleResponse(
-                                request, response, supportsRetry)) {
-                            // If credential decides it can handle it,
-                            // the return code or message indicated
-                            // something specific to authentication,
-                            // and no backoff is desired.
-                            return true;
-                        } else if (backoffHandler.handleResponse(
-                                request, response, supportsRetry)) {
-                            // Otherwise, we defer to the judgement of
-                            // our internal backoff handler.
-                            logger.debug("Retrying [{}] times : [{}]", retry, request.getUrl());
-                            return true;
-                        } else {
-                            return false;
-                        }
-                    }
-                });
+            @Override
+            public boolean handleResponse(HttpRequest request, HttpResponse response, boolean supportsRetry) throws IOException {
+                if (wrappedCredential.handleResponse(request, response, supportsRetry)) {
+                    // If credential decides it can handle it,
+                    // the return code or message indicated
+                    // something specific to authentication,
+                    // and no backoff is desired.
+                    return true;
+                } else if (backoffHandler.handleResponse(request, response, supportsRetry)) {
+                    // Otherwise, we defer to the judgement of
+                    // our internal backoff handler.
+                    logger.debug("Retrying [{}] times : [{}]", retry, request.getUrl());
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+        });
         httpRequest.setIOExceptionHandler(
-                new HttpBackOffIOExceptionHandler(
-                        new ExponentialBackOff.Builder()
-                                .setMaxElapsedTimeMillis(((int) maxWait.getMillis()))
-                                .build())
-                        .setSleeper(sleeper)
+            new HttpBackOffIOExceptionHandler(new ExponentialBackOff.Builder().setMaxElapsedTimeMillis(((int) maxWait.getMillis())).build())
+                .setSleeper(sleeper)
         );
     }
 }
-

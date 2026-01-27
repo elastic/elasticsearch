@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -35,10 +35,8 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static final String TIME_FIELD = "time";
 
     @Before
-    public void setUpData()  {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-            .setMapping(TIME_FIELD, "type=date,format=epoch_millis")
-            .get();
+    public void setUpData() {
+        client().admin().indices().prepareCreate(DATA_INDEX).setMapping(TIME_FIELD, "type=date,format=epoch_millis").get();
     }
 
     @After
@@ -57,14 +55,14 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
         assertThatNumberOfAnnotationsIsEqualTo(0);
 
         runJob(jobIdA, datafeedIdA);
-        client().index(randomAnnotationIndexRequest(jobIdA, XPackUser.NAME)).actionGet();
-        client().index(randomAnnotationIndexRequest(jobIdA, XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdA, InternalUsers.XPACK_USER.principal())).actionGet();
         client().index(randomAnnotationIndexRequest(jobIdA, "real_user")).actionGet();
         // 3 jobA annotations (2 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(3);
 
         runJob(jobIdB, datafeedIdB);
-        client().index(randomAnnotationIndexRequest(jobIdB, XPackUser.NAME)).actionGet();
+        client().index(randomAnnotationIndexRequest(jobIdB, InternalUsers.XPACK_USER.principal())).actionGet();
         client().index(randomAnnotationIndexRequest(jobIdB, "other_real_user")).actionGet();
         // 3 jobA annotations (2 _xpack, 1 real_user) and 2 jobB annotations (1 _xpack, 1 real_user)
         assertThatNumberOfAnnotationsIsEqualTo(5);
@@ -89,13 +87,12 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
 
     private void runJob(String jobId, String datafeedId) throws Exception {
         Detector.Builder detector = new Detector.Builder().setFunction("count");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()))
-            .setBucketSpan(TimeValue.timeValueHours(1));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build())).setBucketSpan(
+            TimeValue.timeValueHours(1)
+        );
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeField(TIME_FIELD);
-        Job.Builder job = new Job.Builder(jobId)
-            .setAnalysisConfig(analysisConfig)
-            .setDataDescription(dataDescription);
+        Job.Builder job = new Job.Builder(jobId).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
 
         putJob(job);
 
@@ -115,8 +112,7 @@ public class DeleteJobIT extends MlNativeAutodetectIntegTestCase {
     private static IndexRequest randomAnnotationIndexRequest(String jobId, String createUsername) throws IOException {
         Annotation annotation = new Annotation.Builder(randomAnnotation(jobId)).setCreateUsername(createUsername).build();
         try (XContentBuilder xContentBuilder = annotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)) {
-            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME)
-                .source(xContentBuilder)
+            return new IndexRequest(AnnotationIndex.WRITE_ALIAS_NAME).source(xContentBuilder)
                 .setRequireAlias(true)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }

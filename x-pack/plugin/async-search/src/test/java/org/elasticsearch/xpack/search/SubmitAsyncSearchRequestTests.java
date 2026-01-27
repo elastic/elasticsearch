@@ -36,23 +36,22 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         final SubmitAsyncSearchRequest searchRequest;
         if (randomBoolean()) {
             searchRequest = new SubmitAsyncSearchRequest(generateRandomStringArray(10, 10, false, false));
-        }  else {
+        } else {
             searchRequest = new SubmitAsyncSearchRequest();
         }
         if (randomBoolean()) {
-            searchRequest.setWaitForCompletionTimeout(TimeValue.parseTimeValue(randomPositiveTimeValue(), "wait_for_completion"));
+            searchRequest.setWaitForCompletionTimeout(randomPositiveTimeValue());
         }
         searchRequest.setKeepOnCompletion(randomBoolean());
         if (randomBoolean()) {
-            searchRequest.setKeepAlive(TimeValue.parseTimeValue(randomPositiveTimeValue(), "keep_alive"));
+            searchRequest.setKeepAlive(randomPositiveTimeValue());
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest()
                 .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
-            searchRequest.getSearchRequest()
-                .preference(randomAlphaOfLengthBetween(3, 10));
+            searchRequest.getSearchRequest().preference(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest().requestCache(randomBoolean());
@@ -64,6 +63,11 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
             searchRequest.getSearchRequest().source(randomSearchSourceBuilder());
         }
         return searchRequest;
+    }
+
+    @Override
+    protected SubmitAsyncSearchRequest mutateInstance(SubmitAsyncSearchRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     protected SearchSourceBuilder randomSearchSourceBuilder() {
@@ -81,9 +85,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
         req.getSearchRequest().setCcsMinimizeRoundtrips(true);
         ActionRequestValidationException exc = req.validate();
-        assertNotNull(exc);
-        assertThat(exc.validationErrors().size(), equalTo(1));
-        assertThat(exc.validationErrors().get(0), containsString("[ccs_minimize_roundtrips]"));
+        assertNull(exc);
     }
 
     public void testValidateScroll() {
@@ -126,9 +128,14 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
 
     public void testTaskDescription() {
         SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(
-            new SearchSourceBuilder().query(new MatchAllQueryBuilder()), "index");
+            new SearchSourceBuilder().query(new MatchAllQueryBuilder()),
+            "index"
+        );
         Task task = request.createTask(1, "type", "action", null, Collections.emptyMap());
-        assertEquals("waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], " +
-            "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]", task.getDescription());
+        assertEquals(
+            "waitForCompletionTimeout[1s], keepOnCompletion[false] keepAlive[5d], request=indices[index], "
+                + "search_type[QUERY_THEN_FETCH], source[{\"query\":{\"match_all\":{\"boost\":1.0}}}]",
+            task.getDescription()
+        );
     }
 }

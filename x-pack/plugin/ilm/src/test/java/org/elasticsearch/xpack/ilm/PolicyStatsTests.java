@@ -12,7 +12,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PhaseStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.PolicyStats;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -34,19 +33,16 @@ public class PolicyStatsTests extends AbstractWireSerializingTestCase<PolicyStat
     }
 
     @Override
-    protected PolicyStats mutateInstance(PolicyStats instance) throws IOException {
+    protected PolicyStats mutateInstance(PolicyStats instance) {
         Map<String, PhaseStats> phaseStats = instance.getPhaseStats();
         int numberIndicesManaged = instance.getIndicesManaged();
         switch (between(0, 1)) {
-        case 0:
-            phaseStats = new HashMap<>(phaseStats);
-            phaseStats.put(randomAlphaOfLength(11), PhaseStatsTests.randomPhaseStats());
-            break;
-        case 1:
-            numberIndicesManaged += randomIntBetween(1, 10);
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0 -> {
+                phaseStats = new HashMap<>(phaseStats);
+                phaseStats.put(randomAlphaOfLength(11), PhaseStatsTests.randomPhaseStats());
+            }
+            case 1 -> numberIndicesManaged += randomIntBetween(1, 10);
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new PolicyStats(phaseStats, numberIndicesManaged);
     }

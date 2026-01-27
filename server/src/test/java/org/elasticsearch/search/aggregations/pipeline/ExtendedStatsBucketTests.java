@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -71,9 +72,9 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         assertThat(
             validate(aggBuilders, new ExtendedStatsBucketPipelineAggregationBuilder("name", "global>metric")),
             equalTo(
-                "Validation Failed: 1: The first aggregation in "
+                "Validation Failed: 1: Unable to find unqualified multi-bucket aggregation in "
                     + PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
-                    + " must be a multi-bucket aggregation for aggregation [name] found :"
+                    + ". Path must include a multi-bucket aggregation for aggregation [name] found :"
                     + GlobalAggregationBuilder.class.getName()
                     + " for buckets path: global>metric;"
             )

@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -33,24 +33,28 @@ import java.util.Set;
  */
 public final class InFlightShardSnapshotStates {
 
+    private static final InFlightShardSnapshotStates EMPTY = new InFlightShardSnapshotStates(Map.of(), Map.of());
+
     /**
      * Compute information about all shard ids that currently have in-flight state for the given repository.
      *
-     * @param repoName  repository name
-     * @param snapshots snapshots in progress
-     * @return in flight shard states for all snapshot operation running for the given repository name
+     * @param snapshots snapshots in progress for a single repository
+     * @return in flight shard states for all snapshot operations
      */
-    public static InFlightShardSnapshotStates forRepo(String repoName, List<SnapshotsInProgress.Entry> snapshots) {
+    public static InFlightShardSnapshotStates forEntries(List<SnapshotsInProgress.Entry> snapshots) {
+        if (snapshots.isEmpty()) {
+            return EMPTY;
+        }
         final Map<String, Map<Integer, ShardGeneration>> generations = new HashMap<>();
         final Map<String, Set<Integer>> busyIds = new HashMap<>();
+        assert snapshots.stream().map(entry -> new ProjectRepo(entry.projectId(), entry.repository())).distinct().count() == 1
+            : "snapshots must either be an empty list or all belong to the same repository but saw " + snapshots;
         for (SnapshotsInProgress.Entry runningSnapshot : snapshots) {
-            if (runningSnapshot.repository().equals(repoName) == false) {
-                continue;
-            }
-            for (ObjectObjectCursor<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
-                .shardsByRepoShardId()) {
-                final RepositoryShardId sid = shard.key;
-                addStateInformation(generations, busyIds, shard.value, sid.shardId(), sid.indexName());
+            for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> shard : runningSnapshot
+                .shardSnapshotStatusByRepoShardId()
+                .entrySet()) {
+                final RepositoryShardId sid = shard.getKey();
+                addStateInformation(generations, busyIds, shard.getValue(), sid.shardId(), sid.indexName());
             }
         }
         return new InFlightShardSnapshotStates(generations, busyIds);
@@ -96,7 +100,8 @@ public final class InFlightShardSnapshotStates {
         @Nullable ShardGeneration activeGeneration
     ) {
         final ShardGeneration bestGeneration = generations.getOrDefault(indexName, Collections.emptyMap()).get(shardId);
-        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration);
+        assert bestGeneration == null || activeGeneration == null || activeGeneration.equals(bestGeneration)
+            : "[" + indexName + "][" + shardId + "]: " + bestGeneration + " vs " + activeGeneration;
         return true;
     }
 

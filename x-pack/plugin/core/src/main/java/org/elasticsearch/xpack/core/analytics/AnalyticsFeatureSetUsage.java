@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.core.analytics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
+public class AnalyticsFeatureSetUsage extends XPackFeatureUsage {
 
     private final AnalyticsStatsAction.Response response;
 
@@ -45,8 +45,9 @@ public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
         }
     }
 
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_4_0;
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
     @Override

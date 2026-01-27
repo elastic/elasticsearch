@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.validate-rest-spec'
@@ -11,16 +12,13 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Module for runtime fields features and extensions that have large dependencies'
-  classname 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
+  description = 'Module for runtime fields features and extensions that have large dependencies'
+  classname = 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
   extendedPlugins = ['lang-painless']
 }
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
 }
-
-//this plugin is here only for the painless extension, there are no unit tests
-tasks.named("testingConventions").configure { enabled = false }

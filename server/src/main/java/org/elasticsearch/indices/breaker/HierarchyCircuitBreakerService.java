@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -22,25 +22,29 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.telemetry.metric.LongCounter;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING;
 import static org.elasticsearch.indices.breaker.BreakerSettings.CIRCUIT_BREAKER_OVERHEAD_SETTING;
 
@@ -57,109 +61,209 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private final Map<String, CircuitBreaker> breakers;
 
-    public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
-        Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
+    public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING = Setting.boolSetting(
+        "indices.breaker.total.use_real_memory",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {
+    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = new Setting<>(
+        "indices.breaker.total.limit",
+        settings -> {
             if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
                 return "95%";
             } else {
                 return "70%";
             }
-        }, Property.Dynamic, Property.NodeScope);
+        },
+        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit", 50),
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.fielddata.limit", "40%", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.fielddata.overhead", 1.03d, 0.0d, Property.Dynamic, Property.NodeScope);
-    public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("indices.breaker.fielddata.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+    public static final Setting<ByteSizeValue> FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+        "indices.breaker.fielddata.limit",
+        "40%",
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Double> FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
+        "indices.breaker.fielddata.overhead",
+        1.03d,
+        0.0d,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<CircuitBreaker.Type> FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
+        "indices.breaker.fielddata.type",
+        "memory",
+        CircuitBreaker.Type::parseValue,
+        Property.NodeScope
+    );
 
-    public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("indices.breaker.request.limit", "60%", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Double> REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("indices.breaker.request.overhead", 1.0d, 0.0d, Property.Dynamic, Property.NodeScope);
-    public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("indices.breaker.request.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+    public static final Setting<ByteSizeValue> REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+        "indices.breaker.request.limit",
+        "60%",
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Double> REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
+        "indices.breaker.request.overhead",
+        1.0d,
+        0.0d,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<CircuitBreaker.Type> REQUEST_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
+        "indices.breaker.request.type",
+        "memory",
+        CircuitBreaker.Type::parseValue,
+        Property.NodeScope
+    );
 
-    public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING =
-        Setting.memorySizeSetting("network.breaker.inflight_requests.limit", "100%", Property.Dynamic, Property.NodeScope);
-    public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING =
-        Setting.doubleSetting("network.breaker.inflight_requests.overhead", 2.0d, 0.0d, Property.Dynamic, Property.NodeScope);
-    public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING =
-        new Setting<>("network.breaker.inflight_requests.type", "memory", CircuitBreaker.Type::parseValue, Property.NodeScope);
+    public static final Setting<ByteSizeValue> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+        "network.breaker.inflight_requests.limit",
+        "100%",
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Double> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING = Setting.doubleSetting(
+        "network.breaker.inflight_requests.overhead",
+        2.0d,
+        0.0d,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<CircuitBreaker.Type> IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING = new Setting<>(
+        "network.breaker.inflight_requests.type",
+        "memory",
+        CircuitBreaker.Type::parseValue,
+        Property.NodeScope
+    );
 
-    private final boolean trackRealMemoryUsage;
+    private volatile boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
+    private final LongCounter parentTripCountTotalMetric;
 
-    private final OverLimitStrategy overLimitStrategy;
+    private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
+    private volatile OverLimitStrategy overLimitStrategy;
 
-    public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
-        this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
+    @SuppressWarnings("this-escape")
+    public HierarchyCircuitBreakerService(
+        CircuitBreakerMetrics metrics,
+        Settings settings,
+        List<BreakerSettings> customBreakers,
+        ClusterSettings clusterSettings
+    ) {
+        this(metrics, settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
     }
 
-    HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings,
-                                   Function<Boolean, OverLimitStrategy> overLimitStrategyFactory) {
+    @SuppressWarnings("this-escape")
+    HierarchyCircuitBreakerService(
+        CircuitBreakerMetrics metrics,
+        Settings settings,
+        List<BreakerSettings> customBreakers,
+        ClusterSettings clusterSettings,
+        Function<Boolean, OverLimitStrategy> overLimitStrategyFactory
+    ) {
         super();
         HashMap<String, CircuitBreaker> childCircuitBreakers = new HashMap<>();
-        childCircuitBreakers.put(CircuitBreaker.FIELDDATA, validateAndCreateBreaker(
-            new BreakerSettings(CircuitBreaker.FIELDDATA,
-                FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-                FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
-                CircuitBreaker.Durability.PERMANENT
-        )));
-        childCircuitBreakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
-            new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
-                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
-                CircuitBreaker.Durability.TRANSIENT
-        )));
-        childCircuitBreakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
-            new BreakerSettings(CircuitBreaker.REQUEST,
-                REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-                REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-                REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
-                CircuitBreaker.Durability.TRANSIENT
-        )));
+        childCircuitBreakers.put(
+            CircuitBreaker.FIELDDATA,
+            validateAndCreateBreaker(
+                metrics.getTripCount(),
+                new BreakerSettings(
+                    CircuitBreaker.FIELDDATA,
+                    FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                    FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                    FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                    CircuitBreaker.Durability.PERMANENT
+                )
+            )
+        );
+        childCircuitBreakers.put(
+            CircuitBreaker.IN_FLIGHT_REQUESTS,
+            validateAndCreateBreaker(
+                metrics.getTripCount(),
+                new BreakerSettings(
+                    CircuitBreaker.IN_FLIGHT_REQUESTS,
+                    IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                    IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                    IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                    CircuitBreaker.Durability.TRANSIENT
+                )
+            )
+        );
+        childCircuitBreakers.put(
+            CircuitBreaker.REQUEST,
+            validateAndCreateBreaker(
+                metrics.getTripCount(),
+                new BreakerSettings(
+                    CircuitBreaker.REQUEST,
+                    REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                    REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                    REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                    CircuitBreaker.Durability.TRANSIENT
+                )
+            )
+        );
         for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
-                throw new IllegalArgumentException("More than one circuit breaker with the name ["
-                    + breakerSettings.getName()
-                    +"] exists. Circuit breaker names must be unique");
+                throw new IllegalArgumentException(
+                    "More than one circuit breaker with the name ["
+                        + breakerSettings.getName()
+                        + "] exists. Circuit breaker names must be unique"
+                );
             }
-            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
+            childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(metrics.getTripCount(), breakerSettings));
         }
-        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
-        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
-                TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
-                CircuitBreaker.Type.PARENT, null);
-        logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
+        this.breakers = Map.copyOf(childCircuitBreakers);
+        this.parentSettings = new BreakerSettings(
+            CircuitBreaker.PARENT,
+            TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+            1.0,
+            CircuitBreaker.Type.PARENT,
+            null
+        );
+        logger.trace(() -> format("parent circuit breaker with settings %s", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
 
-        clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
-            this::validateTotalCircuitBreakerLimit);
-        clusterSettings.addSettingsUpdateConsumer(FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
+        clusterSettings.addSettingsUpdateConsumer(
+            TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
+            this::setTotalCircuitBreakerLimit,
+            HierarchyCircuitBreakerService::validateTotalCircuitBreakerLimit
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
             FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.FIELDDATA, limit, overhead));
-        clusterSettings.addSettingsUpdateConsumer(IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.FIELDDATA, limit, overhead)
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, limit, overhead));
-        clusterSettings.addSettingsUpdateConsumer(REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS, limit, overhead)
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.REQUEST, limit, overhead));
-        clusterSettings.addAffixUpdateConsumer(CIRCUIT_BREAKER_LIMIT_SETTING,
+            (limit, overhead) -> updateCircuitBreakerSettings(CircuitBreaker.REQUEST, limit, overhead)
+        );
+        clusterSettings.addAffixUpdateConsumer(
+            CIRCUIT_BREAKER_LIMIT_SETTING,
             CIRCUIT_BREAKER_OVERHEAD_SETTING,
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
-            (s, t) -> {});
+            (s, t) -> {}
+        );
+        clusterSettings.addSettingsUpdateConsumer(USE_REAL_MEMORY_USAGE_SETTING, this::updateUseRealMemorySetting);
 
+        this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+        this.parentTripCountTotalMetric = metrics.getTripCount();
     }
 
     private void updateCircuitBreakerSettings(String name, ByteSizeValue newLimit, Double newOverhead) {
@@ -170,15 +274,33 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    private void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
-        BreakerSettings newParentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
-            CircuitBreaker.Type.PARENT, null);
-        validateSettings(new BreakerSettings[]{newParentSettings});
+    private static void validateTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
+        BreakerSettings newParentSettings = new BreakerSettings(
+            CircuitBreaker.PARENT,
+            byteSizeValue.getBytes(),
+            1.0,
+            CircuitBreaker.Type.PARENT,
+            null
+        );
+        validateSettings(new BreakerSettings[] { newParentSettings });
     }
 
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
-        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0,
-            CircuitBreaker.Type.PARENT, null);
+        this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT, null);
+    }
+
+    public void updateUseRealMemorySetting(boolean trackRealMemoryUsage) {
+        this.trackRealMemoryUsage = trackRealMemoryUsage;
+
+        this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+    }
+
+    public boolean isTrackRealMemoryUsage() {
+        return trackRealMemoryUsage;
+    }
+
+    public OverLimitStrategy getOverLimitStrategy() {
+        return overLimitStrategy;
     }
 
     /**
@@ -211,16 +333,22 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             allStats.add(stats(breaker.getName()));
         }
         // Manually add the parent breaker settings since they aren't part of the breaker map
-        allStats.add(new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(),
-            memoryUsed(0L).totalUsage, 1.0, parentTripCount.get()));
+        allStats.add(
+            new CircuitBreakerStats(CircuitBreaker.PARENT, parentSettings.getLimit(), memoryUsed(0L).totalUsage, 1.0, parentTripCount.get())
+        );
         return new AllCircuitBreakerStats(allStats.toArray(CircuitBreakerStats[]::new));
     }
 
     @Override
     public CircuitBreakerStats stats(String name) {
         CircuitBreaker breaker = this.breakers.get(name);
-        return new CircuitBreakerStats(breaker.getName(), breaker.getLimit(), breaker.getUsed(), breaker.getOverhead(),
-            breaker.getTrippedCount());
+        return new CircuitBreakerStats(
+            breaker.getName(),
+            breaker.getLimit(),
+            breaker.getUsed(),
+            breaker.getOverhead(),
+            breaker.getTrippedCount()
+        );
     }
 
     static class MemoryUsage {
@@ -242,7 +370,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long permanentUsage = 0;
 
         for (CircuitBreaker breaker : this.breakers.values()) {
-            long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
+            long breakerUsed = (long) (breaker.getUsed() * breaker.getOverhead());
             if (breaker.getDurability() == CircuitBreaker.Durability.TRANSIENT) {
                 transientUsage += breakerUsed;
             } else if (breaker.getDurability() == CircuitBreaker.Durability.PERMANENT) {
@@ -258,7 +386,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
     }
 
-    //package private to allow overriding it in tests
+    // package private to allow overriding it in tests
     long currentMemoryUsage() {
         return realMemoryUsage();
     }
@@ -288,70 +416,129 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         long parentLimit = this.parentSettings.getLimit();
         if (memoryUsed.totalUsage > parentLimit && overLimitStrategy.overLimit(memoryUsed).totalUsage > parentLimit) {
             this.parentTripCount.incrementAndGet();
-            final StringBuilder message = new StringBuilder("[parent] Data too large, data for [" + label + "]" +
-                    " would be [" + memoryUsed.totalUsage + "/" + new ByteSizeValue(memoryUsed.totalUsage) + "]" +
-                    ", which is larger than the limit of [" +
-                    parentLimit + "/" + new ByteSizeValue(parentLimit) + "]");
-            if (this.trackRealMemoryUsage) {
-                final long realUsage = memoryUsed.baseUsage;
-                message.append(", real usage: [");
-                message.append(realUsage);
-                message.append("/");
-                message.append(new ByteSizeValue(realUsage));
-                message.append("], new bytes reserved: [");
-                message.append(newBytesReserved);
-                message.append("/");
-                message.append(new ByteSizeValue(newBytesReserved));
-                message.append("]");
-            }
-            message.append(", usages [");
-            message.append(this.breakers.entrySet().stream().map(e -> {
-                    final CircuitBreaker breaker = e.getValue();
-                    final long breakerUsed = (long)(breaker.getUsed() * breaker.getOverhead());
-                    return e.getKey() + "=" + breakerUsed + "/" + new ByteSizeValue(breakerUsed);
-                }).collect(Collectors.joining(", ")));
-            message.append("]");
+            this.parentTripCountTotalMetric.increment();
+            final String messageString = buildParentTripMessage(
+                newBytesReserved,
+                label,
+                memoryUsed,
+                parentLimit,
+                this.trackRealMemoryUsage,
+                this.breakers
+            );
             // derive durability of a tripped parent breaker depending on whether the majority of memory tracked by
             // child circuit breakers is categorized as transient or permanent.
-            CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage ?
-                CircuitBreaker.Durability.TRANSIENT : CircuitBreaker.Durability.PERMANENT;
-            logger.debug(() -> new ParameterizedMessage("{}", message.toString()));
-            throw new CircuitBreakingException(message.toString(), memoryUsed.totalUsage, parentLimit, durability);
+            CircuitBreaker.Durability durability = memoryUsed.transientChildUsage >= memoryUsed.permanentChildUsage
+                ? CircuitBreaker.Durability.TRANSIENT
+                : CircuitBreaker.Durability.PERMANENT;
+            logger.debug(() -> format("%s", messageString));
+            throw new CircuitBreakingException(messageString, memoryUsed.totalUsage, parentLimit, durability);
         }
     }
 
-    private CircuitBreaker validateAndCreateBreaker(BreakerSettings breakerSettings) {
+    // exposed for tests
+    static String buildParentTripMessage(
+        long newBytesReserved,
+        String label,
+        MemoryUsage memoryUsed,
+        long parentLimit,
+        boolean trackRealMemoryUsage,
+        Map<String, CircuitBreaker> breakers
+    ) {
+        final var message = new StringBuilder();
+        message.append("[parent] Data too large, data for [");
+        message.append(label);
+        message.append("] would be [");
+        appendBytesSafe(message, memoryUsed.totalUsage);
+        message.append("], which is larger than the limit of [");
+        appendBytesSafe(message, parentLimit);
+        message.append("]");
+        if (trackRealMemoryUsage) {
+            final long realUsage = memoryUsed.baseUsage;
+            message.append(", real usage: [");
+            appendBytesSafe(message, realUsage);
+            message.append("], new bytes reserved: [");
+            appendBytesSafe(message, newBytesReserved);
+            message.append("]");
+        }
+        message.append(", usages [");
+        breakers.forEach(new BiConsumer<>() {
+            private boolean first = true;
+
+            @Override
+            public void accept(String key, CircuitBreaker breaker) {
+                if (first) {
+                    first = false;
+                } else {
+                    message.append(", ");
+                }
+                message.append(key).append("=");
+                appendBytesSafe(message, (long) (breaker.getUsed() * breaker.getOverhead()));
+            }
+        });
+        message.append("]; for more information, see ");
+        message.append(ReferenceDocs.CIRCUIT_BREAKER_ERRORS);
+        return message.toString();
+    }
+
+    static void appendBytesSafe(StringBuilder stringBuilder, long bytes) {
+        stringBuilder.append(bytes);
+        if (-1L <= bytes) {
+            stringBuilder.append("/");
+            stringBuilder.append(ByteSizeValue.ofBytes(bytes));
+        } else {
+            // Something's definitely wrong, maybe a breaker was freed twice? Still, we're just creating an exception message here, so we
+            // should keep going if we're running in production.
+            logger.error("negative value in circuit breaker: {}", stringBuilder);
+            assert permitNegativeValues : stringBuilder.toString();
+        }
+    }
+
+    private CircuitBreaker validateAndCreateBreaker(LongCounter trippedCountMeter, BreakerSettings breakerSettings) {
         // Validate the settings
-        validateSettings(new BreakerSettings[] {breakerSettings});
-        return breakerSettings.getType() == CircuitBreaker.Type.NOOP ?
-            new NoopCircuitBreaker(breakerSettings.getName()) :
-            new ChildMemoryCircuitBreaker(breakerSettings,
+        validateSettings(new BreakerSettings[] { breakerSettings });
+        return breakerSettings.getType() == CircuitBreaker.Type.NOOP
+            ? new NoopCircuitBreaker(breakerSettings.getName())
+            : new ChildMemoryCircuitBreaker(
+                trippedCountMeter,
+                breakerSettings,
                 LogManager.getLogger(CHILD_LOGGER_PREFIX + breakerSettings.getName()),
                 this,
-                breakerSettings.getName());
+                breakerSettings.getName()
+            );
     }
 
     static OverLimitStrategy createOverLimitStrategy(boolean trackRealMemoryUsage) {
         JvmInfo jvmInfo = JvmInfo.jvmInfo();
         if (trackRealMemoryUsage && jvmInfo.useG1GC().equals("true")
-            // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
+        // messing with GC is "dangerous" so we apply an escape hatch. Not intended to be used.
             && Booleans.parseBoolean(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.enabled"), true)) {
-            TimeValue lockTimeout = TimeValue.timeValueMillis(
-                Integer.parseInt(System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500"))
+
+            long lockTimeoutInMillis = Integer.parseInt(
+                System.getProperty("es.real_memory_circuit_breaker.g1_over_limit_strategy.lock_timeout_ms", "500")
             );
+            TimeValue lockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
+            TimeValue fullGCLockTimeout = TimeValue.timeValueMillis(lockTimeoutInMillis);
             // hardcode interval, do not want any tuning of it outside code changes.
-            return new G1OverLimitStrategy(jvmInfo, HierarchyCircuitBreakerService::realMemoryUsage, createYoungGcCountSupplier(),
-                System::currentTimeMillis, 5000, lockTimeout);
+            return new G1OverLimitStrategy(
+                jvmInfo,
+                HierarchyCircuitBreakerService::realMemoryUsage,
+                createYoungGcCountSupplier(),
+                System::currentTimeMillis,
+                500,
+                2000,
+                lockTimeout,
+                fullGCLockTimeout
+            );
         } else {
             return memoryUsed -> memoryUsed;
         }
     }
 
     static LongSupplier createYoungGcCountSupplier() {
-        List<GarbageCollectorMXBean> youngBeans =
-            ManagementFactory.getGarbageCollectorMXBeans().stream()
-                .filter(mxBean -> GcNames.getByGcName(mxBean.getName(), mxBean.getName()).equals(GcNames.YOUNG))
-                .collect(Collectors.toList());
+        List<GarbageCollectorMXBean> youngBeans = ManagementFactory.getGarbageCollectorMXBeans()
+            .stream()
+            .filter(mxBean -> GcNames.getByGcName(mxBean.getName(), mxBean.getName()).equals(GcNames.YOUNG))
+            .toList();
         assert youngBeans.size() == 1;
         assert youngBeans.get(0).getCollectionCount() != -1 : "G1 must support getting collection count";
 
@@ -373,23 +560,42 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         private final LongSupplier gcCountSupplier;
         private final LongSupplier timeSupplier;
         private final TimeValue lockTimeout;
+
+        // The lock acquisition timeout when we are running a full GC
+        private final TimeValue fullGCLockTimeout;
         private final long maxHeap;
 
         private long lastCheckTime = Long.MIN_VALUE;
+        private long lastFullGCTime = Long.MIN_VALUE;
         private final long minimumInterval;
+        private volatile boolean performingFullGC = false;
+
+        // Minimum interval before triggering another full GC
+        private final long fullGCMinimumInterval;
 
         private long blackHole;
         private final ReleasableLock lock = new ReleasableLock(new ReentrantLock());
+        // used to throttle logging
+        private int attemptNo;
 
-        G1OverLimitStrategy(JvmInfo jvmInfo, LongSupplier currentMemoryUsageSupplier,
-                            LongSupplier gcCountSupplier,
-                            LongSupplier timeSupplier, long minimumInterval, TimeValue lockTimeout) {
+        G1OverLimitStrategy(
+            JvmInfo jvmInfo,
+            LongSupplier currentMemoryUsageSupplier,
+            LongSupplier gcCountSupplier,
+            LongSupplier timeSupplier,
+            long minimumInterval,
+            long fullGCMinimumInterval,
+            TimeValue lockTimeout,
+            TimeValue fullGCLockTimeout
+        ) {
             this.lockTimeout = lockTimeout;
+            this.fullGCLockTimeout = fullGCLockTimeout;
             assert minimumInterval > 0;
             this.currentMemoryUsageSupplier = currentMemoryUsageSupplier;
             this.gcCountSupplier = gcCountSupplier;
             this.timeSupplier = timeSupplier;
             this.minimumInterval = minimumInterval;
+            this.fullGCMinimumInterval = fullGCMinimumInterval;
             this.maxHeap = jvmInfo.getMem().getHeapMax().getBytes();
             long g1RegionSize = jvmInfo.getG1RegionSize();
             if (g1RegionSize <= 0) {
@@ -400,14 +606,13 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
-            // mimick JDK calculation based on JDK 14 source:
+            // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:
             // https://hg.openjdk.java.net/jdk/jdk/file/e7d0ec2d06e8/src/hotspot/share/gc/g1/heapRegion.cpp#l67
             // based on this JDK "bug":
             // https://bugs.openjdk.java.net/browse/JDK-8241670
-            long averageHeapSize =
-                (jvmInfo.getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
+            long averageHeapSize = (jvmInfo.getMem().getHeapMax().getBytes() + JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()) / 2;
             long regionSize = Long.highestOneBit(averageHeapSize / 2048);
             if (regionSize < ByteSizeUnit.MB.toBytes(1)) {
                 regionSize = ByteSizeUnit.MB.toBytes(1);
@@ -417,68 +622,160 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return regionSize;
         }
 
+        @SuppressForbidden(reason = "Prefer full GC to OOM or CBE")
+        private static void performFullGC() {
+            System.gc();
+        }
+
         @Override
         public MemoryUsage overLimit(MemoryUsage memoryUsed) {
-            boolean leader = false;
-            int allocationIndex = 0;
-            long allocationDuration = 0;
+
+            TriggerGCResult result = TriggerGCResult.EMPTY;
+            int attemptNoCopy = 0;
+
             try (ReleasableLock locked = lock.tryAcquire(lockTimeout)) {
                 if (locked != null) {
-                    long begin = timeSupplier.getAsLong();
-                    leader = begin >= lastCheckTime + minimumInterval;
-                    overLimitTriggered(leader);
-                    if (leader) {
-                        long initialCollectionCount = gcCountSupplier.getAsLong();
-                        logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
-                        long localBlackHole = 0;
-                        // number of allocations, corresponding to (approximately) number of free regions + 1
-                        int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
-                        // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
-                        int allocationSize = (int) (g1RegionSize >> 1);
-                        long maxUsageObserved = memoryUsed.baseUsage;
-                        for (; allocationIndex < allocationCount; ++allocationIndex) {
-                            long current = currentMemoryUsageSupplier.getAsLong();
-                            if (current >= maxUsageObserved) {
-                                maxUsageObserved = current;
-                            } else {
-                                // we observed a memory drop, so some GC must have occurred
-                                break;
-                            }
-                            if (initialCollectionCount != gcCountSupplier.getAsLong()) {
-                                break;
-                            }
-                            localBlackHole += new byte[allocationSize].hashCode();
-                        }
-
-                        blackHole += localBlackHole;
-                        logger.trace("black hole [{}]", blackHole);
-
-                        long now = timeSupplier.getAsLong();
-                        this.lastCheckTime = now;
-                        allocationDuration = now - begin;
-                    }
+                    attemptNoCopy = ++this.attemptNo;
+                    result = tryTriggerGC(memoryUsed);
+                } else {
+                    logger.info("could not acquire lock within {} when attempting to trigger G1GC due to high heap usage", lockTimeout);
                 }
             } catch (InterruptedException e) {
+                logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
                 Thread.currentThread().interrupt();
                 // fallthrough
             }
 
+            if (performingFullGC && attemptNoCopy == 0) {
+                // Another thread is currently performing a full GC, and we were not able to try (lock acquire timeout)
+                // Since the full GC thread may hold the lock for longer, try again for an additional timeout
+                logger.info(
+                    "could not acquire lock within {} while another thread was performing a full GC, waiting again for {}",
+                    lockTimeout,
+                    fullGCLockTimeout
+                );
+                try (ReleasableLock locked = lock.tryAcquire(fullGCLockTimeout)) {
+                    if (locked != null) {
+                        attemptNoCopy = ++this.attemptNo;
+                        result = tryTriggerGC(memoryUsed);
+                    } else {
+                        logger.info(
+                            "could not acquire lock within {} when attempting to trigger G1GC due to high heap usage",
+                            fullGCLockTimeout
+                        );
+                    }
+                } catch (InterruptedException e) {
+                    logger.info("could not acquire lock when attempting to trigger G1GC due to high heap usage");
+                    Thread.currentThread().interrupt();
+                    // fallthrough
+                }
+            }
+
             final long current = currentMemoryUsageSupplier.getAsLong();
             if (current < memoryUsed.baseUsage) {
-                if (leader) {
-                    logger.info("GC did bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
-                        memoryUsed.baseUsage, current, allocationIndex, allocationDuration);
+                if (result.gcAttempted()) {
+                    logger.info(
+                        "GC did bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
+                        memoryUsed.baseUsage,
+                        current,
+                        result.allocationIndex(),
+                        result.allocationDuration()
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage down after [{}], before [{}], after [{}]",
+                        result.timeSinceLastCheck(),
+                        memoryUsed.baseUsage,
+                        current
+                    );
                 }
-                return new MemoryUsage(current, memoryUsed.totalUsage - memoryUsed.baseUsage + current,
-                    memoryUsed.transientChildUsage, memoryUsed.permanentChildUsage);
+                return new MemoryUsage(
+                    current,
+                    memoryUsed.totalUsage - memoryUsed.baseUsage + current,
+                    memoryUsed.transientChildUsage,
+                    memoryUsed.permanentChildUsage
+                );
             } else {
-                if (leader) {
-                    logger.info("GC did not bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
-                        memoryUsed.baseUsage, current, allocationIndex, allocationDuration);
+                if (result.gcAttempted()) {
+                    logger.info(
+                        "GC did not bring memory usage down, before [{}], after [{}], allocations [{}], duration [{}]",
+                        memoryUsed.baseUsage,
+                        current,
+                        result.allocationIndex(),
+                        result.allocationDuration()
+                    );
+                } else if (attemptNoCopy < 10 || Long.bitCount(attemptNoCopy) == 1) {
+                    logger.info(
+                        "memory usage not down after [{}], before [{}], after [{}]",
+                        result.timeSinceLastCheck(),
+                        memoryUsed.baseUsage,
+                        current
+                    );
                 }
                 // prefer original measurement when reporting if heap usage was not brought down.
                 return memoryUsed;
             }
+        }
+
+        private TriggerGCResult tryTriggerGC(MemoryUsage memoryUsed) {
+            long begin = timeSupplier.getAsLong();
+            boolean canPerformGC = begin >= lastCheckTime + minimumInterval;
+            int allocationIndex = 0;
+
+            overLimitTriggered(canPerformGC);
+
+            if (canPerformGC) {
+                long initialCollectionCount = gcCountSupplier.getAsLong();
+                logger.info("attempting to trigger G1GC due to high heap usage [{}]", memoryUsed.baseUsage);
+                long localBlackHole = 0;
+                // number of allocations, corresponding to (approximately) number of free regions + 1
+                int allocationCount = Math.toIntExact((maxHeap - memoryUsed.baseUsage) / g1RegionSize + 1);
+                // allocations of half-region size becomes single humongous alloc, thus taking up a full region.
+                int allocationSize = (int) (g1RegionSize >> 1);
+                long maxUsageObserved = memoryUsed.baseUsage;
+                for (; allocationIndex < allocationCount; ++allocationIndex) {
+                    long current = currentMemoryUsageSupplier.getAsLong();
+                    if (current >= maxUsageObserved) {
+                        maxUsageObserved = current;
+                    } else {
+                        // we observed a memory drop, so some GC must have occurred
+                        break;
+                    }
+                    if (initialCollectionCount != gcCountSupplier.getAsLong()) {
+                        break;
+                    }
+                    // noinspection ArrayHashCode - prevent array allocation from being optimized away
+                    localBlackHole += new byte[allocationSize].hashCode();
+                }
+
+                blackHole += localBlackHole;
+                logger.trace("black hole [{}]", blackHole);
+
+                this.lastCheckTime = timeSupplier.getAsLong();
+                this.attemptNo = 0;
+            }
+
+            long reclaimedMemory = memoryUsed.baseUsage - currentMemoryUsageSupplier.getAsLong();
+            // TODO: use a threshold? Relative to % of memory?
+            if (reclaimedMemory <= 0) {
+                long now = timeSupplier.getAsLong();
+                boolean canPerformFullGC = now >= lastFullGCTime + fullGCMinimumInterval;
+                if (canPerformFullGC) {
+                    // Enough time passed between 2 full GC fallbacks
+                    performingFullGC = true;
+                    logger.info("attempt to trigger young GC failed to bring memory down, triggering full GC");
+                    performFullGC();
+                    performingFullGC = false;
+                    this.lastFullGCTime = timeSupplier.getAsLong();
+                }
+            }
+
+            long allocationDuration = timeSupplier.getAsLong() - begin;
+            return new TriggerGCResult(canPerformGC, allocationIndex, allocationDuration, begin - lastCheckTime);
+        }
+
+        private record TriggerGCResult(boolean gcAttempted, int allocationIndex, long allocationDuration, long timeSinceLastCheck) {
+            private static final TriggerGCResult EMPTY = new TriggerGCResult(false, 0, 0, 0);
         }
 
         void overLimitTriggered(boolean leader) {
@@ -489,4 +786,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             return lockTimeout;
         }
     }
+
+    // exposed for testing
+    static boolean permitNegativeValues = false;
 }

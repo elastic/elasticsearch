@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
 
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -56,46 +57,52 @@ public class FileSystemUtilsTests extends ESTestCase {
     }
 
     public void testAppend() {
-        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
-            PathUtils.get("/foo/bar/hello/world/this_is/awesome"));
+        assertEquals(
+            FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
+            PathUtils.get("/foo/bar/hello/world/this_is/awesome")
+        );
 
-        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 2),
-                PathUtils.get("/foo/bar/this_is/awesome"));
+        assertEquals(
+            FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 2),
+            PathUtils.get("/foo/bar/this_is/awesome")
+        );
 
-        assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
-                PathUtils.get("/foo/bar/world/this_is/awesome"));
+        assertEquals(
+            FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 1),
+            PathUtils.get("/foo/bar/world/this_is/awesome")
+        );
     }
 
     public void testIsHidden() {
         for (String p : Arrays.asList(
-                "/",
-                "foo",
-                "/foo",
-                "foo.bar",
-                "/foo.bar",
-                "foo/bar",
-                "foo/./bar",
-                "foo/../bar",
-                "/foo/./bar",
-                "/foo/../bar"
-                )) {
+            "/",
+            "foo",
+            "/foo",
+            "foo.bar",
+            "/foo.bar",
+            "foo/bar",
+            "foo/./bar",
+            "foo/../bar",
+            "/foo/./bar",
+            "/foo/../bar"
+        )) {
             Path path = PathUtils.get(p);
             assertFalse(FileSystemUtils.isHidden(path));
         }
         for (String p : Arrays.asList(
-                ".hidden",
-                ".hidden.ext",
-                "/.hidden",
-                "/.hidden.ext",
-                "foo/.hidden",
-                "foo/.hidden.ext",
-                "/foo/.hidden",
-                "/foo/.hidden.ext",
-                ".",
-                "..",
-                "foo/.",
-                "foo/.."
-                )) {
+            ".hidden",
+            ".hidden.ext",
+            "/.hidden",
+            "/.hidden.ext",
+            "foo/.hidden",
+            "foo/.hidden.ext",
+            "/foo/.hidden",
+            "/foo/.hidden.ext",
+            ".",
+            "..",
+            "foo/.",
+            "foo/.."
+        )) {
             Path path = PathUtils.get(p);
             assertTrue(FileSystemUtils.isHidden(path));
         }

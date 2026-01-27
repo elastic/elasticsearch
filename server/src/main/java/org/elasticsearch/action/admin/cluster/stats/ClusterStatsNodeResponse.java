@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -14,37 +15,56 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ClusterStatsNodeResponse extends BaseNodeResponse {
 
     private final NodeInfo nodeInfo;
     private final NodeStats nodeStats;
     private final ShardStats[] shardsStats;
-    private ClusterHealthStatus clusterStatus;
+    private final ClusterHealthStatus clusterStatus;
+    private final SearchUsageStats searchUsageStats;
+    private final RepositoryUsageStats repositoryUsageStats;
+    private final CCSTelemetrySnapshot searchCcsMetrics;
+    private final CCSTelemetrySnapshot esqlCcsMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
-        clusterStatus = null;
-        if (in.readBoolean()) {
-            clusterStatus = ClusterHealthStatus.readFrom(in);
-        }
+        this.clusterStatus = in.readOptionalWriteable(ClusterHealthStatus::readFrom);
         this.nodeInfo = new NodeInfo(in);
         this.nodeStats = new NodeStats(in);
-        shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        this.shardsStats = in.readArray(ShardStats::new, ShardStats[]::new);
+        searchUsageStats = new SearchUsageStats(in);
+        repositoryUsageStats = RepositoryUsageStats.readFrom(in);
+        searchCcsMetrics = new CCSTelemetrySnapshot(in);
+        esqlCcsMetrics = new CCSTelemetrySnapshot(in);
     }
 
-    public ClusterStatsNodeResponse(DiscoveryNode node, @Nullable ClusterHealthStatus clusterStatus,
-                                    NodeInfo nodeInfo, NodeStats nodeStats, ShardStats[] shardsStats) {
+    public ClusterStatsNodeResponse(
+        DiscoveryNode node,
+        @Nullable ClusterHealthStatus clusterStatus,
+        NodeInfo nodeInfo,
+        NodeStats nodeStats,
+        ShardStats[] shardsStats,
+        SearchUsageStats searchUsageStats,
+        RepositoryUsageStats repositoryUsageStats,
+        CCSTelemetrySnapshot ccsTelemetrySnapshot,
+        CCSTelemetrySnapshot esqlTelemetrySnapshot
+    ) {
         super(node);
         this.nodeInfo = nodeInfo;
         this.nodeStats = nodeStats;
         this.shardsStats = shardsStats;
         this.clusterStatus = clusterStatus;
+        this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
+        this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
+        this.searchCcsMetrics = ccsTelemetrySnapshot;
+        this.esqlCcsMetrics = esqlTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -67,21 +87,33 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         return this.shardsStats;
     }
 
-    public static ClusterStatsNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        return new ClusterStatsNodeResponse(in);
+    public SearchUsageStats searchUsageStats() {
+        return searchUsageStats;
+    }
+
+    public RepositoryUsageStats repositoryUsageStats() {
+        return repositoryUsageStats;
+    }
+
+    public CCSTelemetrySnapshot getSearchCcsMetrics() {
+        return searchCcsMetrics;
+    }
+
+    public CCSTelemetrySnapshot getEsqlCcsMetrics() {
+        return esqlCcsMetrics;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (clusterStatus == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeByte(clusterStatus.value());
-        }
+        out.writeOptionalWriteable(clusterStatus);
         nodeInfo.writeTo(out);
         nodeStats.writeTo(out);
         out.writeArray(shardsStats);
+        searchUsageStats.writeTo(out);
+        repositoryUsageStats.writeTo(out);
+        searchCcsMetrics.writeTo(out);
+        esqlCcsMetrics.writeTo(out);
     }
+
 }

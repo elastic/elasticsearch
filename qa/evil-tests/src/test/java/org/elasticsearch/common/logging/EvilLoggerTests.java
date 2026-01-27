@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -16,9 +17,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
@@ -28,7 +27,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -46,10 +44,13 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
@@ -68,7 +69,7 @@ public class EvilLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testLocationInfoTest() throws IOException, UserException {
+    public void testLocationInfoTest() throws IOException {
         setupLogging("location_info");
 
         final Logger testLogger = LogManager.getLogger("test");
@@ -78,23 +79,22 @@ public class EvilLoggerTests extends ESTestCase {
         testLogger.info("This is an info message");
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path")
+            + System.getProperty("file.separator")
+            + System.getProperty("es.logs.cluster_name")
+            + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(5));
+        assertThat(events, hasSize(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.ERROR, location, "This is an error message");
-        assertLogLine(events.get(1), Level.WARN, location, "This is a warning message");
-        assertLogLine(events.get(2), Level.INFO, location, "This is an info message");
-        assertLogLine(events.get(3), Level.DEBUG, location, "This is a debug message");
-        assertLogLine(events.get(4), Level.TRACE, location, "This is a trace message");
+        assertLogLine(events.get(0), Level.ERROR, location, ".*This is an error message");
+        assertLogLine(events.get(1), Level.WARN, location, ".*This is a warning message");
+        assertLogLine(events.get(2), Level.INFO, location, ".*This is an info message");
+        assertLogLine(events.get(3), Level.DEBUG, location, ".*This is a debug message");
+        assertLogLine(events.get(4), Level.TRACE, location, ".*This is a trace message");
     }
 
-    public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
+    public void testConcurrentDeprecationLogger() throws IOException, BrokenBarrierException, InterruptedException {
         setupLogging("deprecation");
 
         final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger("deprecation");
@@ -116,8 +116,11 @@ public class EvilLoggerTests extends ESTestCase {
                 }
                 for (int j = 0; j < iterations; j++) {
                     for (final Integer id : ids) {
-                        deprecationLogger.critical(DeprecationCategory.OTHER, Integer.toString(id),
-                            "This is a maybe logged deprecation message" + id);
+                        deprecationLogger.critical(
+                            DeprecationCategory.OTHER,
+                            Integer.toString(id),
+                            "This is a maybe logged deprecation message" + id
+                        );
                     }
                 }
 
@@ -127,13 +130,14 @@ public class EvilLoggerTests extends ESTestCase {
                  * on the other threads.
                  */
                 final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-                final Set<String> actualWarningValues =
-                        warnings.stream().map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
-                            .collect(Collectors.toSet());
+                final Set<String> actualWarningValues = warnings.stream()
+                    .map(s -> HeaderWarning.extractWarningValueFromWarningHeader(s, true))
+                    .collect(Collectors.toSet());
                 for (int j = 0; j < 128; j++) {
                     assertThat(
-                            actualWarningValues,
-                            hasItem(HeaderWarning.escapeAndEncode("This is a maybe logged deprecation message" + j)));
+                        actualWarningValues,
+                        hasItem(HeaderWarning.escapeAndEncode("This is a maybe logged deprecation message" + j))
+                    );
                 }
 
                 try {
@@ -152,11 +156,10 @@ public class EvilLoggerTests extends ESTestCase {
         // wait for all threads to complete their iterations
         barrier.await();
 
-        final String deprecationPath =
-                System.getProperty("es.logs.base_path") +
-                        System.getProperty("file.separator") +
-                        System.getProperty("es.logs.cluster_name") +
-                        "_deprecation.log";
+        final String deprecationPath = System.getProperty("es.logs.base_path")
+            + System.getProperty("file.separator")
+            + System.getProperty("es.logs.cluster_name")
+            + "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         // we appended an integer to each log message, use that for sorting
         Pattern pattern = Pattern.compile(".*message(\\d+)\"");
@@ -165,14 +168,15 @@ public class EvilLoggerTests extends ESTestCase {
             matcher.matches();
             return Integer.parseInt(matcher.group(1));
         }));
-        assertThat(deprecationEvents.size(), equalTo(128));
+        assertThat(deprecationEvents, hasSize(128));
 
         for (int i = 0; i < 128; i++) {
             assertLogLine(
-                    deprecationEvents.get(i),
-                    DeprecationLogger.CRITICAL,
-                    "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
-                    "This is a maybe logged deprecation message" + i);
+                deprecationEvents.get(i),
+                DeprecationLogger.CRITICAL,
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
+                ".*This is a maybe logged deprecation message" + i + ".*"
+            );
         }
 
         for (final Thread thread : threads) {
@@ -181,7 +185,7 @@ public class EvilLoggerTests extends ESTestCase {
 
     }
 
-    public void testDeprecatedSettings() throws IOException, UserException {
+    public void testDeprecatedSettings() throws IOException {
         setupLogging("settings");
 
         final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
@@ -190,27 +194,26 @@ public class EvilLoggerTests extends ESTestCase {
         final int iterations = randomIntBetween(0, 128);
         for (int i = 0; i < iterations; i++) {
             setting.get(settings);
-            assertSettingDeprecationsAndWarnings(new Setting<?>[]{setting});
+            assertSettingDeprecationsAndWarnings(new Setting<?>[] { setting });
         }
 
-        final String deprecationPath =
-                System.getProperty("es.logs.base_path") +
-                        System.getProperty("file.separator") +
-                        System.getProperty("es.logs.cluster_name") +
-                        "_deprecation.log";
+        final String deprecationPath = System.getProperty("es.logs.base_path")
+            + System.getProperty("file.separator")
+            + System.getProperty("es.logs.cluster_name")
+            + "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         if (iterations > 0) {
-            assertThat(deprecationEvents.size(), equalTo(1));
+            assertThat(deprecationEvents, hasSize(1));
             assertLogLine(
-                    deprecationEvents.get(0),
-                    DeprecationLogger.CRITICAL,
-                    "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
-                    "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                            "See the breaking changes documentation for the next major version.");
+                deprecationEvents.get(0),
+                DeprecationLogger.CRITICAL,
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
+                ".*\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release..*"
+            );
         }
     }
 
-    public void testFindAppender() throws IOException, UserException {
+    public void testFindAppender() throws IOException {
         setupLogging("find_appender");
 
         final Logger hasConsoleAppender = LogManager.getLogger("has_console_appender");
@@ -224,7 +227,7 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(countingNoOpAppender.getName(), equalTo("counting_no_op"));
     }
 
-    public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
+    public void testPrefixLogger() throws IOException {
         setupLogging("prefix");
 
         final String prefix = randomAlphaOfLength(16);
@@ -232,13 +235,12 @@ public class EvilLoggerTests extends ESTestCase {
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
-        logger.info(new ParameterizedMessage("{}", "test"), e);
+        logger.info(() -> format("%s", "test"), e);
 
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") +
-                ".log";
+        final String path = System.getProperty("es.logs.base_path")
+            + System.getProperty("file.separator")
+            + System.getProperty("es.logs.cluster_name")
+            + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
 
         final StringWriter sw = new StringWriter();
@@ -246,14 +248,13 @@ public class EvilLoggerTests extends ESTestCase {
         e.printStackTrace(pw);
         final int stackTraceLength = sw.toString().split(System.getProperty("line.separator")).length;
         final int expectedLogLines = 3;
-        assertThat(events.size(), equalTo(expectedLogLines + stackTraceLength));
+        assertThat(events, hasSize(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            assertThat("Contents of [" + path + "] are wrong",
-                    events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
+            assertThat("Contents of [" + path + "] are wrong", events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
         }
     }
 
-    public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
+    public void testPrefixLoggerMarkersCanBeCollected() throws IOException {
         setupLogging("prefix");
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
@@ -266,11 +267,11 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
     }
 
-    public void testProperties() throws IOException, UserException {
+    public void testProperties() throws IOException {
         final Settings settings = Settings.builder()
-                .put("cluster.name", randomAlphaOfLength(16))
-                .put("node.name", randomAlphaOfLength(16))
-                .build();
+            .put("cluster.name", randomAlphaOfLength(16))
+            .put("node.name", randomAlphaOfLength(16))
+            .build();
         setupLogging("minimal", settings);
 
         assertNotNull(System.getProperty("es.logs.base_path"));
@@ -279,22 +280,29 @@ public class EvilLoggerTests extends ESTestCase {
         assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
     }
 
-    public void testNoNodeNameInPatternWarning() throws IOException, UserException {
+    public void testNoNodeNameInPatternWarning() throws IOException {
         String nodeName = randomAlphaOfLength(16);
         LogConfigurator.setNodeName(nodeName);
         setupLogging("no_node_name");
-        final String path =
-            System.getProperty("es.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("es.logs.cluster_name") + ".log";
+        final String path = System.getProperty("es.logs.base_path")
+            + System.getProperty("file.separator")
+            + System.getProperty("es.logs.cluster_name")
+            + ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(2));
-        final String location = "org.elasticsearch.common.logging.LogConfigurator";
+        assertThat(events, hasSize(2));
+        final String location = "org.elasticsearch.common.logging.LogConfigurator.*";
         // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
+        assertLogLine(
+            events.get(0),
+            Level.WARN,
+            location,
+            "\\["
+                + nodeName
+                + "\\] Some logging configurations have "
                 + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "
                 + "migration for users who customize log4j2.properties but will stop this behavior in 7.0. You should "
-                + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:");
+                + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:"
+        );
         if (Constants.WINDOWS) {
             assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
         } else {
@@ -302,11 +310,11 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
-    private void setupLogging(final String config) throws IOException, UserException {
+    private void setupLogging(final String config) throws IOException {
         setupLogging(config, Settings.EMPTY);
     }
 
-    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
+    private void setupLogging(final String config, final Settings settings) throws IOException {
         assert Environment.PATH_HOME_SETTING.exists(settings) == false;
         final Path configDir = getDataPath(config);
         final Settings mergedSettings = Settings.builder()
@@ -315,15 +323,17 @@ public class EvilLoggerTests extends ESTestCase {
             .build();
         // need to use custom config path so we can use a custom log4j2.properties file for the test
         final Environment environment = new Environment(mergedSettings, configDir);
-        LogConfigurator.configure(environment);
+        LogConfigurator.configure(environment, true);
     }
 
+    private static final Pattern LOG_LINE = Pattern.compile("\\[(.*)]\\[(.*)\\(.*\\)] (.*)");
+
     private void assertLogLine(final String logLine, final Level level, final String location, final String message) {
-        final Matcher matcher = Pattern.compile("\\[(.*)\\]\\[(.*)\\(.*\\)\\] (.*)").matcher(logLine);
+        Matcher matcher = LOG_LINE.matcher(logLine);
         assertTrue(logLine, matcher.matches());
         assertThat(matcher.group(1), equalTo(level.toString()));
-        assertThat(matcher.group(2), RegexMatcher.matches(location));
-        assertThat(matcher.group(3), RegexMatcher.matches(message));
+        assertThat(matcher.group(2), matchesRegex(location));
+        assertThat(matcher.group(3), matchesRegex(message));
     }
 
 }

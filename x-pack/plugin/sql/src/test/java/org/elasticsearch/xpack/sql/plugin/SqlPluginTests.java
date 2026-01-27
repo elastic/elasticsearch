@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.util.Collections;
@@ -28,14 +29,30 @@ public class SqlPluginTests extends ESTestCase {
     public void testSqlDisabledIsNoOp() {
         Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
         SqlPlugin plugin = new SqlPlugin(settings);
-        assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
-            hasSize(3));
+        assertThat(
+            plugin.createComponents(
+                mock(Client.class),
+                Settings.EMPTY,
+                randomAlphaOfLength(10),
+                StubLinkedProjectConfigService.INSTANCE,
+                new NamedWriteableRegistry(Cursors.getNamedWriteables())
+            ),
+            hasSize(3)
+        );
         assertThat(plugin.getActions(), hasSize(8));
         assertThat(
-            plugin.getRestHandlers(Settings.EMPTY, mock(RestController.class),
+            plugin.getRestHandlers(
+                Settings.EMPTY,
+                mock(NamedWriteableRegistry.class),
+                mock(RestController.class),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, new SettingsFilter(Collections.emptyList()),
-                mock(IndexNameExpressionResolver.class), () -> mock(DiscoveryNodes.class)),
-            hasSize(7));
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+                new SettingsFilter(Collections.emptyList()),
+                mock(IndexNameExpressionResolver.class),
+                () -> mock(DiscoveryNodes.class),
+                null
+            ),
+            hasSize(7)
+        );
     }
 }

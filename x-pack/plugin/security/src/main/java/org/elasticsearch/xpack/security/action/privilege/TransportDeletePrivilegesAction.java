@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
@@ -29,9 +30,18 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportDeletePrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
-                                           TransportService transportService) {
-        super(DeletePrivilegesAction.NAME, transportService, actionFilters, DeletePrivilegesRequest::new);
+    public TransportDeletePrivilegesAction(
+        ActionFilters actionFilters,
+        NativePrivilegeStore privilegeStore,
+        TransportService transportService
+    ) {
+        super(
+            DeletePrivilegesAction.NAME,
+            transportService,
+            actionFilters,
+            DeletePrivilegesRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.privilegeStore = privilegeStore;
     }
 
@@ -42,10 +52,16 @@ public class TransportDeletePrivilegesAction extends HandledTransportAction<Dele
             return;
         }
         final Set<String> names = Sets.newHashSet(request.privileges());
-        this.privilegeStore.deletePrivileges(request.application(), names, request.getRefreshPolicy(), ActionListener.wrap(
+        this.privilegeStore.deletePrivileges(
+            request.application(),
+            names,
+            request.getRefreshPolicy(),
+            ActionListener.wrap(
                 privileges -> listener.onResponse(
-                        new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
-                ), listener::onFailure
-        ));
+                    new DeletePrivilegesResponse(privileges.getOrDefault(request.application(), Collections.emptyList()))
+                ),
+                listener::onFailure
+            )
+        );
     }
 }

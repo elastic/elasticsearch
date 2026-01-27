@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -12,7 +13,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.IntervalFilterScript;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.search.aggregations.pipeline.MovingFunctionScript;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -35,37 +35,45 @@ public class ScriptModule {
         LongFieldScript.CONTEXT,
         StringFieldScript.CONTEXT,
         GeoPointFieldScript.CONTEXT,
+        GeometryFieldScript.CONTEXT,
         IpFieldScript.CONTEXT,
-        CompositeFieldScript.CONTEXT);
+        CompositeFieldScript.CONTEXT
+    );
 
     public static final Map<String, ScriptContext<?>> CORE_CONTEXTS;
     static {
-        CORE_CONTEXTS = Stream.concat(Stream.of(
-            FieldScript.CONTEXT,
-            AggregationScript.CONTEXT,
-            ScoreScript.CONTEXT,
-            NumberSortScript.CONTEXT,
-            LongSortScript.CONTEXT,
-            StringSortScript.CONTEXT,
-            TermsSetQueryScript.CONTEXT,
-            UpdateScript.CONTEXT,
-            BucketAggregationScript.CONTEXT,
-            BucketAggregationSelectorScript.CONTEXT,
-            SignificantTermsHeuristicScoreScript.CONTEXT,
-            IngestScript.CONTEXT,
-            IngestConditionalScript.CONTEXT,
-            FilterScript.CONTEXT,
-            SimilarityScript.CONTEXT,
-            SimilarityWeightScript.CONTEXT,
-            TemplateScript.CONTEXT,
-            TemplateScript.INGEST_CONTEXT,
-            MovingFunctionScript.CONTEXT,
-            ScriptedMetricAggContexts.InitScript.CONTEXT,
-            ScriptedMetricAggContexts.MapScript.CONTEXT,
-            ScriptedMetricAggContexts.CombineScript.CONTEXT,
-            ScriptedMetricAggContexts.ReduceScript.CONTEXT,
-            IntervalFilterScript.CONTEXT
-        ), RUNTIME_FIELDS_CONTEXTS.stream()).collect(Collectors.toMap(c -> c.name, Function.identity()));
+        CORE_CONTEXTS = Stream.concat(
+            Stream.of(
+                FieldScript.CONTEXT,
+                AggregationScript.CONTEXT,
+                ScoreScript.CONTEXT,
+                NumberSortScript.CONTEXT,
+                LongSortScript.CONTEXT,
+                StringSortScript.CONTEXT,
+                BytesRefSortScript.CONTEXT,
+                TermsSetQueryScript.CONTEXT,
+                UpdateScript.CONTEXT,
+                ReindexScript.CONTEXT,
+                UpdateByQueryScript.CONTEXT,
+                BucketAggregationScript.CONTEXT,
+                BucketAggregationSelectorScript.CONTEXT,
+                SignificantTermsHeuristicScoreScript.CONTEXT,
+                IngestScript.CONTEXT,
+                IngestConditionalScript.CONTEXT,
+                FilterScript.CONTEXT,
+                SimilarityScript.CONTEXT,
+                SimilarityWeightScript.CONTEXT,
+                TemplateScript.CONTEXT,
+                TemplateScript.INGEST_CONTEXT,
+                ScriptedMetricAggContexts.InitScript.CONTEXT,
+                ScriptedMetricAggContexts.MapScript.CONTEXT,
+                ScriptedMetricAggContexts.CombineScript.CONTEXT,
+                ScriptedMetricAggContexts.ReduceScript.CONTEXT,
+                IntervalFilterScript.CONTEXT,
+                DoubleValuesScript.CONTEXT
+            ),
+            RUNTIME_FIELDS_CONTEXTS.stream()
+        ).collect(Collectors.toMap(c -> c.name, Function.identity()));
     }
 
     public final Map<String, ScriptEngine> engines;
@@ -87,8 +95,14 @@ public class ScriptModule {
             if (engine != null) {
                 ScriptEngine existing = engines.put(engine.getType(), engine);
                 if (existing != null) {
-                    throw new IllegalArgumentException("scripting language [" + engine.getType() + "] defined for engine [" +
-                        existing.getClass().getName() + "] and [" + engine.getClass().getName());
+                    throw new IllegalArgumentException(
+                        "scripting language ["
+                            + engine.getType()
+                            + "] defined for engine ["
+                            + existing.getClass().getName()
+                            + "] and ["
+                            + engine.getClass().getName()
+                    );
                 }
             }
         }
@@ -99,7 +113,7 @@ public class ScriptModule {
     /**
      * Allow the script service to register any settings update handlers on the cluster settings
      */
-    public void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
+    public static void registerClusterSettingsListeners(ScriptService scriptService, ClusterSettings clusterSettings) {
         scriptService.registerClusterSettingsListeners(clusterSettings);
     }
 }

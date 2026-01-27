@@ -1,35 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.IntCursor;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 public final class DiffableUtils {
-    private DiffableUtils() {
-    }
+    private DiffableUtils() {}
+
+    private static final MapDiff<?, ?, ?> EMPTY = new MapDiff<>(null, null, List.of(), List.of(), List.of(), null) {
+        @Override
+        public Map<Object, Object> apply(Map<Object, Object> part) {
+            return part;
+        }
+    };
 
     /**
      * Returns a map key serializer for String keys
@@ -46,299 +58,454 @@ public final class DiffableUtils {
     }
 
     /**
-     * Returns a map key serializer for Integer keys. Encodes as VInt.
+     * Returns a map key serializer for {@link Writeable} keys.
      */
-    public static KeySerializer<Integer> getVIntKeySerializer() {
-        return VIntKeySerializer.INSTANCE;
-    }
-
-    /**
-     * Calculates diff between two ImmutableOpenMaps of Diffable objects
-     */
-    public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> diff(ImmutableOpenMap<K, T> before,
-            ImmutableOpenMap<K, T> after, KeySerializer<K> keySerializer) {
-        assert after != null && before != null;
-        return new ImmutableOpenMapDiff<>(before, after, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
-    }
-
-    /**
-     * Calculates diff between two ImmutableOpenMaps of non-diffable objects
-     */
-    public static <K, T> MapDiff<K, T, ImmutableOpenMap<K, T>> diff(ImmutableOpenMap<K, T> before,
-            ImmutableOpenMap<K, T> after, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
-        assert after != null && before != null;
-        return new ImmutableOpenMapDiff<>(before, after, keySerializer, valueSerializer);
-    }
-
-    /**
-     * Calculates diff between two ImmutableOpenIntMaps of Diffable objects
-     */
-    public static <T extends Diffable<T>> MapDiff<Integer, T, ImmutableOpenIntMap<T>> diff(ImmutableOpenIntMap<T> before,
-           ImmutableOpenIntMap<T> after, KeySerializer<Integer> keySerializer) {
-        assert after != null && before != null;
-        return new ImmutableOpenIntMapDiff<>(before, after, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
-    }
-
-    /**
-     * Calculates diff between two ImmutableOpenIntMaps of non-diffable objects
-     */
-    public static <T> MapDiff<Integer, T, ImmutableOpenIntMap<T>> diff(ImmutableOpenIntMap<T> before,
-           ImmutableOpenIntMap<T> after, KeySerializer<Integer> keySerializer, ValueSerializer<Integer, T> valueSerializer) {
-        assert after != null && before != null;
-        return new ImmutableOpenIntMapDiff<>(before, after, keySerializer, valueSerializer);
+    public static <W extends Writeable> KeySerializer<W> getWriteableKeySerializer(Writeable.Reader<W> reader) {
+        return new WriteableKeySerializer<>(reader);
     }
 
     /**
      * Calculates diff between two Maps of Diffable objects.
      */
-    public static <K, T extends Diffable<T>> MapDiff<K, T, Map<K, T>> diff(Map<K, T> before,
-                                                                           Map<K, T> after, KeySerializer<K> keySerializer) {
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> diff(M before, M after, KeySerializer<K> keySerializer) {
         assert after != null && before != null;
-        return new JdkMapDiff<>(before, after, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
+        return before.equals(after)
+            ? emptyDiff()
+            : createDiff(before, after, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
     }
 
     /**
      * Calculates diff between two Maps of non-diffable objects
      */
-    public static <K, T> MapDiff<K, T, Map<K, T>> diff(Map<K, T> before, Map<K, T> after, KeySerializer<K> keySerializer,
-                                                       ValueSerializer<K, T> valueSerializer) {
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> diff(
+        M before,
+        M after,
+        KeySerializer<K> keySerializer,
+        ValueSerializer<K, T> valueSerializer
+    ) {
         assert after != null && before != null;
-        return new JdkMapDiff<>(before, after, keySerializer, valueSerializer);
+        return before.equals(after) ? emptyDiff() : createDiff(before, after, keySerializer, valueSerializer);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> emptyDiff() {
+        return (MapDiff<K, T, M>) EMPTY;
+    }
+
+    /**
+     * Merges two map diffs into one unified diff with write-only value serializer.
+     */
+    @SuppressWarnings("unchecked")
+    public static <K, T extends Diffable<T>, T1 extends T, T2 extends T, M extends Map<K, T>> MapDiff<K, T, M> merge(
+        MapDiff<K, T1, ? extends ImmutableOpenMap<K, T1>> diff1,
+        MapDiff<K, T2, ? extends ImmutableOpenMap<K, T2>> diff2,
+        KeySerializer<K> keySerializer
+    ) {
+        return merge(diff1, diff2, keySerializer, DiffableValueSerializer.getWriteOnlyInstance());
+    }
+
+    /**
+     * Merges two map diffs into one unified diff.
+     */
+    @SuppressWarnings("unchecked")
+    public static <K, T, T1 extends T, T2 extends T, M extends Map<K, T>> MapDiff<K, T, M> merge(
+        MapDiff<K, T1, ? extends ImmutableOpenMap<K, T1>> diff1,
+        MapDiff<K, T2, ? extends ImmutableOpenMap<K, T2>> diff2,
+        KeySerializer<K> keySerializer,
+        ValueSerializer<K, T> valueSerializer
+    ) {
+        final List<K> deletes = CollectionUtils.concatLists(diff1.getDeletes(), diff2.getDeletes());
+        final List<Map.Entry<K, Diff<T>>> diffs = Stream.concat(
+            mapEntries(diff1.getDiffs(), diff -> (Diff<T>) diff),
+            mapEntries(diff2.getDiffs(), diff -> (Diff<T>) diff)
+        ).toList();
+        List<Map.Entry<K, T>> upserts = Stream.concat(
+            mapEntries(diff1.getUpserts(), val -> (T) val),
+            mapEntries(diff2.getUpserts(), val -> (T) val)
+        ).toList();
+        return new MapDiff<K, T, M>(keySerializer, valueSerializer, deletes, diffs, upserts, DiffableUtils::createImmutableMapBuilder);
+    }
+
+    /**
+     * Create a new MapDiff by removing the keys from any of its deletes, diffs and upserts
+     */
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> removeKeys(MapDiff<K, T, M> diff, Set<K> keys) {
+        final List<K> deletes = diff.getDeletes().stream().filter(k -> keys.contains(k) == false).toList();
+        final List<Map.Entry<K, Diff<T>>> diffs = diff.getDiffs().stream().filter(entry -> keys.contains(entry.getKey()) == false).toList();
+        final List<Map.Entry<K, T>> upserts = diff.getUpserts().stream().filter(entry -> keys.contains(entry.getKey()) == false).toList();
+        return new MapDiff<>(diff.keySerializer, diff.valueSerializer, deletes, diffs, upserts, diff.builderCtor);
+    }
+
+    /**
+     * Check whether the specified MapDiff has any changes associated with the specified key
+     */
+    public static <K, T, M extends Map<K, T>> boolean hasKey(MapDiff<K, T, M> diff, K key) {
+        if (diff.getDeletes().contains(key)) {
+            return true;
+        }
+        if (diff.getDiffs().stream().map(Map.Entry::getKey).anyMatch(k -> Objects.equals(k, key))) {
+            return true;
+        }
+        if (diff.getUpserts().stream().map(Map.Entry::getKey).anyMatch(k -> Objects.equals(k, key))) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Create a new MapDiff from the specified MapDiff by transforming its diffs with the provided diffUpdateFunction as well as
+     * transforming its upserts with the provided upsertUpdateFunction. Whether an entry should be transformed is determined by
+     * the specified keyPredicate.
+     * @param diff The original MapDiff
+     * @param keyPredicate Determines whether an entry should be transformed
+     * @param diffUpdateFunction A function to transform a Diff entry
+     * @param upsertUpdateFunction A function to transform an upsert entry
+     * @return A new MapDiff as a result of the transformation
+     */
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> updateDiffsAndUpserts(
+        MapDiff<K, T, M> diff,
+        Predicate<K> keyPredicate,
+        BiFunction<K, Diff<T>, Diff<T>> diffUpdateFunction,
+        BiFunction<K, T, T> upsertUpdateFunction
+    ) {
+        final var newDiffs = diff.getDiffs().stream().map(entry -> {
+            if (keyPredicate.test(entry.getKey()) == false) {
+                return entry;
+            }
+            return Map.entry(entry.getKey(), diffUpdateFunction.apply(entry.getKey(), entry.getValue()));
+        }).toList();
+
+        final var newUpserts = diff.getUpserts().stream().map(entry -> {
+            if (keyPredicate.test(entry.getKey()) == false) {
+                return entry;
+            }
+            return Map.entry(entry.getKey(), upsertUpdateFunction.apply(entry.getKey(), entry.getValue()));
+        }).toList();
+
+        return new MapDiff<>(diff.keySerializer, diff.valueSerializer, diff.deletes, newDiffs, newUpserts, diff.builderCtor);
+    }
+
+    /**
+     * Create a new JDK map backed MapDiff by transforming the keys with the provided keyFunction.
+     * @param diff Original MapDiff to transform
+     * @param keyFunction Function to transform the key
+     * @param keySerializer Serializer for the new key
+     */
+    public static <K1, K2, T extends Diffable<T>, M1 extends Map<K1, T>> MapDiff<K2, T, Map<K2, T>> jdkMapDiffWithUpdatedKeys(
+        MapDiff<K1, T, M1> diff,
+        Function<K1, K2> keyFunction,
+        KeySerializer<K2> keySerializer
+    ) {
+        final List<K2> deletes = diff.getDeletes().stream().map(keyFunction).toList();
+        final List<Map.Entry<K2, Diff<T>>> diffs = diff.getDiffs()
+            .stream()
+            .map(entry -> Map.entry(keyFunction.apply(entry.getKey()), entry.getValue()))
+            .toList();
+        final List<Map.Entry<K2, T>> upserts = diff.getUpserts()
+            .stream()
+            .map(entry -> Map.entry(keyFunction.apply(entry.getKey()), entry.getValue()))
+            .toList();
+        return new MapDiff<>(keySerializer, DiffableValueSerializer.getWriteOnlyInstance(), deletes, diffs, upserts, JdkMapBuilder::new);
+    }
+
+    /**
+     * Creates a MapDiff that applies a single entry diff to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleEntryDiff(
+        K key,
+        Diff<T> diff,
+        KeySerializer<K> keySerializer
+    ) {
+        return new MapDiff<>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(),
+            List.of(Map.entry(key, diff)),
+            List.of(),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
+    /**
+     * Creates a MapDiff that applies a single entry deletion to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleDeleteDiff(K key, KeySerializer<K> keySerializer) {
+        return new MapDiff<K, T, M>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(key),
+            List.of(),
+            List.of(),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
+    /**
+     * Creates a MapDiff that applies a single entry upsert to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleUpsertDiff(
+        K key,
+        T entry,
+        KeySerializer<K> keySerializer
+    ) {
+        return new MapDiff<>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(),
+            List.of(),
+            List.of(Map.entry(key, entry)),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
+    private static <K, F, T> Stream<Map.Entry<K, T>> mapEntries(List<Map.Entry<K, F>> source, Function<F, T> fn) {
+        return source.stream().map(e -> Map.entry(e.getKey(), fn.apply(e.getValue())));
+    }
+
+    /**
+     * Split one map diff into two distinct map diffs, based on which serializer accepts a key. If both serializers accept a key,
+     * the first serializer will be used.
+     */
+    @SuppressWarnings("unchecked")
+    public static <
+        K,
+        T,
+        T1 extends T,
+        T2 extends T> Tuple<MapDiff<K, T1, ImmutableOpenMap<K, T1>>, MapDiff<K, T2, ImmutableOpenMap<K, T2>>> split(
+            MapDiff<K, T, ? extends Map<K, T>> diff,
+            Predicate<K> keysT1,
+            ValueSerializer<K, T1> serializer1,
+            Predicate<K> keysT2,
+            ValueSerializer<K, T2> serializer2
+        ) {
+        final List<K> deletes1 = new ArrayList<>();
+        final List<K> deletes2 = new ArrayList<>();
+        split(diff.getDeletes(), Function.identity(), keysT1, deletes1::add, keysT2, deletes2::add);
+
+        final List<Map.Entry<K, Diff<T1>>> diffs1 = new ArrayList<>();
+        final List<Map.Entry<K, Diff<T2>>> diffs2 = new ArrayList<>();
+        DiffableUtils.split(
+            diff.getDiffs(),
+            e -> e.getKey(),
+            keysT1,
+            e -> diffs1.add(Map.entry(e.getKey(), (Diff<T1>) e.getValue())),
+            keysT2,
+            e -> diffs2.add(Map.entry(e.getKey(), (Diff<T2>) e.getValue()))
+        );
+
+        final List<Map.Entry<K, T1>> upserts1 = new ArrayList<>();
+        final List<Map.Entry<K, T2>> upserts2 = new ArrayList<>();
+        DiffableUtils.split(
+            diff.getUpserts(),
+            e -> e.getKey(),
+            keysT1,
+            e -> upserts1.add(Map.entry(e.getKey(), (T1) e.getValue())),
+            keysT2,
+            e -> upserts2.add(Map.entry(e.getKey(), (T2) e.getValue()))
+        );
+
+        return Tuple.tuple(
+            new MapDiff<>(diff.keySerializer, serializer1, deletes1, diffs1, upserts1, DiffableUtils::createImmutableMapBuilder),
+            new MapDiff<>(diff.keySerializer, serializer2, deletes2, diffs2, upserts2, DiffableUtils::createImmutableMapBuilder)
+        );
+    }
+
+    private static <K, E> void split(
+        List<E> source,
+        Function<E, K> getKey,
+        Predicate<K> keys1,
+        Consumer<E> dest1,
+        Predicate<K> keys2,
+        Consumer<E> dest2
+    ) {
+        for (E e : source) {
+            K k = getKey.apply(e);
+            if (keys1.test(k)) {
+                dest1.accept(e);
+            } else if (keys2.test(k)) {
+                dest2.accept(e);
+            } else {
+                throw new IllegalStateException("Found diff key [" + k + "] which does not match [" + keys1 + "] nor [" + keys2 + "]");
+            }
+        }
     }
 
     /**
      * Loads an object that represents difference between two ImmutableOpenMaps
      */
-    public static <K, T> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(StreamInput in, KeySerializer<K> keySerializer,
-            ValueSerializer<K, T> valueSerializer) throws IOException {
-        return new ImmutableOpenMapDiff<>(in, keySerializer, valueSerializer);
-    }
-
-    /**
-     * Loads an object that represents difference between two ImmutableOpenMaps
-     */
-    public static <T> MapDiff<Integer, T, ImmutableOpenIntMap<T>> readImmutableOpenIntMapDiff(StreamInput in,
-            KeySerializer<Integer> keySerializer, ValueSerializer<Integer, T> valueSerializer) throws IOException {
-        return new ImmutableOpenIntMapDiff<>(in, keySerializer, valueSerializer);
+    public static <K, T> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(
+        StreamInput in,
+        KeySerializer<K> keySerializer,
+        ValueSerializer<K, T> valueSerializer
+    ) throws IOException {
+        return diffOrEmpty(new MapDiff<>(in, keySerializer, valueSerializer, ImmutableOpenMapBuilder::new));
     }
 
     /**
      * Loads an object that represents difference between two Maps of Diffable objects
      */
-    public static <K, T> MapDiff<K, T, Map<K, T>> readJdkMapDiff(StreamInput in, KeySerializer<K> keySerializer,
-                                                                 ValueSerializer<K, T> valueSerializer) throws IOException {
-        return new JdkMapDiff<>(in, keySerializer, valueSerializer);
+    public static <K, T> MapDiff<K, T, Map<K, T>> readJdkMapDiff(
+        StreamInput in,
+        KeySerializer<K> keySerializer,
+        ValueSerializer<K, T> valueSerializer
+    ) throws IOException {
+        return diffOrEmpty(new MapDiff<>(in, keySerializer, valueSerializer, JdkMapBuilder::new));
     }
 
     /**
      * Loads an object that represents difference between two ImmutableOpenMaps of Diffable objects using Diffable proto object
      */
-    public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(StreamInput in,
-            KeySerializer<K> keySerializer, DiffableValueReader<K, T> diffableValueReader) throws IOException {
-        return new ImmutableOpenMapDiff<>(in, keySerializer, diffableValueReader);
-    }
-
-    /**
-     * Loads an object that represents difference between two ImmutableOpenIntMaps of Diffable objects using Diffable proto object
-     */
-    public static <T extends Diffable<T>> MapDiff<Integer, T, ImmutableOpenIntMap<T>> readImmutableOpenIntMapDiff(StreamInput in,
-            KeySerializer<Integer> keySerializer, Reader<T> reader, Reader<Diff<T>> diffReader) throws IOException {
-        return new ImmutableOpenIntMapDiff<>(in, keySerializer, new DiffableValueReader<>(reader, diffReader));
+    public static <K, T extends Diffable<T>> MapDiff<K, T, ImmutableOpenMap<K, T>> readImmutableOpenMapDiff(
+        StreamInput in,
+        KeySerializer<K> keySerializer,
+        DiffableValueReader<K, T> diffableValueReader
+    ) throws IOException {
+        return diffOrEmpty(new MapDiff<>(in, keySerializer, diffableValueReader, ImmutableOpenMapBuilder::new));
     }
 
     /**
      * Loads an object that represents difference between two Maps of Diffable objects using Diffable proto object
      */
-    public static <K, T extends Diffable<T>> MapDiff<K, T, Map<K, T>> readJdkMapDiff(StreamInput in, KeySerializer<K> keySerializer,
-            Reader<T> reader, Reader<Diff<T>> diffReader) throws IOException {
-        return new JdkMapDiff<>(in, keySerializer, new DiffableValueReader<>(reader, diffReader));
+    public static <K, T extends Diffable<T>> MapDiff<K, T, Map<K, T>> readJdkMapDiff(
+        StreamInput in,
+        KeySerializer<K> keySerializer,
+        Reader<T> reader,
+        Reader<Diff<T>> diffReader
+    ) throws IOException {
+        return diffOrEmpty(new MapDiff<>(in, keySerializer, new DiffableValueReader<>(reader, diffReader), JdkMapBuilder::new));
     }
 
-    /**
-     * Represents differences between two Maps of (possibly diffable) objects.
-     *
-     * @param <T> the diffable object
-     */
-    private static class JdkMapDiff<K, T> extends MapDiff<K, T, Map<K, T>> {
+    private static <K, T, M extends Map<K, T>> MapDiff<K, T, M> diffOrEmpty(MapDiff<K, T, M> diff) {
+        // TODO: refactor map diff reading to avoid having to construct empty diffs before throwing them away here
+        if (diff.getUpserts().isEmpty() && diff.getDiffs().isEmpty() && diff.getDeletes().isEmpty()) {
+            return emptyDiff();
+        }
+        return diff;
+    }
 
-        protected JdkMapDiff(StreamInput in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {
-            super(in, keySerializer, valueSerializer);
+    private static <K, T, M extends Map<K, T>> MapDiff<K, T, M> createDiff(
+        M before,
+        M after,
+        KeySerializer<K> keySerializer,
+        ValueSerializer<K, T> valueSerializer
+    ) {
+        assert after != null && before != null;
+
+        int inserts = 0;
+        var upserts = new ArrayList<Map.Entry<K, T>>();
+        var diffs = new ArrayList<Map.Entry<K, Diff<T>>>();
+        for (Map.Entry<K, T> entry : after.entrySet()) {
+            T previousValue = before.get(entry.getKey());
+            if (previousValue == null) {
+                upserts.add(entry);
+                inserts++;
+            } else if (entry.getValue().equals(previousValue) == false) {
+                if (valueSerializer.supportsDiffableValues()) {
+                    diffs.add(
+                        new AbstractMap.SimpleImmutableEntry<>(entry.getKey(), valueSerializer.diff(entry.getValue(), previousValue))
+                    );
+                } else {
+                    upserts.add(entry);
+                }
+            }
         }
 
-        JdkMapDiff(Map<K, T> before, Map<K, T> after,
-                          KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
-            super(keySerializer, valueSerializer);
-            assert after != null && before != null;
-
+        int expectedDeletes = before.size() + inserts - after.size();
+        var deletes = new ArrayList<K>(expectedDeletes);
+        if (expectedDeletes > 0) {
             for (K key : before.keySet()) {
                 if (after.containsKey(key) == false) {
                     deletes.add(key);
-                }
-            }
-
-            for (Map.Entry<K, T> partIter : after.entrySet()) {
-                T beforePart = before.get(partIter.getKey());
-                if (beforePart == null) {
-                    upserts.put(partIter.getKey(), partIter.getValue());
-                } else if (partIter.getValue().equals(beforePart) == false) {
-                    if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
-                    } else {
-                        upserts.put(partIter.getKey(), partIter.getValue());
+                    if (--expectedDeletes == 0) {
+                        break;
                     }
                 }
             }
         }
 
+        Function<M, MapBuilder<K, T, M>> builderCtor;
+        if (before instanceof ImmutableOpenMap) {
+            builderCtor = DiffableUtils::createImmutableMapBuilder;
+        } else {
+            builderCtor = DiffableUtils::createJdkMapBuilder;
+        }
+
+        return new MapDiff<>(keySerializer, valueSerializer, deletes, diffs, upserts, builderCtor);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <K, T, M extends Map<K, T>> MapBuilder<K, T, M> createImmutableMapBuilder(Map<K, T> m) {
+        assert m instanceof ImmutableOpenMap<K, T>;
+        return (MapBuilder<K, T, M>) new ImmutableOpenMapBuilder<>((ImmutableOpenMap<K, T>) m);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <K, T, M extends Map<K, T>> MapBuilder<K, T, M> createJdkMapBuilder(Map<K, T> m) {
+        return (MapBuilder<K, T, M>) new JdkMapBuilder<>(m);
+    }
+
+    private interface MapBuilder<K, T, M extends Map<K, T>> {
+        void remove(K key);
+
+        T get(K key);
+
+        void put(K key, T value);
+
+        M build();
+    }
+
+    private static class JdkMapBuilder<K, T> implements MapBuilder<K, T, Map<K, T>> {
+        private final Map<K, T> map;
+
+        JdkMapBuilder(Map<K, T> map) {
+            this.map = new HashMap<>(map);
+        }
+
         @Override
-        public Map<K, T> apply(Map<K, T> map) {
-            Map<K, T> builder = new HashMap<>(map);
+        public void remove(K key) {
+            map.remove(key);
+        }
 
-            for (K part : deletes) {
-                builder.remove(part);
-            }
+        @Override
+        public T get(K key) {
+            return map.get(key);
+        }
 
-            for (Map.Entry<K, Diff<T>> diff : diffs.entrySet()) {
-                builder.put(diff.getKey(), diff.getValue().apply(builder.get(diff.getKey())));
-            }
+        @Override
+        public void put(K key, T value) {
+            map.put(key, value);
+        }
 
-            for (Map.Entry<K, T> upsert : upserts.entrySet()) {
-                builder.put(upsert.getKey(), upsert.getValue());
-            }
-            return builder;
+        @Override
+        public Map<K, T> build() {
+            return Collections.unmodifiableMap(map);
         }
     }
 
-    /**
-     * Represents differences between two ImmutableOpenMap of (possibly diffable) objects
-     *
-     * @param <T> the object type
-     */
-    public static class ImmutableOpenMapDiff<K, T> extends MapDiff<K, T, ImmutableOpenMap<K, T>> {
+    private static class ImmutableOpenMapBuilder<K, T> implements MapBuilder<K, T, ImmutableOpenMap<K, T>> {
+        private final ImmutableOpenMap.Builder<K, T> builder;
 
-        protected ImmutableOpenMapDiff(StreamInput in, KeySerializer<K> keySerializer,
-                                       ValueSerializer<K, T> valueSerializer) throws IOException {
-            super(in, keySerializer, valueSerializer);
-        }
-
-        private ImmutableOpenMapDiff(KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer,
-                                     List<K> deletes, Map<K, Diff<T>> diffs, Map<K, T> upserts) {
-            super(keySerializer, valueSerializer, deletes, diffs, upserts);
-        }
-
-        public ImmutableOpenMapDiff(ImmutableOpenMap<K, T> before, ImmutableOpenMap<K, T> after,
-                                    KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
-            super(keySerializer, valueSerializer);
-            assert after != null && before != null;
-
-            for (ObjectCursor<K> key : before.keys()) {
-                if (after.containsKey(key.value) == false) {
-                    deletes.add(key.value);
-                }
-            }
-
-            for (ObjectObjectCursor<K, T> partIter : after) {
-                T beforePart = before.get(partIter.key);
-                if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
-                    if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
-                    } else {
-                        upserts.put(partIter.key, partIter.value);
-                    }
-                }
-            }
-        }
-
-        /**
-         * Returns a new diff map with the given key removed, does not modify the invoking instance.
-         * If the key does not exist in the diff map, the same instance is returned.
-         */
-        public ImmutableOpenMapDiff<K, T> withKeyRemoved(K key) {
-            if (this.diffs.containsKey(key) == false && this.upserts.containsKey(key) == false) {
-                return this;
-            }
-            Map<K, Diff<T>> newDiffs = new HashMap<>(this.diffs);
-            newDiffs.remove(key);
-            Map<K, T> newUpserts = new HashMap<>(this.upserts);
-            newUpserts.remove(key);
-            return new ImmutableOpenMapDiff<>(this.keySerializer, this.valueSerializer, this.deletes, newDiffs, newUpserts);
+        ImmutableOpenMapBuilder(ImmutableOpenMap<K, T> map) {
+            this.builder = ImmutableOpenMap.builder(map);
         }
 
         @Override
-        public ImmutableOpenMap<K, T> apply(ImmutableOpenMap<K, T> map) {
-            ImmutableOpenMap.Builder<K, T> builder = ImmutableOpenMap.builder();
-            builder.putAll(map);
-
-            for (K part : deletes) {
-                builder.remove(part);
-            }
-
-            for (Map.Entry<K, Diff<T>> diff : diffs.entrySet()) {
-                builder.put(diff.getKey(), diff.getValue().apply(builder.get(diff.getKey())));
-            }
-
-            for (Map.Entry<K, T> upsert : upserts.entrySet()) {
-                builder.put(upsert.getKey(), upsert.getValue());
-            }
-            return builder.build();
-        }
-    }
-
-    /**
-     * Represents differences between two ImmutableOpenIntMap of (possibly diffable) objects
-     *
-     * @param <T> the object type
-     */
-    private static class ImmutableOpenIntMapDiff<T> extends MapDiff<Integer, T, ImmutableOpenIntMap<T>> {
-
-        protected ImmutableOpenIntMapDiff(StreamInput in, KeySerializer<Integer> keySerializer,
-                                          ValueSerializer<Integer, T> valueSerializer) throws IOException {
-            super(in, keySerializer, valueSerializer);
-        }
-
-        ImmutableOpenIntMapDiff(ImmutableOpenIntMap<T> before, ImmutableOpenIntMap<T> after,
-                                       KeySerializer<Integer> keySerializer, ValueSerializer<Integer, T> valueSerializer) {
-            super(keySerializer, valueSerializer);
-            assert after != null && before != null;
-
-            for (IntCursor key : before.keys()) {
-                if (after.containsKey(key.value) == false) {
-                    deletes.add(key.value);
-                }
-            }
-
-            for (IntObjectCursor<T> partIter : after) {
-                T beforePart = before.get(partIter.key);
-                if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
-                    if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
-                    } else {
-                        upserts.put(partIter.key, partIter.value);
-                    }
-                }
-            }
+        public void remove(K key) {
+            builder.remove(key);
         }
 
         @Override
-        public ImmutableOpenIntMap<T> apply(ImmutableOpenIntMap<T> map) {
-            ImmutableOpenIntMap.Builder<T> builder = ImmutableOpenIntMap.builder();
-            builder.putAll(map);
+        public T get(K key) {
+            return builder.get(key);
+        }
 
-            for (Integer part : deletes) {
-                builder.remove(part);
-            }
+        @Override
+        public void put(K key, T value) {
+            builder.put(key, value);
+        }
 
-            for (Map.Entry<Integer, Diff<T>> diff : diffs.entrySet()) {
-                builder.put(diff.getKey(), diff.getValue().apply(builder.get(diff.getKey())));
-            }
-
-            for (Map.Entry<Integer, T> upsert : upserts.entrySet()) {
-                builder.put(upsert.getKey(), upsert.getValue());
-            }
+        @Override
+        public ImmutableOpenMap<K, T> build() {
             return builder.build();
         }
     }
@@ -350,51 +517,81 @@ public final class DiffableUtils {
      *
      * @param <K> the type of map keys
      * @param <T> the type of map values
-     * @param <M> the map implementation type
      */
-    public abstract static class MapDiff<K, T, M> implements Diff<M> {
+    public static class MapDiff<K, T, M extends Map<K, T>> implements Diff<M> {
 
         protected final List<K> deletes;
-        protected final Map<K, Diff<T>> diffs; // incremental updates
-        protected final Map<K, T> upserts; // additions or full updates
+        protected final List<Map.Entry<K, Diff<T>>> diffs; // incremental updates
+        protected final List<Map.Entry<K, T>> upserts; // additions or full updates
         protected final KeySerializer<K> keySerializer;
         protected final ValueSerializer<K, T> valueSerializer;
+        private final Function<M, MapBuilder<K, T, M>> builderCtor;
 
-        protected MapDiff(KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
-            this.keySerializer = keySerializer;
-            this.valueSerializer = valueSerializer;
-            deletes = new ArrayList<>();
-            diffs = new HashMap<>();
-            upserts = new HashMap<>();
-        }
-
-        protected MapDiff(KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer,
-                          List<K> deletes, Map<K, Diff<T>> diffs, Map<K, T> upserts) {
+        private MapDiff(
+            KeySerializer<K> keySerializer,
+            ValueSerializer<K, T> valueSerializer,
+            List<K> deletes,
+            List<Map.Entry<K, Diff<T>>> diffs,
+            List<Map.Entry<K, T>> upserts,
+            Function<M, MapBuilder<K, T, M>> builderCtor
+        ) {
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
             this.deletes = deletes;
             this.diffs = diffs;
             this.upserts = upserts;
+            this.builderCtor = builderCtor;
         }
 
-        protected MapDiff(StreamInput in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {
+        private MapDiff(
+            StreamInput in,
+            KeySerializer<K> keySerializer,
+            ValueSerializer<K, T> valueSerializer,
+            Function<M, MapBuilder<K, T, M>> builderCtor
+        ) throws IOException {
             this.keySerializer = keySerializer;
             this.valueSerializer = valueSerializer;
-            deletes = in.readList(keySerializer::readKey);
+            deletes = in.readCollectionAsList(keySerializer::readKey);
             int diffsCount = in.readVInt();
-            diffs = diffsCount == 0 ? Collections.emptyMap() : new HashMap<>(diffsCount);
+            diffs = diffsCount == 0 ? List.of() : new ArrayList<>(diffsCount);
             for (int i = 0; i < diffsCount; i++) {
                 K key = keySerializer.readKey(in);
                 Diff<T> diff = valueSerializer.readDiff(in, key);
-                diffs.put(key, diff);
+                diffs.add(new AbstractMap.SimpleImmutableEntry<>(key, diff));
             }
             int upsertsCount = in.readVInt();
-            upserts = upsertsCount == 0 ? Collections.emptyMap() : new HashMap<>(upsertsCount);
+            upserts = upsertsCount == 0 ? List.of() : new ArrayList<>(upsertsCount);
             for (int i = 0; i < upsertsCount; i++) {
                 K key = keySerializer.readKey(in);
                 T newValue = valueSerializer.read(in, key);
-                upserts.put(key, newValue);
+                upserts.add(new AbstractMap.SimpleImmutableEntry<>(key, newValue));
             }
+            this.builderCtor = builderCtor;
+        }
+
+        @Override
+        public M apply(M map) {
+            MapBuilder<K, T, M> builder = builderCtor.apply(map);
+
+            for (K part : deletes) {
+                builder.remove(part);
+            }
+
+            for (Map.Entry<K, Diff<T>> diff : diffs) {
+                builder.put(diff.getKey(), diff.getValue().apply(builder.get(diff.getKey())));
+            }
+
+            for (Map.Entry<K, T> upsert : upserts) {
+                builder.put(upsert.getKey(), upsert.getValue());
+            }
+            return builder.build();
+        }
+
+        /**
+         * {@code true} if this diff results in no changes to the map
+         */
+        public boolean isEmpty() {
+            return deletes.isEmpty() && diffs.isEmpty() && upserts.isEmpty();
         }
 
         /**
@@ -413,7 +610,7 @@ public final class DiffableUtils {
          *
          * @return the map entries that are incrementally updated
          */
-        public Map<K, Diff<T>> getDiffs() {
+        public List<Map.Entry<K, Diff<T>>> getDiffs() {
             return diffs;
         }
 
@@ -423,38 +620,38 @@ public final class DiffableUtils {
          *
          * @return the map entries that are additions or full updates
          */
-        public Map<K, T> getUpserts() {
+        public List<Map.Entry<K, T>> getUpserts() {
             return upserts;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(deletes, (o, v) -> keySerializer.writeKey(v, o));
-            Version version = out.getVersion();
+            TransportVersion version = out.getTransportVersion();
             // filter out custom states not supported by the other node
             int diffCount = 0;
-            for (Diff<T> diff : diffs.values()) {
-                if(valueSerializer.supportsVersion(diff, version)) {
+            for (Map.Entry<K, Diff<T>> diff : diffs) {
+                if (valueSerializer.supportsVersion(diff.getValue(), version)) {
                     diffCount++;
                 }
             }
             out.writeVInt(diffCount);
-            for (Map.Entry<K, Diff<T>> entry : diffs.entrySet()) {
-                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+            for (Map.Entry<K, Diff<T>> entry : diffs) {
+                if (valueSerializer.supportsVersion(entry.getValue(), version)) {
                     keySerializer.writeKey(entry.getKey(), out);
                     valueSerializer.writeDiff(entry.getValue(), out);
                 }
             }
             // filter out custom states not supported by the other node
             int upsertsCount = 0;
-            for (T upsert : upserts.values()) {
-                if(valueSerializer.supportsVersion(upsert, version)) {
+            for (Map.Entry<K, T> upsert : upserts) {
+                if (valueSerializer.supportsVersion(upsert.getValue(), version)) {
                     upsertsCount++;
                 }
             }
             out.writeVInt(upsertsCount);
-            for (Map.Entry<K, T> entry : upserts.entrySet()) {
-                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+            for (Map.Entry<K, T> entry : upserts) {
+                if (valueSerializer.supportsVersion(entry.getValue(), version)) {
                     keySerializer.writeKey(entry.getKey(), out);
                     valueSerializer.write(entry.getValue(), out);
                 }
@@ -468,6 +665,7 @@ public final class DiffableUtils {
      */
     public interface KeySerializer<K> {
         void writeKey(K key, StreamOutput out) throws IOException;
+
         K readKey(StreamInput in) throws IOException;
     }
 
@@ -506,22 +704,23 @@ public final class DiffableUtils {
     }
 
     /**
-     * Serializes Integer keys of a map as a VInt. Requires keys to be positive.
+     * Serializes Writeable keys of a map. Requires keys to be non-null.
      */
-    private static final class VIntKeySerializer implements KeySerializer<Integer> {
-        public static final IntKeySerializer INSTANCE = new IntKeySerializer();
+    private static class WriteableKeySerializer<W extends Writeable> implements KeySerializer<W> {
+        private final Reader<W> reader;
 
-        @Override
-        public void writeKey(Integer key, StreamOutput out) throws IOException {
-            if (key < 0) {
-                throw new IllegalArgumentException("Map key [" + key + "] must be positive");
-            }
-            out.writeVInt(key);
+        WriteableKeySerializer(Reader<W> reader) {
+            this.reader = reader;
         }
 
         @Override
-        public Integer readKey(StreamInput in) throws IOException {
-            return in.readVInt();
+        public void writeKey(W key, StreamOutput out) throws IOException {
+            out.writeWriteable(key);
+        }
+
+        @Override
+        public W readKey(StreamInput in) throws IOException {
+            return reader.read(in);
         }
     }
 
@@ -557,14 +756,14 @@ public final class DiffableUtils {
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(Diff<V> value, Version version) {
+        default boolean supportsVersion(Diff<V> value, TransportVersion version) {
             return true;
         }
 
         /**
          * Whether this serializer supports the version of the output stream
          */
-        default boolean supportsVersion(V value, Version version) {
+        default boolean supportsVersion(V value, TransportVersion version) {
             return true;
         }
 

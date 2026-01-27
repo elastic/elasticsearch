@@ -58,8 +58,13 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
         if (Strings.isNullOrEmpty(authorizationHeader)) {
             return null;
         }
-        if (authorizationHeader.regionMatches(IGNORE_CASE_AUTH_HEADER_MATCH, 0, NEGOTIATE_AUTH_HEADER_PREFIX, 0,
-                NEGOTIATE_AUTH_HEADER_PREFIX.length()) == false) {
+        if (authorizationHeader.regionMatches(
+            IGNORE_CASE_AUTH_HEADER_MATCH,
+            0,
+            NEGOTIATE_AUTH_HEADER_PREFIX,
+            0,
+            NEGOTIATE_AUTH_HEADER_PREFIX.length()
+        ) == false) {
             return null;
         }
 
@@ -100,12 +105,9 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
 
     @Override
     public boolean equals(final Object other) {
-        if (this == other)
-            return true;
-        if (other == null)
-            return false;
-        if (getClass() != other.getClass())
-            return false;
+        if (this == other) return true;
+        if (other == null) return false;
+        if (getClass() != other.getClass()) return false;
         final KerberosAuthenticationToken otherKerbToken = (KerberosAuthenticationToken) other;
         return Arrays.equals(otherKerbToken.decodedToken, this.decodedToken);
     }
@@ -122,7 +124,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
      */
     static ElasticsearchSecurityException unauthorized(final String message, final Throwable cause, final Object... args) {
         ElasticsearchSecurityException ese = new ElasticsearchSecurityException(message, RestStatus.UNAUTHORIZED, cause, args);
-        ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
+        ese.addBodyHeader(WWW_AUTHENTICATE, NEGOTIATE_SCHEME_NAME);
         return ese;
     }
 
@@ -144,7 +146,7 @@ public final class KerberosAuthenticationToken implements AuthenticationToken {
     static ElasticsearchSecurityException unauthorizedWithOutputToken(final ElasticsearchSecurityException ese, final String outToken) {
         assert ese.status() == RestStatus.UNAUTHORIZED;
         if (Strings.hasText(outToken)) {
-            ese.addHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
+            ese.addBodyHeader(WWW_AUTHENTICATE, NEGOTIATE_AUTH_HEADER_PREFIX + outToken);
         }
         return ese;
     }

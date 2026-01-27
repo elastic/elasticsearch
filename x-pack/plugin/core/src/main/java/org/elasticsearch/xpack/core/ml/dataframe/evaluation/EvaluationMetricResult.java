@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * The result of an evaluation metric

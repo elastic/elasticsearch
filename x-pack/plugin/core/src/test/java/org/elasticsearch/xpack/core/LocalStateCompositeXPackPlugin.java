@@ -6,14 +6,16 @@
  */
 package org.elasticsearch.xpack.core;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapCheck;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -37,17 +40,19 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -58,9 +63,12 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -72,19 +80,26 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.plugins.interceptor.RestServerActionPlugin;
+import org.elasticsearch.plugins.internal.InternalSearchPlugin;
+import org.elasticsearch.plugins.internal.InternalVectorFormatProviderPlugin;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.io.IOException;
@@ -109,9 +124,26 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toList;
 
-public class LocalStateCompositeXPackPlugin extends XPackPlugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin,
-        ClusterPlugin, DiscoveryPlugin, MapperPlugin, AnalysisPlugin, PersistentTaskPlugin, EnginePlugin, IndexStorePlugin,
-        SystemIndexPlugin, SearchPlugin, ShutdownAwarePlugin {
+public class LocalStateCompositeXPackPlugin extends XPackPlugin
+    implements
+        ScriptPlugin,
+        ActionPlugin,
+        IngestPlugin,
+        NetworkPlugin,
+        ClusterPlugin,
+        DiscoveryPlugin,
+        ClusterCoordinationPlugin,
+        MapperPlugin,
+        AnalysisPlugin,
+        PersistentTaskPlugin,
+        EnginePlugin,
+        IndexStorePlugin,
+        SystemIndexPlugin,
+        SearchPlugin,
+        InternalSearchPlugin,
+        ShutdownAwarePlugin,
+        RestServerActionPlugin,
+        InternalVectorFormatProviderPlugin {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -120,10 +152,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     protected List<Plugin> plugins = new ArrayList<>();
 
     public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
-        super(settings, configPath);
+        super(settings);
     }
 
-    //Get around all the setOnce nonsense in the plugin
+    // Get around all the setOnce nonsense in the plugin
     @Override
     protected SSLService getSslService() {
         return sslService;
@@ -165,92 +197,100 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        List<Object> components = new ArrayList<>();
-        components.addAll(super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver, repositoriesServiceSupplier));
+    public Collection<?> createComponents(PluginServices services) {
+        List<Object> components = new ArrayList<>(super.createComponents(services));
 
-        filterPlugins(Plugin.class).stream().forEach(p ->
-            components.addAll(p.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService,
-                    xContentRegistry, environment, nodeEnvironment, namedWriteableRegistry, expressionResolver,
-                repositoriesServiceSupplier))
-        );
+        filterPlugins(Plugin.class).forEach(p -> components.addAll(p.createComponents(services)));
         return components;
     }
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        List<RestHeaderDefinition> headers = new ArrayList<>();
-        headers.addAll(super.getRestHeaders());
-        filterPlugins(ActionPlugin.class).stream().forEach(p -> headers.addAll(p.getRestHeaders()));
+        List<RestHeaderDefinition> headers = new ArrayList<>(super.getRestHeaders());
+        filterPlugins(ActionPlugin.class).forEach(p -> headers.addAll(p.getRestHeaders()));
         return headers;
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(super.getSettings());
-
-        filterPlugins(Plugin.class).stream().forEach(p ->
-                settings.addAll(p.getSettings())
-        );
+        ArrayList<Setting<?>> settings = new ArrayList<>(super.getSettings());
+        filterPlugins(Plugin.class).forEach(p -> settings.addAll(p.getSettings()));
         return settings;
     }
 
     @Override
+    public void loadExtensions(ExtensionLoader loader) {
+        super.loadExtensions(loader);
+        filterPlugins(ExtensiblePlugin.class).forEach(p -> p.loadExtensions(loader));
+    }
+
+    @Override
     public List<String> getSettingsFilter() {
-        List<String> filters = new ArrayList<>();
-        filters.addAll(super.getSettingsFilter());
-        filterPlugins(Plugin.class).stream().forEach(p ->
-            filters.addAll(p.getSettingsFilter())
-        );
+        List<String> filters = new ArrayList<>(super.getSettingsFilter());
+        filterPlugins(Plugin.class).forEach(p -> filters.addAll(p.getSettingsFilter()));
         return filters;
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.addAll(super.getActions());
-        filterPlugins(ActionPlugin.class).stream().forEach(p ->
-            actions.addAll(p.getActions())
-        );
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>(super.getActions());
+        filterPlugins(ActionPlugin.class).forEach(p -> actions.addAll(p.getActions()));
         return actions;
     }
 
     @Override
     public List<ActionFilter> getActionFilters() {
-        List<ActionFilter> filters = new ArrayList<>();
-        filters.addAll(super.getActionFilters());
-        filterPlugins(ActionPlugin.class).stream().forEach(p ->
-            filters.addAll(p.getActionFilters())
-        );
+        List<ActionFilter> filters = new ArrayList<>(super.getActionFilters());
+        filterPlugins(ActionPlugin.class).forEach(p -> filters.addAll(p.getActionFilters()));
         return filters;
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
-        List<RestHandler> handlers = new ArrayList<>();
-        handlers.addAll(super.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
-                indexNameExpressionResolver, nodesInCluster));
-        filterPlugins(ActionPlugin.class).stream().forEach(p ->
-            handlers.addAll(p.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
-                    settingsFilter, indexNameExpressionResolver, nodesInCluster))
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        List<RestHandler> handlers = new ArrayList<>(
+            super.getRestHandlers(
+                settings,
+                namedWriteableRegistry,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster,
+                clusterSupportsFeature
+            )
+        );
+        filterPlugins(ActionPlugin.class).forEach(
+            p -> handlers.addAll(
+                p.getRestHandlers(
+                    settings,
+                    namedWriteableRegistry,
+                    restController,
+                    clusterSettings,
+                    indexScopedSettings,
+                    settingsFilter,
+                    indexNameExpressionResolver,
+                    nodesInCluster,
+                    clusterSupportsFeature
+                )
+            )
         );
         return handlers;
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(super.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(super.getNamedWriteables());
         for (Plugin p : plugins) {
             entries.addAll(p.getNamedWriteables());
         }
@@ -258,9 +298,24 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
+    public List<QuerySpec<?>> getQueries() {
+        List<QuerySpec<?>> querySpecs = new ArrayList<>(super.getQueries());
+        filterPlugins(SearchPlugin.class).stream().flatMap(p -> p.getQueries().stream()).forEach(querySpecs::add);
+        return querySpecs;
+    }
+
+    @Override
+    public List<QueryRewriteInterceptor> getQueryRewriteInterceptors() {
+        List<QueryRewriteInterceptor> interceptors = new ArrayList<>();
+        filterPlugins(InternalSearchPlugin.class).stream()
+            .flatMap(p -> p.getQueryRewriteInterceptors().stream())
+            .forEach(interceptors::add);
+        return interceptors;
+    }
+
+    @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(super.getNamedXContent());
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContent());
         for (Plugin p : plugins) {
             entries.addAll(p.getNamedXContent());
         }
@@ -273,76 +328,105 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(super.additionalSettings());
-        filterPlugins(Plugin.class).stream().forEach(p ->
-                builder.put(p.additionalSettings())
-        );
+        filterPlugins(Plugin.class).forEach(p -> builder.put(p.additionalSettings()));
         return builder.build();
     }
-
 
     @Override
     public List<ScriptContext<?>> getContexts() {
         List<ScriptContext<?>> contexts = new ArrayList<>();
-        filterPlugins(ScriptPlugin.class).stream().forEach(p -> contexts.addAll(p.getContexts()));
+        filterPlugins(ScriptPlugin.class).forEach(p -> contexts.addAll(p.getContexts()));
         return contexts;
     }
 
     @Override
     public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
         Map<String, Processor.Factory> processors = new HashMap<>();
-        filterPlugins(IngestPlugin.class).stream().forEach(p -> processors.putAll(p.getProcessors(parameters)));
+        filterPlugins(IngestPlugin.class).forEach(p -> processors.putAll(p.getProcessors(parameters)));
         return processors;
     }
 
     @Override
     public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
         List<TransportInterceptor> interceptors = new ArrayList<>();
-        filterPlugins(NetworkPlugin.class).stream().forEach(p -> interceptors.addAll(p.getTransportInterceptors(namedWriteableRegistry,
-                threadContext)));
+        filterPlugins(NetworkPlugin.class).forEach(
+            p -> interceptors.addAll(p.getTransportInterceptors(namedWriteableRegistry, threadContext))
+        );
         return interceptors;
     }
 
     @Override
-    public Map<String, Supplier<Transport>> getTransports(Settings settings, ThreadPool threadPool, PageCacheRecycler pageCacheRecycler,
-                                                          CircuitBreakerService circuitBreakerService,
-                                                          NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService) {
-        Map<String, Supplier<Transport>> transports = new HashMap<>();
-        transports.putAll(super.getTransports(settings, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry,
-            networkService));
-        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getTransports(settings, threadPool,
-                pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService)));
+    public Map<String, Supplier<Transport>> getTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService
+    ) {
+        Map<String, Supplier<Transport>> transports = new HashMap<>(
+            super.getTransports(settings, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService)
+        );
+        filterPlugins(NetworkPlugin.class).forEach(
+            p -> transports.putAll(
+                p.getTransports(settings, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService)
+            )
+        );
         return transports;
-
 
     }
 
     @Override
-    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                                        PageCacheRecycler pageCacheRecycler,
-                                                                        CircuitBreakerService circuitBreakerService,
-                                                                        NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService,
-                                                                        HttpServerTransport.Dispatcher dispatcher,
-                                                                        ClusterSettings clusterSettings) {
+    public Map<String, Supplier<HttpServerTransport>> getHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
+        ClusterSettings clusterSettings,
+        TelemetryProvider telemetryProvider
+    ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
-        filterPlugins(NetworkPlugin.class).stream().forEach(p -> transports.putAll(p.getHttpTransports(settings, threadPool, bigArrays,
-            pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings)));
+        filterPlugins(NetworkPlugin.class).forEach(
+            p -> transports.putAll(
+                p.getHttpTransports(
+                    settings,
+                    threadPool,
+                    bigArrays,
+                    pageCacheRecycler,
+                    circuitBreakerService,
+                    xContentRegistry,
+                    networkService,
+                    dispatcher,
+                    perRequestThreadContext,
+                    clusterSettings,
+                    telemetryProvider
+                )
+            )
+        );
         return transports;
     }
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
         List<BootstrapCheck> checks = new ArrayList<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> checks.addAll(p.getBootstrapChecks()));
+        filterPlugins(Plugin.class).forEach(p -> checks.addAll(p.getBootstrapChecks()));
         return Collections.unmodifiableList(checks);
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-
-                // There can be only one.
-        List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream().map(p ->
-                p.getRestHandlerWrapper(threadContext)).filter(Objects::nonNull).collect(Collectors.toList());
+    public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
+        // There can be only one.
+        List<RestInterceptor> items = filterPlugins(ActionPlugin.class).stream()
+            .filter(RestServerActionPlugin.class::isInstance)
+            .map(RestServerActionPlugin.class::cast)
+            .map(p -> p.getRestHandlerInterceptor(threadContext))
+            .filter(Objects::nonNull)
+            .toList();
 
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security ActionPlugin should override this");
@@ -356,14 +440,14 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         List<ExecutorBuilder<?>> builders = new ArrayList<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> builders.addAll(p.getExecutorBuilders(settings)));
+        filterPlugins(Plugin.class).forEach(p -> builders.addAll(p.getExecutorBuilders(settings)));
         return builders;
     }
 
     @Override
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return templates -> {
-            for(Plugin p: plugins) {
+            for (Plugin p : plugins) {
                 templates = p.getIndexTemplateMetadataUpgrader().apply(templates);
             }
             return templates;
@@ -373,15 +457,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public Map<String, ElectionStrategy> getElectionStrategies() {
         Map<String, ElectionStrategy> electionStrategies = new HashMap<>();
-        filterPlugins(DiscoveryPlugin.class).stream().forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
+        filterPlugins(ClusterCoordinationPlugin.class).forEach(p -> electionStrategies.putAll(p.getElectionStrategies()));
         return electionStrategies;
     }
 
     @Override
-    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+    public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
         Set<IndexSettingProvider> providers = new HashSet<>();
-        filterPlugins(Plugin.class).stream().forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders()));
-        providers.addAll(super.getAdditionalIndexSettingProviders());
+        filterPlugins(Plugin.class).forEach(p -> providers.addAll(p.getAdditionalIndexSettingProviders(parameters)));
+        providers.addAll(super.getAdditionalIndexSettingProviders(parameters));
         return providers;
 
     }
@@ -389,20 +473,22 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> tokenizers = new HashMap<>();
-        filterPlugins(AnalysisPlugin.class).stream().forEach(p -> tokenizers.putAll(p.getTokenizers()));
+        filterPlugins(AnalysisPlugin.class).forEach(p -> tokenizers.putAll(p.getTokenizers()));
         return tokenizers;
     }
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
         super.onIndexModule(indexModule);
-        filterPlugins(Plugin.class).stream().forEach(p -> p.onIndexModule(indexModule));
+        filterPlugins(Plugin.class).forEach(p -> p.onIndexModule(indexModule));
     }
 
     @Override
-    public Function<String, Predicate<String>> getFieldFilter() {
-        List<Function<String, Predicate<String>>> items = filterPlugins(MapperPlugin.class).stream().map(p ->
-                p.getFieldFilter()).collect(Collectors.toList());
+    public Function<String, FieldPredicate> getFieldFilter() {
+        List<Function<String, FieldPredicate>> items = filterPlugins(MapperPlugin.class).stream()
+            .map(p -> p.getFieldFilter())
+            .filter(p -> p.equals(NOOP_FIELD_FILTER) == false)
+            .toList();
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security MapperPlugin should override this");
         } else if (items.size() == 1) {
@@ -416,8 +502,9 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public BiConsumer<DiscoveryNode, ClusterState> getJoinValidator() {
         // There can be only one.
-        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(DiscoveryPlugin.class).stream().map(p ->
-                p.getJoinValidator()).collect(Collectors.toList());
+        List<BiConsumer<DiscoveryNode, ClusterState>> items = filterPlugins(ClusterCoordinationPlugin.class).stream()
+            .map(p -> p.getJoinValidator())
+            .toList();
         if (items.size() > 1) {
             throw new UnsupportedOperationException("Only the security DiscoveryPlugin should override this");
         } else if (items.size() == 1) {
@@ -428,36 +515,79 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(ClusterService clusterService,
-                                                                       ThreadPool threadPool,
-                                                                       Client client,
-                                                                       SettingsModule settingsModule,
-                                                                       IndexNameExpressionResolver expressionResolver) {
+    public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        SettingsModule settingsModule,
+        IndexNameExpressionResolver expressionResolver
+    ) {
         return filterPlugins(PersistentTaskPlugin.class).stream()
-                .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, expressionResolver))
-                .flatMap(List::stream)
-                .collect(toList());
+            .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, expressionResolver))
+            .flatMap(List::stream)
+            .collect(toList());
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, BigArrays bigArrays,
-                                                           RecoverySettings recoverySettings) {
-        HashMap<String, Repository.Factory> repositories =
-            new HashMap<>(super.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        HashMap<String, Repository.Factory> repositories = new HashMap<>(
+            super.getRepositories(
+                env,
+                namedXContentRegistry,
+                clusterService,
+                bigArrays,
+                recoverySettings,
+                repositoriesMetrics,
+                snapshotMetrics
+            )
+        );
         filterPlugins(RepositoryPlugin.class).forEach(
-            r -> repositories.putAll(r.getRepositories(env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)));
+            r -> repositories.putAll(
+                r.getRepositories(
+                    env,
+                    namedXContentRegistry,
+                    clusterService,
+                    bigArrays,
+                    recoverySettings,
+                    RepositoriesMetrics.NOOP,
+                    SnapshotMetrics.NOOP
+                )
+            )
+        );
         return repositories;
     }
 
     @Override
-    public Map<String, Repository.Factory> getInternalRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                                   ClusterService clusterService, RecoverySettings recoverySettings) {
-        HashMap<String, Repository.Factory> internalRepositories =
-            new HashMap<>(super.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings));
-        filterPlugins(RepositoryPlugin.class).forEach(r ->
-            internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings)));
+    public Map<String, Repository.Factory> getInternalRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings
+    ) {
+        HashMap<String, Repository.Factory> internalRepositories = new HashMap<>(
+            super.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings)
+        );
+        filterPlugins(RepositoryPlugin.class).forEach(
+            r -> internalRepositories.putAll(r.getInternalRepositories(env, namedXContentRegistry, clusterService, recoverySettings))
+        );
         return internalRepositories;
+    }
+
+    @Override
+    public BiConsumer<Snapshot, IndexVersion> addPreRestoreVersionCheck() {
+        List<BiConsumer<Snapshot, IndexVersion>> checks = filterPlugins(RepositoryPlugin.class).stream()
+            .map(RepositoryPlugin::addPreRestoreVersionCheck)
+            .filter(Objects::nonNull)
+            .toList();
+        return checks.isEmpty() ? null : (s, v) -> checks.forEach(c -> c.accept(s, v));
     }
 
     @Override
@@ -469,7 +599,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
         List<Optional<EngineFactory>> enginePlugins = filterPlugins(EnginePlugin.class).stream()
             .map(p -> p.getEngineFactory(indexSettings))
-            .collect(Collectors.toList());
+            .toList();
         if (enginePlugins.size() == 0) {
             return Optional.empty();
         } else if (enginePlugins.size() == 1) {
@@ -481,27 +611,24 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Collection<RequestValidators.RequestValidator<PutMappingRequest>> mappingRequestValidators() {
-        return filterPlugins(ActionPlugin.class)
-                .stream()
-                .flatMap(p -> p.mappingRequestValidators().stream())
-                .collect(Collectors.toList());
+        return filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList());
     }
 
     @Override
     public Collection<RequestValidators.RequestValidator<IndicesAliasesRequest>> indicesAliasesRequestValidators() {
-        return filterPlugins(ActionPlugin.class)
-                .stream()
-                .flatMap(p -> p.indicesAliasesRequestValidators().stream())
-                .collect(Collectors.toList());
+        return filterPlugins(ActionPlugin.class).stream()
+            .flatMap(p -> p.indicesAliasesRequestValidators().stream())
+            .collect(Collectors.toList());
     }
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         Set<AllocationDecider> deciders = new HashSet<>();
-        deciders.addAll(filterPlugins(ClusterPlugin.class)
-            .stream()
-            .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
-            .collect(Collectors.toList()));
+        deciders.addAll(
+            filterPlugins(ClusterPlugin.class).stream()
+                .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
+                .toList()
+        );
         deciders.addAll(super.createAllocationDeciders(settings, clusterSettings));
         return deciders;
     }
@@ -509,21 +636,21 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
         final Map<String, ExistingShardsAllocator> allocators = new HashMap<>();
-        filterPlugins(ClusterPlugin.class).stream().forEach(p -> allocators.putAll(p.getExistingShardsAllocators()));
+        filterPlugins(ClusterPlugin.class).forEach(p -> allocators.putAll(p.getExistingShardsAllocators()));
         return allocators;
     }
 
     @Override
     public Map<String, IndexStorePlugin.DirectoryFactory> getDirectoryFactories() {
         final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
-        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getDirectoryFactories()));
+        filterPlugins(IndexStorePlugin.class).forEach(p -> factories.putAll(p.getDirectoryFactories()));
         return factories;
     }
 
     @Override
     public Map<String, RecoveryStateFactory> getRecoveryStateFactories() {
         final Map<String, RecoveryStateFactory> factories = new HashMap<>();
-        filterPlugins(IndexStorePlugin.class).stream().forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
+        filterPlugins(IndexStorePlugin.class).forEach(p -> factories.putAll(p.getRecoveryStateFactories()));
         return factories;
     }
 
@@ -542,9 +669,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @SuppressWarnings("unchecked")
-    private <T> List<T> filterPlugins(Class<T> type) {
-        return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T)p))
-                .collect(Collectors.toList());
+    protected <T> List<T> filterPlugins(Class<T> type) {
+        return plugins.stream().filter(x -> type.isAssignableFrom(x.getClass())).map(p -> ((T) p)).collect(Collectors.toList());
     }
 
     @Override
@@ -557,10 +683,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return filterPlugins(MapperPlugin.class).stream()
+        Map<String, MetadataFieldMapper.TypeParser> pluginsMetadataMappers = filterPlugins(MapperPlugin.class).stream()
             .map(MapperPlugin::getMetadataMappers)
-            .flatMap (map -> map.entrySet().stream())
+            .flatMap(map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // the xpack plugin itself exposes a metadata mapper so let's include it as well
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappersIncludingXPackPlugin = new HashMap<>(pluginsMetadataMappers);
+        metadataMappersIncludingXPackPlugin.putAll(super.getMetadataMappers());
+        return metadataMappersIncludingXPackPlugin;
     }
 
     @Override
@@ -575,11 +706,11 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     @Override
     public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators =
-            filterPlugins(SearchPlugin.class).stream()
-                .map(SearchPlugin::getRequestCacheKeyDifferentiator)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toUnmodifiableList());
+        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators = filterPlugins(SearchPlugin.class)
+            .stream()
+            .map(SearchPlugin::getRequestCacheKeyDifferentiator)
+            .filter(Objects::nonNull)
+            .toList();
 
         if (differentiators.size() > 1) {
             throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");
@@ -591,10 +722,38 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
 
     }
 
+    @Override
+    public void cleanUpFeature(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        Client client,
+        TimeValue masterNodeTimeout,
+        ActionListener<ResetFeatureStateStatus> finalListener
+    ) {
+        List<SystemIndexPlugin> systemPlugins = filterPlugins(SystemIndexPlugin.class);
+
+        GroupedActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> allListeners = new GroupedActionListener<>(
+            systemPlugins.size(),
+            finalListener.delegateFailureAndWrap((delegate, listenerResults) -> {
+                // If the clean-up produced only one result, use that to pass along. In most
+                // cases it should be 1-1 mapping of feature to response. Passing back success
+                // prevents us from writing validation tests on this API.
+                if (listenerResults != null && listenerResults.size() == 1) {
+                    delegate.onResponse(listenerResults.stream().findFirst().get());
+                } else {
+                    delegate.onResponse(ResetFeatureStateStatus.success(getFeatureName()));
+                }
+            })
+        );
+        systemPlugins.forEach(plugin -> plugin.cleanUpFeature(clusterService, projectResolver, client, masterNodeTimeout, allListeners));
+    }
+
+    @Override
     public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
         return filterPlugins(ShutdownAwarePlugin.class).stream().allMatch(plugin -> plugin.safeToShutdown(nodeId, shutdownType));
     }
 
+    @Override
     public void signalShutdown(Collection<String> shutdownNodeIds) {
         filterPlugins(ShutdownAwarePlugin.class).forEach(plugin -> plugin.signalShutdown(shutdownNodeIds));
     }

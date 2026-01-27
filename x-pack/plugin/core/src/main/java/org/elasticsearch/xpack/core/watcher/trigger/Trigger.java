@@ -6,21 +6,11 @@
  */
 package org.elasticsearch.xpack.core.watcher.trigger;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentParser;
-
-import java.io.IOException;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 public interface Trigger extends ToXContentObject {
 
     String type();
-
-    interface Parser<T extends Trigger> {
-
-        String type();
-
-        T parse(XContentParser parser) throws IOException;
-    }
 
     interface Builder<T extends Trigger> {
 

@@ -1,24 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,12 +37,8 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextConstructorInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextConstructorInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextConstructorInfo(
-                            (String)v[0],
-                            (List<String>)v[1]
-                    )
+        PainlessContextConstructorInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextConstructorInfo((String) v[0], (List<String>) v[1])
     );
 
     static {
@@ -50,11 +47,12 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
     }
 
     public PainlessContextConstructorInfo(PainlessConstructor painlessConstructor) {
-        this (
-                painlessConstructor.javaConstructor.getDeclaringClass().getName(),
-                painlessConstructor.typeParameters.stream()
-                        .map(c -> PainlessContextTypeInfo.getType(c.getName()))
-                        .collect(Collectors.toList())
+        this(
+            painlessConstructor.javaConstructor().getDeclaringClass().getName(),
+            painlessConstructor.typeParameters()
+                .stream()
+                .map(c -> PainlessContextTypeInfo.getType(c.getName()))
+                .collect(Collectors.toList())
         );
     }
 
@@ -65,7 +63,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     public PainlessContextConstructorInfo(StreamInput in) throws IOException {
         declaring = in.readString();
-        parameters = Collections.unmodifiableList(in.readStringList());
+        parameters = in.readCollectionAsImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -97,8 +95,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextConstructorInfo that = (PainlessContextConstructorInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring) && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -108,10 +105,7 @@ public class PainlessContextConstructorInfo implements Writeable, ToXContentObje
 
     @Override
     public String toString() {
-        return "PainlessContextConstructorInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextConstructorInfo{" + "declaring='" + declaring + '\'' + ", parameters=" + parameters + '}';
     }
 
     public String getDeclaring() {

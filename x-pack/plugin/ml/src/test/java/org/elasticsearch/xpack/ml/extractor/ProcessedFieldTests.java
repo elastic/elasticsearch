@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.extractor;
 
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
@@ -27,7 +26,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -45,70 +44,56 @@ public class ProcessedFieldTests extends ESTestCase {
 
     public void testMissingExtractor() {
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> null), emptyArray());
+        assertThat(processedField.value(makeHit(), null, (s) -> null), emptyArray());
     }
 
     public void testMissingInputValues() {
         ExtractedField extractedField = makeExtractedField(new Object[0]);
         ProcessedField processedField = new ProcessedField(makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "baz"));
-        assertThat(processedField.value(makeHit(), (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
+        assertThat(processedField.value(makeHit(), null, (s) -> extractedField), arrayContaining(is(nullValue()), is(nullValue())));
     }
 
     public void testProcessedFieldFrequencyEncoding() {
         testProcessedField(
-            new FrequencyEncoding(randomAlphaOfLength(10),
+            new FrequencyEncoding(
                 randomAlphaOfLength(10),
-                MapBuilder.<String, Double>newMapBuilder().put("bar", 1.0).put("1", 0.5).put("false", 0.0).map(),
-                randomBoolean()),
-            new Object[]{"bar", 1, false},
-            new Object[][]{
-                new Object[]{1.0},
-                new Object[]{0.5},
-                new Object[]{0.0},
-            });
+                randomAlphaOfLength(10),
+                Map.of("bar", 1.0, "1", 0.5, "false", 0.0),
+                randomBoolean()
+            ),
+            new Object[] { "bar", 1, false },
+            new Object[][] { new Object[] { 1.0 }, new Object[] { 0.5 }, new Object[] { 0.0 }, }
+        );
     }
 
     public void testProcessedFieldTargetMeanEncoding() {
         testProcessedField(
-            new TargetMeanEncoding(randomAlphaOfLength(10),
+            new TargetMeanEncoding(
                 randomAlphaOfLength(10),
-                MapBuilder.<String, Double>newMapBuilder().put("bar", 1.0).put("1", 0.5).put("false", 0.0).map(),
+                randomAlphaOfLength(10),
+                Map.of("bar", 1.0, "1", 0.5, "false", 0.0),
                 0.8,
-                randomBoolean()),
-            new Object[]{"bar", 1, false, "unknown"},
-            new Object[][]{
-                new Object[]{1.0},
-                new Object[]{0.5},
-                new Object[]{0.0},
-                new Object[]{0.8},
-            });
+                randomBoolean()
+            ),
+            new Object[] { "bar", 1, false, "unknown" },
+            new Object[][] { new Object[] { 1.0 }, new Object[] { 0.5 }, new Object[] { 0.0 }, new Object[] { 0.8 }, }
+        );
     }
 
     public void testProcessedFieldNGramEncoding() {
         testProcessedField(
-            new NGram(randomAlphaOfLength(10),
-                randomAlphaOfLength(10),
-                new int[]{1},
-                0,
-                3,
-                randomBoolean()),
-            new Object[]{"bar", 1, false},
-            new Object[][]{
-                new Object[]{"b", "a", "r"},
-                new Object[]{"1", null, null},
-                new Object[]{"f", "a", "l"}
-            });
+            new NGram(randomAlphaOfLength(10), randomAlphaOfLength(10), new int[] { 1 }, 0, 3, randomBoolean()),
+            new Object[] { "bar", 1, false },
+            new Object[][] { new Object[] { "b", "a", "r" }, new Object[] { "1", null, null }, new Object[] { "f", "a", "l" } }
+        );
     }
 
     public void testProcessedFieldOneHot() {
         testProcessedField(
             makeOneHotPreProcessor(randomAlphaOfLength(10), "bar", "1", "false"),
-            new Object[]{"bar", 1, false},
-            new Object[][]{
-                new Object[]{0, 1, 0},
-                new Object[]{1, 0, 0},
-                new Object[]{0, 0, 1},
-            });
+            new Object[] { "bar", 1, false },
+            new Object[][] { new Object[] { 0, 1, 0 }, new Object[] { 1, 0, 0 }, new Object[] { 0, 0, 1 }, }
+        );
     }
 
     public void testProcessedField(PreProcessor preProcessor, Object[] inputs, Object[][] expectedOutputs) {
@@ -116,11 +101,12 @@ public class ProcessedFieldTests extends ESTestCase {
         assert inputs.length == expectedOutputs.length;
         for (int i = 0; i < inputs.length; i++) {
             Object input = inputs[i];
-            Object[] result = processedField.value(makeHit(input), (s) -> makeExtractedField(new Object[] { input }));
+            Object[] result = processedField.value(makeHit(input), null, (s) -> makeExtractedField(new Object[] { input }));
             assertThat(
                 "Input [" + input + "] Expected " + Arrays.toString(expectedOutputs[i]) + " but received " + Arrays.toString(result),
                 result,
-                equalTo(expectedOutputs[i]));
+                equalTo(expectedOutputs[i])
+            );
         }
     }
 
@@ -129,12 +115,12 @@ public class ProcessedFieldTests extends ESTestCase {
         for (String v : expectedExtractedValues) {
             map.put(v, v + "_column");
         }
-        return new OneHotEncoding(inputField, map,true);
+        return new OneHotEncoding(inputField, map, true);
     }
 
     private static ExtractedField makeExtractedField(Object[] value) {
         ExtractedField extractedField = mock(ExtractedField.class);
-        when(extractedField.value(any())).thenReturn(value);
+        when(extractedField.value(any(), any())).thenReturn(value);
         return extractedField;
     }
 

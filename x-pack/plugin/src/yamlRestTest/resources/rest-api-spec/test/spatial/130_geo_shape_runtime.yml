@@ -1,0 +1,237 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: geometries
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 1
+          mappings:
+            runtime:
+              geometry_from_doc_value:
+                type: geo_shape
+                script:
+                  source: |
+                    GeoBoundingBox bbox = doc["geometry"].getBoundingBox();
+                    emit("BBOX(" + bbox.topLeft().getLon() + "," + bbox.topLeft().getLat() + "," + bbox.bottomRight().getLon() + "," + bbox.bottomRight().getLat() + ")");
+              geometry_from_source:
+                type: geo_shape
+                script:
+                  source: |
+                    emit(params._source.geometry);
+            properties:
+              timestamp:
+                type: date
+              geometry:
+                type: geo_shape
+  - do:
+      bulk:
+        index: geometries
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:17-05:00", "geometry" : "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "geometry" : { "coordinates" : [[[5,5],[6,5],[6,6],[5,6],[5,5]]],"type": "Polygon"}}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:12-05:00", "geometry" : ["POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))",{ "coordinates" : [[[5,5],[6,5],[6,6],[5,6],[5,5]]],"type": "Polygon"}]}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: geometries
+  - match: { geometries.mappings.runtime.geometry_from_source.type: geo_shape }
+  - match:
+      geometries.mappings.runtime.geometry_from_source.script.source: |
+        emit(params._source.geometry);
+  - match: { geometries.mappings.runtime.geometry_from_source.script.lang: painless }
+  - match: { geometries.mappings.runtime.geometry_from_doc_value.type: geo_shape }
+  - match:
+      geometries.mappings.runtime.geometry_from_doc_value.script.source: |
+        GeoBoundingBox bbox = doc["geometry"].getBoundingBox();
+        emit("BBOX(" + bbox.topLeft().getLon() + "," + bbox.topLeft().getLat() + "," + bbox.bottomRight().getLon() + "," + bbox.bottomRight().getLat() + ")");
+  - match: { geometries.mappings.runtime.geometry_from_doc_value.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: geometries
+        body:
+          sort: timestamp
+          fields: ["geometry_from_doc_value", {"field": "geometry_from_source", "format" : "wkt" }, "geometry_from_query"]
+          runtime_mappings:
+            geometry_from_query:
+              type: geo_shape
+              script: |
+                 GeoBoundingBox bbox = doc["geometry"].getBoundingBox();
+                 emit("BBOX(" + bbox.topLeft().getLon() + "," + bbox.topLeft().getLat() + "," + bbox.bottomRight().getLon() + "," + bbox.bottomRight().getLat() + ")");
+  - match: { hits.total.value: 3}
+  - match: { hits.hits.0._source.geometry: "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+  - match: { hits.hits.0.fields.geometry_from_source: ["POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0))"] }
+  - match: { hits.hits.0.fields.geometry_from_doc_value.0.type: "Envelope" }
+  - match: { hits.hits.0.fields.geometry_from_doc_value.0.coordinates: [[-1.000000024214387,0.9999999403953552],[ 0.9999999823048711,-1.000000024214387]] }
+  - match: { hits.hits.0.fields.geometry_from_query.0.type: "Envelope" }
+  - match: { hits.hits.0.fields.geometry_from_query.0.coordinates: [ [ -1.000000024214387,0.9999999403953552 ],[ 0.9999999823048711,-1.000000024214387 ] ] }
+  - match: { hits.hits.1._source.geometry.type: "Polygon" }
+  - match: { hits.hits.1._source.geometry.coordinates:  [[[5,5],[6,5],[6,6],[5,6],[5,5]]]}
+  - match: { hits.hits.1.fields.geometry_from_source: [ "POLYGON ((5.0 5.0, 6.0 5.0, 6.0 6.0, 5.0 6.0, 5.0 5.0))" ] }
+  - match: { hits.hits.1.fields.geometry_from_doc_value.0.type: "Envelope" }
+  - match: { hits.hits.1.fields.geometry_from_doc_value.0.coordinates: [ [ 4.999999953433871,5.999999977648258 ],[ 5.999999977648258, 4.999999995343387 ] ] }
+  - match: { hits.hits.1.fields.geometry_from_query.0.type: "Envelope" }
+  - match: { hits.hits.1.fields.geometry_from_query.0.coordinates: [ [ 4.999999953433871,5.999999977648258 ],[ 5.999999977648258, 4.999999995343387 ] ] }
+  - match: { hits.hits.2._source.geometry.0: "POLYGON((-1 -1, 1 -1, 1 1, -1 1, -1 -1))" }
+  - match: { hits.hits.2._source.geometry.1.type: "Polygon" }
+  - match: { hits.hits.2._source.geometry.1.coordinates:  [[[5,5],[6,5],[6,6],[5,6],[5,5]]]}
+  - match: { hits.hits.2.fields.geometry_from_source: [ "GEOMETRYCOLLECTION (POLYGON ((-1.0 -1.0, 1.0 -1.0, 1.0 1.0, -1.0 1.0, -1.0 -1.0)),POLYGON ((5.0 5.0, 6.0 5.0, 6.0 6.0, 5.0 6.0, 5.0 5.0)))" ] }
+  - match: { hits.hits.2.fields.geometry_from_doc_value.0.type: "Envelope" }
+  - match: { hits.hits.2.fields.geometry_from_doc_value.0.coordinates: [ [ -1.000000024214387,5.999999977648258 ],[ 5.999999977648258, -1.000000024214387 ] ] }
+  - match: { hits.hits.2.fields.geometry_from_query.0.type: "Envelope" }
+  - match: { hits.hits.2.fields.geometry_from_query.0.coordinates: [ [ -1.000000024214387,5.999999977648258 ],[ 5.999999977648258, -1.000000024214387 ] ] }
+
+---
+"exists query":
+  - do:
+      search:
+        index: geometries
+        body:
+          query:
+            exists:
+              field: geometry_from_source
+  - match: {hits.total.value: 3}
+
+---
+"geo bounding box query":
+  - do:
+      search:
+        index: geometries
+        body:
+          query:
+            geo_bounding_box:
+              geometry_from_source:
+                top_left:
+                  lat: 2
+                  lon: 0
+                bottom_right:
+                  lat: 0
+                  lon: 2
+  - match: {hits.total.value: 2}
+
+---
+"geo distance query":
+  - do:
+      search:
+        index: geometries
+        body:
+          query:
+            geo_distance:
+              distance: "200km"
+              geometry_from_doc_value:
+                lat: 0
+                lon: 0
+  - match: {hits.total.value: 2}
+
+---
+"bounds agg":
+  - do:
+      search:
+        index: geometries
+        body:
+          aggs:
+            bounds:
+              geo_bounds:
+                field: "geometry"
+                wrap_longitude: false
+            bounds_from_doc_value:
+              geo_bounds:
+                field: "geometry_from_doc_value"
+                wrap_longitude: false
+            bounds_from_source:
+              geo_bounds:
+                field: "geometry_from_source"
+                wrap_longitude: false
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.bounds.bounds.top_left.lat: 5.999999977648258 }
+  - match: { aggregations.bounds.bounds.top_left.lon: -1.000000024214387 }
+  - match: { aggregations.bounds.bounds.bottom_right.lat: -1.000000024214387 }
+  - match: { aggregations.bounds.bounds.bottom_right.lon: 5.999999977648258 }
+  - match: { aggregations.bounds_from_doc_value.bounds.top_left.lat: 5.999999977648258 }
+  - match: { aggregations.bounds_from_doc_value.bounds.top_left.lon: -1.000000024214387 }
+  - match: { aggregations.bounds_from_doc_value.bounds.bottom_right.lat:  -1.000000024214387 }
+  - match: { aggregations.bounds_from_doc_value.bounds.bottom_right.lon: 5.999999977648258 }
+  - match: { aggregations.bounds_from_source.bounds.top_left.lat: 5.999999977648258 }
+  - match: { aggregations.bounds_from_source.bounds.top_left.lon: -1.000000024214387 }
+  - match: { aggregations.bounds_from_source.bounds.bottom_right.lat:  -1.000000024214387 }
+  - match: { aggregations.bounds_from_source.bounds.bottom_right.lon: 5.999999977648258 }
+
+---
+"centroid agg":
+  - do:
+      search:
+        index: geometries
+        body:
+          aggs:
+            centroid:
+              geo_centroid:
+                field: "geometry"
+            centroid_from_doc_value:
+              geo_centroid:
+                field: "geometry_from_doc_value"
+            centroid_from_source:
+              geo_centroid:
+                field: "geometry_from_source"
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.centroid.location.lat: 1.0999999889172614 }
+  - match: { aggregations.centroid.location.lon: 1.0999999847263098 }
+  - match: { aggregations.centroid_from_doc_value.location.lat: 2.3703703484756664 }
+  - match: { aggregations.centroid_from_doc_value.location.lon: 2.3703703065661506 }
+  - match: { aggregations.centroid_from_source.location.lat: 1.0999999889172614 }
+  - match: { aggregations.centroid_from_source.location.lon: 1.0999999847263098 }
+
+
+---
+geo_tile agg":
+  - do:
+      search:
+        index: geometries
+        body:
+          aggs:
+            tiles:
+              geotile_grid:
+                field: "geometry"
+                precision : 3
+            tiles_from_doc_value:
+              geotile_grid:
+                field: "geometry_from_doc_value"
+                precision : 3
+            tiles_from_source:
+              geotile_grid:
+                field: "geometry_from_source"
+                precision : 3
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.tiles.buckets.0.key: "3/4/3" }
+  - match: { aggregations.tiles.buckets.0.doc_count: 3 }
+  - match: { aggregations.tiles.buckets.1.key: "3/4/4" }
+  - match: { aggregations.tiles.buckets.1.doc_count: 2 }
+  - match: { aggregations.tiles.buckets.2.key: "3/3/4" }
+  - match: { aggregations.tiles.buckets.2.doc_count: 2 }
+  - match: { aggregations.tiles.buckets.3.key: "3/3/3" }
+  - match: { aggregations.tiles.buckets.3.doc_count: 2 }
+  - match: { aggregations.tiles_from_doc_value.buckets.0.key: "3/4/3" }
+  - match: { aggregations.tiles_from_doc_value.buckets.0.doc_count: 3 }
+  - match: { aggregations.tiles_from_doc_value.buckets.1.key: "3/4/4" }
+  - match: { aggregations.tiles_from_doc_value.buckets.1.doc_count: 2 }
+  - match: { aggregations.tiles_from_doc_value.buckets.2.key: "3/3/4" }
+  - match: { aggregations.tiles_from_doc_value.buckets.2.doc_count: 2 }
+  - match: { aggregations.tiles_from_doc_value.buckets.3.key: "3/3/3" }
+  - match: { aggregations.tiles_from_doc_value.buckets.3.doc_count: 2 }
+  - match: { aggregations.tiles_from_source.buckets.0.key: "3/4/3" }
+  - match: { aggregations.tiles_from_source.buckets.0.doc_count: 3 }
+  - match: { aggregations.tiles_from_source.buckets.1.key: "3/4/4" }
+  - match: { aggregations.tiles_from_source.buckets.1.doc_count: 2 }
+  - match: { aggregations.tiles_from_source.buckets.2.key: "3/3/4" }
+  - match: { aggregations.tiles_from_source.buckets.2.doc_count: 2 }
+  - match: { aggregations.tiles_from_source.buckets.3.key: "3/3/3" }
+  - match: { aggregations.tiles_from_source.buckets.3.doc_count: 2 }

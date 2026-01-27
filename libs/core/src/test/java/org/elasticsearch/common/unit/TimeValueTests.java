@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
@@ -17,6 +18,7 @@ import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -66,57 +68,35 @@ public class TimeValueTests extends ESTestCase {
 
     public void testParseTimeValue() {
         // Space is allowed before unit:
-        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
-                     TimeValue.parseTimeValue("10 ms", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
-                     TimeValue.parseTimeValue("10ms", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
-                     TimeValue.parseTimeValue("10 MS", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS),
-                     TimeValue.parseTimeValue("10MS", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), TimeValue.parseTimeValue("10 ms", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), TimeValue.parseTimeValue("10ms", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), TimeValue.parseTimeValue("10 MS", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MILLISECONDS), TimeValue.parseTimeValue("10MS", null, "test"));
 
-        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10 s", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10s", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10 S", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.SECONDS),
-                     TimeValue.parseTimeValue("10S", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), TimeValue.parseTimeValue("10 s", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), TimeValue.parseTimeValue("10s", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), TimeValue.parseTimeValue("10 S", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.SECONDS), TimeValue.parseTimeValue("10S", null, "test"));
 
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10 m", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.MINUTES),
-                     TimeValue.parseTimeValue("10m", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), TimeValue.parseTimeValue("10 m", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.MINUTES), TimeValue.parseTimeValue("10m", null, "test"));
 
-        assertEquals(new TimeValue(10, TimeUnit.HOURS),
-                     TimeValue.parseTimeValue("10 h", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.HOURS),
-                     TimeValue.parseTimeValue("10h", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.HOURS),
-                     TimeValue.parseTimeValue("10 H", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.HOURS),
-                     TimeValue.parseTimeValue("10H", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), TimeValue.parseTimeValue("10 h", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), TimeValue.parseTimeValue("10h", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), TimeValue.parseTimeValue("10 H", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.HOURS), TimeValue.parseTimeValue("10H", null, "test"));
 
-        assertEquals(new TimeValue(10, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10 d", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10d", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10 D", null, "test"));
-        assertEquals(new TimeValue(10, TimeUnit.DAYS),
-                     TimeValue.parseTimeValue("10D", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), TimeValue.parseTimeValue("10 d", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), TimeValue.parseTimeValue("10d", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), TimeValue.parseTimeValue("10 D", null, "test"));
+        assertEquals(new TimeValue(10, TimeUnit.DAYS), TimeValue.parseTimeValue("10D", null, "test"));
 
         // Time values of months should throw an exception as months are not
         // supported. Note that this is the only unit that is not case sensitive
         // as `m` is the only character that is overloaded in terms of which
         // time unit is expected between the upper and lower case versions
-        expectThrows(IllegalArgumentException.class, () -> {
-            TimeValue.parseTimeValue("10 M", null, "test");
-        });
-        expectThrows(IllegalArgumentException.class, () -> {
-            TimeValue.parseTimeValue("10M", null, "test");
-        });
+        expectThrows(IllegalArgumentException.class, () -> { TimeValue.parseTimeValue("10 M", null, "test"); });
+        expectThrows(IllegalArgumentException.class, () -> { TimeValue.parseTimeValue("10M", null, "test"); });
 
         final int length = randomIntBetween(0, 8);
         final String zeros = new String(new char[length]).replace('\0', '0');
@@ -125,18 +105,18 @@ public class TimeValueTests extends ESTestCase {
     }
 
     public void testRoundTrip() {
-        final String s = randomTimeValue();
+        final String s = randomTimeValue().getStringRep();
         assertThat(TimeValue.parseTimeValue(s, null, "test").getStringRep(), equalTo(s));
         final TimeValue t = new TimeValue(randomIntBetween(1, 128), randomFrom(TimeUnit.values()));
         assertThat(TimeValue.parseTimeValue(t.getStringRep(), null, "test"), equalTo(t));
+        assertThat(TimeValue.timeValueSeconds(-1), equalTo(TimeValue.parseTimeValue(TimeValue.timeValueSeconds(-1).getStringRep(), "foo")));
     }
 
     private static final String FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED = "fractional time values are not supported";
 
     public void testNonFractionalTimeValues() {
         final String s = randomAlphaOfLength(10) + randomTimeUnit();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
         assertThat(e, not(hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED))));
         assertThat(e.getCause(), instanceOf(NumberFormatException.class));
@@ -148,8 +128,7 @@ public class TimeValueTests extends ESTestCase {
             value = randomDouble();
         } while (value == 0);
         final String s = Double.toString(randomIntBetween(0, 128) + value) + randomTimeUnit();
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TimeValue.parseTimeValue(s, null, "test"));
         assertThat(e, hasToString(containsString("failed to parse [" + s + "]")));
         assertThat(e, hasToString(containsString(FRACTIONAL_TIME_VALUES_ARE_NOT_SUPPORTED)));
         assertThat(e.getCause(), instanceOf(NumberFormatException.class));
@@ -216,7 +195,7 @@ public class TimeValueTests extends ESTestCase {
 
     public void testCompareUnits() {
         long number = randomNonNegativeLong();
-        TimeUnit randomUnit = randomValueOtherThan(TimeUnit.DAYS, ()->randomFrom(TimeUnit.values()));
+        TimeUnit randomUnit = randomValueOtherThan(TimeUnit.DAYS, () -> randomFrom(TimeUnit.values()));
         TimeValue firstValue = new TimeValue(number, randomUnit);
         TimeValue secondValue = new TimeValue(number, TimeUnit.DAYS);
         assertTrue(firstValue.compareTo(secondValue) < 0);
@@ -233,11 +212,20 @@ public class TimeValueTests extends ESTestCase {
         final String settingName = "test-value";
         final long negativeValue = randomLongBetween(Long.MIN_VALUE, -2);
         final String negativeTimeValueString = Long.toString(negativeValue) + randomTimeUnit();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-            () -> TimeValue.parseTimeValue(negativeTimeValueString, settingName));
-        assertThat(ex.getMessage(),
-            equalTo("failed to parse setting [" + settingName + "] with value [" + negativeTimeValueString +
-                "] as a time value: negative durations are not supported"));
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> TimeValue.parseTimeValue(negativeTimeValueString, settingName)
+        );
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "failed to parse setting ["
+                    + settingName
+                    + "] with value ["
+                    + negativeTimeValueString
+                    + "] as a time value: negative durations are not supported"
+            )
+        );
     }
 
     public void testRejectsNegativeValuesAtCreation() {
@@ -246,8 +234,33 @@ public class TimeValueTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("duration cannot be negative"));
     }
 
+    public void testMin() {
+        assertThat(TimeValue.min(TimeValue.ZERO, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(0)));
+        assertThat(TimeValue.min(TimeValue.MAX_VALUE, TimeValue.timeValueNanos(1)), is(TimeValue.timeValueNanos(1)));
+        assertThat(TimeValue.min(TimeValue.MINUS_ONE, TimeValue.timeValueHours(1)), is(TimeValue.MINUS_ONE));
+    }
+
     private TimeUnit randomTimeUnitObject() {
-        return randomFrom(TimeUnit.NANOSECONDS, TimeUnit.MICROSECONDS, TimeUnit.MILLISECONDS, TimeUnit.SECONDS,
-            TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS);
+        return randomFrom(
+            TimeUnit.NANOSECONDS,
+            TimeUnit.MICROSECONDS,
+            TimeUnit.MILLISECONDS,
+            TimeUnit.SECONDS,
+            TimeUnit.MINUTES,
+            TimeUnit.HOURS,
+            TimeUnit.DAYS
+        );
+    }
+
+    public void testInternedValues() {
+        assertSame(TimeValue.timeValueMillis(-1), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.timeValueMillis(0), TimeValue.ZERO);
+        assertSame(TimeValue.timeValueSeconds(30), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.timeValueMinutes(1), TimeValue.ONE_MINUTE);
+
+        assertSame(TimeValue.parseTimeValue("-1", getTestName()), TimeValue.MINUS_ONE);
+        assertSame(TimeValue.parseTimeValue("0", getTestName()), TimeValue.ZERO);
+        assertSame(TimeValue.parseTimeValue("30s", getTestName()), TimeValue.THIRTY_SECONDS);
+        assertSame(TimeValue.parseTimeValue("1m", getTestName()), TimeValue.ONE_MINUTE);
     }
 }

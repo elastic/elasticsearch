@@ -1,36 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 
 public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase<RestoreSnapshotRequest> {
     private RestoreSnapshotRequest randomState(RestoreSnapshotRequest instance) {
@@ -64,6 +65,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         }
         instance.partial(randomBoolean());
         instance.includeAliases(randomBoolean());
+        instance.quiet(randomBoolean());
 
         if (randomBoolean()) {
             Map<String, Object> indexSettings = new HashMap<>();
@@ -78,18 +80,20 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         instance.includeGlobalState(randomBoolean());
 
         if (randomBoolean()) {
-            Collection<IndicesOptions.WildcardStates> wildcardStates = randomSubsetOf(
-                Arrays.asList(IndicesOptions.WildcardStates.values())
-            );
-            Collection<IndicesOptions.Option> options = randomSubsetOf(
-                Arrays.asList(IndicesOptions.Option.ALLOW_NO_INDICES, IndicesOptions.Option.IGNORE_UNAVAILABLE)
-            );
-
             instance.indicesOptions(
-                new IndicesOptions(
-                    options.isEmpty() ? IndicesOptions.Option.NONE : EnumSet.copyOf(options),
-                    wildcardStates.isEmpty() ? IndicesOptions.WildcardStates.NONE : EnumSet.copyOf(wildcardStates)
-                )
+                IndicesOptions.builder()
+                    .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(randomBoolean()))
+                    .wildcardOptions(
+                        new IndicesOptions.WildcardOptions(
+                            randomBoolean(),
+                            randomBoolean(),
+                            randomBoolean(),
+                            instance.indicesOptions().ignoreAliases() == false,
+                            randomBoolean()
+                        )
+                    )
+                    .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())
+                    .build()
             );
         }
 
@@ -108,7 +112,7 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
 
     @Override
     protected RestoreSnapshotRequest createTestInstance() {
-        return randomState(new RestoreSnapshotRequest(randomAlphaOfLength(5), randomAlphaOfLength(10)));
+        return randomState(new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(5), randomAlphaOfLength(10)));
     }
 
     @Override
@@ -127,15 +131,20 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
     public void testSource() throws IOException {
         RestoreSnapshotRequest original = createTestInstance();
         original.snapshotUuid(null); // cannot be set via the REST API
+        original.quiet(false); // cannot be set via the REST API
         XContentBuilder builder = original.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        Map<String, Object> map = parser.mapOrdered();
+        Map<String, Object> map;
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            map = parser.mapOrdered();
+        }
 
         // we will only restore properties from the map that are contained in the request body. All other
         // properties are restored from the original (in the actual REST action this is restored from the
         // REST path and request parameters).
-        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(original.repository(), original.snapshot());
+        RestoreSnapshotRequest processed = new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, original.repository(), original.snapshot());
         processed.masterNodeTimeout(original.masterNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
 
@@ -170,10 +179,24 @@ public class RestoreSnapshotRequestTests extends AbstractWireSerializingTestCase
         assertThat(original.toString(), containsString("skipOperatorOnlyState"));
     }
 
+    public void testRenameReplacementNameTooLong() {
+        RestoreSnapshotRequest request = createTestInstance();
+        request.indices("b".repeat(255));
+        request.renamePattern("b");
+        request.renameReplacement("1".repeat(randomIntBetween(266, 10_000)));
+
+        ActionRequestValidationException validation = request.validate();
+        assertNotNull(validation);
+        assertThat(validation.getMessage(), containsString("rename_replacement"));
+    }
+
     private Map<String, Object> convertRequestToMap(RestoreSnapshotRequest request) throws IOException {
         XContentBuilder builder = request.toXContent(XContentFactory.jsonBuilder(), new ToXContent.MapParams(Collections.emptyMap()));
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput());
-        return parser.mapOrdered();
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, null, BytesReference.bytes(builder).streamInput())
+        ) {
+            return parser.mapOrdered();
+        }
     }
 }

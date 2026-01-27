@@ -1,24 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -26,19 +31,17 @@ import java.io.IOException;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A request to get a document (its source) from an index based on its id. Best created using
- * {@link org.elasticsearch.client.Requests#getRequest(String)}.
+ * A request to get a document (its source) from an index based on its id.
  * <p>
  * The operation requires the {@link #index()} and {@link #id(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
- * @see org.elasticsearch.client.Requests#getRequest(String)
- * @see org.elasticsearch.client.Client#get(GetRequest)
+ * @see org.elasticsearch.client.internal.Client#get(GetRequest)
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, SplitAwareRequest {
 
     private String id;
     private String routing;
@@ -55,11 +58,21 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
 
-    GetRequest(StreamInput in) throws IOException {
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("get_split_shard_count_summary");
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
+
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    private boolean forceSyntheticSource = false;
+
+    public GetRequest() {}
+
+    public GetRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readString();
-        }
         id = in.readString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
@@ -69,10 +82,31 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
         this.versionType = VersionType.fromValue(in.readByte());
         this.version = in.readLong();
-        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
+        fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
+        forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        }
     }
 
-    public GetRequest() {}
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(id);
+        out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
+
+        out.writeBoolean(refresh);
+        out.writeOptionalStringArray(storedFields);
+        out.writeBoolean(realtime);
+        out.writeByte(versionType.getValue());
+        out.writeLong(version);
+        out.writeOptionalWriteable(fetchSourceContext);
+        out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
+    }
 
     /**
      * Constructs a new get request against the specified index. The {@link #id(String)} must also be set.
@@ -99,8 +133,10 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
             validationException = addValidationError("id is missing", validationException);
         }
         if (versionType.validateVersionForReads(version) == false) {
-            validationException = ValidateActions.addValidationError("illegal version value [" + version + "] for version type ["
-                    + versionType.name() + "]", validationException);
+            validationException = ValidateActions.addValidationError(
+                "illegal version value [" + version + "] for version type [" + versionType.name() + "]",
+                validationException
+            );
         }
         return validationException;
     }
@@ -210,6 +246,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this;
     }
 
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
+    }
+
     /**
      * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
      */
@@ -222,22 +269,24 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         return this.versionType;
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
-        out.writeString(id);
-        out.writeOptionalString(routing);
-        out.writeOptionalString(preference);
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public void setForceSyntheticSource(boolean forceSyntheticSource) {
+        this.forceSyntheticSource = forceSyntheticSource;
+    }
 
-        out.writeBoolean(refresh);
-        out.writeOptionalStringArray(storedFields);
-        out.writeBoolean(realtime);
-        out.writeByte(versionType.getValue());
-        out.writeLong(version);
-        out.writeOptionalWriteable(fetchSourceContext);
+    /**
+     * Should this request force {@link SourceLoader.Synthetic synthetic source}?
+     * Use this to test if the mapping supports synthetic _source and to get a sense
+     * of the worst case performance. Fetches with this enabled will be slower the
+     * enabling synthetic source natively in the index.
+     */
+    public boolean isForceSyntheticSource() {
+        return forceSyntheticSource;
     }
 
     @Override

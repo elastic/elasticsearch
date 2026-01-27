@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -19,7 +21,8 @@ import java.util.Arrays;
 /** Common implementation for array lists that slice data into fixed-size blocks. */
 abstract class AbstractBigArray extends AbstractArray {
 
-    private final PageCacheRecycler recycler;
+    @Nullable
+    protected final PageCacheRecycler recycler;
     private Recycler.V<?>[] cache;
 
     private final int pageShift;
@@ -93,7 +96,7 @@ abstract class AbstractBigArray extends AbstractArray {
         return array;
     }
 
-    private <T> T registerNewPage(Recycler.V<T> v, int page, int expectedSize) {
+    protected <T> T registerNewPage(Recycler.V<T> v, int page, int expectedSize) {
         cache = grow(cache, page + 1);
         assert cache[page] == null;
         cache[page] = v;
@@ -101,44 +104,9 @@ abstract class AbstractBigArray extends AbstractArray {
         return v.v();
     }
 
-    protected final byte[] newBytePage(int page) {
-        if (recycler != null) {
-            final Recycler.V<byte[]> v = recycler.bytePage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.BYTE_PAGE_SIZE);
-        } else {
-            return new byte[PageCacheRecycler.BYTE_PAGE_SIZE];
-        }
-    }
-
-    protected final int[] newIntPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<int[]> v = recycler.intPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.INT_PAGE_SIZE);
-        } else {
-            return new int[PageCacheRecycler.INT_PAGE_SIZE];
-        }
-    }
-
-    protected final long[] newLongPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<long[]> v = recycler.longPage(clearOnResize);
-            return registerNewPage(v, page, PageCacheRecycler.LONG_PAGE_SIZE);
-        } else {
-            return new long[PageCacheRecycler.LONG_PAGE_SIZE];
-        }
-    }
-
-    protected final Object[] newObjectPage(int page) {
-        if (recycler != null) {
-            final Recycler.V<Object[]> v = recycler.objectPage();
-            return registerNewPage(v, page, PageCacheRecycler.OBJECT_PAGE_SIZE);
-        } else {
-            return new Object[PageCacheRecycler.OBJECT_PAGE_SIZE];
-        }
-    }
-
     protected final void releasePage(int page) {
         if (recycler != null) {
+            assert cache[page] != null;
             cache[page].close();
             cache[page] = null;
         }

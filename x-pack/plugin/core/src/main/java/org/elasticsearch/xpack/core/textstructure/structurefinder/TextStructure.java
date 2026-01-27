@@ -6,14 +6,15 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,6 +26,8 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
+
 /**
  * Stores the determined file format.
  */
@@ -32,45 +35,30 @@ public class TextStructure implements ToXContentObject, Writeable {
 
     public enum Format {
 
-        NDJSON, XML, DELIMITED, SEMI_STRUCTURED_TEXT;
+        NDJSON,
+        XML,
+        DELIMITED,
+        SEMI_STRUCTURED_TEXT;
 
         public boolean supportsNesting() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                    return true;
-                case DELIMITED:
-                case SEMI_STRUCTURED_TEXT:
-                    return false;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML -> true;
+                case DELIMITED, SEMI_STRUCTURED_TEXT -> false;
+            };
         }
 
         public boolean isStructured() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                case DELIMITED:
-                    return true;
-                case SEMI_STRUCTURED_TEXT:
-                    return false;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML, DELIMITED -> true;
+                case SEMI_STRUCTURED_TEXT -> false;
+            };
         }
 
         public boolean isSemiStructured() {
-            switch (this) {
-                case NDJSON:
-                case XML:
-                case DELIMITED:
-                    return false;
-                case SEMI_STRUCTURED_TEXT:
-                    return true;
-                default:
-                    throw new IllegalStateException("enum value [" + this + "] missing from switch.");
-            }
+            return switch (this) {
+                case NDJSON, XML, DELIMITED -> false;
+                case SEMI_STRUCTURED_TEXT -> true;
+            };
         }
 
         public static Format fromString(String name) {
@@ -99,6 +87,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     public static final ParseField QUOTE = new ParseField("quote");
     public static final ParseField SHOULD_TRIM_FIELDS = new ParseField("should_trim_fields");
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
+    public static final ParseField ECS_COMPATIBILITY = new ParseField("ecs_compatibility");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp_field");
     public static final ParseField JODA_TIMESTAMP_FORMATS = new ParseField("joda_timestamp_formats");
     public static final ParseField JAVA_TIMESTAMP_FORMATS = new ParseField("java_timestamp_formats");
@@ -125,6 +114,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         PARSER.declareString((p, c) -> p.setQuote(c.charAt(0)), QUOTE);
         PARSER.declareBoolean(Builder::setShouldTrimFields, SHOULD_TRIM_FIELDS);
         PARSER.declareString(Builder::setGrokPattern, GROK_PATTERN);
+        PARSER.declareString(Builder::setEcsCompatibility, ECS_COMPATIBILITY);
         PARSER.declareString(Builder::setTimestampField, TIMESTAMP_FIELD);
         PARSER.declareStringArray(Builder::setJodaTimestampFormats, JODA_TIMESTAMP_FORMATS);
         PARSER.declareStringArray(Builder::setJavaTimestampFormats, JAVA_TIMESTAMP_FORMATS);
@@ -141,6 +131,10 @@ public class TextStructure implements ToXContentObject, Writeable {
         PARSER.declareStringArray(Builder::setExplanation, EXPLANATION);
     }
 
+    private static String getNonNullEcsCompatibilityString(String ecsCompatibility) {
+        return (ecsCompatibility == null || ecsCompatibility.isEmpty()) ? ECS_COMPATIBILITY_DISABLED : ecsCompatibility;
+    }
+
     private final int numLinesAnalyzed;
     private final int numMessagesAnalyzed;
     private final String sampleStart;
@@ -155,6 +149,7 @@ public class TextStructure implements ToXContentObject, Writeable {
     private final Character quote;
     private final Boolean shouldTrimFields;
     private final String grokPattern;
+    private final String ecsCompatibility;
     private final List<String> jodaTimestampFormats;
     private final List<String> javaTimestampFormats;
     private final String timestampField;
@@ -164,12 +159,31 @@ public class TextStructure implements ToXContentObject, Writeable {
     private final SortedMap<String, FieldStats> fieldStats;
     private final List<String> explanation;
 
-    public TextStructure(int numLinesAnalyzed, int numMessagesAnalyzed, String sampleStart, String charset, Boolean hasByteOrderMarker,
-                         Format format, String multilineStartPattern, String excludeLinesPattern, List<String> columnNames,
-                         Boolean hasHeaderRow, Character delimiter, Character quote, Boolean shouldTrimFields, String grokPattern,
-                         String timestampField, List<String> jodaTimestampFormats, List<String> javaTimestampFormats,
-                         boolean needClientTimezone, Map<String, Object> mappings, Map<String, Object> ingestPipeline,
-                         Map<String, FieldStats> fieldStats, List<String> explanation) {
+    public TextStructure(
+        int numLinesAnalyzed,
+        int numMessagesAnalyzed,
+        String sampleStart,
+        String charset,
+        Boolean hasByteOrderMarker,
+        Format format,
+        String multilineStartPattern,
+        String excludeLinesPattern,
+        List<String> columnNames,
+        Boolean hasHeaderRow,
+        Character delimiter,
+        Character quote,
+        Boolean shouldTrimFields,
+        String grokPattern,
+        String ecsCompatibility,
+        String timestampField,
+        List<String> jodaTimestampFormats,
+        List<String> javaTimestampFormats,
+        boolean needClientTimezone,
+        Map<String, Object> mappings,
+        Map<String, Object> ingestPipeline,
+        Map<String, FieldStats> fieldStats,
+        List<String> explanation
+    ) {
 
         this.numLinesAnalyzed = numLinesAnalyzed;
         this.numMessagesAnalyzed = numMessagesAnalyzed;
@@ -185,6 +199,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         this.quote = quote;
         this.shouldTrimFields = shouldTrimFields;
         this.grokPattern = grokPattern;
+        this.ecsCompatibility = getNonNullEcsCompatibilityString(ecsCompatibility);
         this.timestampField = timestampField;
         this.jodaTimestampFormats = (jodaTimestampFormats == null) ? null : List.copyOf(jodaTimestampFormats);
         this.javaTimestampFormats = (javaTimestampFormats == null) ? null : List.copyOf(javaTimestampFormats);
@@ -204,20 +219,21 @@ public class TextStructure implements ToXContentObject, Writeable {
         format = in.readEnum(Format.class);
         multilineStartPattern = in.readOptionalString();
         excludeLinesPattern = in.readOptionalString();
-        columnNames = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        columnNames = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         hasHeaderRow = in.readOptionalBoolean();
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
         grokPattern = in.readOptionalString();
-        jodaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
-        javaTimestampFormats = in.readBoolean() ? Collections.unmodifiableList(in.readStringList()) : null;
+        ecsCompatibility = getNonNullEcsCompatibilityString(in.readString());
+        jodaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
+        javaTimestampFormats = in.readBoolean() ? in.readCollectionAsImmutableList(StreamInput::readString) : null;
         timestampField = in.readOptionalString();
         needClientTimezone = in.readBoolean();
-        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap()));
-        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readMap()) : null;
-        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(StreamInput::readString, FieldStats::new)));
-        explanation = Collections.unmodifiableList(in.readStringList());
+        mappings = Collections.unmodifiableSortedMap(new TreeMap<>(in.readGenericMap()));
+        ingestPipeline = in.readBoolean() ? Collections.unmodifiableMap(in.readGenericMap()) : null;
+        fieldStats = Collections.unmodifiableSortedMap(new TreeMap<>(in.readMap(FieldStats::new)));
+        explanation = in.readCollectionAsImmutableList(StreamInput::readString);
     }
 
     @Override
@@ -234,7 +250,7 @@ public class TextStructure implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(columnNames, StreamOutput::writeString);
+            out.writeStringCollection(columnNames);
         }
         out.writeOptionalBoolean(hasHeaderRow);
         if (delimiter == null) {
@@ -251,29 +267,30 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalBoolean(shouldTrimFields);
         out.writeOptionalString(grokPattern);
+        out.writeString(ecsCompatibility);
         if (jodaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(jodaTimestampFormats, StreamOutput::writeString);
+            out.writeStringCollection(jodaTimestampFormats);
         }
         if (javaTimestampFormats == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeCollection(javaTimestampFormats, StreamOutput::writeString);
+            out.writeStringCollection(javaTimestampFormats);
         }
         out.writeOptionalString(timestampField);
         out.writeBoolean(needClientTimezone);
-        out.writeMap(mappings);
+        out.writeGenericMap(mappings);
         if (ingestPipeline == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(ingestPipeline);
+            out.writeGenericMap(ingestPipeline);
         }
-        out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
-        out.writeCollection(explanation, StreamOutput::writeString);
+        out.writeMap(fieldStats, StreamOutput::writeWriteable);
+        out.writeStringCollection(explanation);
     }
 
     public int getNumLinesAnalyzed() {
@@ -330,6 +347,10 @@ public class TextStructure implements ToXContentObject, Writeable {
 
     public String getGrokPattern() {
         return grokPattern;
+    }
+
+    public String getEcsCompatibility() {
+        return ecsCompatibility;
     }
 
     public String getTimestampField() {
@@ -400,6 +421,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         if (grokPattern != null && grokPattern.isEmpty() == false) {
             builder.field(GROK_PATTERN.getPreferredName(), grokPattern);
         }
+        builder.field(ECS_COMPATIBILITY.getPreferredName(), ecsCompatibility);
         if (timestampField != null && timestampField.isEmpty() == false) {
             builder.field(TIMESTAMP_FIELD.getPreferredName(), timestampField);
         }
@@ -432,9 +454,30 @@ public class TextStructure implements ToXContentObject, Writeable {
     @Override
     public int hashCode() {
 
-        return Objects.hash(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-            multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
-            timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, fieldStats, explanation);
+        return Objects.hash(
+            numLinesAnalyzed,
+            numMessagesAnalyzed,
+            sampleStart,
+            charset,
+            hasByteOrderMarker,
+            format,
+            multilineStartPattern,
+            excludeLinesPattern,
+            columnNames,
+            hasHeaderRow,
+            delimiter,
+            quote,
+            shouldTrimFields,
+            grokPattern,
+            ecsCompatibility,
+            timestampField,
+            jodaTimestampFormats,
+            javaTimestampFormats,
+            needClientTimezone,
+            mappings,
+            fieldStats,
+            explanation
+        );
     }
 
     @Override
@@ -449,30 +492,31 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
 
         TextStructure that = (TextStructure) other;
-        return this.numLinesAnalyzed == that.numLinesAnalyzed &&
-            this.numMessagesAnalyzed == that.numMessagesAnalyzed &&
-            Objects.equals(this.sampleStart, that.sampleStart) &&
-            Objects.equals(this.charset, that.charset) &&
-            Objects.equals(this.hasByteOrderMarker, that.hasByteOrderMarker) &&
-            Objects.equals(this.format, that.format) &&
-            Objects.equals(this.multilineStartPattern, that.multilineStartPattern) &&
-            Objects.equals(this.excludeLinesPattern, that.excludeLinesPattern) &&
-            Objects.equals(this.columnNames, that.columnNames) &&
-            Objects.equals(this.hasHeaderRow, that.hasHeaderRow) &&
-            Objects.equals(this.delimiter, that.delimiter) &&
-            Objects.equals(this.quote, that.quote) &&
-            Objects.equals(this.shouldTrimFields, that.shouldTrimFields) &&
-            Objects.equals(this.grokPattern, that.grokPattern) &&
-            Objects.equals(this.timestampField, that.timestampField) &&
-            Objects.equals(this.jodaTimestampFormats, that.jodaTimestampFormats) &&
-            Objects.equals(this.javaTimestampFormats, that.javaTimestampFormats) &&
-            this.needClientTimezone == that.needClientTimezone &&
-            Objects.equals(this.mappings, that.mappings) &&
-            Objects.equals(this.fieldStats, that.fieldStats) &&
-            Objects.equals(this.explanation, that.explanation);
+        return this.numLinesAnalyzed == that.numLinesAnalyzed
+            && this.numMessagesAnalyzed == that.numMessagesAnalyzed
+            && Objects.equals(this.sampleStart, that.sampleStart)
+            && Objects.equals(this.charset, that.charset)
+            && Objects.equals(this.hasByteOrderMarker, that.hasByteOrderMarker)
+            && Objects.equals(this.format, that.format)
+            && Objects.equals(this.multilineStartPattern, that.multilineStartPattern)
+            && Objects.equals(this.excludeLinesPattern, that.excludeLinesPattern)
+            && Objects.equals(this.columnNames, that.columnNames)
+            && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
+            && Objects.equals(this.delimiter, that.delimiter)
+            && Objects.equals(this.quote, that.quote)
+            && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
+            && Objects.equals(this.grokPattern, that.grokPattern)
+            && Objects.equals(this.ecsCompatibility, that.ecsCompatibility)
+            && Objects.equals(this.timestampField, that.timestampField)
+            && Objects.equals(this.jodaTimestampFormats, that.jodaTimestampFormats)
+            && Objects.equals(this.javaTimestampFormats, that.javaTimestampFormats)
+            && this.needClientTimezone == that.needClientTimezone
+            && Objects.equals(this.mappings, that.mappings)
+            && Objects.equals(this.fieldStats, that.fieldStats)
+            && Objects.equals(this.explanation, that.explanation);
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private int numLinesAnalyzed;
         private int numMessagesAnalyzed;
@@ -488,6 +532,7 @@ public class TextStructure implements ToXContentObject, Writeable {
         private Character quote;
         private Boolean shouldTrimFields;
         private String grokPattern;
+        private String ecsCompatibility;
         private String timestampField;
         private List<String> jodaTimestampFormats;
         private List<String> javaTimestampFormats;
@@ -572,6 +617,11 @@ public class TextStructure implements ToXContentObject, Writeable {
 
         public Builder setGrokPattern(String grokPattern) {
             this.grokPattern = grokPattern;
+            return this;
+        }
+
+        public Builder setEcsCompatibility(String ecsCompatibility) {
+            this.ecsCompatibility = ecsCompatibility;
             return this;
         }
 
@@ -698,6 +748,16 @@ public class TextStructure implements ToXContentObject, Writeable {
                     if (grokPattern == null || grokPattern.isEmpty()) {
                         throw new IllegalArgumentException("Grok pattern must be specified for [" + format + "] structures.");
                     }
+                    if (ecsCompatibility != null
+                        && ecsCompatibility.isEmpty() == false
+                        && GrokBuiltinPatterns.isValidEcsCompatibilityMode(ecsCompatibility) == false) {
+                        throw new IllegalArgumentException(
+                            ECS_COMPATIBILITY.getPreferredName()
+                                + "] must be one of ["
+                                + String.join(", ", GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES)
+                                + "] if specified"
+                        );
+                    }
                     break;
                 default:
                     throw new IllegalStateException("enum value [" + format + "] missing from switch.");
@@ -709,12 +769,14 @@ public class TextStructure implements ToXContentObject, Writeable {
 
             if (isTimestampFieldSpecified != isJodaTimestampFormatsSpecified) {
                 throw new IllegalArgumentException(
-                    "Timestamp field and Joda timestamp formats must both be specified or neither be specified.");
+                    "Timestamp field and Joda timestamp formats must both be specified or neither be specified."
+                );
             }
 
             if (isTimestampFieldSpecified != isJavaTimestampFormatsSpecified) {
                 throw new IllegalArgumentException(
-                    "Timestamp field and Java timestamp formats must both be specified or neither be specified.");
+                    "Timestamp field and Java timestamp formats must both be specified or neither be specified."
+                );
             }
 
             if (needClientTimezone && isTimestampFieldSpecified == false) {
@@ -729,10 +791,31 @@ public class TextStructure implements ToXContentObject, Writeable {
                 throw new IllegalArgumentException("Explanation must be specified.");
             }
 
-            return new TextStructure(numLinesAnalyzed, numMessagesAnalyzed, sampleStart, charset, hasByteOrderMarker, format,
-                multilineStartPattern, excludeLinesPattern, columnNames, hasHeaderRow, delimiter, quote, shouldTrimFields, grokPattern,
-                timestampField, jodaTimestampFormats, javaTimestampFormats, needClientTimezone, mappings, ingestPipeline, fieldStats,
-                explanation);
+            return new TextStructure(
+                numLinesAnalyzed,
+                numMessagesAnalyzed,
+                sampleStart,
+                charset,
+                hasByteOrderMarker,
+                format,
+                multilineStartPattern,
+                excludeLinesPattern,
+                columnNames,
+                hasHeaderRow,
+                delimiter,
+                quote,
+                shouldTrimFields,
+                grokPattern,
+                ecsCompatibility,
+                timestampField,
+                jodaTimestampFormats,
+                javaTimestampFormats,
+                needClientTimezone,
+                mappings,
+                ingestPipeline,
+                fieldStats,
+                explanation
+            );
         }
     }
 }

@@ -8,16 +8,15 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 
@@ -30,10 +29,10 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/data/post";
 
     private PostDataAction() {
-        super(NAME, PostDataAction.Response::new);
+        super(NAME);
     }
 
-    public static class Response extends BaseTasksResponse implements StatusToXContentObject, Writeable {
+    public static class Response extends BaseTasksResponse implements ToXContentObject, Writeable {
 
         private final DataCounts dataCounts;
 
@@ -60,11 +59,6 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
 
         public DataCounts getDataCounts() {
             return dataCounts;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.ACCEPTED;
         }
 
         @Override
@@ -159,12 +153,15 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             this.dataDescription = dataDescription;
         }
 
-        public BytesReference getContent() { return content; }
+        public BytesReference getContent() {
+            return content;
+        }
 
         public XContentType getXContentType() {
             return xContentType;
         }
 
+        @SuppressWarnings("HiddenField")
         public void setContent(BytesReference content, XContentType xContentType) {
             this.content = content;
             this.xContentType = xContentType;
@@ -187,13 +184,12 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             Request other = (Request) obj;
 
             // content stream not included
-            return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(resetStart, other.resetStart) &&
-                    Objects.equals(resetEnd, other.resetEnd) &&
-                    Objects.equals(dataDescription, other.dataDescription) &&
-                    Objects.equals(xContentType, other.xContentType);
+            return Objects.equals(jobId, other.jobId)
+                && Objects.equals(resetStart, other.resetStart)
+                && Objects.equals(resetEnd, other.resetEnd)
+                && Objects.equals(dataDescription, other.dataDescription)
+                && Objects.equals(xContentType, other.xContentType);
         }
     }
-
 
 }

@@ -87,11 +87,16 @@ setup:
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
 
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 3 }
+
 
 ---
 "Split from 1 to N":
-  - skip:
-      version: " - 6.99.99"
+  - requires:
+      cluster_features: ["gte_v7.0.0"]
       reason: automatic preparation for splitting was added in 7.0.0
   - do:
       indices.create:
@@ -176,6 +181,11 @@ setup:
   - match: { _index:   target }
   - match: { _id:      "3"     }
   - match: { _source:  { foo: "hello world 3" } }
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total.value: 3 }
 
 ---
 "Create illegal split indices":

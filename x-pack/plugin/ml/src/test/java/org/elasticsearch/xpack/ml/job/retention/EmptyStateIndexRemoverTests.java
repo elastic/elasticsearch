@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.retention;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -16,8 +16,8 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -27,13 +27,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
@@ -57,6 +58,7 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         client = mock(Client.class);
         OriginSettingClient originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
         listener = mock(ActionListener.class);
+        when(listener.delegateFailureAndWrap(any())).thenCallRealMethod();
         deleteIndexRequestCaptor = ArgumentCaptor.forClass(DeleteIndexRequest.class);
 
         remover = new EmptyStateIndexRemover(originSettingClient, new TaskId("test", 0L));
@@ -66,6 +68,8 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
     public void verifyNoOtherInteractionsWithMocks() {
         verify(client).settings();
         verify(client, atLeastOnce()).threadPool();
+        verify(client).projectResolver();
+        verify(listener, Mockito.atLeast(0)).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(client, listener);
     }
 
@@ -92,10 +96,16 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         doReturn(
             Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 2),
-                ".ml-state-c", indexStats(".ml-state-c", 1),
-                ".ml-state-d", indexStats(".ml-state-d", 2))).when(indicesStatsResponse).getIndices();
+                ".ml-state-a",
+                indexStats(".ml-state-a", 1),
+                ".ml-state-b",
+                indexStats(".ml-state-b", 2),
+                ".ml-state-c",
+                indexStats(".ml-state-c", 1),
+                ".ml-state-d",
+                indexStats(".ml-state-d", 2)
+            )
+        ).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);
@@ -109,25 +119,32 @@ public class EmptyStateIndexRemoverTests extends ESTestCase {
         IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         doReturn(
             Map.of(
-                ".ml-state-a", indexStats(".ml-state-a", 1),
-                ".ml-state-b", indexStats(".ml-state-b", 0),
-                ".ml-state-c", indexStats(".ml-state-c", 2),
-                ".ml-state-d", indexStats(".ml-state-d", 0),
-                ".ml-state-e", indexStats(".ml-state-e", 0))).when(indicesStatsResponse).getIndices();
+                ".ml-state-a",
+                indexStats(".ml-state-a", 1),
+                ".ml-state-b",
+                indexStats(".ml-state-b", 0),
+                ".ml-state-c",
+                indexStats(".ml-state-c", 2),
+                ".ml-state-d",
+                indexStats(".ml-state-d", 0),
+                ".ml-state-e",
+                indexStats(".ml-state-e", 0)
+            )
+        ).when(indicesStatsResponse).getIndices();
         doAnswer(withResponse(indicesStatsResponse)).when(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
 
         GetIndexResponse getIndexResponse = new GetIndexResponse(new String[] { ".ml-state-e" }, null, null, null, null, null);
         doAnswer(withResponse(getIndexResponse)).when(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
 
         AcknowledgedResponse deleteIndexResponse = AcknowledgedResponse.of(acknowledged);
-        doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(DeleteIndexAction.INSTANCE), any(), any());
+        doAnswer(withResponse(deleteIndexResponse)).when(client).execute(eq(TransportDeleteIndexAction.TYPE), any(), any());
 
         remover.remove(1.0f, listener, () -> false);
 
         InOrder inOrder = inOrder(client, listener);
         inOrder.verify(client).execute(eq(IndicesStatsAction.INSTANCE), any(), any());
         inOrder.verify(client).execute(eq(GetIndexAction.INSTANCE), any(), any());
-        inOrder.verify(client).execute(eq(DeleteIndexAction.INSTANCE), deleteIndexRequestCaptor.capture(), any());
+        inOrder.verify(client).execute(eq(TransportDeleteIndexAction.TYPE), deleteIndexRequestCaptor.capture(), any());
         inOrder.verify(listener).onResponse(acknowledged);
 
         DeleteIndexRequest deleteIndexRequest = deleteIndexRequestCaptor.getValue();

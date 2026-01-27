@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -18,8 +19,7 @@ import java.util.Arrays;
 public class LinearRing extends Line {
     public static final LinearRing EMPTY = new LinearRing();
 
-    private LinearRing() {
-    }
+    private LinearRing() {}
 
     public LinearRing(double[] x, double[] y) {
         this(x, y, null);
@@ -32,10 +32,22 @@ public class LinearRing extends Line {
         }
         int last = x.length - 1;
         if (x[0] != x[last] || y[0] != y[last] || (z != null && z[0] != z[last])) {
-            throw new IllegalArgumentException("first and last points of the linear ring must be the same (it must close itself):" +
-                " x[0]=" + x[0] + " x[" + last + "]=" + x[last] +
-                " y[0]=" + y[0] + " y[" + last + "]=" + y[last] +
-                (z == null ? "" : " z[0]=" + z[0] + " z[" + last + "]=" + z[last] ));
+            throw new IllegalArgumentException(
+                "first and last points of the linear ring must be the same (it must close itself):"
+                    + " x[0]="
+                    + x[0]
+                    + " x["
+                    + last
+                    + "]="
+                    + x[last]
+                    + " y[0]="
+                    + y[0]
+                    + " y["
+                    + last
+                    + "]="
+                    + y[last]
+                    + (z == null ? "" : " z[0]=" + z[0] + " z[" + last + "]=" + z[last])
+            );
         }
     }
 
@@ -51,8 +63,11 @@ public class LinearRing extends Line {
 
     @Override
     public String toString() {
-        return "linearring(x=" + Arrays.toString(getX()) +
-            ", y=" + Arrays.toString(getY()) +
-            (hasZ() ? ", z=" + Arrays.toString(getZ()) : "") + ")";
+        return "linearring(x="
+            + Arrays.toString(getX())
+            + ", y="
+            + Arrays.toString(getY())
+            + (hasZ() ? ", z=" + Arrays.toString(getZ()) : "")
+            + ")";
     }
 }

@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.core.aggregatemetric;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
+public class AggregateMetricFeatureSetUsage extends XPackFeatureUsage {
 
     public AggregateMetricFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
@@ -25,8 +25,9 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
         super(XPackField.AGGREGATE_METRIC, available, enabled);
     }
 
-    @Override public Version getMinimalSupportedVersion() {
-        return Version.V_7_11_0;
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
     @Override
@@ -38,8 +39,7 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         AggregateMetricFeatureSetUsage other = (AggregateMetricFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled);
+        return Objects.equals(available, other.available) && Objects.equals(enabled, other.enabled);
     }
 
     @Override

@@ -1,33 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,19 +45,38 @@ import java.util.Objects;
  * to complete.
  */
 public class TransportVerifyShardIndexBlockAction extends TransportReplicationAction<
-    TransportVerifyShardIndexBlockAction.ShardRequest, TransportVerifyShardIndexBlockAction.ShardRequest, ReplicationResponse> {
+    TransportVerifyShardIndexBlockAction.ShardRequest,
+    TransportVerifyShardIndexBlockAction.ShardRequest,
+    ReplicationResponse> {
 
-    public static final String NAME = AddIndexBlockAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
-    protected Logger logger = LogManager.getLogger(getClass());
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(TransportAddIndexBlockAction.TYPE.name() + "[s]");
 
     @Inject
-    public TransportVerifyShardIndexBlockAction(final Settings settings, final TransportService transportService,
-                                                final ClusterService clusterService, final IndicesService indicesService,
-                                                final ThreadPool threadPool, final ShardStateAction stateAction,
-                                                final ActionFilters actionFilters) {
-        super(settings, NAME, transportService, clusterService, indicesService, threadPool, stateAction, actionFilters,
-            ShardRequest::new, ShardRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportVerifyShardIndexBlockAction(
+        final Settings settings,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndicesService indicesService,
+        final ThreadPool threadPool,
+        final ShardStateAction stateAction,
+        final ActionFilters actionFilters
+    ) {
+        super(
+            settings,
+            TYPE.name(),
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            stateAction,
+            actionFilters,
+            ShardRequest::new,
+            ShardRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            SyncGlobalCheckpointAfterOperation.DoNotSync,
+            PrimaryActionExecution.RejectOnOverload,
+            ReplicaActionExecution.SubjectToCircuitBreaker
+        );
     }
 
     @Override
@@ -63,25 +85,32 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
     }
 
     @Override
-    protected void acquirePrimaryOperationPermit(final IndexShard primary,
-                                                 final ShardRequest request,
-                                                 final ActionListener<Releasable> onAcquired) {
+    protected void acquirePrimaryOperationPermit(
+        final IndexShard primary,
+        final ShardRequest request,
+        final ActionListener<Releasable> onAcquired
+    ) {
         primary.acquireAllPrimaryOperationsPermits(onAcquired, request.timeout());
     }
 
     @Override
-    protected void acquireReplicaOperationPermit(final IndexShard replica,
-                                                 final ShardRequest request,
-                                                 final ActionListener<Releasable> onAcquired,
-                                                 final long primaryTerm,
-                                                 final long globalCheckpoint,
-                                                 final long maxSeqNoOfUpdateOrDeletes) {
+    protected void acquireReplicaOperationPermit(
+        final IndexShard replica,
+        final ShardRequest request,
+        final ActionListener<Releasable> onAcquired,
+        final long primaryTerm,
+        final long globalCheckpoint,
+        final long maxSeqNoOfUpdateOrDeletes
+    ) {
         replica.acquireAllReplicaOperationsPermits(primaryTerm, globalCheckpoint, maxSeqNoOfUpdateOrDeletes, onAcquired, request.timeout());
     }
 
     @Override
-    protected void shardOperationOnPrimary(final ShardRequest shardRequest, final IndexShard primary,
-            ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener) {
+    protected void shardOperationOnPrimary(
+        final ShardRequest shardRequest,
+        final IndexShard primary,
+        ActionListener<PrimaryResult<ShardRequest, ReplicationResponse>> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             executeShardOperation(shardRequest, primary);
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
@@ -96,16 +125,28 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         });
     }
 
-    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) {
+    private void executeShardOperation(final ShardRequest request, final IndexShard indexShard) throws IOException {
         final ShardId shardId = indexShard.shardId();
         if (indexShard.getActiveOperationsCount() != IndexShard.OPERATIONS_BLOCKED) {
-            throw new IllegalStateException("index shard " + shardId +
-                " is not blocking all operations while waiting for block " + request.clusterBlock());
+            throw new IllegalStateException(
+                "index shard " + shardId + " is not blocking all operations while waiting for block " + request.clusterBlock()
+            );
         }
 
-        final ClusterBlocks clusterBlocks = clusterService.state().blocks();
-        if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
+        final ClusterState clusterState = clusterService.state();
+        final ClusterBlocks clusterBlocks = clusterState.blocks();
+        final ProjectId projectId = clusterState.metadata().projectFor(shardId.getIndex()).id();
+        if (clusterBlocks.hasIndexBlock(projectId, shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("index shard " + shardId + " has not applied block " + request.clusterBlock());
+        }
+
+        // same pattern as in TransportVerifyShardBeforeCloseAction, but could also flush in phase1.
+        if (request.phase1()) {
+            indexShard.sync();
+        } else {
+            if (request.clusterBlock().contains(ClusterBlockLevel.WRITE)) {
+                indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
+            }
         }
     }
 
@@ -121,40 +162,52 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
      */
     class VerifyShardReadOnlyActionReplicasProxy extends ReplicasProxy {
         @Override
-        public void markShardCopyAsStaleIfNeeded(final ShardId shardId, final String allocationId, final long primaryTerm,
-                                                 final ActionListener<Void> listener) {
+        public void markShardCopyAsStaleIfNeeded(
+            final ShardId shardId,
+            final String allocationId,
+            final long primaryTerm,
+            final ActionListener<Void> listener
+        ) {
             shardStateAction.remoteShardFailed(shardId, allocationId, primaryTerm, true, "mark copy as stale", null, listener);
         }
     }
 
-    public static class ShardRequest extends ReplicationRequest<ShardRequest> {
+    public static final class ShardRequest extends ReplicationRequest<ShardRequest> {
 
         private final ClusterBlock clusterBlock;
+        private final boolean phase1;
 
         ShardRequest(StreamInput in) throws IOException {
             super(in);
             clusterBlock = new ClusterBlock(in);
+            phase1 = in.readBoolean();
         }
 
-        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, final TaskId parentTaskId) {
+        public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, boolean phase1, final TaskId parentTaskId) {
             super(shardId);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);
+            this.phase1 = phase1;
             setParentTask(parentTaskId);
         }
 
         @Override
         public String toString() {
-            return "verify shard " + shardId + " before block with " + clusterBlock;
+            return "verify shard " + shardId + " before block with " + clusterBlock + " phase1=" + phase1;
         }
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
             super.writeTo(out);
             clusterBlock.writeTo(out);
+            out.writeBoolean(phase1);
         }
 
         public ClusterBlock clusterBlock() {
             return clusterBlock;
+        }
+
+        public boolean phase1() {
+            return phase1;
         }
     }
 }

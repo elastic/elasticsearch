@@ -6,17 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -33,10 +31,10 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/ml/calendars/get";
 
     private GetCalendarsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final String ALL = "_all";
 
@@ -58,8 +56,7 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
         private String calendarId;
         private PageParams pageParams;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,10 +85,16 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
             ActionRequestValidationException validationException = null;
 
             if (calendarId != null && pageParams != null) {
-                validationException = addValidationError("Params [" + PageParams.FROM.getPreferredName()
-                                + ", " + PageParams.SIZE.getPreferredName() + "] are incompatible with ["
-                                + Calendar.ID.getPreferredName() + "].",
-                        validationException);
+                validationException = addValidationError(
+                    "Params ["
+                        + PageParams.FROM.getPreferredName()
+                        + ", "
+                        + PageParams.SIZE.getPreferredName()
+                        + "] are incompatible with ["
+                        + Calendar.ID.getPreferredName()
+                        + "].",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -134,7 +137,7 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<Calendar> implements StatusToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<Calendar> implements ToXContentObject {
 
         public Response(QueryPage<Calendar> calendars) {
             super(calendars);
@@ -142,11 +145,6 @@ public class GetCalendarsAction extends ActionType<GetCalendarsAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         public QueryPage<Calendar> getCalendars() {

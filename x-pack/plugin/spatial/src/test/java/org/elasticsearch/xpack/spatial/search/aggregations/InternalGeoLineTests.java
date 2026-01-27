@@ -6,17 +6,13 @@
  */
 package org.elasticsearch.xpack.spatial.search.aggregations;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGeoLine> {
 
@@ -50,7 +47,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             }
         }
         boolean complete = length <= size;
-        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), sortOrder, size);
+        return new InternalGeoLine(name, points, sortVals, metadata, complete, randomBoolean(), sortOrder, size, false, false);
     }
 
     @Override
@@ -70,43 +67,28 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
         SortOrder sortOrder = instance.sortOrder();
         int size = instance.size();
         switch (randomIntBetween(0, 7)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                line[0] = line[0] + 1000000L;
-                break;
-            case 2:
-                sortVals[0] = sortVals[0] + 10000;
-                break;
-            case 3:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> line[0] = line[0] + 1000000L;
+            case 2 -> sortVals[0] = sortVals[0] + 10000;
+            case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            case 4:
-                complete = complete == false;
-                break;
-            case 5:
-                includeSorts = includeSorts == false;
-                break;
-            case 6:
-                sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
-                break;
-            case 7:
-                size = size + 1;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            case 4 -> complete = complete == false;
+            case 5 -> includeSorts = includeSorts == false;
+            case 6 -> sortOrder = SortOrder.ASC.equals(sortOrder) ? SortOrder.DESC : SortOrder.ASC;
+            case 7 -> size = size + 1;
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size);
+        return new InternalGeoLine(name, line, sortVals, metadata, complete, includeSorts, sortOrder, size, false, false);
     }
 
     @Override
-    protected List<InternalGeoLine> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalGeoLine> randomResultsToReduce(String name, int size) {
         SortOrder sortOrder = randomFrom(SortOrder.values());
         int maxLineLength = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         List<InternalGeoLine> instances = new ArrayList<>(size);
@@ -114,7 +96,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             // use the magicDecimal to have absolute ordering between heap-sort and testing array sorting
             instances.add(randomInstance(name, null, maxLineLength, sortOrder, ((double) i) / size));
         }
-        return instances;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), instances);
     }
 
     @Override
@@ -140,33 +122,13 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             }
         }
 
-        new PathArraySorter(finalList, finalSortVals, reduced.sortOrder()).sort();
+        PathArraySorter.forOrder(reduced.sortOrder()).apply(finalList, finalSortVals).sort();
 
         // cap to max length
         long[] finalCappedPoints = Arrays.copyOf(finalList, Math.min(reduced.size(), mergedLength));
         double[] finalCappedSortVals = Arrays.copyOf(finalSortVals, Math.min(reduced.size(), mergedLength));
 
-        if (SortOrder.DESC.equals(reduced.sortOrder())) {
-            new PathArraySorter(finalCappedPoints, finalCappedSortVals, SortOrder.ASC).sort();
-        }
-
         assertArrayEquals(finalCappedSortVals, reduced.sortVals(), 0d);
         assertArrayEquals(finalCappedPoints, reduced.line());
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoLine aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        // There is no ParsedGeoLine yet so we cannot test it here
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
-                new ParseField(GeoLineAggregationBuilder.NAME),
-                (p, c) -> {
-                    assumeTrue("There is no ParsedGeoLine yet", false);
-                    return null;
-                }
-        ));
     }
 }

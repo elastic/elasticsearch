@@ -1,38 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -51,19 +43,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     }
 
     GetFieldMappingsResponse(StreamInput in) throws IOException {
-        super(in);
-        mappings = unmodifiableMap(in.readMap(StreamInput::readString, mapIn -> {
-            if (mapIn.getVersion().before(Version.V_8_0_0)) {
-                int typesSize = mapIn.readVInt();
-                assert typesSize == 1 || typesSize == 0 : "Expected 0 or 1 types but got " + typesSize;
-                if (typesSize == 0) {
-                    return Collections.emptyMap();
-                }
-                mapIn.readString(); // type
-            }
-            return unmodifiableMap(mapIn.readMap(StreamInput::readString,
-                    inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference())));
-        }));
+        mappings = in.readImmutableMap(
+            mapIn -> mapIn.readImmutableMap(inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
+        );
     }
 
     /** returns the retrieved field mapping. The return map keys are index, field (as specified in the request). */
@@ -93,18 +75,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
             if (indexEntry.getValue() != null) {
-                if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
-                    params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                    if (indexEntry.getValue().size() > 0) {
-                        builder.startObject(MapperService.SINGLE_MAPPING_NAME);
-                        addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                        builder.endObject();
-                    }
-                } else {
-                    addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                }
+                addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
             }
-
 
             builder.endObject();
             builder.endObject();
@@ -113,9 +85,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
-    private void addFieldMappingsToBuilder(XContentBuilder builder,
-                                           Params params,
-                                           Map<String, FieldMappingMetadata> mappings) throws IOException {
+    private static void addFieldMappingsToBuilder(XContentBuilder builder, Params params, Map<String, FieldMappingMetadata> mappings)
+        throws IOException {
         for (Map.Entry<String, FieldMappingMetadata> fieldEntry : mappings.entrySet()) {
             builder.startObject(fieldEntry.getKey());
             fieldEntry.getValue().toXContent(builder, params);
@@ -123,36 +94,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         }
     }
 
-    public static class FieldMappingMetadata implements ToXContentFragment {
+    public record FieldMappingMetadata(String fullName, BytesReference source) implements ToXContentFragment {
 
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER =
-            new ConstructingObjectParser<>("field_mapping_meta_data", true,
-                a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
-            );
-
-        private final String fullName;
-        private final BytesReference source;
-
-        public FieldMappingMetadata(String fullName, BytesReference source) {
-            this.fullName = fullName;
-            this.source = source;
-        }
-
-        public String fullName() {
-            return fullName;
-        }
-
-        /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
+        /**
+         * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#fullPath}.
+         */
         public Map<String, Object> sourceAsMap() {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
-        }
-
-        //pkg-private for testing
-        BytesReference getSource() {
-            return source;
         }
 
         @Override
@@ -167,35 +118,12 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             }
             return builder;
         }
-
-        @Override
-        public String toString() {
-            return "FieldMappingMetadata{fullName='" + fullName + '\'' + ", source=" + source + '}';
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof FieldMappingMetadata) == false) return false;
-            FieldMappingMetadata that = (FieldMappingMetadata) o;
-            return Objects.equals(fullName, that.fullName) &&
-                Objects.equals(source, that.source);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(fullName, source);
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(mappings, StreamOutput::writeString, (outpt, map) -> {
-            if (outpt.getVersion().before(Version.V_8_0_0)) {
-                outpt.writeVInt(1);
-                outpt.writeString(MapperService.SINGLE_MAPPING_NAME);
-            }
-            outpt.writeMap(map, StreamOutput::writeString, (o, v) -> {
+        out.writeMap(mappings, (outpt, map) -> {
+            outpt.writeMap(map, (o, v) -> {
                 o.writeString(v.fullName());
                 o.writeBytesReference(v.source);
             });
@@ -204,9 +132,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public String toString() {
-        return "GetFieldMappingsResponse{" +
-            "mappings=" + mappings +
-            '}';
+        return "GetFieldMappingsResponse{" + "mappings=" + mappings + '}';
     }
 
     @Override

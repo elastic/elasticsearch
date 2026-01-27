@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -44,17 +45,15 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     private final AnalysisMode analysisMode;
 
     KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name);
 
-        boolean ignoreCase =
-            settings.getAsBoolean("ignore_case", false);
+        boolean ignoreCase = settings.getAsBoolean("ignore_case", false);
         String patternString = settings.get("keywords_pattern");
         if (patternString != null) {
             // a pattern for matching keywords is specified, as opposed to a
             // set of keyword strings to match against
             if (settings.get("keywords") != null || settings.get("keywords_path") != null) {
-                throw new IllegalArgumentException(
-                    "cannot specify both `keywords_pattern` and `keywords` or `keywords_path`");
+                throw new IllegalArgumentException("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`");
             }
             keywordPattern = Pattern.compile(patternString);
             keywordLookup = null;
@@ -62,8 +61,8 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
             Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
             if (rules == null) {
                 throw new IllegalArgumentException(
-                    "keyword filter requires either `keywords`, `keywords_path`, " +
-                    "or `keywords_pattern` to be configured");
+                    "keyword filter requires either `keywords`, `keywords_path`, " + "or `keywords_pattern` to be configured"
+                );
             }
             // a set of keywords (or a path to them) is specified
             keywordLookup = new CharArraySet(rules, ignoreCase);

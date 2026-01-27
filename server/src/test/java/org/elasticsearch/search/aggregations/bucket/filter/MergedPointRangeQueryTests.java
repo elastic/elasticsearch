@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -13,12 +14,12 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -198,7 +199,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }
@@ -213,7 +214,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
             }
             iw.addDocument(doc);
             try (IndexReader r = iw.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(r);
+                IndexSearcher searcher = newSearcher(r);
                 return searcher.count(query) > 0;
             }
         }

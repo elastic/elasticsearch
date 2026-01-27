@@ -24,12 +24,18 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
         return new InsensitiveBinaryComparisonProcessor(
             new ConstantProcessor(randomLong()),
             new ConstantProcessor(randomLong()),
-            randomFrom(InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation.values()));
+            randomFrom(InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation.values())
+        );
     }
 
     @Override
     protected InsensitiveBinaryComparisonProcessor createTestInstance() {
         return randomProcessor();
+    }
+
+    @Override
+    protected InsensitiveBinaryComparisonProcessor mutateInstance(InsensitiveBinaryComparisonProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -79,9 +85,9 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     public void testRegularNotEquals() {
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l(12))));
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l("12"))));
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l("12"), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l(12), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l(12), l("12"))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l("12"), l(12))));
     }
 
     private static Literal l(Object value) {

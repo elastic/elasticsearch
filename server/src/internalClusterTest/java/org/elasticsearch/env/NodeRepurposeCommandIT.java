@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
@@ -28,16 +29,14 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> starting two nodes");
         final String masterNode = internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode(
-            Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build());
+            Settings.builder().put(IndicesService.WRITE_DANGLING_INDICES_INFO_SETTING.getKey(), false).build()
+        );
 
         logger.info("--> creating index");
-        prepareCreate(indexName, Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 0)
-        ).get();
+        prepareCreate(indexName, indexSettings(1, 0)).get();
 
         logger.info("--> indexing a simple document");
-        client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
+        prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
         ensureGreen();
 
@@ -63,7 +62,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
 
         // verify test setup
         logger.info("--> restarting node with node.data=false and node.master=false");
-        IllegalStateException ex = expectThrows(IllegalStateException.class,
+        IllegalStateException ex = expectThrows(
+            IllegalStateException.class,
             "Node started with node.data=false and node.master=false while having existing index metadata must fail",
             () -> internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings)
         );
@@ -71,7 +71,8 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         logger.info("--> Repurposing node 1");
         executeRepurposeCommand(noMasterNoDataSettingsForDataNode, 1, 1);
 
-        ElasticsearchException lockedException = expectThrows(ElasticsearchException.class,
+        ElasticsearchException lockedException = expectThrows(
+            ElasticsearchException.class,
             () -> executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 1)
         );
 
@@ -81,12 +82,12 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         internalCluster().startCoordinatingOnlyNode(dataNodeDataPathSettings);
 
         assertTrue(indexExists(indexName));
-        expectThrows(NoShardAvailableActionException.class, () -> client().prepareGet(indexName, "1").get());
+        expectThrows(NoShardAvailableActionException.class, client().prepareGet(indexName, "1"));
 
         logger.info("--> Restarting and repurposing other node");
 
-        internalCluster().stopRandomNode(s -> true);
-        internalCluster().stopRandomNode(s -> true);
+        internalCluster().stopNode(internalCluster().getRandomNodeName());
+        internalCluster().stopNode(internalCluster().getRandomNodeName());
 
         executeRepurposeCommand(noMasterNoDataSettingsForMasterNode, 1, 0);
 
@@ -101,14 +102,13 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         assertFalse(indexExists(indexName));
     }
 
-    private void executeRepurposeCommand(Settings settings, int expectedIndexCount,
-                                         int expectedShardCount) throws Exception {
+    private void executeRepurposeCommand(Settings settings, int expectedIndexCount, int expectedShardCount) throws Exception {
         boolean verbose = randomBoolean();
         Settings settingsWithPath = Settings.builder().put(internalCluster().getDefaultSettings()).put(settings).build();
         Matcher<String> matcher = allOf(
             containsString(NodeRepurposeCommand.noMasterMessage(expectedIndexCount, expectedShardCount, 0)),
-            NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false));
-        NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher,
-            verbose);
+            NodeRepurposeCommandTests.conditionalNot(containsString("test-repurpose"), verbose == false)
+        );
+        NodeRepurposeCommandTests.verifySuccess(settingsWithPath, matcher, verbose);
     }
 }

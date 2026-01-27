@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -18,12 +19,15 @@ public abstract class TestFieldScript {
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
+
     public interface Factory {
         TestFieldScript newInstance();
     }
 
-    public static final ScriptContext<TestFieldScript.Factory> CONTEXT =
-            new ScriptContext<>("painless_test_fieldscript", TestFieldScript.Factory.class);
+    public static final ScriptContext<TestFieldScript.Factory> CONTEXT = new ScriptContext<>(
+        "painless_test_fieldscript",
+        TestFieldScript.Factory.class
+    );
 
     public static class Emit {
         private final TestFieldScript script;
@@ -44,6 +48,6 @@ public abstract class TestFieldScript {
     }
 
     public long[] fetchValues() {
-        return values.stream().mapToLong(i->i).toArray();
+        return values.stream().mapToLong(i -> i).toArray();
     }
 }

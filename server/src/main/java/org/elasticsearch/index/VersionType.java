@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -13,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
 
 import java.io.IOException;
-import java.util.Locale;
 
 public enum VersionType implements Writeable {
     INTERNAL((byte) 0) {
@@ -46,7 +46,7 @@ public enum VersionType implements Writeable {
             return "current version [" + currentVersion + "] is different than the one provided [" + expectedVersion + "]";
         }
 
-        private boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
+        private static boolean isVersionConflict(long currentVersion, long expectedVersion, boolean deleted) {
             if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
@@ -213,7 +213,6 @@ public enum VersionType implements Writeable {
      */
     public abstract boolean isVersionConflictForWrites(long currentVersion, long expectedVersion, boolean deleted);
 
-
     /**
      * Returns a human readable explanation for a version conflict on write.
      *
@@ -287,7 +286,11 @@ public enum VersionType implements Writeable {
     }
 
     public static String toString(VersionType versionType) {
-        return versionType.name().toLowerCase(Locale.ROOT);
+        return switch (versionType) {
+            case INTERNAL -> "internal";
+            case EXTERNAL -> "external";
+            case EXTERNAL_GTE -> "external_gte";
+        };
     }
 
     public static VersionType fromValue(byte value) {

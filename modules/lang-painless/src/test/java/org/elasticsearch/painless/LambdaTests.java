@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -25,40 +26,48 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testLambdaWithArgs() {
-        assertEquals("short", exec("List l = new ArrayList(); l.add('looooong'); l.add('short'); "
-                                 + "l.sort((a, b) -> a.length() - b.length()); return l.get(0)"));
+        assertEquals(
+            "short",
+            exec(
+                "List l = new ArrayList(); l.add('looooong'); l.add('short'); "
+                    + "l.sort((a, b) -> a.length() - b.length()); return l.get(0)"
+            )
+        );
 
     }
 
     public void testLambdaWithTypedArgs() {
-        assertEquals("short", exec("List l = new ArrayList(); l.add('looooong'); l.add('short'); "
-                                 + "l.sort((String a, String b) -> a.length() - b.length()); return l.get(0)"));
+        assertEquals(
+            "short",
+            exec(
+                "List l = new ArrayList(); l.add('looooong'); l.add('short'); "
+                    + "l.sort((String a, String b) -> a.length() - b.length()); return l.get(0)"
+            )
+        );
 
     }
 
     public void testPrimitiveLambdas() {
-        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
-                           + "return l.stream().mapToInt(x -> x + 1).sum();"));
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasWithTypedArgs() {
-        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); "
-                           + "return l.stream().mapToInt(int x -> x + 1).sum();"));
+        assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(int x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasDef() {
-        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); "
-                           + "return l.stream().mapToInt(x -> x + 1).sum();"));
+        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasWithTypedArgsDef() {
-        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); "
-                           + "return l.stream().mapToInt(int x -> x + 1).sum();"));
+        assertEquals(4, exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(int x -> x + 1).sum();"));
     }
 
     public void testPrimitiveLambdasConvertible() {
-        assertEquals(2, exec("List l = new ArrayList(); l.add((short)1); l.add(1); "
-                           + "return l.stream().mapToInt(long x -> (int)1).sum();"));
+        assertEquals(
+            2,
+            exec("List l = new ArrayList(); l.add((short)1); l.add(1); " + "return l.stream().mapToInt(long x -> (int)1).sum();")
+        );
     }
 
     public void testPrimitiveArgs() {
@@ -83,26 +92,40 @@ public class LambdaTests extends ScriptTestCase {
 
     /** interface ignores return value */
     public void testVoidReturn() {
-        assertEquals(2, exec("List list = new ArrayList(); "
-                           + "list.add(2); "
-                           + "List list2 = new ArrayList(); "
-                           + "list.forEach(x -> list2.add(x));"
-                           + "return list[0]"));
+        assertEquals(
+            2,
+            exec(
+                "List list = new ArrayList(); "
+                    + "list.add(2); "
+                    + "List list2 = new ArrayList(); "
+                    + "list.forEach(x -> list2.add(x));"
+                    + "return list[0]"
+            )
+        );
     }
 
     /** interface ignores return value */
     public void testVoidReturnDef() {
-        assertEquals(2, exec("def list = new ArrayList(); "
-                           + "list.add(2); "
-                           + "List list2 = new ArrayList(); "
-                           + "list.forEach(x -> list2.add(x));"
-                           + "return list[0]"));
+        assertEquals(
+            2,
+            exec(
+                "def list = new ArrayList(); "
+                    + "list.add(2); "
+                    + "List list2 = new ArrayList(); "
+                    + "list.forEach(x -> list2.add(x));"
+                    + "return list[0]"
+            )
+        );
     }
 
     public void testTwoLambdas() {
-        assertEquals("testingcdefg", exec(
-                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);" +
-                "return test.twoFunctionsOfX(x -> 'testing'.concat(x), y -> 'abcdefg'.substring(y))"));
+        assertEquals(
+            "testingcdefg",
+            exec(
+                "org.elasticsearch.painless.FeatureTestObject test = new org.elasticsearch.painless.FeatureTestObject(2,3);"
+                    + "return test.twoFunctionsOfX(x -> 'testing'.concat(x), y -> 'abcdefg'.substring(y))"
+            )
+        );
     }
 
     public void testNestedLambdas() {
@@ -110,11 +133,12 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testLambdaInLoop() {
-        assertEquals(100, exec("int sum = 0; " +
-                               "for (int i = 0; i < 100; i++) {" +
-                               "  sum += Optional.empty().orElseGet(() -> 1);" +
-                               "}" +
-                               "return sum;"));
+        assertEquals(
+            100,
+            exec(
+                "int sum = 0; " + "for (int i = 0; i < 100; i++) {" + "  sum += Optional.empty().orElseGet(() -> 1);" + "}" + "return sum;"
+            )
+        );
     }
 
     public void testCapture() {
@@ -127,8 +151,7 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testCapturesAreReadOnly() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("List l = new ArrayList(); l.add(1); l.add(1); "
-                    + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
+            exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { l = null; return x + 1 }).sum();");
         });
         assertTrue(expected.getMessage().contains("is read-only"));
     }
@@ -136,8 +159,9 @@ public class LambdaTests extends ScriptTestCase {
     /** Lambda parameters shouldn't be able to mask a variable already in scope */
     public void testNoParamMasking() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("int x = 0; List l = new ArrayList(); l.add(1); l.add(1); "
-                    + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();");
+            exec(
+                "int x = 0; List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> { x += 1; return x }).sum();"
+            );
         });
         assertTrue(expected.getMessage().contains("already defined"));
     }
@@ -147,13 +171,14 @@ public class LambdaTests extends ScriptTestCase {
     }
 
     public void testNestedCapture() {
-        assertEquals(1, exec("boolean x = false; int y = 1;" +
-                             "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));"));
+        assertEquals(
+            1,
+            exec("boolean x = false; int y = 1;" + "return Optional.empty().orElseGet(() -> x ? 5 : Optional.empty().orElseGet(() -> y));")
+        );
     }
 
     public void testNestedCaptureParams() {
-        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }" +
-                             "return foo(x -> foo(y -> x + 1))"));
+        assertEquals(2, exec("int foo(Function f) { return f.apply(1) }" + "return foo(x -> foo(y -> x + 1))"));
     }
 
     public void testWrongArity() {
@@ -172,16 +197,14 @@ public class LambdaTests extends ScriptTestCase {
 
     public void testWrongArityNotEnough() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, false, () -> {
-            exec("List l = new ArrayList(); l.add(1); l.add(1); "
-               + "return l.stream().mapToInt(() -> 5).sum();");
+            exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();");
         });
         assertTrue(expected.getMessage().contains("Incorrect number of parameters"));
     }
 
     public void testWrongArityNotEnoughDef() {
         IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("def l = new ArrayList(); l.add(1); l.add(1); "
-               + "return l.stream().mapToInt(() -> 5).sum();");
+            exec("def l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(() -> 5).sum();");
         });
         assertTrue(expected.getMessage(), expected.getMessage().contains("due to an incorrect number of arguments"));
     }
@@ -208,14 +231,42 @@ public class LambdaTests extends ScriptTestCase {
         assertEquals(true, exec(compare + "compare(() -> { return params['nokey'] }, null)", params, true));
         assertEquals(true, exec(compare + "compare(() -> { return params['number'] }, 2)", params, true));
         assertEquals(false, exec(compare + "compare(() -> { return params['number'] }, 'value')", params, true));
-        assertEquals(false, exec(compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" +
-            "else { return params['key'] } }, 'value')", params, true));
-        assertEquals(true, exec(compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" +
-            "else { return params['key'] } }, 2)", params, true));
-        assertEquals(true, exec(compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" +
-            "else { return params['key'] } }, 'value')", params, true));
-        assertEquals(false, exec(compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" +
-            "else { return params['key'] } }, 2)", params, true));
+        assertEquals(
+            false,
+            exec(
+                compare
+                    + "compare(() -> { if (params['number'] == 2) { return params['number'] }"
+                    + "else { return params['key'] } }, 'value')",
+                params,
+                true
+            )
+        );
+        assertEquals(
+            true,
+            exec(
+                compare + "compare(() -> { if (params['number'] == 2) { return params['number'] }" + "else { return params['key'] } }, 2)",
+                params,
+                true
+            )
+        );
+        assertEquals(
+            true,
+            exec(
+                compare
+                    + "compare(() -> { if (params['number'] == 1) { return params['number'] }"
+                    + "else { return params['key'] } }, 'value')",
+                params,
+                true
+            )
+        );
+        assertEquals(
+            false,
+            exec(
+                compare + "compare(() -> { if (params['number'] == 1) { return params['number'] }" + "else { return params['key'] } }, 2)",
+                params,
+                true
+            )
+        );
     }
 
     public void testReturnVoid() {
@@ -233,9 +284,23 @@ public class LambdaTests extends ScriptTestCase {
         assertThat(expected.getMessage(), containsString("Cannot cast from [void] to [def]."));
 
         // Otherwise we convert the void into a null
-        assertEquals(Arrays.asList(null, null),
-                exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())"));
-        assertEquals(Arrays.asList(null, null),
-                exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())"));
+        assertEquals(
+            Arrays.asList(null, null),
+            exec("def b = new StringBuilder(); def l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())")
+        );
+        assertEquals(
+            Arrays.asList(null, null),
+            exec("def b = new StringBuilder(); List l = [1, 2]; l.stream().map(i -> b.setLength(i)).collect(Collectors.toList())")
+        );
+    }
+
+    public void testUnaryOperator() {
+        assertEquals("doremi", exec("List lst = ['abc', '123']; lst.replaceAll(f -> f.replace('abc', 'doremi')); lst.get(0);"));
+        assertEquals("doremi", exec("def lst = ['abc', '123']; lst.replaceAll(f -> f.replace('abc', 'doremi')); lst.get(0);"));
+    }
+
+    public void testBinaryOperator() {
+        assertEquals(1, exec("def list = new ArrayList(); list.add(1); list.add(2); list.stream().reduce((i1, i2) -> i1).orElse(0)"));
+        assertEquals(1, exec("List list = new ArrayList(); list.add(1); list.add(2); list.stream().reduce((i1, i2) -> i1).orElse(0)"));
     }
 }

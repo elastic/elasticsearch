@@ -6,20 +6,19 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.AbstractDiffable;
-import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -34,6 +33,8 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
+
 /**
  * Represents the lifecycle of an index from creation to deletion. A
  * {@link LifecyclePolicy} is made up of a set of {@link Phase}s which it will
@@ -41,25 +42,31 @@ import java.util.stream.Collectors;
  * {@link Phase}s and {@link LifecycleAction}s are allowed to be defined and in which order
  * they are executed.
  */
-public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
-        implements ToXContentObject, Diffable<LifecyclePolicy> {
+public class LifecyclePolicy implements SimpleDiffable<LifecyclePolicy>, ToXContentObject {
     private static final int MAX_INDEX_NAME_BYTES = 255;
 
     public static final ParseField PHASES_FIELD = new ParseField("phases");
     private static final ParseField METADATA = new ParseField("_meta");
+    private static final ParseField DEPRECATED = new ParseField("deprecated");
+
+    private static final StepKey NEW_STEP_KEY = new StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>("lifecycle_policy", false,
-            (a, name) -> {
-                List<Phase> phases = (List<Phase>) a[0];
-                Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
-                return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1]);
-            });
+    public static final ConstructingObjectParser<LifecyclePolicy, String> PARSER = new ConstructingObjectParser<>(
+        "lifecycle_policy",
+        false,
+        (a, name) -> {
+            List<Phase> phases = (List<Phase>) a[0];
+            Map<String, Phase> phaseMap = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
+            return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phaseMap, (Map<String, Object>) a[1], (Boolean) a[2]);
+        }
+    );
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> Phase.parse(p, n), v -> {
             throw new IllegalArgumentException("ordered " + PHASES_FIELD.getPreferredName() + " are not supported");
         }, PHASES_FIELD);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DEPRECATED);
     }
 
     private final String name;
@@ -67,6 +74,8 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     private final Map<String, Phase> phases;
     @Nullable
     private final Map<String, Object> metadata;
+    @Nullable
+    private final Boolean deprecated;
 
     /**
      * @param name
@@ -77,34 +86,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      */
     public LifecyclePolicy(String name, Map<String, Phase> phases) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases, null);
-    }
-
-    /**
-     * @param name
-     *            the name of this {@link LifecyclePolicy}
-     * @param phases
-     *            a {@link Map} of {@link Phase}s which make up this
-     *            {@link LifecyclePolicy}.
-     * @param metadata
-     *            the custom metadata of this {@link LifecyclePolicy}
-     */
-    public LifecyclePolicy(String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
-        this(TimeseriesLifecycleType.INSTANCE, name, phases, metadata);
-    }
-
-    /**
-     * For Serialization
-     */
-    public LifecyclePolicy(StreamInput in) throws IOException {
-        type = in.readNamedWriteable(LifecycleType.class);
-        name = in.readString();
-        phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
-        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-            this.metadata = in.readMap();
-        } else {
-            this.metadata = null;
-        }
+        this(TimeseriesLifecycleType.INSTANCE, name, phases, null, null);
     }
 
     /**
@@ -119,10 +101,43 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *            the custom metadata of this {@link LifecyclePolicy}
      */
     public LifecyclePolicy(LifecycleType type, String name, Map<String, Phase> phases, @Nullable Map<String, Object> metadata) {
+        this(type, name, phases, metadata, null);
+    }
+
+    /**
+     * For Serialization
+     */
+    public LifecyclePolicy(StreamInput in) throws IOException {
+        type = in.readNamedWriteable(LifecycleType.class);
+        name = in.readString();
+        phases = in.readImmutableMap(Phase::new);
+        this.metadata = in.readGenericMap();
+        this.deprecated = in.readOptionalBoolean();
+    }
+
+    /**
+     * @param type
+     *            the {@link LifecycleType} of the policy
+     * @param name
+     *            the name of this {@link LifecyclePolicy}
+     * @param phases
+     *            a {@link Map} of {@link Phase}s which make up this
+     *            {@link LifecyclePolicy}.
+     * @param metadata
+     *            the custom metadata of this {@link LifecyclePolicy}
+     */
+    public LifecyclePolicy(
+        LifecycleType type,
+        String name,
+        Map<String, Phase> phases,
+        @Nullable Map<String, Object> metadata,
+        @Nullable Boolean deprecated
+    ) {
         this.name = name;
         this.phases = phases;
         this.type = type;
         this.metadata = metadata;
+        this.deprecated = deprecated;
     }
 
     public void validate() {
@@ -137,10 +152,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     public void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(type);
         out.writeString(name);
-        out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-            out.writeMap(this.metadata);
-        }
+        out.writeMap(phases, StreamOutput::writeWriteable);
+        out.writeGenericMap(this.metadata);
+        out.writeOptionalBoolean(deprecated);
     }
 
     /**
@@ -172,16 +186,27 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         return metadata;
     }
 
+    public Boolean getDeprecated() {
+        return deprecated;
+    }
+
+    public boolean isDeprecated() {
+        return Boolean.TRUE.equals(deprecated);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-            builder.startObject(PHASES_FIELD.getPreferredName());
-                for (Phase phase : phases.values()) {
-                    builder.field(phase.getName(), phase);
-                }
-            builder.endObject();
+        builder.startObject(PHASES_FIELD.getPreferredName());
+        for (Phase phase : phases.values()) {
+            builder.field(phase.getName(), phase);
+        }
+        builder.endObject();
         if (this.metadata != null) {
             builder.field(METADATA.getPreferredName(), this.metadata);
+        }
+        if (this.deprecated != null) {
+            builder.field(DEPRECATED.getPreferredName(), this.deprecated);
         }
         builder.endObject();
         return builder;
@@ -191,16 +216,16 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * This method is used to compile this policy into its execution plan built out
      * of {@link Step} instances. The order of the {@link Phase}s and {@link LifecycleAction}s is
      * determined by the {@link LifecycleType} associated with this policy.
-     *
+     * <p>
      * The order of the policy will have this structure:
-     *
+     * <p>
      * - initialize policy context step
      * - phase-1 phase-after-step
      * - ... phase-1 action steps
      * - phase-2 phase-after-step
      * - ...
      * - terminal policy step
-     *
+     * <p>
      * We first initialize the policy's context and ensure that the index has proper settings set.
      * Then we begin each phase's after-step along with all its actions as steps. Finally, we have
      * a terminal step to inform us that this policy's steps are all complete. Each phase's `after`
@@ -253,8 +278,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         }
 
         // The very first after step is in a phase before the hot phase so call this "new"
-        Step.StepKey afterStepKey = new Step.StepKey("new", PhaseCompleteStep.NAME, PhaseCompleteStep.NAME);
-        Step phaseAfterStep = new PhaseCompleteStep(afterStepKey, lastStepKey);
+        Step phaseAfterStep = new PhaseCompleteStep(NEW_STEP_KEY, lastStepKey);
         steps.add(phaseAfterStep);
         lastStepKey = phaseAfterStep.getKey();
 
@@ -267,20 +291,21 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
     }
 
     public boolean isActionSafe(StepKey stepKey) {
-        if ("new".equals(stepKey.getPhase())) {
+        if ("new".equals(stepKey.phase())) {
             return true;
         }
-        Phase phase = phases.get(stepKey.getPhase());
+        Phase phase = phases.get(stepKey.phase());
         if (phase != null) {
-            LifecycleAction action = phase.getActions().get(stepKey.getAction());
+            LifecycleAction action = phase.getActions().get(stepKey.action());
             if (action != null) {
                 return action.isSafeAction();
             } else {
-                throw new IllegalArgumentException("Action [" + stepKey.getAction() + "] in phase [" + stepKey.getPhase()
-                        + "]  does not exist in policy [" + name + "]");
+                throw new IllegalArgumentException(
+                    "Action [" + stepKey.action() + "] in phase [" + stepKey.phase() + "]  does not exist in policy [" + name + "]"
+                );
             }
         } else {
-            throw new IllegalArgumentException("Phase [" + stepKey.getPhase() + "]  does not exist in policy [" + name + "]");
+            throw new IllegalArgumentException("Phase [" + stepKey.phase() + "]  does not exist in policy [" + name + "]");
         }
     }
 
@@ -291,6 +316,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      * @throws IllegalArgumentException if the name is invalid
      */
     public static void validatePolicyName(String policy) {
+        if (Strings.isNullOrEmpty(policy)) {
+            throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not be null or empty");
+        }
         if (policy.contains(",")) {
             throw new IllegalArgumentException("invalid policy name [" + policy + "]: must not contain ','");
         }
@@ -303,14 +331,15 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         int byteCount = 0;
         byteCount = policy.getBytes(StandardCharsets.UTF_8).length;
         if (byteCount > MAX_INDEX_NAME_BYTES) {
-            throw new IllegalArgumentException("invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " +
-                MAX_INDEX_NAME_BYTES + ")");
+            throw new IllegalArgumentException(
+                "invalid policy name [" + policy + "]: name is too long, (" + byteCount + " > " + MAX_INDEX_NAME_BYTES + ")"
+            );
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, phases, metadata);
+        return Objects.hash(name, phases, metadata, deprecated);
     }
 
     @Override
@@ -322,13 +351,23 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             return false;
         }
         LifecyclePolicy other = (LifecyclePolicy) obj;
-        return Objects.equals(name, other.name) &&
-            Objects.equals(phases, other.phases) &&
-            Objects.equals(metadata, other.metadata);
+        return Objects.equals(name, other.name)
+            && Objects.equals(phases, other.phases)
+            && Objects.equals(metadata, other.metadata)
+            && Objects.equals(deprecated, other.deprecated);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
+    public boolean maybeAddDeprecationWarningForFreezeAction(String policyName) {
+        Phase coldPhase = phases.get(COLD_PHASE);
+        if (coldPhase != null) {
+            return coldPhase.maybeAddDeprecationWarningForFreezeAction(policyName);
+        }
+        return false;
     }
 }

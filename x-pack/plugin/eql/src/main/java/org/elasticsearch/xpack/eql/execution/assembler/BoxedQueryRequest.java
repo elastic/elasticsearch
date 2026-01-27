@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -44,20 +44,24 @@ public class BoxedQueryRequest implements QueryRequest {
     public static final int MAX_TERMS = 128;
 
     private final RangeQueryBuilder timestampRange;
+    private final String timestampField;
     private final SearchSourceBuilder searchSource;
 
     private final List<String> keys;
     private List<QueryBuilder> keyFilters;
+    private final Set<String> optionalKeyNames;
 
     private Ordinal from, to;
     private Ordinal after;
 
-    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames) {
+    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames, Set<String> optionalKeyNames) {
         searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
-        timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
+        timestampRange = timestampRangeQuery(timestamp);
+        timestampField = timestamp;
         keys = keyNames;
-        RuntimeUtils.addFilter(timestampRange, searchSource);
+        this.optionalKeyNames = optionalKeyNames;
+        RuntimeUtils.combineFilters(searchSource, timestampRange);
     }
 
     @Override
@@ -70,6 +74,18 @@ public class BoxedQueryRequest implements QueryRequest {
         after = ordinal;
         // and leave only search_after
         searchSource.searchAfter(ordinal.toArray());
+    }
+
+    public String timestampField() {
+        return timestampField;
+    }
+
+    public RangeQueryBuilder timestampRangeQuery() {
+        return timestampRangeQuery(timestampField);
+    }
+
+    private static RangeQueryBuilder timestampRangeQuery(String timestamp) {
+        return rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
     }
 
     /**
@@ -112,9 +128,14 @@ public class BoxedQueryRequest implements QueryRequest {
             // iterate on all possible values for a given key
             newFilters = new ArrayList<>(values.size());
             for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
+                String key = keys.get(keyIndex);
+                // missing optional key
+                if (key == null) {
+                    continue;
+                }
 
                 boolean hasNullValue = false;
-                Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
+                Set<Object> keyValues = Sets.newHashSetWithExpectedSize(BoxedQueryRequest.MAX_TERMS);
                 // check the given keys but make sure to double check for
                 // null as it translates to a different query (missing/not exists)
                 for (List<Object> value : values) {
@@ -134,8 +155,6 @@ public class BoxedQueryRequest implements QueryRequest {
 
                 QueryBuilder query = null;
 
-                String key = keys.get(keyIndex);
-
                 if (keyValues.size() == 1) {
                     query = termQuery(key, keyValues.iterator().next());
                 } else if (keyValues.size() > 1) {
@@ -143,8 +162,8 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 // if null values are present
-                // make an OR call - either terms or null/missing values
-                if (hasNullValue) {
+                // make an OR call - either terms or null/missing values only for optional keys
+                if (hasNullValue && optionalKeyNames.contains(key)) {
                     BoolQueryBuilder isMissing = boolQuery().mustNot(existsQuery(key));
                     if (query != null) {
                         query = boolQuery()
@@ -156,11 +175,13 @@ public class BoxedQueryRequest implements QueryRequest {
                         query = isMissing;
                     }
                 }
-                newFilters.add(query);
+                if (query != null) {
+                    newFilters.add(query);
+                }
             }
         }
 
-        RuntimeUtils.replaceFilter(keyFilters, newFilters, searchSource);
+        RuntimeUtils.replaceFilter(searchSource, keyFilters, newFilters);
         keyFilters = newFilters;
         return this;
     }

@@ -1,45 +1,51 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.nativeaccess.ProcessLimits;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
 import java.net.InetAddress;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
+import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -82,22 +88,27 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         transportAddresses.add(nonLocalTransportAddress);
 
         for (int i = 0; i < randomIntBetween(0, 7); i++) {
-            final TransportAddress randomTransportAddress = randomBoolean() ? buildNewFakeTransportAddress() :
-                new TransportAddress(InetAddress.getLoopbackAddress(), i);
+            final TransportAddress randomTransportAddress = randomBoolean()
+                ? buildNewFakeTransportAddress()
+                : new TransportAddress(InetAddress.getLoopbackAddress(), i);
             transportAddresses.add(randomTransportAddress);
         }
 
-        final TransportAddress publishAddress = randomBoolean() ? buildNewFakeTransportAddress() :
-            new TransportAddress(InetAddress.getLoopbackAddress(), 0);
+        final TransportAddress publishAddress = randomBoolean()
+            ? buildNewFakeTransportAddress()
+            : new TransportAddress(InetAddress.getLoopbackAddress(), 0);
 
         final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         Collections.shuffle(transportAddresses, random());
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
+        assertEquals(
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType, FALSE::booleanValue),
+            SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
+        );
     }
 
     public void testEnforceLimitsWhenPublishingToNonLocalAddress() {
@@ -113,27 +124,71 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
 
-        final String discoveryType = randomFrom(ZEN2_DISCOVERY_TYPE, "single-node");
+        final String discoveryType = randomFrom(MULTI_NODE_DISCOVERY_TYPE, SINGLE_NODE_DISCOVERY_TYPE);
 
-        assertEquals(BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType), "single-node".equals(discoveryType) == false);
+        assertEquals(
+            BootstrapChecks.enforceLimits(boundTransportAddress, discoveryType, FALSE::booleanValue),
+            SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType) == false
+        );
+    }
+
+    public void testDoNotEnforceLimitsWhenSnapshotBuild() {
+        final List<TransportAddress> transportAddresses = new ArrayList<>();
+
+        for (int i = 0; i < randomIntBetween(1, 8); i++) {
+            final TransportAddress randomTransportAddress = buildNewFakeTransportAddress();
+            transportAddresses.add(randomTransportAddress);
+        }
+
+        final TransportAddress publishAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
+        final BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
+        when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
+        when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
+
+        assertThat(BootstrapChecks.enforceLimits(boundTransportAddress, MULTI_NODE_DISCOVERY_TYPE, TRUE::booleanValue), is(false));
     }
 
     public void testExceptionAggregation() {
-        final List<BootstrapCheck> checks = Arrays.asList(
-                context -> BootstrapCheck.BootstrapCheckResult.failure("first"),
-                context -> BootstrapCheck.BootstrapCheckResult.failure("second"));
+        final List<BootstrapCheck> checks = Arrays.asList(new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.failure("first");
+            }
 
-        final NodeValidationException e =
-                expectThrows(NodeValidationException.class,
-                    () -> BootstrapChecks.check(emptyContext, true, checks));
-        assertThat(e, hasToString(allOf(
-                containsString("[2] bootstrap checks failed"),
-                containsString("You must address the points described in the following [2] lines before starting Elasticsearch"),
-                containsString("bootstrap check failure [1] of [2]:"),
-                containsString("first"),
-                containsString("bootstrap check failure [2] of [2]:"),
-                containsString("second")
-        )));
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        }, new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.failure("second");
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        });
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, checks)
+        );
+        assertThat(
+            e,
+            hasToString(
+                allOf(
+                    containsString("[2] bootstrap checks failed"),
+                    containsString("You must address the points described in the following [2] lines before starting Elasticsearch"),
+                    containsString("bootstrap check failure [1] of [2]:"),
+                    containsString("first"),
+                    containsString("bootstrap check failure [2] of [2]:"),
+                    containsString("second"),
+                    containsString("For more information see [https://www.elastic.co/docs/")
+                )
+            )
+        );
         final Throwable[] suppressed = e.getSuppressed();
         assertThat(suppressed.length, equalTo(2));
         assertThat(suppressed[0], instanceOf(IllegalStateException.class));
@@ -168,14 +223,17 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         };
 
-        final NodeValidationException e =
-                expectThrows(
-                        NodeValidationException.class,
-                        () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(
-                e.getMessage(),
-                containsString("initial heap size [" + initialHeapSize.get() + "] " +
-                        "not equal to maximum heap size [" + maxHeapSize.get() + "]"));
+            e.getMessage(),
+            containsString(
+                "initial heap size [" + initialHeapSize.get() + "] " + "not equal to maximum heap size [" + maxHeapSize.get() + "]"
+            )
+        );
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
         final String memoryLockingMessage = "and prevents memory locking from locking the entire heap";
         final Matcher<String> memoryLockingMatcher;
         if (isMemoryLocked) {
@@ -220,10 +278,12 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             };
         }
 
-        final NodeValidationException e =
-                expectThrows(NodeValidationException.class,
-                        () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(e.getMessage(), containsString("max file descriptors"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxFileDescriptorCount.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
@@ -236,10 +296,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     }
 
     public void testFileDescriptorLimitsThrowsOnInvalidLimit() {
-        final IllegalArgumentException e =
-            expectThrows(
-                IllegalArgumentException.class,
-                () -> new BootstrapChecks.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE)));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new BootstrapChecks.FileDescriptorCheck(-randomIntBetween(0, Integer.MAX_VALUE))
+        );
         assertThat(e.getMessage(), containsString("limit must be positive but was"));
     }
 
@@ -272,17 +332,16 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 }
             };
             BootstrapContext bootstrapContext = createTestContext(
-                Settings.builder().put("bootstrap.memory_lock", testCase.mlockallSet).build(), null);
+                Settings.builder().put("bootstrap.memory_lock", testCase.mlockallSet).build(),
+                null
+            );
             if (testCase.shouldFail) {
                 final NodeValidationException e = expectThrows(
-                        NodeValidationException.class,
-                        () -> BootstrapChecks.check(
-                                bootstrapContext,
-                                true,
-                                Collections.singletonList(check)));
-                assertThat(
-                        e.getMessage(),
-                        containsString("memory locking requested for elasticsearch process but memory is not locked"));
+                    NodeValidationException.class,
+                    () -> BootstrapChecks.check(bootstrapContext, true, Collections.singletonList(check))
+                );
+                assertThat(e.getMessage(), containsString("memory locking requested for elasticsearch process but memory is not locked"));
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
             } else {
                 // nothing should happen
                 BootstrapChecks.check(bootstrapContext, true, Collections.singletonList(check));
@@ -301,9 +360,11 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         };
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(e.getMessage(), containsString("max number of threads"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         maxNumberOfThreads.set(randomIntBetween(limit + 1, Integer.MAX_VALUE));
 
@@ -311,31 +372,27 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         // nothing should happen if current max number of threads is
         // not available
-        maxNumberOfThreads.set(-1);
+        maxNumberOfThreads.set(ProcessLimits.UNKNOWN);
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
     }
 
     public void testMaxSizeVirtualMemory() throws NodeValidationException {
-        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
         final AtomicLong maxSizeVirtualMemory = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxSizeVirtualMemoryCheck check = new BootstrapChecks.MaxSizeVirtualMemoryCheck() {
             @Override
             long getMaxSizeVirtualMemory() {
                 return maxSizeVirtualMemory.get();
             }
-
-            @Override
-            long getRlimInfinity() {
-                return rlimInfinity;
-            }
         };
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(e.getMessage(), containsString("max size virtual memory"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
-        maxSizeVirtualMemory.set(rlimInfinity);
+        maxSizeVirtualMemory.set(ProcessLimits.UNLIMITED);
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
@@ -345,26 +402,22 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
     }
 
     public void testMaxFileSizeCheck() throws NodeValidationException {
-        final long rlimInfinity = Constants.MAC_OS_X ? 9223372036854775807L : -1L;
         final AtomicLong maxFileSize = new AtomicLong(randomIntBetween(0, Integer.MAX_VALUE));
         final BootstrapChecks.MaxFileSizeCheck check = new BootstrapChecks.MaxFileSizeCheck() {
             @Override
-            long getMaxFileSize() {
-                return maxFileSize.get();
-            }
-
-            @Override
-            long getRlimInfinity() {
-                return rlimInfinity;
+            protected ProcessLimits getProcessLimits() {
+                return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, maxFileSize.get());
             }
         };
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(e.getMessage(), containsString("max file size"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
-        maxFileSize.set(rlimInfinity);
+        maxFileSize.set(ProcessLimits.UNLIMITED);
 
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
 
@@ -383,12 +436,17 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         };
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(
-                e.getMessage(),
-                containsString("JVM is using the client VM [Java HotSpot(TM) 32-Bit Client VM] " +
-                        "but should be using a server VM for the best performance"));
+            e.getMessage(),
+            containsString(
+                "JVM is using the client VM [Java HotSpot(TM) 32-Bit Client VM] "
+                    + "but should be using a server VM for the best performance"
+            )
+        );
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         vmName.set("Java HotSpot(TM) 32-Bit Server VM");
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
@@ -405,11 +463,19 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check)));
+            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(check))
+        );
         assertThat(
             e.getMessage(),
-            containsString("JVM is using the serial collector but should not be for the best performance; " + "" +
-                "either it's the default for the VM [" + JvmInfo.jvmInfo().getVmName() +"] or -XX:+UseSerialGC was explicitly specified"));
+            containsString(
+                "JVM is using the serial collector but should not be for the best performance; "
+                    + ""
+                    + "either it's the default for the VM ["
+                    + JvmInfo.jvmInfo().getVmName()
+                    + "] or -XX:+UseSerialGC was explicitly specified"
+            )
+        );
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         useSerialGC.set("false");
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
@@ -417,12 +483,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testSystemCallFilterCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
-        final BootstrapContext context;
-        if (randomBoolean()) {
-            context = createTestContext(Settings.builder().put("bootstrap.system_call_filter", true).build(), null);
-        } else {
-            context = emptyContext;
-        }
+        final BootstrapContext context = emptyContext;
 
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
 
@@ -435,10 +496,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
-            () -> BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck)));
-        assertThat(
-            e.getMessage(),
-            containsString("system call filters failed to install; check the logs and fix your configuration"));
+            () -> BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck))
+        );
+        assertThat(e.getMessage(), containsString("system call filters failed to install; check the logs and fix your configuration"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck));
@@ -464,12 +525,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             }
         };
 
-        runMightForkTest(
-            check,
-            isSystemCallFilterInstalled,
-            () -> mightFork.set(false),
-            () -> mightFork.set(true),
-            e -> assertThat(e.getMessage(), containsString("error")));
+        runMightForkTest(check, isSystemCallFilterInstalled, () -> mightFork.set(false), () -> mightFork.set(true), e -> {
+            assertThat(e.getMessage(), containsString("error"));
+            assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
+        });
     }
 
     public void testOnErrorCheck() throws NodeValidationException {
@@ -495,11 +554,19 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             isSystemCallFilterInstalled,
             () -> onError.set(randomBoolean() ? "" : null),
             () -> onError.set(command),
-            e -> assertThat(
-                e.getMessage(),
-                containsString(
-                    "OnError [" + command + "] requires forking but is prevented by system call filters;" +
-                        " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+            e -> {
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "OnError ["
+                            + command
+                            + "] requires forking but is prevented by system call filters;"
+                            + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"
+                    )
+                );
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
+            }
+        );
     }
 
     public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
@@ -525,12 +592,20 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             isSystemCallFilterInstalled,
             () -> onOutOfMemoryError.set(randomBoolean() ? "" : null),
             () -> onOutOfMemoryError.set(command),
-            e -> assertThat(
-                e.getMessage(),
-                containsString(
-                    "OnOutOfMemoryError [" + command + "]"
-                        + " requires forking but is prevented by system call filters;"
-                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+            e -> {
+                assertThat(
+                    e.getMessage(),
+                    containsString(
+                        "OnOutOfMemoryError ["
+                            + command
+                            + "]"
+                            + " requires forking but is prevented by system call filters;"
+                            + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError"
+                    )
+                );
+                assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
+            }
+        );
     }
 
     private void runMightForkTest(
@@ -538,7 +613,8 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final AtomicBoolean isSystemCallFilterInstalled,
         final Runnable disableMightFork,
         final Runnable enableMightFork,
-        final Consumer<NodeValidationException> consumer) throws NodeValidationException {
+        final Consumer<NodeValidationException> consumer
+    ) throws NodeValidationException {
 
         // if system call filter is disabled, nothing should happen
         isSystemCallFilterInstalled.set(false);
@@ -562,13 +638,13 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, randomBoolean(), Collections.singletonList(check)));
+            () -> BootstrapChecks.check(emptyContext, randomBoolean(), Collections.singletonList(check))
+        );
         consumer.accept(e);
     }
 
     public void testEarlyAccessCheck() throws NodeValidationException {
-        final AtomicReference<String> javaVersion
-                = new AtomicReference<>(randomFrom("1.8.0_152-ea", "9-ea"));
+        final AtomicReference<String> javaVersion = new AtomicReference<>(randomFrom("1.8.0_152-ea", "9-ea"));
         final BootstrapChecks.EarlyAccessCheck eaCheck = new BootstrapChecks.EarlyAccessCheck() {
 
             @Override
@@ -585,113 +661,19 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final List<BootstrapCheck> checks = Collections.singletonList(eaCheck);
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> {
-                    BootstrapChecks.check(emptyContext, true, checks);
-                });
+            NodeValidationException.class,
+            () -> { BootstrapChecks.check(emptyContext, true, checks); }
+        );
         assertThat(
-                e.getMessage(),
-                containsString(
-                        "Java version ["
-                                + javaVersion.get()
-                                + "] is an early-access build, only use release builds"));
+            e.getMessage(),
+            containsString("Java version [" + javaVersion.get() + "] is an early-access build, only use release builds")
+        );
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
         // if not on an early-access build, nothing should happen
         javaVersion.set(randomFrom("1.8.0_152", "9"));
         BootstrapChecks.check(emptyContext, true, checks);
 
-    }
-
-    public void testG1GCCheck() throws NodeValidationException {
-        final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
-        final AtomicBoolean isJava8 = new AtomicBoolean(true);
-        final AtomicReference<String> jvmVersion =
-            new AtomicReference<>(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128)));
-        final BootstrapChecks.G1GCCheck g1GCCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return "Oracle Corporation";
-            }
-
-            @Override
-            boolean isG1GCEnabled() {
-                return isG1GCEnabled.get();
-            }
-
-            @Override
-            String jvmVersion() {
-                return jvmVersion.get();
-            }
-
-            @Override
-            boolean isJava8() {
-                return isJava8.get();
-            }
-
-        };
-
-        final NodeValidationException e =
-            expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck)));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "JVM version [" + jvmVersion.get() + "] can cause data corruption when used with G1GC; upgrade to at least Java 8u40"));
-
-        // if G1GC is disabled, nothing should happen
-        isG1GCEnabled.set(false);
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        // if on or after update 40, nothing should happen independent of whether or not G1GC is enabled
-        isG1GCEnabled.set(randomBoolean());
-        jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        final BootstrapChecks.G1GCCheck nonOracleCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return randomAlphaOfLength(8);
-            }
-
-        };
-
-        // if not on an Oracle JVM, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonOracleCheck));
-
-        final BootstrapChecks.G1GCCheck nonJava8Check = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            boolean isJava8() {
-                return false;
-            }
-
-        };
-
-        // if not Java 8, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonJava8Check));
-    }
-
-    public void testAllPermissionCheck() throws NodeValidationException {
-        final AtomicBoolean isAllPermissionGranted = new AtomicBoolean(true);
-        final BootstrapChecks.AllPermissionCheck allPermissionCheck = new BootstrapChecks.AllPermissionCheck() {
-            @Override
-            boolean isAllPermissionGranted() {
-                return isAllPermissionGranted.get();
-            }
-        };
-
-        final List<BootstrapCheck> checks = Collections.singletonList(allPermissionCheck);
-        final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, true, checks));
-        assertThat(e, hasToString(containsString("granting the all permission effectively disables security")));
-
-        // if all permissions are not granted, nothing should happen
-        isAllPermissionGranted.set(false);
-        BootstrapChecks.check(emptyContext, true, checks);
     }
 
     public void testAlwaysEnforcedChecks() {
@@ -705,41 +687,89 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             public boolean alwaysEnforce() {
                 return true;
             }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
         };
 
         final NodeValidationException alwaysEnforced = expectThrows(
             NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, randomBoolean(), Collections.singletonList(check)));
+            () -> BootstrapChecks.check(emptyContext, randomBoolean(), Collections.singletonList(check))
+        );
         assertThat(alwaysEnforced, hasToString(containsString("error")));
     }
 
     public void testDiscoveryConfiguredCheck() throws NodeValidationException {
-        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.DiscoveryConfiguredCheck());
+        final BootstrapChecks.DiscoveryConfiguredCheck check = new BootstrapChecks.DiscoveryConfiguredCheck();
+        final List<BootstrapCheck> checks = Collections.singletonList(check);
 
-        final BootstrapContext zen2Context = createTestContext(Settings.builder()
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
+        final BootstrapContext zen2Context = createTestContext(
+            Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE).build(),
+            Metadata.EMPTY_METADATA
+        );
 
         // not always enforced
         BootstrapChecks.check(zen2Context, false, checks);
 
-        // not enforced for non-zen2 discovery
-        BootstrapChecks.check(createTestContext(Settings.builder().put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(),
-            randomFrom("single-node", randomAlphaOfLength(5))).build(), Metadata.EMPTY_METADATA), true, checks);
+        // not enforced for non-multi-node discovery
+        BootstrapChecks.check(
+            createTestContext(
+                Settings.builder()
+                    .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), randomFrom(SINGLE_NODE_DISCOVERY_TYPE, randomAlphaOfLength(5)))
+                    .build(),
+                Metadata.EMPTY_METADATA
+            ),
+            true,
+            checks
+        );
 
-        final NodeValidationException e = expectThrows(NodeValidationException.class,
-            () -> BootstrapChecks.check(zen2Context, true, checks));
-        assertThat(e, hasToString(containsString("the default discovery settings are unsuitable for production use; at least one " +
-            "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured")));
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(zen2Context, true, checks)
+        );
+        assertThat(
+            e,
+            hasToString(
+                containsString(
+                    "the default discovery settings are unsuitable for production use; at least one "
+                        + "of [discovery.seed_hosts, discovery.seed_providers, cluster.initial_master_nodes] must be configured"
+                )
+            )
+        );
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
 
-        CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b ->
-        {
-            final BootstrapContext context = createTestContext(b
-                .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), ZEN2_DISCOVERY_TYPE).build(), Metadata.EMPTY_METADATA);
+        CheckedConsumer<Settings.Builder, NodeValidationException> ensureChecksPass = b -> {
+            final BootstrapContext context = createTestContext(
+                b.put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), MULTI_NODE_DISCOVERY_TYPE).build(),
+                Metadata.EMPTY_METADATA
+            );
             BootstrapChecks.check(context, true, checks);
         };
 
         ensureChecksPass.accept(Settings.builder().putList(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.getKey()));
         ensureChecksPass.accept(Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey()));
+    }
+
+    public void testByteOrderCheck() throws NodeValidationException {
+        ByteOrder[] reference = new ByteOrder[] { ByteOrder.BIG_ENDIAN };
+        BootstrapChecks.ByteOrderCheck byteOrderCheck = new BootstrapChecks.ByteOrderCheck() {
+            @Override
+            ByteOrder nativeByteOrder() {
+                return reference[0];
+            }
+        };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck))
+        );
+        assertThat(e.getMessage(), containsString("Little-endian native byte order is required to run Elasticsearch"));
+        assertThat(e.getMessage(), containsString("; for more information see [https://www.elastic.co/docs/"));
+
+        reference[0] = ByteOrder.LITTLE_ENDIAN;
+        BootstrapChecks.check(emptyContext, true, List.of(byteOrderCheck));
     }
 }

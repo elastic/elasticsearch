@@ -24,18 +24,15 @@ public class FrozenStorageDeciderIT extends AbstractFrozenAutoscalingIntegTestCa
         setupRepoAndPolicy();
         createAndMountIndex();
 
-        IndicesStatsResponse statsResponse = client().admin()
-            .indices()
-            .stats(new IndicesStatsRequest().indices(restoredIndexName))
-            .actionGet();
+        IndicesStatsResponse statsResponse = indicesAdmin().stats(new IndicesStatsRequest().indices(restoredIndexName)).actionGet();
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         assertThat(
             capacity().results().get("frozen").requiredCapacity().total().storage(),
             equalTo(
                 ByteSizeValue.ofBytes(
-                    (long) (statsResponse.getPrimaries().store.totalDataSetSize().getBytes()
-                        * FrozenStorageDeciderService.DEFAULT_PERCENTAGE) / 100
+                    (long) (statsResponse.getPrimaries().store.totalDataSetSizeInBytes() * FrozenStorageDeciderService.DEFAULT_PERCENTAGE)
+                        / 100
                 )
             )
         );

@@ -15,19 +15,20 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
-    implements IndicesRequest.Replaceable {
+public class FreezeRequest extends AcknowledgedRequest<FreezeRequest> implements IndicesRequest.Replaceable {
     private String[] indices;
     private boolean freeze = true;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
-    public FreezeRequest(String... indices) {
+    public FreezeRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... indices) {
+        super(masterNodeTimeout, ackTimeout);
         this.indices = indices;
     }
 
@@ -98,6 +99,7 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest>
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
         return this;

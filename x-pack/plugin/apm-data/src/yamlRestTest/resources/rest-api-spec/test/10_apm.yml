@@ -1,0 +1,124 @@
+---
+setup:
+  - do:
+      cluster.health:
+        wait_for_events: languid
+
+---
+"Test traces-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: traces-apm*
+  - length: {index_templates: 3}
+  - contains: {index_templates: {name: traces-apm@template}}
+  - contains: {index_templates: {name: traces-apm.rum@template}}
+  - contains: {index_templates: {name: traces-apm.sampled@template}}
+
+---
+"Test metrics-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: metrics-apm*
+  - length: {index_templates: 14}
+  - contains: {index_templates: {name: metrics-apm.app@template}}
+  - contains: {index_templates: {name: metrics-apm.internal@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_destination.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_summary.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.service_transaction.60m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.1m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.10m@template}}
+  - contains: {index_templates: {name: metrics-apm.transaction.60m@template}}
+
+---
+"Test logs-apm* template installation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.get_index_template:
+        name: logs-apm*
+  - length: {index_templates: 2}
+  - contains: {index_templates: {name: logs-apm.app@template}}
+  - contains: {index_templates: {name: logs-apm.error@template}}
+
+---
+"Test template reinstallation":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      indices.delete_index_template:
+        name: traces-apm@template
+  - do:
+      cluster.health:
+        wait_for_events: languid
+  - do:
+      indices.get_index_template:
+        name: traces-apm@template
+  - length: {index_templates: 1}
+  - contains: {index_templates: {name: traces-apm@template}}
+
+---
+"Test traces-apm-* data stream indexing":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"
+
+  - do:
+      index:
+        index: traces-apm-testing
+        refresh: true
+        body:
+          "@timestamp": "2017-06-22"
+          data_stream.type: traces
+          data_stream.dataset: apm
+          data_stream.namespace: testing
+          event:
+            outcome: success
+            duration: 123000
+  - do:
+      indices.get_data_stream:
+        name: traces-apm-testing
+  - do:
+      search:
+        index: traces-apm-testing
+        body:
+          fields: ["*"]
+  - length: {hits.hits: 1}
+  - match: {hits.hits.0.fields.event\.success_count: [1]}
+  - match: {hits.hits.0.fields.span\.duration\.us: [123]}
+
+---
+"Test ILM fallback component-template installation with dsl-only mode false":
+  - skip:
+      reason: contains is a newly added assertion
+      features: contains
+  - do:
+      cluster.get_component_template:
+        name: "*-fallback@ilm"
+  - length: {component_templates: 19}
+  - contains: {component_templates: {name: metrics-apm.app-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.internal-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_destination.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_summary.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.service_transaction.60m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.1m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.10m-fallback@ilm}}
+  - contains: {component_templates: {name: metrics-apm.transaction.60m-fallback@ilm}}

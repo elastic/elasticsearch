@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -12,14 +13,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 
@@ -32,6 +32,8 @@ import static java.util.Arrays.compareUnsigned;
  * Query merging two point in range queries.
  */
 public class MergedPointRangeQuery extends Query {
+    private static final MatchNoDocsQuery DISJOINT = new MatchNoDocsQuery("disjoint ranges");
+
     /**
      * Merge two {@linkplain PointRangeQuery}s into a {@linkplain MergedPointRangeQuery}
      * that matches points that match both filters.
@@ -69,7 +71,7 @@ public class MergedPointRangeQuery extends Query {
         for (int dim = 0; dim < numDims; dim++) {
             int offset = dim * bytesPerDim;
             if (compareUnsigned(lower, offset, offset + bytesPerDim, upper, offset, offset + bytesPerDim) > 0) {
-                return new MatchNoDocsQuery("disjoint ranges");
+                return DISJOINT;
             }
         }
         // Otherwise on single valued segments we can only match docs the match the UNION of the two ranges.
@@ -103,12 +105,16 @@ public class MergedPointRangeQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
+            public int count(LeafReaderContext context) throws IOException {
+                PointValues points = context.reader().getPointValues(field);
+                if (points == null) {
+                    return 0;
                 }
-                return scorerSupplier.get(Long.MAX_VALUE);
+                if (points.size() == points.getDocCount()) {
+                    // Each doc that has points has exactly one point.
+                    return singleValuedSegmentWeight().count(context);
+                }
+                return multiValuedSegmentWeight().count(context);
             }
 
             @Override
@@ -127,19 +133,6 @@ public class MergedPointRangeQuery extends Query {
                     return singleValuedSegmentWeight().scorerSupplier(context);
                 }
                 return multiValuedSegmentWeight().scorerSupplier(context);
-            }
-
-            @Override
-            public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                PointValues points = context.reader().getPointValues(field);
-                if (points == null) {
-                    return null;
-                }
-                if (points.size() == points.getDocCount()) {
-                    // Each doc that has points has exactly one point.
-                    return singleValuedSegmentWeight().bulkScorer(context);
-                }
-                return multiValuedSegmentWeight().bulkScorer(context);
             }
 
             private Weight singleValuedSegmentWeight() throws IOException {
@@ -178,6 +171,13 @@ public class MergedPointRangeQuery extends Query {
         MergedPointRangeQuery other = (MergedPointRangeQuery) obj;
         return delegateForMultiValuedSegments.equals(other.delegateForMultiValuedSegments)
             && delegateForSingleValuedSegments.equals(other.delegateForSingleValuedSegments);
+    }
+
+    @Override
+    public void visit(QueryVisitor visitor) {
+        if (visitor.acceptField(field)) {
+            this.delegateForMultiValuedSegments.visit(visitor);
+        }
     }
 
     @Override

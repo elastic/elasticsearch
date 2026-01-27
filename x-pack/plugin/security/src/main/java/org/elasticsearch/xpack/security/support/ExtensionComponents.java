@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
@@ -25,14 +27,25 @@ public final class ExtensionComponents implements SecurityExtension.SecurityComp
     private final ClusterService clusterService;
     private final ResourceWatcherService resourceWatcherService;
     private final UserRoleMapper roleMapper;
+    private final ProjectResolver projectResolver;
+    private final TelemetryProvider telemetryProvider;
 
-    public ExtensionComponents(Environment environment, Client client, ClusterService clusterService,
-                               ResourceWatcherService resourceWatcherService, UserRoleMapper roleMapper) {
+    public ExtensionComponents(
+        Environment environment,
+        Client client,
+        ClusterService clusterService,
+        ResourceWatcherService resourceWatcherService,
+        UserRoleMapper roleMapper,
+        ProjectResolver projectResolver,
+        TelemetryProvider telemetryProvider
+    ) {
         this.environment = environment;
         this.client = client;
         this.clusterService = clusterService;
         this.resourceWatcherService = resourceWatcherService;
         this.roleMapper = roleMapper;
+        this.projectResolver = projectResolver;
+        this.telemetryProvider = telemetryProvider;
     }
 
     @Override
@@ -68,5 +81,15 @@ public final class ExtensionComponents implements SecurityExtension.SecurityComp
     @Override
     public UserRoleMapper roleMapper() {
         return roleMapper;
+    }
+
+    @Override
+    public ProjectResolver projectResolver() {
+        return projectResolver;
+    }
+
+    @Override
+    public TelemetryProvider telemetryProvider() {
+        return telemetryProvider;
     }
 }

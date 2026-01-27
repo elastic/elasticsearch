@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessorTests;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -40,13 +39,12 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
     }
 
     @Override
-    protected ChainingProcessor mutateInstance(ChainingProcessor instance) throws IOException {
+    protected ChainingProcessor mutateInstance(ChainingProcessor instance) {
         @SuppressWarnings("unchecked")
         Supplier<ChainingProcessor> supplier = randomFrom(
-            () -> new ChainingProcessor(
-                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
-            () -> new ChainingProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
+            () -> new ChainingProcessor(instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
+            () -> new ChainingProcessor(randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second())
+        );
         return supplier.get();
     }
 

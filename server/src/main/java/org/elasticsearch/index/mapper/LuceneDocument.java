@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -74,22 +75,34 @@ public class LuceneDocument implements Iterable<IndexableField> {
     }
 
     public void add(IndexableField field) {
+        assert assertLegalFieldName(field);
+        fields.add(field);
+    }
+
+    private boolean assertLegalFieldName(IndexableField field) {
         // either a meta fields or starts with the prefix
         assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-        fields.add(field);
+        return true;
     }
 
     /**
      * Add fields so that they can later be fetched using {@link #getByKey(Object)}.
      */
     public void addWithKey(Object key, IndexableField field) {
+        onlyAddKey(key, field);
+        add(field);
+    }
+
+    /**
+     * only add the key to the keyedFields, it don't add the field to the field list
+     */
+    public void onlyAddKey(Object key, IndexableField field) {
         if (keyedFields == null) {
             keyedFields = new HashMap<>();
         } else if (keyedFields.containsKey(key)) {
             throw new IllegalStateException("Only one field can be stored per key");
         }
         keyedFields.put(key, field);
-        add(field);
     }
 
     /**
@@ -99,14 +112,14 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return keyedFields == null ? null : keyedFields.get(key);
     }
 
-    public IndexableField[] getFields(String name) {
+    public List<IndexableField> getFields(String name) {
         List<IndexableField> f = new ArrayList<>();
         for (IndexableField field : fields) {
             if (field.name().equals(name)) {
                 f.add(field);
             }
         }
-        return f.toArray(new IndexableField[f.size()]);
+        return f;
     }
 
     public IndexableField getField(String name) {
@@ -136,4 +149,12 @@ public class LuceneDocument implements Iterable<IndexableField> {
         return null;
     }
 
+    public Number getNumericValue(String name) {
+        for (IndexableField f : fields) {
+            if (f.name().equals(name) && f.numericValue() != null) {
+                return f.numericValue();
+            }
+        }
+        return null;
+    }
 }

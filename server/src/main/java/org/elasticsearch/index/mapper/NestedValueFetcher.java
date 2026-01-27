@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,8 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.fetch.subphase.FieldFetcher;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,21 +41,21 @@ public class NestedValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
-        List<Object> nestedEntriesToReturn = new ArrayList<>();
+    public List<Object> fetchValues(Source source, int doc, List<Object> includedValues) throws IOException {
+        ArrayList<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
-        List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, lookup.source());
+        List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, source.source());
         if (nestedValues == null) {
             return Collections.emptyList();
         }
         for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
-            SourceLookup nestedSourceLookup = new SourceLookup();
-            nestedSourceLookup.setSource(filteredSource);
-
-            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(nestedSourceLookup);
+            Map<String, DocumentField> fetchResult = nestedFieldFetcher.fetch(
+                Source.fromMap(filteredSource, source.sourceContentType()),
+                doc
+            );
 
             Map<String, Object> nestedEntry = new HashMap<>();
             for (DocumentField field : fetchResult.values()) {
@@ -67,6 +69,7 @@ public class NestedValueFetcher implements ValueFetcher {
                 nestedEntriesToReturn.add(nestedEntry);
             }
         }
+        nestedEntriesToReturn.trimToSize();
         return nestedEntriesToReturn;
     }
 
@@ -85,5 +88,10 @@ public class NestedValueFetcher implements ValueFetcher {
     @Override
     public void setNextReader(LeafReaderContext context) {
         this.nestedFieldFetcher.setNextReader(context);
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.NEEDS_SOURCE;
     }
 }

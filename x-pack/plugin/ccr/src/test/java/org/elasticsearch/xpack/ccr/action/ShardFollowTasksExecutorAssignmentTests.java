@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -58,15 +59,10 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
     }
 
     private void runNoAssignmentTest(final Set<DiscoveryNodeRole> roles) {
-        runAssignmentTest(
-            roles,
-            0,
-            Set::of,
-            (theSpecial, assignment) -> {
-                assertFalse(assignment.isAssigned());
-                assertThat(assignment.getExplanation(), equalTo("no nodes found with data and remote cluster client roles"));
-            }
-        );
+        runAssignmentTest(roles, 0, Set::of, (theSpecial, assignment) -> {
+            assertFalse(assignment.isAssigned());
+            assertThat(assignment.getExplanation(), equalTo("no nodes found with data and remote cluster client roles"));
+        });
     }
 
     private void runAssignmentTest(
@@ -76,12 +72,17 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
         final BiConsumer<DiscoveryNode, Assignment> consumer
     ) {
         final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterSettings())
-            .thenReturn(new ClusterSettings(Settings.EMPTY, Set.of(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT)));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, Set.of(CcrSettings.CCR_WAIT_FOR_METADATA_TIMEOUT))
+        );
         final SettingsModule settingsModule = mock(SettingsModule.class);
         when(settingsModule.getSettings()).thenReturn(Settings.EMPTY);
-        final ShardFollowTasksExecutor executor =
-            new ShardFollowTasksExecutor(mock(Client.class), mock(ThreadPool.class), clusterService, settingsModule);
+        final ShardFollowTasksExecutor executor = new ShardFollowTasksExecutor(
+            mock(Client.class),
+            mock(ThreadPool.class),
+            clusterService,
+            settingsModule
+        );
         final ClusterState.Builder clusterStateBuilder = ClusterState.builder(new ClusterName("test"));
         final DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         final DiscoveryNode theSpecial = newNode(theSpecialRoles);
@@ -90,19 +91,17 @@ public class ShardFollowTasksExecutorAssignmentTests extends ESTestCase {
             nodesBuilder.add(newNode(otherNodesRolesSupplier.get()));
         }
         clusterStateBuilder.nodes(nodesBuilder);
-        final Assignment assignment = executor.getAssignment(mock(ShardFollowTask.class),
-            clusterStateBuilder.nodes().getAllNodes(), clusterStateBuilder.build());
+        final Assignment assignment = executor.getAssignment(
+            mock(ShardFollowTask.class),
+            clusterStateBuilder.nodes().getAllNodes(),
+            clusterStateBuilder.build(),
+            ProjectId.DEFAULT
+        );
         consumer.accept(theSpecial, assignment);
     }
 
     private static DiscoveryNode newNode(final Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            "node_" + UUIDs.randomBase64UUID(random()),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return DiscoveryNodeUtils.create("node_" + UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Map.of(), roles);
     }
 
 }

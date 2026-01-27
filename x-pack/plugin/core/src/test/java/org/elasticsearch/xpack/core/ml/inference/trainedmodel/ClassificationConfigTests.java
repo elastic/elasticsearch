@@ -6,26 +6,26 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-
 
 public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<ClassificationConfig> {
 
     private boolean lenient;
 
     public static ClassificationConfig randomClassificationConfig() {
-        return new ClassificationConfig(randomBoolean() ? null : randomIntBetween(-1, 10),
+        return new ClassificationConfig(
+            randomBoolean() ? null : randomIntBetween(-1, 10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomAlphaOfLength(10),
             randomBoolean() ? null : randomIntBetween(0, 10),
             randomFrom(PredictionFieldType.values())
-            );
+        );
     }
 
     @Before
@@ -36,6 +36,11 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
     @Override
     protected ClassificationConfig createTestInstance() {
         return randomClassificationConfig();
+    }
+
+    @Override
+    protected ClassificationConfig mutateInstance(ClassificationConfig instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -54,7 +59,7 @@ public class ClassificationConfigTests extends AbstractBWCSerializationTestCase<
     }
 
     @Override
-    protected ClassificationConfig mutateInstanceForVersion(ClassificationConfig instance, Version version) {
+    protected ClassificationConfig mutateInstanceForVersion(ClassificationConfig instance, TransportVersion version) {
         return instance;
     }
 }

@@ -1,20 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -36,16 +39,8 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
-        private Bucket(
-            BytesRef term,
-            long subsetDf,
-            long subsetSize,
-            long supersetDf,
-            long supersetSize,
-            InternalAggregations aggregations,
-            DocValueFormat format
-        ) {
-            super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
+        private Bucket(long subsetDf, long supersetDf, InternalAggregations aggregations, DocValueFormat format) {
+            super(subsetDf, supersetDf, aggregations, format);
         }
     }
 
@@ -91,24 +86,22 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    Bucket createBucket(
-        long subsetDf,
-        long subsetSize,
-        long supersetDf,
-        long supersetSize,
-        InternalAggregations aggregations,
-        Bucket prototype
-    ) {
+    Bucket createBucket(long subsetDf, long supersetDf, InternalAggregations aggregations, Bucket prototype) {
         throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
     }
 
     @Override
-    public boolean isMapped() {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean canLeadReduction() {
         return false;
     }
 
@@ -144,12 +137,12 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    protected long getSubsetSize() {
+    public long getSubsetSize() {
         return 0;
     }
 
     @Override
-    protected long getSupersetSize() {
+    public long getSupersetSize() {
         return 0;
     }
 }

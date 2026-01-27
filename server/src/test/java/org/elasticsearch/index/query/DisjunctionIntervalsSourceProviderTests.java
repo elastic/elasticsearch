@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.index.query.IntervalsSourceProvider.Disjunction;
 
-public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializingTestCase<Disjunction> {
+public class DisjunctionIntervalsSourceProviderTests extends AbstractXContentSerializingTestCase<Disjunction> {
 
     @Override
     protected Disjunction createTestInstance() {
@@ -27,17 +28,15 @@ public class DisjunctionIntervalsSourceProviderTests extends AbstractSerializing
     }
 
     @Override
-    protected Disjunction mutateInstance(Disjunction instance) throws IOException {
+    protected Disjunction mutateInstance(Disjunction instance) {
         List<IntervalsSourceProvider> subSources = instance.getSubSources();
         IntervalsSourceProvider.IntervalFilter filter = instance.getFilter();
         if (randomBoolean()) {
-            subSources = subSources == null ?
-                IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) :
-                null;
+            subSources = subSources == null ? IntervalQueryBuilderTests.createRandomSourceList(0, randomBoolean(), randomInt(5) + 1) : null;
         } else {
-            filter = filter == null ?
-                IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean()) :
-                FilterIntervalsSourceProviderTests.mutateFilter(filter);
+            filter = filter == null
+                ? IntervalQueryBuilderTests.createRandomNonNullFilter(0, randomBoolean())
+                : FilterIntervalsSourceProviderTests.mutateFilter(filter);
         }
         return new Disjunction(subSources, filter);
     }

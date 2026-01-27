@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.transport;
 
-
-import com.carrotsearch.hppc.IntArrayList;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.StringTokenizer;
 
 public class PortsRange {
@@ -26,15 +26,12 @@ public class PortsRange {
     }
 
     public int[] ports() throws NumberFormatException {
-        final IntArrayList ports = new IntArrayList();
-        iterate(new PortCallback() {
-            @Override
-            public boolean onPortNumber(int portNumber) {
-                ports.add(portNumber);
-                return false;
-            }
+        final List<Integer> ports = new ArrayList<>();
+        iterate(portNumber -> {
+            ports.add(portNumber);
+            return false;
         });
-        return ports.toArray();
+        return ports.stream().mapToInt(Integer::intValue).toArray();
     }
 
     public boolean iterate(PortCallback callback) throws NumberFormatException {
@@ -72,8 +69,6 @@ public class PortsRange {
 
     @Override
     public String toString() {
-        return "PortsRange{" +
-            "portRange='" + portRange + '\'' +
-            '}';
+        return "PortsRange{" + "portRange='" + portRange + '\'' + '}';
     }
 }

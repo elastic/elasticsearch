@@ -7,16 +7,12 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.activate;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A activate watch action request builder.
  */
 public class ActivateWatchRequestBuilder extends ActionRequestBuilder<ActivateWatchRequest, ActivateWatchResponse> {
-
-    public ActivateWatchRequestBuilder(ElasticsearchClient client) {
-        super(client, ActivateWatchAction.INSTANCE, new ActivateWatchRequest());
-    }
 
     public ActivateWatchRequestBuilder(ElasticsearchClient client, String id, boolean activate) {
         super(client, ActivateWatchAction.INSTANCE, new ActivateWatchRequest(id, activate));

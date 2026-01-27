@@ -1,0 +1,32 @@
+{
+  "security.oidc_prepare_authentication": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-oidc-prepare-authentication",
+      "description": "Prepare OpenID connect authentication"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_security/oidc/prepare",
+          "methods": [
+            "POST"
+          ]
+        }
+      ]
+    },
+    "body": {
+      "description": "The OpenID Connect authentication realm configuration",
+      "required": true
+    }
+  }
+}

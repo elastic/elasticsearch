@@ -23,20 +23,22 @@ public class NodesDeprecationCheckResponse extends BaseNodesResponse<NodesDeprec
         super(in);
     }
 
-    public NodesDeprecationCheckResponse(ClusterName clusterName,
-                                         List<NodesDeprecationCheckAction.NodeResponse> nodes,
-                                         List<FailedNodeException> failures) {
+    public NodesDeprecationCheckResponse(
+        ClusterName clusterName,
+        List<NodesDeprecationCheckAction.NodeResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodesDeprecationCheckAction.NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(NodesDeprecationCheckAction.NodeResponse::new);
+        return in.readCollectionAsList(NodesDeprecationCheckAction.NodeResponse::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodesDeprecationCheckAction.NodeResponse> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     @Override

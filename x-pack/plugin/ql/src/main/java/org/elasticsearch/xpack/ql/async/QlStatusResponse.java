@@ -11,21 +11,19 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.rest.RestStatus.OK;
-
 /**
  * A response for *QL search status request
  */
-public class QlStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class QlStatusResponse extends ActionResponse implements SearchStatusResponse, ToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -41,12 +39,14 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
         boolean isPartial();
     }
 
-    public QlStatusResponse(String id,
-                            boolean isRunning,
-                            boolean isPartial,
-                            Long startTimeMillis,
-                            long expirationTimeMillis,
-                            RestStatus completionStatus) {
+    public QlStatusResponse(
+        String id,
+        boolean isRunning,
+        boolean isPartial,
+        Long startTimeMillis,
+        long expirationTimeMillis,
+        RestStatus completionStatus
+    ) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
@@ -62,8 +62,11 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
      * @param id – encoded async search id
      * @return a status response
      */
-    public static <S extends Writeable & AsyncStatus> QlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<S> storedResponse,
-                                                                                                 long expirationTimeMillis, String id) {
+    public static <S extends Writeable & AsyncStatus> QlStatusResponse getStatusFromStoredSearch(
+        StoredAsyncResponse<S> storedResponse,
+        long expirationTimeMillis,
+        String id
+    ) {
         S searchResponse = storedResponse.getResponse();
         if (searchResponse != null) {
             assert searchResponse.isRunning() == false : "Stored Ql search response must have a completed status!";
@@ -111,11 +114,6 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
     }
 
     @Override
-    public RestStatus status() {
-        return OK;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
@@ -123,9 +121,9 @@ public class QlStatusResponse extends ActionResponse implements SearchStatusResp
             builder.field("is_running", isRunning);
             builder.field("is_partial", isPartial);
             if (startTimeMillis != null) { // start time is available only for a running eql search
-                builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+                builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
             }
-            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
             if (isRunning == false) { // completion status is available only for a completed eql search
                 builder.field("completion_status", completionStatus.getStatus());
             }

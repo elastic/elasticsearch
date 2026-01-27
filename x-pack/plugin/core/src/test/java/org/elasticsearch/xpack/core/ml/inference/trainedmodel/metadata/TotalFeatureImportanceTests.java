@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCase<TotalFeatureImportance> {
 
@@ -33,12 +32,12 @@ public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCas
         return new TotalFeatureImportance(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomImportance(),
-            randomBoolean() ?
-                null :
-                Stream.generate(() -> new TotalFeatureImportance.ClassImportance(classNameGenerator.get(), randomImportance()))
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> new TotalFeatureImportance.ClassImportance(classNameGenerator.get(), randomImportance()))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList())
-            );
+        );
     }
 
     private static TotalFeatureImportance.Importance randomImportance() {
@@ -53,6 +52,11 @@ public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCas
     @Override
     protected TotalFeatureImportance createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected TotalFeatureImportance mutateInstance(TotalFeatureImportance instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -71,7 +75,7 @@ public class TotalFeatureImportanceTests extends AbstractBWCSerializationTestCas
     }
 
     @Override
-    protected TotalFeatureImportance mutateInstanceForVersion(TotalFeatureImportance instance, Version version) {
+    protected TotalFeatureImportance mutateInstanceForVersion(TotalFeatureImportance instance, TransportVersion version) {
         return instance;
     }
 }

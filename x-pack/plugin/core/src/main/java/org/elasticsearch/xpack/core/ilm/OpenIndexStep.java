@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
 
@@ -29,18 +29,20 @@ final class OpenIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, ActionListener<Void> listener) {
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ProjectState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
             OpenIndexRequest request = new OpenIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
-            getClient().admin().indices()
-                .open(request,
-                    ActionListener.wrap(openIndexResponse -> {
-                        if (openIndexResponse.isAcknowledged() == false) {
-                            throw new ElasticsearchException("open index request failed to be acknowledged");
-                        }
-                        listener.onResponse(null);
-                    }, listener::onFailure));
+            getClient(currentState.projectId()).admin().indices().open(request, listener.delegateFailureAndWrap((l, openIndexResponse) -> {
+                if (openIndexResponse.isAcknowledged() == false) {
+                    throw new ElasticsearchException("open index request failed to be acknowledged");
+                }
+                l.onResponse(null);
+            }));
 
         } else {
             listener.onResponse(null);

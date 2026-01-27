@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.ml.action.GetFiltersAction.Request;
 
 public class GetFiltersActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
-
     @Override
     protected Request createTestInstance() {
         if (randomBoolean()) {
@@ -26,6 +25,11 @@ public class GetFiltersActionRequestTests extends AbstractWireSerializingTestCas
             request.setPageParams(new PageParams(from, size));
         }
         return request;
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

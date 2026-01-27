@@ -9,17 +9,19 @@ package org.elasticsearch.xpack.ml.job.retention;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
@@ -84,6 +86,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     public void setUpTests() {
         Client client = mock(Client.class);
         originSettingClient = MockOriginSettingClient.mockOriginSettingClient(client, ClientHelper.ML_ORIGIN);
+        WritableIndexExpander.initialize(mock(ClusterService.class), TestIndexNameExpressionResolver.newInstance());
     }
 
     static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents) throws IOException {
@@ -91,10 +94,14 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     }
 
     static SearchResponse createSearchResponseFromHits(List<SearchHit> hits) {
-        SearchHits searchHits = new SearchHits(hits.toArray(new SearchHit[]{}),
-            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO), 1.0f);
+        SearchHits searchHits = new SearchHits(
+            hits.toArray(new SearchHit[] {}),
+            new TotalHits(hits.size(), TotalHits.Relation.EQUAL_TO),
+            1.0f
+        );
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
         return searchResponse;
     }
 
@@ -108,7 +115,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
         SearchHits hits = new SearchHits(hitsArray, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(hits);
+        when(searchResponse.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
         return searchResponse;
     }
 

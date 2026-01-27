@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -99,7 +100,12 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         this.id = id;
         this.retainingSequenceNumber = retainingSequenceNumber;
         this.timestamp = timestamp;
-        this.source = source;
+        // deduplicate the string instances to save memory for the known possible source values
+        this.source = switch (source) {
+            case "ccr" -> "ccr";
+            case ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE -> ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE;
+            default -> source;
+        };
     }
 
     /**
@@ -109,10 +115,7 @@ public final class RetentionLease implements ToXContentObject, Writeable {
      * @throws IOException if an I/O exception occurs reading from the stream
      */
     public RetentionLease(final StreamInput in) throws IOException {
-        id = in.readString();
-        retainingSequenceNumber = in.readZLong();
-        timestamp = in.readVLong();
-        source = in.readString();
+        this(in.readString(), in.readZLong(), in.readVLong(), in.readString());
     }
 
     /**
@@ -135,8 +138,9 @@ public final class RetentionLease implements ToXContentObject, Writeable {
     private static final ParseField SOURCE_FIELD = new ParseField("source");
 
     private static final ConstructingObjectParser<RetentionLease, Void> PARSER = new ConstructingObjectParser<>(
-            "retention_leases",
-            (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3]));
+        "retention_leases",
+        (a) -> new RetentionLease((String) a[0], (Long) a[1], (Long) a[2], (String) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
@@ -158,14 +162,9 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         return builder;
     }
 
-    @Override
-    public boolean isFragment() {
-        return false;
-    }
-
     /**
-     * Parses a retention lease from {@link org.elasticsearch.common.xcontent.XContent}. This method assumes that the retention lease was
-     * converted to {@link org.elasticsearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     * Parses a retention lease from {@link org.elasticsearch.xcontent.XContent}. This method assumes that the retention lease was
+     * converted to {@link org.elasticsearch.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
      * @param parser the parser
      * @return a retention lease
@@ -179,10 +178,10 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final RetentionLease that = (RetentionLease) o;
-        return Objects.equals(id, that.id) &&
-                retainingSequenceNumber == that.retainingSequenceNumber &&
-                timestamp == that.timestamp &&
-                Objects.equals(source, that.source);
+        return Objects.equals(id, that.id)
+            && retainingSequenceNumber == that.retainingSequenceNumber
+            && timestamp == that.timestamp
+            && Objects.equals(source, that.source);
     }
 
     @Override
@@ -192,12 +191,18 @@ public final class RetentionLease implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "RetentionLease{" +
-                "id='" + id + '\'' +
-                ", retainingSequenceNumber=" + retainingSequenceNumber +
-                ", timestamp=" + timestamp +
-                ", source='" + source + '\'' +
-                '}';
+        return "RetentionLease{"
+            + "id='"
+            + id
+            + '\''
+            + ", retainingSequenceNumber="
+            + retainingSequenceNumber
+            + ", timestamp="
+            + timestamp
+            + ", source='"
+            + source
+            + '\''
+            + '}';
     }
 
 }

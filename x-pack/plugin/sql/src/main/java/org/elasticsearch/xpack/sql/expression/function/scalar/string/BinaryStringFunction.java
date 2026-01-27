@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Base class for binary functions that have the first parameter a string, the second parameter a number
  * or a string and the result can be a string or a number.
  */
-public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
+public abstract class BinaryStringFunction<T, R> extends BinaryScalarFunction {
 
     protected BinaryStringFunction(Source source, Expression left, Expression right) {
         super(source, left, right);
@@ -68,9 +68,11 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override
@@ -83,8 +85,7 @@ public abstract class BinaryStringFunction<T,R> extends BinaryScalarFunction {
         if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
-        BinaryStringFunction<?,?> other = (BinaryStringFunction<?,?>) obj;
-        return Objects.equals(other.left(), left())
-            && Objects.equals(other.right(), right());
+        BinaryStringFunction<?, ?> other = (BinaryStringFunction<?, ?>) obj;
+        return Objects.equals(other.left(), left()) && Objects.equals(other.right(), right());
     }
 }

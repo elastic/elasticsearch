@@ -7,28 +7,34 @@
 
 package org.elasticsearch.xpack.ccr.action.repositories;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.transport.RemoteClusterAwareRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RemoteClusterAwareRequest;
 
 import java.io.IOException;
 
-public class ClearCcrRestoreSessionRequest extends ActionRequest implements RemoteClusterAwareRequest {
+public class ClearCcrRestoreSessionRequest extends LegacyActionRequest implements RemoteClusterAwareRequest, IndicesRequest {
 
     private DiscoveryNode node;
-    private String sessionUUID;
+    private final String sessionUUID;
+    private final ShardId shardId;
 
     ClearCcrRestoreSessionRequest(StreamInput in) throws IOException {
         super(in);
         sessionUUID = in.readString();
+        shardId = new ShardId(in);
     }
 
-    public ClearCcrRestoreSessionRequest(String sessionUUID, DiscoveryNode node) {
+    public ClearCcrRestoreSessionRequest(String sessionUUID, DiscoveryNode node, ShardId shardId) {
         this.sessionUUID = sessionUUID;
         this.node = node;
+        this.shardId = shardId;
     }
 
     @Override
@@ -40,14 +46,33 @@ public class ClearCcrRestoreSessionRequest extends ActionRequest implements Remo
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(sessionUUID);
+        shardId.writeTo(out);
     }
 
     String getSessionUUID() {
         return sessionUUID;
     }
 
+    ShardId getShardId() {
+        return shardId;
+    }
+
     @Override
     public DiscoveryNode getPreferredTargetNode() {
         return node;
+    }
+
+    @Override
+    public String[] indices() {
+        if (shardId == null) {
+            return null;
+        } else {
+            return new String[] { shardId.getIndexName() };
+        }
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 }

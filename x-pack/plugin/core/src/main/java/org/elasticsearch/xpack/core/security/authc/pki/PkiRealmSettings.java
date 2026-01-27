@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.core.security.authc.pki;
 
+import com.unboundid.ldap.sdk.LDAPException;
+import com.unboundid.ldap.sdk.schema.AttributeTypeDefinition;
+import com.unboundid.ldap.sdk.schema.Schema;
+
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -24,23 +28,57 @@ public final class PkiRealmSettings {
     public static final String TYPE = "pki";
     public static final String DEFAULT_USERNAME_PATTERN = "CN=(.*?)(?:,|$)";
     public static final Setting.AffixSetting<Pattern> USERNAME_PATTERN_SETTING = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "username_pattern",
-            key -> new Setting<>(key, DEFAULT_USERNAME_PATTERN, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE),
-                    Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "username_pattern",
+        key -> new Setting<>(key, DEFAULT_USERNAME_PATTERN, s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE), Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> USERNAME_RDN_OID_SETTING = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "username_rdn_oid",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
+
+    public static final Setting.AffixSetting<String> USERNAME_RDN_NAME_SETTING = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "username_rdn_name",
+        key -> new Setting<>(key, (String) null, s -> {
+            if (s == null) {
+                return "";
+            }
+            Schema schema;
+            try {
+                schema = Schema.getDefaultStandardSchema();
+            } catch (LDAPException e) {
+                throw new IllegalStateException("Unexpected error occurred obtaining default LDAP schema", e);
+            }
+            AttributeTypeDefinition atd = schema.getAttributeType(s);
+            if (atd == null) {
+                throw new IllegalArgumentException("Unknown RDN name [" + s + "] for setting [" + key + "]");
+            }
+            return atd.getOID();
+        }, Setting.Property.NodeScope)
+    );
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
     public static final Setting.AffixSetting<TimeValue> CACHE_TTL_SETTING = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE), "cache.ttl",
-        key -> Setting.timeSetting(key, DEFAULT_TTL, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "cache.ttl",
+        key -> Setting.timeSetting(key, DEFAULT_TTL, Setting.Property.NodeScope)
+    );
 
-    private static final int DEFAULT_MAX_USERS = 100_000; //100k users
+    private static final int DEFAULT_MAX_USERS = 100_000; // 100k users
     public static final Setting.AffixSetting<Integer> CACHE_MAX_USERS_SETTING = Setting.affixKeySetting(
-        RealmSettings.realmSettingPrefix(TYPE), "cache.max_users",
-        key -> Setting.intSetting(key, DEFAULT_MAX_USERS, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "cache.max_users",
+        key -> Setting.intSetting(key, DEFAULT_MAX_USERS, Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<Boolean> DELEGATION_ENABLED_SETTING = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(TYPE), "delegation.enabled",
-            key -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(TYPE),
+        "delegation.enabled",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
 
     public static final Setting.AffixSetting<Optional<String>> TRUST_STORE_PATH;
     public static final Setting.AffixSetting<Optional<String>> TRUST_STORE_TYPE;
@@ -60,8 +98,7 @@ public final class PkiRealmSettings {
         CAPATH_SETTING = SSLConfigurationSettings.CERT_AUTH_PATH.affixSetting(prefix, "");
     }
 
-    private PkiRealmSettings() {
-    }
+    private PkiRealmSettings() {}
 
     /**
      * @return The {@link Setting setting configuration} for this realm type
@@ -69,6 +106,8 @@ public final class PkiRealmSettings {
     public static Set<Setting.AffixSetting<?>> getSettings() {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();
         settings.add(USERNAME_PATTERN_SETTING);
+        settings.add(USERNAME_RDN_OID_SETTING);
+        settings.add(USERNAME_RDN_NAME_SETTING);
         settings.add(CACHE_TTL_SETTING);
         settings.add(CACHE_MAX_USERS_SETTING);
         settings.add(DELEGATION_ENABLED_SETTING);

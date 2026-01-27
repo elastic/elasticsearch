@@ -8,13 +8,13 @@ package org.elasticsearch.index.engine.frozen;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
@@ -23,13 +23,12 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -71,7 +70,7 @@ public class FrozenEngineTests extends EngineTestCase {
                                 ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()).shardId()
                             );
                             assertTrue(frozenEngine.isReaderOpen());
-                            TopDocs search = searcher.search(new MatchAllDocsQuery(), numDocs);
+                            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                             assertEquals(search.scoreDocs.length, numDocs);
                             assertEquals(1, listener.afterRefresh.get());
                         }
@@ -80,7 +79,7 @@ public class FrozenEngineTests extends EngineTestCase {
 
                         try (Engine.Searcher searcher = reader.acquireSearcher("frozen")) {
                             assertTrue(frozenEngine.isReaderOpen());
-                            TopDocs search = searcher.search(new MatchAllDocsQuery(), numDocs);
+                            TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                             assertEquals(search.scoreDocs.length, numDocs);
                         }
                     }
@@ -114,14 +113,14 @@ public class FrozenEngineTests extends EngineTestCase {
                     Engine.SearcherSupplier reader1 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
                         assertTrue(frozenEngine.isReaderOpen());
-                        TopDocs search = searcher1.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher1.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertEquals(1, listener.afterRefresh.get());
                     }
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.SearcherSupplier reader2 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher2 = reader2.acquireSearcher("test")) {
-                        TopDocs search = searcher2.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher2.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertTrue(frozenEngine.isReaderOpen());
                         assertEquals(2, listener.afterRefresh.get());
@@ -130,7 +129,7 @@ public class FrozenEngineTests extends EngineTestCase {
                     assertEquals(2, listener.afterRefresh.get());
                     reader2.close();
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
-                        TopDocs search = searcher1.search(new MatchAllDocsQuery(), numDocs);
+                        TopDocs search = searcher1.search(Queries.ALL_DOCS_INSTANCE, numDocs);
                         assertEquals(search.scoreDocs.length, numDocs);
                         assertTrue(frozenEngine.isReaderOpen());
                     }
@@ -166,19 +165,19 @@ public class FrozenEngineTests extends EngineTestCase {
                         SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(1, listener.afterRefresh.get());
                         }
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         assertEquals(0, segmentsStats.getCount());
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                             segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                            assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                            assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                             assertEquals(2, listener.afterRefresh.get());
                         }
                         assertFalse(frozenEngine.isReaderOpen());
                         segmentsStats = frozenEngine.segmentsStats(randomBoolean(), true);
-                        assertEquals(frozenEngine.segments(randomBoolean()).size(), segmentsStats.getCount());
+                        assertEquals(frozenEngine.segments().size(), segmentsStats.getCount());
                     }
                 }
             }
@@ -231,6 +230,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 null,
                 globalCheckpoint::get,
                 new HierarchyCircuitBreakerService(
+                    CircuitBreakerMetrics.NOOP,
                     defaultSettings.getSettings(),
                     Collections.emptyList(),
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
@@ -252,7 +252,7 @@ public class FrozenEngineTests extends EngineTestCase {
                                 for (int j = 0; j < numIters; j++) {
                                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
                                         assertTrue(frozenEngine.isReaderOpen());
-                                        TopDocs search = searcher.search(new MatchAllDocsQuery(), Math.min(10, numDocsAdded));
+                                        TopDocs search = searcher.search(Queries.ALL_DOCS_INSTANCE, Math.min(10, numDocsAdded));
                                         assertEquals(search.scoreDocs.length, Math.min(10, numDocsAdded));
                                     }
                                 }
@@ -273,29 +273,6 @@ public class FrozenEngineTests extends EngineTestCase {
                     }
                     assertFalse(frozenEngine.isReaderOpen());
                 }
-            }
-        }
-    }
-
-    private static void checkOverrideMethods(Class<?> clazz) throws NoSuchMethodException, SecurityException {
-        final Class<?> superClazz = clazz.getSuperclass();
-        for (Method m : superClazz.getMethods()) {
-            final int mods = m.getModifiers();
-            if (Modifier.isStatic(mods)
-                || Modifier.isAbstract(mods)
-                || Modifier.isFinal(mods)
-                || m.isSynthetic()
-                || m.getName().equals("attributes")
-                || m.getName().equals("getStats")) {
-                continue;
-            }
-            // The point of these checks is to ensure that methods from the super class
-            // are overwritten to make sure we never miss a method from FilterLeafReader / FilterDirectoryReader
-            final Method subM = clazz.getMethod(m.getName(), m.getParameterTypes());
-            if (subM.getDeclaringClass() == superClazz
-                && m.getDeclaringClass() != Object.class
-                && m.getDeclaringClass() == subM.getDeclaringClass()) {
-                fail(clazz + " doesn't override" + m + " although it has been declared by it's superclass");
             }
         }
     }
@@ -398,14 +375,14 @@ public class FrozenEngineTests extends EngineTestCase {
                 engine.refresh("test");
                 try (Engine.SearcherSupplier reader = engine.acquireSearcherSupplier(Function.identity())) {
                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        totalDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE).scoreDocs.length;
+                        totalDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE).scoreDocs.length;
                     }
                 }
             }
             try (FrozenEngine frozenEngine = new FrozenEngine(config, true, randomBoolean())) {
                 try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                     try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
+                        TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, Integer.MAX_VALUE);
                         assertThat(topDocs.scoreDocs.length, equalTo(totalDocs));
                     }
                 }

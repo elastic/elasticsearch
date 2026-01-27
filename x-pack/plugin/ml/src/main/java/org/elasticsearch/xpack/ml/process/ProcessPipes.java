@@ -10,11 +10,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler;
+import org.elasticsearch.xpack.ml.utils.FileUtils;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +43,7 @@ public class ProcessPipes {
 
     private final NamedPipeHelper namedPipeHelper;
     private final String jobId;
+    private final Path tempDir;
 
     /**
      * <code>null</code> indicates a pipe won't be used
@@ -76,15 +79,26 @@ public class ProcessPipes {
      * @param jobId The job ID of the process to which pipes are to be opened, if the process is associated with a specific job.
      *              May be null or empty for processes not associated with a specific job.
      */
-    public ProcessPipes(Environment env, NamedPipeHelper namedPipeHelper, Duration timeout, String processName, String jobId,
-                        Long uniqueId, boolean wantCommandPipe, boolean wantProcessInPipe, boolean wantProcessOutPipe,
-                        boolean wantRestorePipe, boolean wantPersistPipe) {
+    public ProcessPipes(
+        Environment env,
+        NamedPipeHelper namedPipeHelper,
+        Duration timeout,
+        String processName,
+        String jobId,
+        Long uniqueId,
+        boolean wantCommandPipe,
+        boolean wantProcessInPipe,
+        boolean wantProcessOutPipe,
+        boolean wantRestorePipe,
+        boolean wantPersistPipe
+    ) {
         this.namedPipeHelper = namedPipeHelper;
         this.jobId = jobId;
+        this.tempDir = env.tmpDir();
         this.timeout = timeout;
 
         // The way the pipe names are formed MUST match what is done in the controller main()
-        // function, as it does not get any command line arguments when started as a daemon.  If
+        // function, as it does not get any command line arguments when started as a daemon. If
         // you change the code here then you MUST also change the C++ code in controller's
         // main() function.
         StringBuilder prefixBuilder = new StringBuilder();
@@ -140,6 +154,7 @@ public class ProcessPipes {
      * and this JVM.
      */
     public void connectLogStream() throws IOException {
+        FileUtils.recreateTempDirectoryIfNeeded(tempDir);
         logStreamHandler = new CppLogMessageHandler(jobId, namedPipeHelper.openNamedPipeInputStream(logPipeName, timeout));
     }
 
@@ -152,8 +167,9 @@ public class ProcessPipes {
         if (logStreamHandler == null) {
             throw new NullPointerException("Must connect log stream before other streams");
         }
-        // The order here is important.  It must match the order that the C++ process tries to connect to the pipes, otherwise
-        // a timeout is guaranteed.  Also change api::CIoManager in the C++ code if changing the order here.
+        FileUtils.recreateTempDirectoryIfNeeded(tempDir);
+        // The order here is important. It must match the order that the C++ process tries to connect to the pipes, otherwise
+        // a timeout is guaranteed. Also change api::CIoManager in the C++ code if changing the order here.
         try {
             if (commandPipeName != null) {
                 commandStream = namedPipeHelper.openNamedPipeOutputStream(commandPipeName, timeout);

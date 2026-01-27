@@ -1,23 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.field;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Iterator;
 
 /**
- * Script field with no mapping, always returns {@code defaultValue}.
+ * A script {@code Field} with no mapping, always returns {@code defaultValue}.
  */
-public class EmptyField<T> extends Field<T> {
+public class EmptyField implements Field<Object> {
+
+    private final String name;
 
     public EmptyField(String name) {
-        super(name, null);
+        this.name = name;
+    }
+
+    @Override
+    public String getName() {
+        return name;
     }
 
     @Override
@@ -26,28 +34,20 @@ public class EmptyField<T> extends Field<T> {
     }
 
     @Override
-    public List<T> getValues() {
-        return Collections.emptyList();
+    public int size() {
+        return 0;
     }
 
-    @Override
-    public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
-        // new object created to ensure EmptyField<CT>
-        return new EmptyField<>(name);
+    public Object get(Object defaultValue) {
+        return get(0, defaultValue);
     }
 
-    @Override
-    public T getValue(T defaultValue) {
+    public Object get(int index, Object defaultValue) {
         return defaultValue;
     }
 
     @Override
-    public double getDouble(double defaultValue) {
-        return defaultValue;
-    }
-
-    @Override
-    public long getLong(long defaultValue) {
-        return defaultValue;
+    public Iterator<Object> iterator() {
+        return Collections.emptyIterator();
     }
 }

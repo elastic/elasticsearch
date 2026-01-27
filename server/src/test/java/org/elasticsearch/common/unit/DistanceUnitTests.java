@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.unit;
-
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,7 +24,7 @@ public class DistanceUnitTests extends ESTestCase {
         assertThat(DistanceUnit.NAUTICALMILES.convert(10, DistanceUnit.MILES), closeTo(8.689762, 0.001));
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.KILOMETERS), closeTo(10, 0.001));
         assertThat(DistanceUnit.KILOMETERS.convert(10, DistanceUnit.METERS), closeTo(0.01, 0.00001));
-        assertThat(DistanceUnit.KILOMETERS.convert(1000,DistanceUnit.METERS), closeTo(1, 0.001));
+        assertThat(DistanceUnit.KILOMETERS.convert(1000, DistanceUnit.METERS), closeTo(1, 0.001));
         assertThat(DistanceUnit.METERS.convert(1, DistanceUnit.KILOMETERS), closeTo(1000, 0.001));
     }
 
@@ -42,10 +42,16 @@ public class DistanceUnitTests extends ESTestCase {
         double testValue = 12345.678;
         for (DistanceUnit unit : DistanceUnit.values()) {
             assertThat("Unit can be parsed from '" + unit.toString() + "'", DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Unit can be parsed from '" + testValue + unit.toString() + "'",
-                DistanceUnit.fromString(unit.toString()), equalTo(unit));
-            assertThat("Value can be parsed from '" + testValue + unit.toString() + "'",
-                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value, equalTo(testValue));
+            assertThat(
+                "Unit can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.fromString(unit.toString()),
+                equalTo(unit)
+            );
+            assertThat(
+                "Value can be parsed from '" + testValue + unit.toString() + "'",
+                DistanceUnit.Distance.parseDistance(unit.toString(testValue)).value,
+                equalTo(testValue)
+            );
         }
     }
 
@@ -67,12 +73,12 @@ public class DistanceUnitTests extends ESTestCase {
 
     public void testReadWrite() throws Exception {
         for (DistanceUnit unit : DistanceUnit.values()) {
-          try (BytesStreamOutput out = new BytesStreamOutput()) {
-              unit.writeTo(out);
-              try (StreamInput in = out.bytes().streamInput()) {
-                  assertThat("Roundtrip serialisation failed.", DistanceUnit.readFromStream(in), equalTo(unit));
-              }
-          }
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                unit.writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    assertThat("Roundtrip serialisation failed.", DistanceUnit.readFromStream(in), equalTo(unit));
+                }
+            }
         }
     }
 

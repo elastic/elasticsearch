@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,12 +16,12 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.queries.intervals.IntervalIterator;
+import org.apache.lucene.queries.intervals.IntervalMatchesIterator;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 
@@ -48,8 +49,7 @@ public abstract class IntervalBuilder {
     protected abstract IntervalsSource termIntervals(BytesRef term);
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
-        try (TokenStream ts = analyzer.tokenStream(field, query);
-             CachingTokenFilter stream = new CachingTokenFilter(ts)) {
+        try (TokenStream ts = analyzer.tokenStream(field, query); CachingTokenFilter stream = new CachingTokenFilter(ts)) {
             return analyzeText(stream, maxGaps, ordered);
         }
     }
@@ -166,8 +166,7 @@ public abstract class IntervalBuilder {
             if (posInc > 0) {
                 if (synonyms.size() == 1) {
                     terms.add(extend(synonyms.get(0), spaces));
-                }
-                else if (synonyms.size() > 1) {
+                } else if (synonyms.size() > 1) {
                     terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
                 }
                 synonyms.clear();
@@ -177,8 +176,7 @@ public abstract class IntervalBuilder {
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));
-        }
-        else {
+        } else {
             terms.add(extend(Intervals.or(synonyms.toArray(new IntervalsSource[0])), spaces));
         }
         return combineSources(terms, maxGaps, ordered);
@@ -191,7 +189,7 @@ public abstract class IntervalBuilder {
         List<IntervalsSource> clauses = new ArrayList<>();
         int[] articulationPoints = graph.articulationPoints();
         int lastState = 0;
-        int maxClauseCount = BooleanQuery.getMaxClauseCount();
+        int maxClauseCount = IndexSearcher.getMaxClauseCount();
         for (int i = 0; i <= articulationPoints.length; i++) {
             int start = lastState;
             int end = -1;
@@ -206,7 +204,7 @@ public abstract class IntervalBuilder {
                     TokenStream ts = it.next();
                     IntervalsSource phrase = combineSources(analyzeTerms(ts), 0, true);
                     if (paths.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     paths.add(phrase);
                 }
@@ -228,6 +226,8 @@ public abstract class IntervalBuilder {
         @Override
         public IntervalIterator intervals(String field, LeafReaderContext ctx) {
             return new IntervalIterator() {
+                boolean exhausted = false;
+
                 @Override
                 public int start() {
                     return NO_MORE_INTERVALS;
@@ -255,16 +255,18 @@ public abstract class IntervalBuilder {
 
                 @Override
                 public int docID() {
-                    return NO_MORE_DOCS;
+                    return exhausted ? NO_MORE_DOCS : -1;
                 }
 
                 @Override
                 public int nextDoc() {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 
                 @Override
                 public int advance(int target) {
+                    exhausted = true;
                     return NO_MORE_DOCS;
                 }
 

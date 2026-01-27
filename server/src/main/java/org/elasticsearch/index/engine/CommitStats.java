@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -12,16 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Map;
-
-import static java.util.Map.entry;
+import java.util.Objects;
 
 /** a class the returns dynamic information with respect to the last commit point of this shard */
 public final class CommitStats implements Writeable, ToXContentFragment {
@@ -30,6 +28,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
     private final long generation;
     private final String id; // lucene commit id in base 64;
     private final int numDocs;
+    private final int numLeaves;
 
     public CommitStats(SegmentInfos segmentInfos) {
         // clone the map to protect against concurrent changes
@@ -38,24 +37,37 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         generation = segmentInfos.getLastGeneration();
         id = Base64.getEncoder().encodeToString(segmentInfos.getId());
         numDocs = Lucene.getNumDocs(segmentInfos);
+        numLeaves = segmentInfos.size();
     }
 
     CommitStats(StreamInput in) throws IOException {
-        final int length = in.readVInt();
-        final var entries = new ArrayList<Map.Entry<String, String>>(length);
-        for (int i = length; i > 0; i--) {
-            entries.add(entry(in.readString(), in.readString()));
-        }
-        userData = Maps.ofEntries(entries);
+        userData = in.readImmutableMap(StreamInput::readString);
         generation = in.readLong();
         id = in.readOptionalString();
         numDocs = in.readInt();
+        numLeaves = in.readVInt();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        CommitStats that = (CommitStats) o;
+        return userData.equals(that.userData)
+            && generation == that.generation
+            && Objects.equals(id, that.id)
+            && numDocs == that.numDocs
+            && numLeaves == that.numLeaves;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(userData, generation, id, numDocs, numLeaves);
     }
 
     public static CommitStats readOptionalCommitStatsFrom(StreamInput in) throws IOException {
         return in.readOptionalWriteable(CommitStats::new);
     }
-
 
     public Map<String, String> getUserData() {
         return userData;
@@ -77,16 +89,17 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         return numDocs;
     }
 
+    public int getNumLeaves() {
+        return numLeaves;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(userData.size());
-        for (Map.Entry<String, String> entry : userData.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
-        }
+        out.writeMap(userData, StreamOutput::writeString);
         out.writeLong(generation);
         out.writeOptionalString(id);
         out.writeInt(numDocs);
+        out.writeVInt(numLeaves);
     }
 
     static final class Fields {

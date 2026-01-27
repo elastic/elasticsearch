@@ -6,20 +6,18 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -37,7 +35,7 @@ public class StopRollupJobAction extends ActionType<StopRollupJobAction.Response
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopRollupJobAction() {
-        super(NAME, StopRollupJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -45,7 +43,7 @@ public class StopRollupJobAction extends ActionType<StopRollupJobAction.Response
         private boolean waitForCompletion = false;
         private TimeValue timeout = null;
 
-        public Request (String id) {
+        public Request(String id) {
             this(id, false, null);
         }
 
@@ -118,13 +116,6 @@ public class StopRollupJobAction extends ActionType<StopRollupJobAction.Response
             return Objects.equals(id, other.id)
                 && Objects.equals(waitForCompletion, other.waitForCompletion)
                 && Objects.equals(timeout, other.timeout);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, StopRollupJobAction action) {
-            super(client, action, new Request());
         }
     }
 

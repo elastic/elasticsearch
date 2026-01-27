@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
@@ -92,9 +95,9 @@ public abstract class PipelineAggregator {
         }
     }
 
-    private String name;
-    private String[] bucketsPaths;
-    private Map<String, Object> metadata;
+    private final String name;
+    private final String[] bucketsPaths;
+    private final Map<String, Object> metadata;
 
     protected PipelineAggregator(String name, String[] bucketsPaths, Map<String, Object> metadata) {
         this.name = name;
@@ -114,5 +117,21 @@ public abstract class PipelineAggregator {
         return metadata;
     }
 
-    public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext);
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    protected <T extends InternalMultiBucketAggregation> T asMultiBucketAggregation(InternalAggregation aggregation) {
+        if (aggregation instanceof InternalMultiBucketAggregation multiBucketAggregation) {
+            return (T) multiBucketAggregation;
+        }
+
+        throw new IllegalArgumentException(
+            String.format(
+                Locale.ROOT,
+                "Expected a multi bucket aggregation but got [%s] for aggregation [%s]",
+                aggregation.getClass().getSimpleName(),
+                name()
+            )
+        );
+    }
 }

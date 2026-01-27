@@ -6,13 +6,16 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
+import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
@@ -25,7 +28,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class MlLifeCycleService {
 
@@ -45,11 +52,16 @@ public class MlLifeCycleService {
     private final AutodetectProcessManager autodetectProcessManager;
     private final DataFrameAnalyticsManager analyticsManager;
     private final MlMemoryTracker memoryTracker;
-    private volatile Instant shutdownStartTime;
+    private final Map<String, Instant> shutdownStartTimes = new ConcurrentHashMap<>();
 
-    MlLifeCycleService(ClusterService clusterService, DatafeedRunner datafeedRunner, MlController mlController,
-                       AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
-                       MlMemoryTracker memoryTracker) {
+    MlLifeCycleService(
+        ClusterService clusterService,
+        DatafeedRunner datafeedRunner,
+        MlController mlController,
+        AutodetectProcessManager autodetectProcessManager,
+        DataFrameAnalyticsManager analyticsManager,
+        MlMemoryTracker memoryTracker
+    ) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
         this.mlController = Objects.requireNonNull(mlController);
@@ -86,7 +98,7 @@ public class MlLifeCycleService {
      * @return Has all active ML work vacated the specified node?
      */
     public boolean isNodeSafeToShutdown(String nodeId) {
-        return isNodeSafeToShutdown(nodeId, clusterService.state(), shutdownStartTime, Clock.systemUTC());
+        return isNodeSafeToShutdown(nodeId, clusterService.state(), shutdownStartTimes.get(nodeId), Clock.systemUTC());
     }
 
     static boolean isNodeSafeToShutdown(String nodeId, ClusterState state, Instant shutdownStartTime, Clock clock) {
@@ -96,12 +108,42 @@ public class MlLifeCycleService {
             return true;
         }
 
-        PersistentTasksCustomMetadata tasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        // TODO: currently only considering anomaly detection jobs - could extend in the future
+        logger.debug(() -> format("Checking shutdown safety for node id [%s]", nodeId));
+
+        boolean nodeHasRunningDeployments = nodeHasRunningDeployments(nodeId, state);
+
+        logger.debug(() -> format("Node id [%s] has running deployments: %s", nodeId, nodeHasRunningDeployments));
+
+        PersistentTasksCustomMetadata tasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         // Ignore failed jobs - the persistent task still exists to remember the failure (because no
         // persistent task means closed), but these don't need to be relocated to another node.
-        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty() &&
-            MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty();
+        return MlTasks.nonFailedJobTasksOnNode(tasks, nodeId).isEmpty()
+            && MlTasks.nonFailedSnapshotUpgradeTasksOnNode(tasks, nodeId).isEmpty()
+            && nodeHasRunningDeployments == false;
+    }
+
+    private static boolean nodeHasRunningDeployments(String nodeId, ClusterState state) {
+        TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(state);
+
+        return metadata.allAssignments().values().stream().anyMatch(assignment -> {
+            if (assignment.isRoutedToNode(nodeId)) {
+                RoutingInfo routingInfo = assignment.getNodeRoutingTable().get(nodeId);
+                logger.debug(
+                    () -> format(
+                        "Assignment deployment id [%s] is routed to shutting down nodeId %s state: %s",
+                        assignment.getDeploymentId(),
+                        nodeId,
+                        routingInfo.getState()
+                    )
+                );
+
+                // A routing could exist in the stopped state if the deployment has successfully drained any remaining requests
+                // If a route is starting, started, or stopping then the node is not ready to shut down yet
+                return routingInfo.getState().isNoneOf(RoutingState.STOPPED, RoutingState.FAILED);
+            }
+
+            return false;
+        });
     }
 
     /**
@@ -117,18 +159,29 @@ public class MlLifeCycleService {
     }
 
     void signalGracefulShutdown(ClusterState state, Collection<String> shutdownNodeIds, Clock clock) {
-        if (shutdownNodeIds.contains(state.nodes().getLocalNodeId())) {
-            if (shutdownStartTime == null) {
-                shutdownStartTime = Instant.now(clock);
-                logger.info("Starting node shutdown sequence for ML");
-            }
+        String localNodeId = state.nodes().getLocalNodeId();
+        updateShutdownStartTimes(shutdownNodeIds, localNodeId, clock);
+        if (shutdownNodeIds.contains(localNodeId)) {
             datafeedRunner.vacateAllDatafeedsOnThisNode(
-                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down");
+                "previously assigned node [" + state.nodes().getLocalNode().getName() + "] is shutting down"
+            );
             autodetectProcessManager.vacateOpenJobsOnThisNode();
         }
     }
 
-    Instant getShutdownStartTime() {
-        return shutdownStartTime;
+    Instant getShutdownStartTime(String nodeId) {
+        return shutdownStartTimes.get(nodeId);
+    }
+
+    private void updateShutdownStartTimes(Collection<String> shutdownNodeIds, String localNodeId, Clock clock) {
+        for (String shutdownNodeId : shutdownNodeIds) {
+            shutdownStartTimes.computeIfAbsent(shutdownNodeId, key -> {
+                if (key.equals(localNodeId)) {
+                    logger.info("Starting node shutdown sequence for ML");
+                }
+                return Instant.now(clock);
+            });
+        }
+        shutdownStartTimes.keySet().retainAll(shutdownNodeIds);
     }
 }

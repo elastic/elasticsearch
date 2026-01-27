@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.oidc;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to prepare an OAuth 2.0 authorization request
  */
-public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
+public class OpenIdConnectPrepareAuthenticationRequest extends LegacyActionRequest {
 
     /**
      * The name of the OpenID Connect realm in the configuration that should be used for authentication
@@ -75,8 +75,7 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
         this.loginHint = loginHint;
     }
 
-    public OpenIdConnectPrepareAuthenticationRequest() {
-    }
+    public OpenIdConnectPrepareAuthenticationRequest() {}
 
     public OpenIdConnectPrepareAuthenticationRequest(StreamInput in) throws IOException {
         super(in);
@@ -110,8 +109,17 @@ public class OpenIdConnectPrepareAuthenticationRequest extends ActionRequest {
     }
 
     public String toString() {
-        return "{realmName=" + realmName + ", issuer=" + issuer + ", login_hint=" +
-            loginHint + ", state=" + state + ", nonce=" + nonce + "}";
+        return "{realmName="
+            + realmName
+            + ", issuer="
+            + issuer
+            + ", login_hint="
+            + loginHint
+            + ", state="
+            + state
+            + ", nonce="
+            + nonce
+            + "}";
     }
 
 }

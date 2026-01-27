@@ -26,7 +26,7 @@ public class PutDataFrameAnalyticsActionResponseTests extends AbstractWireSerial
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
-        namedWriteables.addAll(new MlInferenceNamedXContentProvider()   .getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
@@ -34,6 +34,11 @@ public class PutDataFrameAnalyticsActionResponseTests extends AbstractWireSerial
     @Override
     protected Response createTestInstance() {
         return new Response(DataFrameAnalyticsConfigTests.createRandom(DataFrameAnalyticsConfigTests.randomValidId()));
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

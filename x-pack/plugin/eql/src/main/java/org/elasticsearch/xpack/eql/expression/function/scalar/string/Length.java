@@ -75,19 +75,20 @@ public class Length extends ScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate inputScript = asScript(input);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
-                "length",
-                inputScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params())
-                    .build(), dataType());
+        return new ScriptTemplate(
+            format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"), "length", inputScript.template()),
+            paramsBuilder().script(inputScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

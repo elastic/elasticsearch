@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.ilm.history;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The {@link ILMHistoryTemplateRegistry} class sets up and configures an ILM policy and index
@@ -32,10 +34,12 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     // version 3: templates moved to composable templates
     // version 4: add `allow_auto_create` setting
     // version 5: convert to data stream
-    public static final int INDEX_TEMPLATE_VERSION = 5;
+    // version 6: manage by data stream lifecycle
+    // version 7: version the index template name so we can upgrade existing deployments
+    public static final int INDEX_TEMPLATE_VERSION = 7;
 
     public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
-    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
 
@@ -44,42 +48,48 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
         return true;
     }
 
-    public static final IndexTemplateConfig TEMPLATE_ILM_HISTORY = new IndexTemplateConfig(
-        ILM_TEMPLATE_NAME,
-        "/ilm-history.json",
-        INDEX_TEMPLATE_VERSION,
-        ILM_TEMPLATE_VERSION_VARIABLE
-    );
-
-    public static final LifecyclePolicyConfig ILM_HISTORY_POLICY = new LifecyclePolicyConfig(
-        ILM_POLICY_NAME,
-        "/ilm-history-ilm-policy.json"
-    );
-
     private final boolean ilmHistoryEnabled;
 
-    public ILMHistoryTemplateRegistry(Settings nodeSettings, ClusterService clusterService,
-                                      ThreadPool threadPool, Client client,
-                                      NamedXContentRegistry xContentRegistry) {
+    public ILMHistoryTemplateRegistry(
+        Settings nodeSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
+    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(ILM_TEMPLATE_NAME, "/ilm-history.json", INDEX_TEMPLATE_VERSION, ILM_TEMPLATE_VERSION_VARIABLE)
+    );
+
     @Override
-    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
+    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (this.ilmHistoryEnabled) {
-            return Collections.singletonList(TEMPLATE_ILM_HISTORY);
+            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
         } else {
-            return Collections.emptyList();
+            return Map.of();
         }
     }
 
+    private static final LifecyclePolicyConfig LIFECYCLE_POLICY_CONFIG = new LifecyclePolicyConfig(
+        ILM_POLICY_NAME,
+        "/ilm-history-ilm-policy.json"
+    );
+
     @Override
-    protected List<LifecyclePolicyConfig> getPolicyConfigs() {
-        if (this.ilmHistoryEnabled) {
-            return Collections.singletonList(ILM_HISTORY_POLICY);
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return List.of(LIFECYCLE_POLICY_CONFIG);
+    }
+
+    @Override
+    protected List<LifecyclePolicy> getLifecyclePolicies() {
+        if (ilmHistoryEnabled) {
+            return lifecyclePolicies;
         } else {
-            return Collections.emptyList();
+            return List.of();
         }
     }
 

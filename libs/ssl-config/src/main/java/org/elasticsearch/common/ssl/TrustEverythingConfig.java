@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.net.Socket;
 import java.nio.file.Path;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.List;
+
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A {@link SslTrustConfig} that trusts all certificates. Used when {@link SslVerificationMode#isCertificateVerificationEnabled()} is
@@ -35,28 +37,22 @@ public final class TrustEverythingConfig implements SslTrustConfig {
      */
     private static final X509ExtendedTrustManager TRUST_MANAGER = new X509ExtendedTrustManager() {
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, Socket socket) {}
 
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s, SSLEngine sslEngine) {}
 
         @Override
-        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) {
-        }
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s) {}
 
         @Override
-        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) {
-        }
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s) {}
 
         @Override
         public X509Certificate[] getAcceptedIssuers() {
@@ -77,6 +73,11 @@ public final class TrustEverythingConfig implements SslTrustConfig {
     @Override
     public X509ExtendedTrustManager createTrustManager() {
         return TRUST_MANAGER;
+    }
+
+    @Override
+    public boolean hasExplicitConfig() {
+        return true;
     }
 
     @Override

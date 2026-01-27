@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -15,22 +14,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionParser;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +40,8 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.common.Strings.format;
 
 /**
  * A representation of a single role-mapping for use in NativeRoleMappingStore.
@@ -50,6 +53,18 @@ import java.util.stream.Stream;
  */
 public class ExpressionRoleMapping implements ToXContentObject, Writeable {
 
+    /**
+     * Reserved suffix for read-only operator-defined role mappings.
+     * This suffix is added to the name of all cluster-state role mappings returned via
+     * the {@code TransportGetRoleMappingsAction} action.
+     */
+    public static final String READ_ONLY_ROLE_MAPPING_SUFFIX = "-read-only-operator-mapping";
+    /**
+     * Reserved metadata field to mark role mappings as read-only.
+     * This field is added to the metadata of all cluster-state role mappings returned via
+     * the {@code TransportGetRoleMappingsAction} action.
+     */
+    public static final String READ_ONLY_ROLE_MAPPING_METADATA_FLAG = "_read_only";
     private static final ObjectParser<Builder, String> PARSER = new ObjectParser<>("role-mapping", Builder::new);
 
     /**
@@ -64,22 +79,53 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         PARSER.declareField(Builder::rules, ExpressionParser::parseObject, Fields.RULES, ValueType.OBJECT);
         PARSER.declareField(Builder::metadata, XContentParser::map, Fields.METADATA, ValueType.OBJECT);
         PARSER.declareBoolean(Builder::enabled, Fields.ENABLED);
-        BiConsumer<Builder, String> ignored = (b, v) -> {
-        };
+        BiConsumer<Builder, String> ignored = (b, v) -> {};
         // skip the doc_type and type fields in case we're parsing directly from the index
         PARSER.declareString(ignored, new ParseField(NativeRoleMappingStoreField.DOC_TYPE_FIELD));
         PARSER.declareString(ignored, new ParseField(UPGRADE_API_TYPE_FIELD));
     }
 
+    /**
+     * Given the user information (in the form of {@link UserRoleMapper.UserData}) and a collection of {@link ExpressionRoleMapping}s,
+     * this returns the set of role names that should be mapped to the user, according to the provided role mapping rules.
+     */
+    public static Set<String> resolveRoles(
+        UserRoleMapper.UserData user,
+        Collection<ExpressionRoleMapping> mappings,
+        ScriptService scriptService,
+        Logger logger
+    ) {
+        ExpressionModel model = user.asModel();
+        Set<String> roles = mappings.stream()
+            .filter(ExpressionRoleMapping::isEnabled)
+            .filter(m -> m.getExpression().match(model))
+            .flatMap(m -> {
+                Set<String> roleNames = m.getRoleNames(scriptService, model);
+                logger.trace(
+                    () -> format("Applying role-mapping [%s] to user-model [%s] produced role-names [%s]", m.getName(), model, roleNames)
+                );
+                return roleNames.stream();
+            })
+            .collect(Collectors.toSet());
+        logger.debug(() -> format("Mapping user [%s] to roles [%s]", user, roles));
+        return roles;
+    }
+
     private final String name;
     private final RoleMapperExpression expression;
     private final List<String> roles;
-    private final List<TemplateRoleName> roleTemplates ;
+    private final List<TemplateRoleName> roleTemplates;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
-    public ExpressionRoleMapping(String name, RoleMapperExpression expr, List<String> roles, List<TemplateRoleName> templates,
-                                 Map<String, Object> metadata, boolean enabled) {
+    public ExpressionRoleMapping(
+        String name,
+        RoleMapperExpression expr,
+        List<String> roles,
+        List<TemplateRoleName> templates,
+        Map<String, Object> metadata,
+        boolean enabled
+    ) {
         this.name = name;
         this.expression = expr;
         this.roles = roles == null ? Collections.emptyList() : roles;
@@ -91,14 +137,32 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     public ExpressionRoleMapping(StreamInput in) throws IOException {
         this.name = in.readString();
         this.enabled = in.readBoolean();
-        this.roles = in.readStringList();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            this.roleTemplates = in.readList(TemplateRoleName::new);
-        } else {
-            this.roleTemplates = Collections.emptyList();
-        }
+        this.roles = in.readStringCollectionAsList();
+        this.roleTemplates = in.readCollectionAsList(TemplateRoleName::new);
         this.expression = ExpressionParser.readExpression(in);
-        this.metadata = in.readMap();
+        this.metadata = in.readGenericMap();
+    }
+
+    public static boolean hasReadOnlySuffix(String name) {
+        return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX);
+    }
+
+    public static void validateNoReadOnlySuffix(String name) {
+        if (hasReadOnlySuffix(name)) {
+            throw new IllegalArgumentException(
+                "Invalid mapping name [" + name + "]. [" + READ_ONLY_ROLE_MAPPING_SUFFIX + "] is not an allowed suffix"
+            );
+        }
+    }
+
+    public static String addReadOnlySuffix(String name) {
+        return name + READ_ONLY_ROLE_MAPPING_SUFFIX;
+    }
+
+    public static String removeReadOnlySuffixIfPresent(String name) {
+        return name.endsWith(READ_ONLY_ROLE_MAPPING_SUFFIX)
+            ? name.substring(0, name.length() - READ_ONLY_ROLE_MAPPING_SUFFIX.length())
+            : name;
     }
 
     @Override
@@ -106,11 +170,9 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         out.writeString(name);
         out.writeBoolean(enabled);
         out.writeStringCollection(roles);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeList(roleTemplates);
-        }
+        out.writeCollection(roleTemplates);
         ExpressionParser.writeExpression(expression, out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
     }
 
     /**
@@ -137,7 +199,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * that match the {@link #getExpression() expression} in this mapping.
      */
     public List<String> getRoles() {
-        return Collections.unmodifiableList(roles);
+        return roles != null ? Collections.unmodifiableList(roles) : Collections.emptyList();
     }
 
     /**
@@ -145,7 +207,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * that should be assigned to users that match the {@link #getExpression() expression} in this mapping.
      */
     public List<TemplateRoleName> getRoleTemplates() {
-        return Collections.unmodifiableList(roleTemplates);
+        return roleTemplates != null ? Collections.unmodifiableList(roleTemplates) : Collections.emptyList();
     }
 
     /**
@@ -154,7 +216,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * This is not used within the mapping process, and does not affect whether the expression matches, nor which roles are assigned.
      */
     public Map<String, Object> getMetadata() {
-        return Collections.unmodifiableMap(metadata);
+        return metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
     }
 
     /**
@@ -164,11 +226,19 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
         return enabled;
     }
 
+    /**
+     * Whether this mapping is an operator defined/read only role mapping
+     */
+    public boolean isReadOnly() {
+        return metadata != null && metadata.get(ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_METADATA_FLAG) instanceof Boolean readOnly
+            ? readOnly
+            : false;
+    }
+
     @Override
     public String toString() {
         return getClass().getSimpleName() + "<" + name + " ; " + roles + "/" + roleTemplates + " = " + Strings.toString(expression) + ">";
     }
-
 
     @Override
     public boolean equals(Object o) {
@@ -179,12 +249,12 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return false;
         }
         final ExpressionRoleMapping that = (ExpressionRoleMapping) o;
-        return this.enabled == that.enabled &&
-            Objects.equals(this.name, that.name) &&
-            Objects.equals(this.expression, that.expression) &&
-            Objects.equals(this.roles, that.roles) &&
-            Objects.equals(this.roleTemplates, that.roleTemplates) &&
-            Objects.equals(this.metadata, that.metadata);
+        return this.enabled == that.enabled
+            && Objects.equals(this.name, that.name)
+            && Objects.equals(this.expression, that.expression)
+            && Objects.equals(this.roles, that.roles)
+            && Objects.equals(this.roleTemplates, that.roleTemplates)
+            && Objects.equals(this.metadata, that.metadata);
     }
 
     @Override
@@ -196,10 +266,13 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
      * Parse an {@link ExpressionRoleMapping} from the provided <em>XContent</em>
      */
     public static ExpressionRoleMapping parse(String name, BytesReference source, XContentType xContentType) throws IOException {
-        final NamedXContentRegistry registry = NamedXContentRegistry.EMPTY;
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = xContentType.xContent()
-                .createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                source,
+                xContentType
+            )
+        ) {
             return parse(name, parser);
         }
     }
@@ -254,10 +327,8 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
     }
 
     public Set<String> getRoleNames(ScriptService scriptService, ExpressionModel model) {
-        return Stream.concat(this.roles.stream(),
-            this.roleTemplates.stream()
-                .flatMap(r -> r.getRoleNames(scriptService, model).stream())
-        ).collect(Collectors.toSet());
+        return Stream.concat(this.roles.stream(), this.roleTemplates.stream().flatMap(r -> r.getRoleNames(scriptService, model).stream()))
+            .collect(Collectors.toSet());
     }
 
     /**
@@ -308,7 +379,7 @@ public class ExpressionRoleMapping implements ToXContentObject, Writeable {
             return new ExpressionRoleMapping(name, rules, roles, roleTemplates, metadata, enabled);
         }
 
-        private IllegalStateException missingField(String id, ParseField field) {
+        private static IllegalStateException missingField(String id, ParseField field) {
             return new IllegalStateException("failed to parse role-mapping [" + id + "]. missing field [" + field + "]");
         }
     }

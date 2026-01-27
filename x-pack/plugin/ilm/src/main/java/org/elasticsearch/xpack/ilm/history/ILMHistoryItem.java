@@ -8,17 +8,17 @@
 package org.elasticsearch.xpack.ilm.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -49,8 +49,15 @@ public class ILMHistoryItem implements ToXContentObject {
     @Nullable
     private final String errorDetails;
 
-    private ILMHistoryItem(String index, String policyId, long timestamp, @Nullable Long indexAge, boolean success,
-                           @Nullable LifecycleExecutionState executionState, @Nullable String errorDetails) {
+    private ILMHistoryItem(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        boolean success,
+        @Nullable LifecycleExecutionState executionState,
+        @Nullable String errorDetails
+    ) {
         this.index = index;
         this.policyId = policyId;
         this.timestamp = timestamp;
@@ -60,15 +67,28 @@ public class ILMHistoryItem implements ToXContentObject {
         this.errorDetails = errorDetails;
     }
 
-    public static ILMHistoryItem success(String index, String policyId, long timestamp, @Nullable Long indexAge,
-                                         @Nullable LifecycleExecutionState executionState) {
+    public static ILMHistoryItem success(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        @Nullable LifecycleExecutionState executionState
+    ) {
         return new ILMHistoryItem(index, policyId, timestamp, indexAge, true, executionState, null);
     }
 
-    public static ILMHistoryItem failure(String index, String policyId, long timestamp, @Nullable Long indexAge,
-                                         @Nullable LifecycleExecutionState executionState, Exception error) {
+    public static ILMHistoryItem failure(
+        String index,
+        String policyId,
+        long timestamp,
+        @Nullable Long indexAge,
+        @Nullable LifecycleExecutionState executionState,
+        Exception error
+    ) {
         Objects.requireNonNull(error, "ILM failures require an attached exception");
-        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, exceptionToString(error));
+        String fullErrorString = exceptionToString(error);
+        String truncatedErrorString = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(fullErrorString);
+        return new ILMHistoryItem(index, policyId, timestamp, indexAge, false, executionState, truncatedErrorString);
     }
 
     @Override
@@ -82,7 +102,7 @@ public class ILMHistoryItem implements ToXContentObject {
         }
         builder.field(SUCCESS.getPreferredName(), success);
         if (executionState != null) {
-            builder.field(EXECUTION_STATE.getPreferredName(), executionState.asMap());
+            builder.stringStringMap(EXECUTION_STATE.getPreferredName(), executionState.asMap());
         }
         if (errorDetails != null) {
             builder.field(ERROR.getPreferredName(), errorDetails);
@@ -92,7 +112,7 @@ public class ILMHistoryItem implements ToXContentObject {
     }
 
     private static String exceptionToString(Exception exception) {
-        Params stacktraceParams = new MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
+        Params stacktraceParams = new MapParams(Map.of(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         String exceptionString;
         try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
             causeXContentBuilder.startObject();
@@ -103,8 +123,10 @@ public class ILMHistoryItem implements ToXContentObject {
             // In the unlikely case that we cannot generate an exception string,
             // try the best way can to encapsulate the error(s) with at least
             // the message
-            exceptionString = "unable to generate the ILM error details due to: " + e.getMessage() +
-                "; the ILM error was: " + exception.getMessage();
+            exceptionString = "unable to generate the ILM error details due to: "
+                + e.getMessage()
+                + "; the ILM error was: "
+                + exception.getMessage();
         }
         return exceptionString;
     }

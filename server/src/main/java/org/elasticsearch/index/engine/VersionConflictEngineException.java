@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -15,23 +16,30 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 public class VersionConflictEngineException extends EngineException {
-
-    public VersionConflictEngineException(ShardId shardId, Engine.Operation op, long currentVersion, boolean deleted) {
-        this(shardId, op.id(), op.versionType().explainConflictForWrites(currentVersion, op.version(), deleted));
+    public VersionConflictEngineException(
+        ShardId shardId,
+        String id,
+        long compareAndWriteSeqNo,
+        long compareAndWriteTerm,
+        long currentSeqNo,
+        long currentTerm
+    ) {
+        this(
+            shardId,
+            "[" + id + "]",
+            "required seqNo ["
+                + compareAndWriteSeqNo
+                + "], primary term ["
+                + compareAndWriteTerm
+                + "]."
+                + (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO
+                    ? " but no document was found"
+                    : " current document has seqNo [" + currentSeqNo + "] and primary term [" + currentTerm + "]")
+        );
     }
 
-    public VersionConflictEngineException(ShardId shardId, String id,
-                                          long compareAndWriteSeqNo, long compareAndWriteTerm,
-                                          long currentSeqNo, long currentTerm) {
-        this(shardId, id, "required seqNo [" + compareAndWriteSeqNo + "], primary term [" + compareAndWriteTerm +"]." +
-            (currentSeqNo == SequenceNumbers.UNASSIGNED_SEQ_NO ?
-                " but no document was found" :
-                " current document has seqNo [" + currentSeqNo + "] and primary term ["+ currentTerm + "]"
-            ));
-    }
-
-    public VersionConflictEngineException(ShardId shardId, String id, String explanation) {
-        this(shardId, "[{}]: version conflict, {}", null, id, explanation);
+    public VersionConflictEngineException(ShardId shardId, String documentDescription, String explanation) {
+        this(shardId, "{}: version conflict, {}", null, documentDescription, explanation);
     }
 
     public VersionConflictEngineException(ShardId shardId, String msg, Throwable cause, Object... params) {

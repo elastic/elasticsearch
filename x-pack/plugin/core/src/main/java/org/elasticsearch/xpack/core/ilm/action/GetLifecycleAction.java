@@ -7,24 +7,29 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> {
@@ -32,17 +37,12 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static final String NAME = "cluster:admin/ilm/get";
 
     protected GetLifecycleAction() {
-        super(NAME, GetLifecycleAction.Response::new);
+        super(NAME);
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
-        private List<LifecyclePolicyResponseItem> policies;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.policies = in.readList(LifecyclePolicyResponseItem::new);
-        }
+        private final List<LifecyclePolicyResponseItem> policies;
 
         public Response(List<LifecyclePolicyResponseItem> policies) {
             this.policies = policies;
@@ -52,24 +52,14 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return policies;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            for (LifecyclePolicyResponseItem item : policies) {
-                builder.startObject(item.getLifecyclePolicy().getName());
-                builder.field("version", item.getVersion());
-                builder.field("modified_date", item.getModifiedDate());
-                builder.field("policy", item.getLifecyclePolicy());
-                builder.field("in_use_by", item.getUsage());
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }
-
+        /**
+         * NB prior to 9.1 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(policies);
+            out.writeCollection(policies);
         }
 
         @Override
@@ -94,40 +84,54 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             return Strings.toString(this, true, true);
         }
 
+        @Override
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject()),
+                Iterators.map(policies.iterator(), policy -> (b, p) -> {
+                    b.startObject(policy.getLifecyclePolicy().getName());
+                    b.field("version", policy.getVersion());
+                    b.field("modified_date", policy.getModifiedDate());
+                    b.field("policy", policy.getLifecyclePolicy());
+                    b.field("in_use_by", policy.getUsage());
+                    b.endObject();
+                    return b;
+                }),
+                Iterators.single((b, p) -> b.endObject())
+            );
+        }
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
-        private String[] policyNames;
+    public static class Request extends LocalClusterStateRequest {
+        private final String[] policyNames;
 
-        public Request(String... policyNames) {
+        public Request(TimeValue masterNodeTimeout, String... policyNames) {
+            super(masterNodeTimeout);
             if (policyNames == null) {
                 throw new IllegalArgumentException("ids cannot be null");
             }
             this.policyNames = policyNames;
         }
 
+        /**
+         * NB prior to 9.1 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
-            super(in);
+            super(in, false);
+            // This used to be an AcknowledgedRequest so we need to read the ack timeout for BwC.
+            in.readTimeValue();
             policyNames = in.readStringArray();
         }
 
-        public Request() {
-            policyNames = Strings.EMPTY_ARRAY;
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "get-lifecycle-task", parentTaskId, headers);
         }
 
         public String[] getPolicyNames() {
             return policyNames;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeStringArray(policyNames);
         }
 
         @Override
@@ -162,25 +166,17 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             this.usage = usage;
         }
 
-        LifecyclePolicyResponseItem(StreamInput in) throws IOException {
-            this.lifecyclePolicy = new LifecyclePolicy(in);
-            this.version = in.readVLong();
-            this.modifiedDate = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
-                this.usage = new ItemUsage(in);
-            } else {
-                this.usage = new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
-            }
-        }
-
+        /**
+         * NB prior to 9.1 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
             out.writeString(modifiedDate);
-            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
-                this.usage.writeTo(out);
-            }
+            this.usage.writeTo(out);
         }
 
         public LifecyclePolicy getLifecyclePolicy() {
@@ -213,10 +209,10 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
                 return false;
             }
             LifecyclePolicyResponseItem other = (LifecyclePolicyResponseItem) obj;
-            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy) &&
-                Objects.equals(version, other.version) &&
-                Objects.equals(modifiedDate, other.modifiedDate) &&
-                Objects.equals(usage, other.usage);
+            return Objects.equals(lifecyclePolicy, other.lifecyclePolicy)
+                && Objects.equals(version, other.version)
+                && Objects.equals(modifiedDate, other.modifiedDate)
+                && Objects.equals(usage, other.usage);
         }
     }
 

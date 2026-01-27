@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.completion;
 
@@ -84,8 +85,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             if (regexOptions == null) {
                 regexOptions = RegexOptions.builder().build();
             }
-            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(),
-                    regexOptions.getMaxDeterminizedStates());
+            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(), regexOptions.getMaxDeterminizedStates());
         } else if (getText() != null) {
             query = createCompletionQuery(getText(), fieldType);
         } else {
@@ -101,11 +101,15 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionQuery createCompletionQuery(BytesRef prefix, CompletionFieldMapper.CompletionFieldType fieldType) {
         final CompletionQuery query;
         if (fuzzyOptions != null) {
-            query = fieldType.fuzzyQuery(prefix.utf8ToString(),
-                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                    fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
-                    fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
-                    fuzzyOptions.isUnicodeAware());
+            query = fieldType.fuzzyQuery(
+                prefix.utf8ToString(),
+                Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                fuzzyOptions.getFuzzyPrefixLength(),
+                fuzzyOptions.getFuzzyMinLength(),
+                fuzzyOptions.getMaxDeterminizedStates(),
+                fuzzyOptions.isTranspositions(),
+                fuzzyOptions.isUnicodeAware()
+            );
         } else {
             query = fieldType.prefixQuery(prefix);
         }

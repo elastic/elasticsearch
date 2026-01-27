@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -24,8 +24,13 @@ public class AnalysisStep extends AbstractDataFrameAnalyticsStep {
 
     private final AnalyticsProcessManager processManager;
 
-    public AnalysisStep(NodeClient client, DataFrameAnalyticsTask task, DataFrameAnalyticsAuditor auditor, DataFrameAnalyticsConfig config,
-                        AnalyticsProcessManager processManager) {
+    public AnalysisStep(
+        NodeClient client,
+        DataFrameAnalyticsTask task,
+        DataFrameAnalyticsAuditor auditor,
+        DataFrameAnalyticsConfig config,
+        AnalyticsProcessManager processManager
+    ) {
         super(client, task, auditor, config);
         this.processManager = Objects.requireNonNull(processManager);
     }
@@ -53,20 +58,16 @@ public class AnalysisStep extends AbstractDataFrameAnalyticsStep {
 
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         // Update state to ANALYZING and start process
-        ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = ActionListener.wrap(
-            dataExtractorFactory -> processManager.runJob(task, config, dataExtractorFactory, listener),
-            listener::onFailure
+        ActionListener<DataFrameDataExtractorFactory> dataExtractorFactoryListener = listener.delegateFailureAndWrap(
+            (l, dataExtractorFactory) -> processManager.runJob(task, config, dataExtractorFactory, l)
         );
 
-        ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(
-            refreshResponse -> {
-                // TODO This could fail with errors. In that case we get stuck with the copied index.
-                // We could delete the index in case of failure or we could try building the factory before reindexing
-                // to catch the error early on.
-                DataFrameDataExtractorFactory.createForDestinationIndex(parentTaskClient, config, dataExtractorFactoryListener);
-            },
-            dataExtractorFactoryListener::onFailure
-        );
+        ActionListener<BroadcastResponse> refreshListener = dataExtractorFactoryListener.delegateFailureAndWrap((l, refreshResponse) -> {
+            // TODO This could fail with errors. In that case we get stuck with the copied index.
+            // We could delete the index in case of failure or we could try building the factory before reindexing
+            // to catch the error early on.
+            DataFrameDataExtractorFactory.createForDestinationIndex(parentTaskClient, config, l);
+        });
 
         // First we need to refresh the dest index to ensure data is searchable in case the job
         // was stopped after reindexing was complete but before the index was refreshed.

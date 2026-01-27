@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
@@ -31,6 +34,7 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
+    @SuppressWarnings("this-escape")
     public AggregatorFactory(
         String name,
         AggregationContext context,
@@ -45,11 +49,21 @@ public abstract class AggregatorFactory {
         this.metadata = metadata;
     }
 
+    /**
+     * Climbs up the aggregation factory tree to find the sampling context if one exists.
+     * @return Optional SamplingContext
+     */
+    public Optional<SamplingContext> getSamplingContext() {
+        if (parent != null) {
+            return parent.getSamplingContext();
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public String name() {
         return name;
     }
-
-    public void doValidate() {}
 
     protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException;

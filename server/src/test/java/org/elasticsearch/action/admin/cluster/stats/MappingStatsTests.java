@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -16,162 +17,347 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.DISABLED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.STORED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
+import static org.hamcrest.Matchers.equalTo;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
+    private static final Settings SINGLE_SHARD_NO_REPLICAS = indexSettings(IndexVersion.current(), 1, 0).build();
+
+    public static final String MAPPING_TEMPLATE = """
+        {
+            "runtime": {
+                "keyword1": {
+                    "type": "keyword",
+                    "script": %s
+                },
+                "keyword2": {
+                    "type": "keyword"
+                },
+                "object.keyword3": {
+                    "type": "keyword",
+                    "script": %s
+                },
+                "long": {
+                    "type": "long",
+                    "script": %s
+                },
+                "long2": {
+                    "type": "long",
+                    "script": %s
+                }
+            },
+            "properties": {
+                "object": {
+                    "type": "object",
+                    "properties": {
+                        "keyword3": {
+                            "type": "keyword"
+                        }
+                    }
+                },
+                "long3": {
+                    "type": "long",
+                    "script": %s
+                },
+                "long4": {
+                    "type": "long",
+                    "script": %s
+                },
+                "keyword3": {
+                    "type": "keyword",
+                    "script": %s
+                },
+                "vector1" : {
+                    "type": "dense_vector",
+                    "index": true,
+                    "dims": 100,
+                    "similarity": "dot_product"
+                }
+            }
+        }""";
+
+    private static final String SCRIPT_1 = scriptAsJSON("doc['field'] + doc.field + params._source.field");
+    private static final String SCRIPT_2 = scriptAsJSON("doc['field']");
+    private static final String SCRIPT_3 = scriptAsJSON("params._source.field + params._source.field \n + params._source.field");
+    private static final String SCRIPT_4 = scriptAsJSON("params._source.field");
+
     public void testToXContent() {
-        Settings settings = Settings.builder()
-            .put("index.number_of_replicas", 0)
-            .put("index.number_of_shards", 1)
-            .put("index.version.created", Version.CURRENT)
-            .build();
-        Script script1 = new Script("doc['field'] + doc.field + params._source.field");
-        Script script2 = new Script("doc['field']");
-        Script script3 = new Script("params._source.field + params._source.field \n + params._source.field");
-        Script script4 = new Script("params._source.field");
-        String mapping = "{" +
-            "  \"runtime\" : {" +
-            "    \"keyword1\": {" +
-            "      \"type\": \"keyword\"," +
-            "      \"script\": " + Strings.toString(script1) +
-            "    }," +
-            "    \"keyword2\": {" +
-            "      \"type\": \"keyword\"" +
-            "    }," +
-            "    \"object.keyword3\": {" +
-            "      \"type\": \"keyword\"," +
-            "      \"script\": " + Strings.toString(script2) +
-            "    }," +
-            "    \"long\": {" +
-            "      \"type\": \"long\"," +
-            "      \"script\": " + Strings.toString(script3) +
-            "    }," +
-            "    \"long2\": {" +
-            "      \"type\": \"long\"," +
-            "      \"script\": " + Strings.toString(script4) +
-            "    }" +
-            "  }," +
-            "  \"properties\":{" +
-            "    \"object\":{" +
-            "      \"type\":\"object\"," +
-            "      \"properties\":{" +
-            "         \"keyword3\":{" +
-            "           \"type\": \"keyword\"" +
-            "         }" +
-            "      }" +
-            "    }," +
-            "    \"long3\": {" +
-            "      \"type\":\"long\"," +
-            "      \"script\": " + Strings.toString(script3) +
-            "    }," +
-            "    \"long4\": {" +
-            "      \"type\":\"long\"," +
-            "      \"script\": " + Strings.toString(script4) +
-            "    }," +
-            "    \"keyword3\": {" +
-            "      \"type\": \"keyword\"," +
-            "      \"script\": " + Strings.toString(script1) +
-            "    }" +
-            "  }" +
-            "}";
-        IndexMetadata meta = IndexMetadata.builder("index").settings(settings).putMapping(mapping).build();
-        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(settings).putMapping(mapping).build();
+        String mapping = Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1);
+        IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
         Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).build();
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(1));
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals("{\n" +
-            "  \"mappings\" : {\n" +
-            "    \"field_types\" : [\n" +
-            "      {\n" +
-            "        \"name\" : \"keyword\",\n" +
-            "        \"count\" : 4,\n" +
-            "        \"index_count\" : 2,\n" +
-            "        \"script_count\" : 2,\n" +
-            "        \"lang\" : [\n" +
-            "          \"painless\"\n" +
-            "        ],\n" +
-            "        \"lines_max\" : 1,\n" +
-            "        \"lines_total\" : 2,\n" +
-            "        \"chars_max\" : 47,\n" +
-            "        \"chars_total\" : 94,\n" +
-            "        \"source_max\" : 1,\n" +
-            "        \"source_total\" : 2,\n" +
-            "        \"doc_max\" : 2,\n" +
-            "        \"doc_total\" : 4\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\" : \"long\",\n" +
-            "        \"count\" : 4,\n" +
-            "        \"index_count\" : 2,\n" +
-            "        \"script_count\" : 4,\n" +
-            "        \"lang\" : [\n" +
-            "          \"painless\"\n" +
-            "        ],\n" +
-            "        \"lines_max\" : 2,\n" +
-            "        \"lines_total\" : 6,\n" +
-            "        \"chars_max\" : 68,\n" +
-            "        \"chars_total\" : 176,\n" +
-            "        \"source_max\" : 3,\n" +
-            "        \"source_total\" : 8,\n" +
-            "        \"doc_max\" : 0,\n" +
-            "        \"doc_total\" : 0\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\" : \"object\",\n" +
-            "        \"count\" : 2,\n" +
-            "        \"index_count\" : 2,\n" +
-            "        \"script_count\" : 0\n" +
-            "      }\n" +
-            "    ],\n" +
-            "    \"runtime_field_types\" : [\n" +
-            "      {\n" +
-            "        \"name\" : \"keyword\",\n" +
-            "        \"count\" : 6,\n" +
-            "        \"index_count\" : 2,\n" +
-            "        \"scriptless_count\" : 2,\n" +
-            "        \"shadowed_count\" : 2,\n" +
-            "        \"lang\" : [\n" +
-            "          \"painless\"\n" +
-            "        ],\n" +
-            "        \"lines_max\" : 1,\n" +
-            "        \"lines_total\" : 4,\n" +
-            "        \"chars_max\" : 47,\n" +
-            "        \"chars_total\" : 118,\n" +
-            "        \"source_max\" : 1,\n" +
-            "        \"source_total\" : 2,\n" +
-            "        \"doc_max\" : 2,\n" +
-            "        \"doc_total\" : 6\n" +
-            "      },\n" +
-            "      {\n" +
-            "        \"name\" : \"long\",\n" +
-            "        \"count\" : 4,\n" +
-            "        \"index_count\" : 2,\n" +
-            "        \"scriptless_count\" : 0,\n" +
-            "        \"shadowed_count\" : 0,\n" +
-            "        \"lang\" : [\n" +
-            "          \"painless\"\n" +
-            "        ],\n" +
-            "        \"lines_max\" : 2,\n" +
-            "        \"lines_total\" : 6,\n" +
-            "        \"chars_max\" : 68,\n" +
-            "        \"chars_total\" : 176,\n" +
-            "        \"source_max\" : 3,\n" +
-            "        \"source_total\" : 8,\n" +
-            "        \"doc_max\" : 0,\n" +
-            "        \"doc_total\" : 0\n" +
-            "      }\n" +
-            "    ]\n" +
-            "  }\n" +
-            "}", Strings.toString(mappingStats, true, true));
+        // RHEL reports slighlty higher mapping size - JVM issue?
+        String mappingStatsString = Strings.toString(mappingStats, true, true).replace("261", "260");
+        assertEquals("""
+            {
+              "mappings" : {
+                "total_field_count" : 12,
+                "total_deduplicated_field_count" : 6,
+                "total_deduplicated_mapping_size" : "260b",
+                "total_deduplicated_mapping_size_in_bytes" : 260,
+                "field_types" : [
+                  {
+                    "name" : "dense_vector",
+                    "count" : 2,
+                    "index_count" : 2,
+                    "indexed_vector_count" : 2,
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 2
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 2
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 2
+                    }
+                  },
+                  {
+                    "name" : "keyword",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 2,
+                    "chars_max" : 47,
+                    "chars_total" : 94,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 4
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "script_count" : 4,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  },
+                  {
+                    "name" : "object",
+                    "count" : 2,
+                    "index_count" : 2,
+                    "script_count" : 0
+                  }
+                ],
+                "runtime_field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 6,
+                    "index_count" : 2,
+                    "scriptless_count" : 2,
+                    "shadowed_count" : 2,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 4,
+                    "chars_max" : 47,
+                    "chars_total" : 118,
+                    "source_max" : 1,
+                    "source_total" : 2,
+                    "doc_max" : 2,
+                    "doc_total" : 6
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 4,
+                    "index_count" : 2,
+                    "scriptless_count" : 0,
+                    "shadowed_count" : 0,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 6,
+                    "chars_max" : 68,
+                    "chars_total" : 176,
+                    "source_max" : 3,
+                    "source_total" : 8,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  }
+                ],
+                "source_modes" : {
+                  "stored" : 2
+                }
+              }
+            }""", mappingStatsString);
+    }
+
+    public void testToXContentWithSomeSharedMappings() {
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(SINGLE_SHARD_NO_REPLICAS)
+            .putMapping(Strings.format(MAPPING_TEMPLATE, SCRIPT_1, SCRIPT_2, SCRIPT_3, SCRIPT_4, SCRIPT_3, SCRIPT_4, SCRIPT_1))
+            .build();
+        // make mappings that are slightly different because we shuffled 2 scripts between fields
+        final String mappingString2 = Strings.format(
+            MAPPING_TEMPLATE,
+            SCRIPT_1,
+            SCRIPT_2,
+            SCRIPT_3,
+            SCRIPT_4,
+            SCRIPT_4,
+            SCRIPT_3,
+            SCRIPT_1
+        );
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
+        IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mappingString2).build();
+        Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
+        assertThat(metadata.getProject().getMappingsByHash(), Matchers.aMapWithSize(2));
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
+        // RHEL reports slighlty higher mapping size - JVM issue?
+        String mappingStatsString = Strings.toString(mappingStats, true, true).replace("521", "519");
+        assertEquals("""
+            {
+              "mappings" : {
+                "total_field_count" : 18,
+                "total_deduplicated_field_count" : 12,
+                "total_deduplicated_mapping_size" : "519b",
+                "total_deduplicated_mapping_size_in_bytes" : 519,
+                "field_types" : [
+                  {
+                    "name" : "dense_vector",
+                    "count" : 3,
+                    "index_count" : 3,
+                    "indexed_vector_count" : 3,
+                    "indexed_vector_dim_min" : 100,
+                    "indexed_vector_dim_max" : 100,
+                    "vector_index_type_count" : {
+                      "hnsw" : 3
+                    },
+                    "vector_similarity_type_count" : {
+                      "dot_product" : 3
+                    },
+                    "vector_element_type_count" : {
+                      "float" : 3
+                    }
+                  },
+                  {
+                    "name" : "keyword",
+                    "count" : 6,
+                    "index_count" : 3,
+                    "script_count" : 3,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 3,
+                    "chars_max" : 47,
+                    "chars_total" : 141,
+                    "source_max" : 1,
+                    "source_total" : 3,
+                    "doc_max" : 2,
+                    "doc_total" : 6
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 6,
+                    "index_count" : 3,
+                    "script_count" : 6,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 9,
+                    "chars_max" : 68,
+                    "chars_total" : 264,
+                    "source_max" : 3,
+                    "source_total" : 12,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  },
+                  {
+                    "name" : "object",
+                    "count" : 3,
+                    "index_count" : 3,
+                    "script_count" : 0
+                  }
+                ],
+                "runtime_field_types" : [
+                  {
+                    "name" : "keyword",
+                    "count" : 9,
+                    "index_count" : 3,
+                    "scriptless_count" : 3,
+                    "shadowed_count" : 3,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 1,
+                    "lines_total" : 6,
+                    "chars_max" : 47,
+                    "chars_total" : 177,
+                    "source_max" : 1,
+                    "source_total" : 3,
+                    "doc_max" : 2,
+                    "doc_total" : 9
+                  },
+                  {
+                    "name" : "long",
+                    "count" : 6,
+                    "index_count" : 3,
+                    "scriptless_count" : 0,
+                    "shadowed_count" : 0,
+                    "lang" : [
+                      "painless"
+                    ],
+                    "lines_max" : 2,
+                    "lines_total" : 9,
+                    "chars_max" : 68,
+                    "chars_total" : 264,
+                    "source_max" : 3,
+                    "source_total" : 12,
+                    "doc_max" : 0,
+                    "doc_total" : 0
+                  }
+                ],
+                "source_modes" : {
+                  "stored" : 3
+                }
+              }
+            }""", mappingStatsString);
+    }
+
+    private static String scriptAsJSON(String script) {
+        return Strings.toString(new Script(script));
     }
 
     @Override
@@ -195,7 +381,24 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         if (randomBoolean()) {
             runtimeFieldStats.add(randomRuntimeFieldStats("long"));
         }
-        return new MappingStats(stats, runtimeFieldStats);
+        Map<String, Integer> sourceModeUsageCount = randomBoolean()
+            ? Map.of()
+            : Map.of(
+                STORED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                SYNTHETIC.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                DISABLED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt()
+            );
+        return new MappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            stats,
+            runtimeFieldStats,
+            sourceModeUsageCount
+        );
     }
 
     private static FieldStats randomFieldStats(String type) {
@@ -206,7 +409,12 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             stats.scriptCount = randomIntBetween(0, Integer.MAX_VALUE);
             stats.scriptLangs.add(randomAlphaOfLengthBetween(3, 10));
             stats.fieldScriptStats.update(
-                randomIntBetween(1, 100), randomLongBetween(100, 1000), randomIntBetween(1, 10), randomIntBetween(1, 10));
+                randomIntBetween(1, 100),
+                randomLongBetween(100, 1000),
+                randomIntBetween(1, 10),
+                randomIntBetween(1, 10),
+                randomIntBetween(1, 10)
+            );
         }
         return stats;
     }
@@ -220,105 +428,193 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         stats.scriptLangs.add(randomAlphaOfLengthBetween(3, 10));
         if (randomBoolean()) {
             stats.fieldScriptStats.update(
-                randomIntBetween(1, 100), randomLongBetween(100, 1000), randomIntBetween(1, 10), randomIntBetween(1, 10));
+                randomIntBetween(1, 100),
+                randomLongBetween(100, 1000),
+                randomIntBetween(1, 10),
+                randomIntBetween(1, 10),
+                randomIntBetween(1, 10)
+            );
         }
         return stats;
     }
 
+    @SuppressWarnings("OptionalGetWithoutIsPresent")
     @Override
-    protected MappingStats mutateInstance(MappingStats instance) throws IOException {
+    protected MappingStats mutateInstance(MappingStats instance) {
         List<FieldStats> fieldTypes = new ArrayList<>(instance.getFieldTypeStats());
         List<RuntimeFieldStats> runtimeFieldTypes = new ArrayList<>(instance.getRuntimeFieldStats());
-        if (randomBoolean()) {
-            boolean remove = fieldTypes.size() > 0 && randomBoolean();
-            if (remove) {
-                fieldTypes.remove(randomInt(fieldTypes.size() - 1));
+        long totalFieldCount = instance.getTotalFieldCount().getAsLong();
+        long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount().getAsLong();
+        long totalMappingSizeBytes = instance.getTotalMappingSizeBytes().getAsLong();
+        var sourceModeUsageCount = new HashMap<>(instance.getSourceModeUsageCount());
+        switch (between(1, 6)) {
+            case 1 -> {
+                boolean remove = fieldTypes.size() > 0 && randomBoolean();
+                if (remove) {
+                    fieldTypes.remove(randomInt(fieldTypes.size() - 1));
+                }
+                if (remove == false || randomBoolean()) {
+                    FieldStats s = new FieldStats("float");
+                    s.count = 13;
+                    s.indexCount = 2;
+                    fieldTypes.add(s);
+                }
             }
-            if (remove == false || randomBoolean()) {
-                FieldStats s = new FieldStats("float");
-                s.count = 13;
-                s.indexCount = 2;
-                fieldTypes.add(s);
+            case 2 -> {
+                boolean remove = runtimeFieldTypes.size() > 0 && randomBoolean();
+                if (remove) {
+                    runtimeFieldTypes.remove(randomInt(runtimeFieldTypes.size() - 1));
+                }
+                if (remove == false || randomBoolean()) {
+                    runtimeFieldTypes.add(randomRuntimeFieldStats("double"));
+                }
             }
-        } else {
-            boolean remove = runtimeFieldTypes.size() > 0 && randomBoolean();
-            if (remove) {
-                runtimeFieldTypes.remove(randomInt(runtimeFieldTypes.size() - 1));
-            }
-            if (remove == false || randomBoolean()) {
-                runtimeFieldTypes.add(randomRuntimeFieldStats("double"));
+            case 3 -> totalFieldCount = randomValueOtherThan(totalFieldCount, ESTestCase::randomNonNegativeLong);
+            case 4 -> totalDeduplicatedFieldCount = randomValueOtherThan(totalDeduplicatedFieldCount, ESTestCase::randomNonNegativeLong);
+            case 5 -> totalMappingSizeBytes = randomValueOtherThan(totalMappingSizeBytes, ESTestCase::randomNonNegativeLong);
+            case 6 -> {
+                if (sourceModeUsageCount.isEmpty() == false) {
+                    sourceModeUsageCount.remove(sourceModeUsageCount.keySet().stream().findFirst().get());
+                } else {
+                    sourceModeUsageCount.put("stored", randomNonNegativeInt());
+                }
             }
         }
+        return new MappingStats(
+            totalFieldCount,
+            totalDeduplicatedFieldCount,
+            totalMappingSizeBytes,
+            fieldTypes,
+            runtimeFieldTypes,
+            sourceModeUsageCount
+        );
+    }
 
-        return new MappingStats(fieldTypes, runtimeFieldTypes);
+    public void testDenseVectorType() {
+        String mapping = """
+            {
+              "properties": {
+                "vector1": {
+                  "type": "dense_vector",
+                  "dims": 3
+                },
+                "vector2": {
+                  "type": "dense_vector",
+                  "index": false,
+                  "dims": 3
+                },
+                "vector3": {
+                  "type": "dense_vector",
+                  "dims": 768,
+                  "index": true,
+                  "similarity": "dot_product"
+                },
+                "vector4": {
+                  "type": "dense_vector",
+                  "dims": 1024,
+                  "index": true,
+                  "similarity": "cosine"
+                }
+              }
+            }""";
+        int indicesCount = 3;
+        IndexMetadata meta = IndexMetadata.builder("index").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta2 = IndexMetadata.builder("index2").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        IndexMetadata meta3 = IndexMetadata.builder("index3").settings(SINGLE_SHARD_NO_REPLICAS).putMapping(mapping).build();
+        Metadata metadata = Metadata.builder().put(meta, false).put(meta2, false).put(meta3, false).build();
+        MappingStats mappingStats = MappingStats.of(metadata, () -> {});
+        DenseVectorFieldStats expectedStats = new DenseVectorFieldStats("dense_vector");
+        expectedStats.count = 4 * indicesCount;
+        expectedStats.indexCount = indicesCount;
+        expectedStats.indexedVectorCount = 2 * indicesCount;
+        expectedStats.indexedVectorDimMin = 768;
+        expectedStats.indexedVectorDimMax = 1024;
+        expectedStats.vectorIndexTypeCount.put("hnsw", 2 * indicesCount);
+        expectedStats.vectorIndexTypeCount.put("not_indexed", 2);
+        expectedStats.vectorSimilarityTypeCount.put("dot_product", 3);
+        expectedStats.vectorSimilarityTypeCount.put("cosine", 3);
+        expectedStats.vectorElementTypeCount.put("float", 4 * indicesCount);
+        assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
     public void testAccountsRegularIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
-        Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
-                .settings(settings)
-                .putMapping(mapping);
-        Metadata metadata = new Metadata.Builder()
-                .put(indexMetadata)
-                .build();
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(indexSettings(IndexVersion.current(), 4, 1))
+            .putMapping(mapping);
+        Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
         FieldStats expectedStats = new FieldStats("long");
         expectedStats.count = 1;
         expectedStats.indexCount = 1;
-        assertEquals(
-                Collections.singleton(expectedStats),
-                mappingStats.getFieldTypeStats());
+        assertEquals(Collections.singletonList(expectedStats), mappingStats.getFieldTypeStats());
     }
 
     public void testIgnoreSystemIndices() {
-        String mapping = "{\"properties\":{\"bar\":{\"type\":\"long\"}}}";
-        Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
-                .settings(settings)
-                .putMapping(mapping)
-                .system(true);
-        Metadata metadata = new Metadata.Builder()
-                .put(indexMetadata)
-                .build();
+        String mapping = """
+            {"properties":{"bar":{"type":"long"}}}""";
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping(mapping).system(true);
+        Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
         MappingStats mappingStats = MappingStats.of(metadata, () -> {});
-        assertEquals(Collections.emptySet(), mappingStats.getFieldTypeStats());
+        assertEquals(Collections.emptyList(), mappingStats.getFieldTypeStats());
     }
 
     public void testChecksForCancellation() {
-        Settings settings = Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build();
-        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo")
-                .settings(settings);
-        Metadata metadata = new Metadata.Builder()
-                .put(indexMetadata)
-                .build();
-        expectThrows(TaskCancelledException.class, () -> MappingStats.of(metadata, () -> {
-            throw new TaskCancelledException("task cancelled");
-        }));
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).build();
+        IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo").settings(settings).putMapping("{}");
+        Metadata metadata = new Metadata.Builder().put(indexMetadata).build();
+        expectThrows(
+            TaskCancelledException.class,
+            () -> MappingStats.of(metadata, () -> { throw new TaskCancelledException("task cancelled"); })
+        );
     }
 
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-        out.setVersion(version);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        in.setVersion(version);
+        in.setTransportVersion(version);
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
     }
+
+    public void testSourceModes() {
+        var builder = Metadata.builder();
+        int numStoredIndices = randomIntBetween(1, 5);
+        int numSyntheticIndices = randomIntBetween(1, 5);
+        int numDisabledIndices = randomIntBetween(1, 5);
+        for (int i = 0; i < numSyntheticIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-synthetic-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            );
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numStoredIndices; i++) {
+            IndexMetadata.Builder indexMetadata;
+            if (randomBoolean()) {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(
+                    indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
+                );
+            } else {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(indexSettings(IndexVersion.current(), 4, 1));
+            }
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numDisabledIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-disabled-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
+            );
+            builder.put(indexMetadata);
+        }
+        var mappingStats = MappingStats.of(builder.build(), () -> {});
+        assertThat(mappingStats.getSourceModeUsageCount().get("synthetic"), equalTo(numSyntheticIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("stored"), equalTo(numStoredIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), equalTo(numDisabledIndices));
+    }
+
 }

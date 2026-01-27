@@ -6,24 +6,24 @@
  */
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,23 +39,21 @@ import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Requ
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestGetTrainedModelsAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
-    private static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
 
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8).build(),
-            Route.builder(GET, BASE_PATH + "trained_models")
-                .replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
+            new Route(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"),
+            new Route(GET, BASE_PATH + "trained_models")
         );
     }
 
-    private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES =
-        Collections.singletonMap(TrainedModelConfig.DECOMPRESS_DEFINITION, Boolean.toString(true));
+    private static final Map<String, String> DEFAULT_TO_XCONTENT_VALUES = Collections.singletonMap(
+        TrainedModelConfig.DECOMPRESS_DEFINITION,
+        Boolean.toString(true)
+    );
 
     @Override
     public String getName() {
@@ -70,31 +68,25 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         }
         List<String> tags = asList(restRequest.paramAsStringArray(TrainedModelConfig.TAGS.getPreferredName(), Strings.EMPTY_ARRAY));
         Set<String> includes = new HashSet<>(
-            asList(
-                restRequest.paramAsStringArray(
-                    GetTrainedModelsAction.Request.INCLUDE.getPreferredName(),
-                    Strings.EMPTY_ARRAY)));
-        final GetTrainedModelsAction.Request request;
-        if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
-            deprecationLogger.critical(
-                DeprecationCategory.API,
-                INCLUDE_MODEL_DEFINITION,
-                "[{}] parameter is deprecated! Use [include=definition] instead.",
-                INCLUDE_MODEL_DEFINITION);
-            request = new GetTrainedModelsAction.Request(modelId,
-                restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false),
-                tags);
-        } else {
-            request = new GetTrainedModelsAction.Request(modelId, tags, includes);
-        }
+            asList(restRequest.paramAsStringArray(GetTrainedModelsAction.Request.INCLUDE.getPreferredName(), Strings.EMPTY_ARRAY))
+        );
+
+        final GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId, tags, includes);
+
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         request.setAllowNoResources(restRequest.paramAsBoolean(ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoResources()));
-        return channel -> client.execute(GetTrainedModelsAction.INSTANCE,
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            GetTrainedModelsAction.INSTANCE,
             request,
-            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES));
+            new RestToXContentListenerWithDefaultValues<>(channel, DEFAULT_TO_XCONTENT_VALUES, includes)
+        );
     }
 
     @Override
@@ -104,21 +96,27 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {
         private final Map<String, String> defaultToXContentParamValues;
+        private final Set<String> includes;
 
-        private RestToXContentListenerWithDefaultValues(RestChannel channel, Map<String, String> defaultToXContentParamValues) {
+        private RestToXContentListenerWithDefaultValues(
+            RestChannel channel,
+            Map<String, String> defaultToXContentParamValues,
+            Set<String> includes
+        ) {
             super(channel);
             this.defaultToXContentParamValues = defaultToXContentParamValues;
+            this.includes = includes;
         }
 
         @Override
         public RestResponse buildResponse(T response, XContentBuilder builder) throws Exception {
-            assert response.isFragment() == false; //would be nice if we could make default methods final
+            assert response.isFragment() == false; // would be nice if we could make default methods final
             Map<String, String> params = new HashMap<>(channel.request().params());
-            defaultToXContentParamValues.forEach((k, v) ->
-                params.computeIfAbsent(k, defaultToXContentParamValues::get)
-            );
+            defaultToXContentParamValues.forEach((k, v) -> params.computeIfAbsent(k, defaultToXContentParamValues::get));
+            includes.forEach(include -> params.put(include, "true"));
+            params.put(ToXContentParams.FOR_INTERNAL_STORAGE, "false");
             response.toXContent(builder, new ToXContent.MapParams(params));
-            return new BytesRestResponse(getStatus(response), builder);
+            return new RestResponse(statusFunction.apply(response), builder);
         }
     }
 }

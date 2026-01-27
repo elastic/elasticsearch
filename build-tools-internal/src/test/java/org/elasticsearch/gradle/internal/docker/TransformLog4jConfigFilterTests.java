@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
 import java.util.List;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
+public class TransformLog4jConfigFilterTests {
 
     /**
      * Check that the transformer doesn't explode when given an empty file.
      */
+    @Test
     public void testTransformEmptyConfig() {
         runTest(List.of(), List.of());
     }
@@ -26,6 +29,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that the transformer leaves non-appender lines alone.
      */
+    @Test
     public void testTransformEchoesNonAppenderLines() {
         List<String> input = List.of(
             "status = error",
@@ -42,6 +46,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that the root logger appenders are filtered to just the "rolling" appender
      */
+    @Test
     public void testTransformFiltersRootLogger() {
         List<String> input = List.of(
             "rootLogger.appenderRef.console.ref = console",
@@ -56,6 +61,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that any explicit 'console' or 'rolling_old' appenders are removed.
      */
+    @Test
     public void testTransformRemoveExplicitConsoleAndRollingOldAppenders() {
         List<String> input = List.of(
             "appender.console.type = Console",
@@ -74,6 +80,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders are converted to console appenders.
      */
+    @Test
     public void testTransformConvertsRollingToConsole() {
         List<String> input = List.of("appender.rolling.type = RollingFile", "appender.rolling.name = rolling");
 
@@ -85,6 +92,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders have redundant properties removed.
      */
+    @Test
     public void testTransformRemovedRedundantProperties() {
         List<String> input = List.of(
             "appender.rolling.fileName = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}_server.json",
@@ -106,6 +114,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that rolling file appenders have redundant properties removed.
      */
+    @Test
     public void testTransformSkipsPropertiesWithLineBreaks() {
         List<String> input = List.of(
             "appender.rolling.fileName = ${sys:es.logs.base_path}${sys:file.separator}\\",
@@ -121,6 +130,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that as well as skipping old appenders, logger references to them are also skipped.
      */
+    @Test
     public void testTransformSkipsOldAppenderRefs() {
         List<String> input = List.of(
             "logger.index_indexing_slowlog.appenderRef.index_indexing_slowlog_rolling_old.ref = index_indexing_slowlog_rolling_old"
@@ -132,6 +142,7 @@ public class TransformLog4jConfigFilterTests extends GradleUnitTestCase {
     /**
      * Check that multiple blank lines are reduced to a single line.
      */
+    @Test
     public void testMultipleBlanksReducedToOne() {
         List<String> input = List.of("status = error", "", "", "rootLogger.level = info");
 

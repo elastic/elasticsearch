@@ -58,7 +58,7 @@ public class CronEvalToolTests extends CommandTestCase {
     // randomized testing sets arbitrary locales and timezones, and we do not care
     // we always have to output in standard locale and independent from timezone
     public void testEnsureDateIsShownInRootLocale() throws Exception {
-        String output = execute("-c","1", "0 0 11 ? * MON-SAT 2040");
+        String output = execute("-c", "1", "0 0 11 ? * MON-SAT 2040");
         if (ZoneId.systemDefault().equals(ZoneOffset.UTC)) {
             assertThat(output, not(containsString("local time is")));
             long linesStartingWithOne = Arrays.stream(output.split("\n")).filter(s -> s.startsWith("\t")).count();

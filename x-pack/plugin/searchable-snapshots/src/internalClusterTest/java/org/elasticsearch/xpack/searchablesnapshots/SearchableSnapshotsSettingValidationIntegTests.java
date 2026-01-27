@@ -33,9 +33,10 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSe
         createIndex(indexName);
         createFullSnapshot(repoName, snapshotName);
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             indexName,
             repoName,
             snapshotName,
@@ -54,9 +55,7 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSe
     public void testCannotRemoveWriteBlock() {
         final IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .indices()
-                .prepareUpdateSettings(indexName)
+            () -> indicesAdmin().prepareUpdateSettings(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false))
                 .get()
         );
@@ -67,11 +66,7 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseFrozenSe
         assertNotNull(iae.getCause());
         assertThat(iae.getCause().getMessage(), containsString("Cannot remove write block from searchable snapshot index"));
 
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true))
-            .get();
+        updateIndexSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true), indexName);
     }
 
 }

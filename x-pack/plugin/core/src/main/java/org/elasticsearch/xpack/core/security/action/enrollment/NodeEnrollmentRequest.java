@@ -7,22 +7,22 @@
 
 package org.elasticsearch.xpack.core.security.action.enrollment;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-public final class NodeEnrollmentRequest extends ActionRequest {
+public final class NodeEnrollmentRequest extends LegacyActionRequest {
 
-    public NodeEnrollmentRequest() {
-    }
+    public NodeEnrollmentRequest() {}
 
     public NodeEnrollmentRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 }

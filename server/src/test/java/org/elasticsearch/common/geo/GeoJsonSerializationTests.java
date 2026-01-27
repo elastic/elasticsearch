@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -11,18 +12,18 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,7 +74,6 @@ public class GeoJsonSerializationTests extends ESTestCase {
         }
     }
 
-
     private void xContentTest(Supplier<Geometry> instanceSupplier) throws IOException {
         AbstractXContentTestCase.xContentTester(
             this::createParser,
@@ -81,11 +81,9 @@ public class GeoJsonSerializationTests extends ESTestCase {
             (geometryWrapper, xContentBuilder) -> {
                 geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             },
-            GeometryWrapper::fromXContent)
-            .supportsUnknownFields(true)
-            .test();
+            GeometryWrapper::fromXContent
+        ).supportsUnknownFields(true).test();
     }
-
 
     public void testPoint() throws IOException {
         xContentTest(() -> randomPoint(randomBoolean()));
@@ -130,8 +128,10 @@ public class GeoJsonSerializationTests extends ESTestCase {
             GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
             StreamInput input = BytesReference.bytes(builder).streamInput();
 
-            try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
+            ) {
                 Map<String, Object> map = GeoJson.toMap(geometry);
                 assertThat(parser.map(), equalTo(map));
             }

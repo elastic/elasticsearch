@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.hdfs;
 
@@ -16,32 +17,37 @@ import org.apache.hadoop.io.retry.FailoverProxyProvider;
 import org.apache.hadoop.security.SecurityUtil;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.UserGroupInformation.AuthenticationMethod;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
+import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.UnknownHostException;
-import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 
 public final class HdfsRepository extends BlobStoreRepository {
+
+    private static final int MIN_REPLICATION_FACTOR = 1;
+    private static final int MAX_REPLICATION_FACTOR = Short.MAX_VALUE;
 
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);
 
@@ -52,10 +58,17 @@ public final class HdfsRepository extends BlobStoreRepository {
     private final URI uri;
     private final String pathSetting;
 
-    public HdfsRepository(RepositoryMetadata metadata, Environment environment,
-                          NamedXContentRegistry namedXContentRegistry, ClusterService clusterService, BigArrays bigArrays,
-                          RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+    public HdfsRepository(
+        @Nullable ProjectId projectId,
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings,
+        SnapshotMetrics snapshotMetrics
+    ) {
+        super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY, snapshotMetrics);
 
         this.environment = environment;
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
@@ -66,14 +79,24 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
         uri = URI.create(uriSetting);
         if ("hdfs".equalsIgnoreCase(uri.getScheme()) == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
-                uri.getScheme(),
-                uriSetting));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Invalid scheme [%s] specified in uri [%s]; only 'hdfs' uri allowed for hdfs snapshot/restore",
+                    uri.getScheme(),
+                    uriSetting
+                )
+            );
         }
         if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
-            throw new IllegalArgumentException(String.format(Locale.ROOT,
-                "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore", uri.getPath(), uriSetting));
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Use 'path' option to specify a path [%s], not the uri [%s] for hdfs snapshot/restore",
+                    uri.getPath(),
+                    uriSetting
+                )
+            );
         }
 
         pathSetting = getMetadata().settings().get("path");
@@ -83,7 +106,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
     }
 
-    private HdfsBlobStore createBlobstore(URI uri, String path, Settings repositorySettings)  {
+    private HdfsBlobStore createBlobstore(URI blobstoreUri, String path, Settings repositorySettings) {
         Configuration hadoopConfiguration = new Configuration(repositorySettings.getAsBoolean("load_defaults", true));
         hadoopConfiguration.setClassLoader(HdfsRepository.class.getClassLoader());
         hadoopConfiguration.reloadConfiguration();
@@ -92,6 +115,42 @@ public final class HdfsRepository extends BlobStoreRepository {
         for (String key : confSettings.keySet()) {
             logger.debug("Adding configuration to HDFS Client Configuration : {} = {}", key, confSettings.get(key));
             hadoopConfiguration.set(key, confSettings.get(key));
+        }
+
+        Integer replicationFactor = repositorySettings.getAsInt("replication_factor", null);
+        if (replicationFactor != null && replicationFactor < MIN_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= {}",
+                replicationFactor,
+                MIN_REPLICATION_FACTOR
+            );
+        }
+        if (replicationFactor != null && replicationFactor > MAX_REPLICATION_FACTOR) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= {}",
+                replicationFactor,
+                MAX_REPLICATION_FACTOR
+            );
+        }
+        int minReplicationFactory = hadoopConfiguration.getInt("dfs.replication.min", 0);
+        int maxReplicationFactory = hadoopConfiguration.getInt("dfs.replication.max", 512);
+        if (replicationFactor != null && replicationFactor < minReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be >= dfs.replication.min [{}]",
+                replicationFactor,
+                minReplicationFactory
+            );
+        }
+        if (replicationFactor != null && replicationFactor > maxReplicationFactory) {
+            throw new RepositoryException(
+                metadata.name(),
+                "Value of replication_factor [{}] must be <= dfs.replication.max [{}]",
+                replicationFactor,
+                maxReplicationFactory
+            );
         }
 
         // Disable FS cache
@@ -103,7 +162,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         // Sense if HA is enabled
         // HA requires elevated permissions during regular usage in the event that a failover operation
         // occurs and a new connection is required.
-        String host = uri.getHost();
+        String host = blobstoreUri.getHost();
         String configKey = HdfsClientConfigKeys.Failover.PROXY_PROVIDER_KEY_PREFIX + "." + host;
         Class<?> ret = hadoopConfiguration.getClass(configKey, null, FailoverProxyProvider.class);
         boolean haEnabled = ret != null;
@@ -112,31 +171,39 @@ public final class HdfsRepository extends BlobStoreRepository {
         // This will correctly configure the filecontext to have our UGI as its internal user.
         FileContext fileContext = ugi.doAs((PrivilegedAction<FileContext>) () -> {
             try {
-                AbstractFileSystem fs = AbstractFileSystem.get(uri, hadoopConfiguration);
+                AbstractFileSystem fs = AbstractFileSystem.get(blobstoreUri, hadoopConfiguration);
                 return FileContext.getFileContext(fs, hadoopConfiguration);
             } catch (UnsupportedFileSystemException e) {
                 throw new UncheckedIOException(e);
             }
         });
 
-        logger.debug("Using file-system [{}] for URI [{}], path [{}]",
+        logger.debug(
+            "Using file-system [{}] for URI [{}], path [{}]",
             fileContext.getDefaultFileSystem(),
             fileContext.getDefaultFileSystem().getUri(),
-            path);
+            path
+        );
 
         try {
-            return new HdfsBlobStore(fileContext, path, bufferSize, isReadOnly(), haEnabled);
+            return new HdfsBlobStore(
+                fileContext,
+                path,
+                bufferSize,
+                isReadOnly(),
+                haEnabled,
+                replicationFactor != null ? replicationFactor.shortValue() : null
+            );
         } catch (IOException e) {
-            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", uri), e);
+            throw new UncheckedIOException(String.format(Locale.ROOT, "Cannot create HDFS repository for uri [%s]", blobstoreUri), e);
         }
     }
 
     private UserGroupInformation login(Configuration hadoopConfiguration, Settings repositorySettings) {
         // Validate the authentication method:
         AuthenticationMethod authMethod = SecurityUtil.getAuthenticationMethod(hadoopConfiguration);
-        if (authMethod.equals(AuthenticationMethod.SIMPLE) == false
-            && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
-            throw new RuntimeException("Unsupported authorization mode ["+authMethod+"]");
+        if (authMethod.equals(AuthenticationMethod.SIMPLE) == false && authMethod.equals(AuthenticationMethod.KERBEROS) == false) {
+            throw new RuntimeException("Unsupported authorization mode [" + authMethod + "]");
         }
 
         // Check if the user added a principal to use, and that there is a keytab file provided
@@ -144,13 +211,18 @@ public final class HdfsRepository extends BlobStoreRepository {
 
         // Check to see if the authentication method is compatible
         if (kerberosPrincipal != null && authMethod.equals(AuthenticationMethod.SIMPLE)) {
-            logger.warn("Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is " +
-                "specified. Continuing with [KERBEROS] authentication.");
+            logger.warn(
+                "Hadoop authentication method is set to [SIMPLE], but a Kerberos principal is "
+                    + "specified. Continuing with [KERBEROS] authentication."
+            );
             SecurityUtil.setAuthenticationMethod(AuthenticationMethod.KERBEROS, hadoopConfiguration);
         } else if (kerberosPrincipal == null && authMethod.equals(AuthenticationMethod.KERBEROS)) {
-            throw new RuntimeException("HDFS Repository does not support [KERBEROS] authentication without " +
-                "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with [" +
-                CONF_SECURITY_PRINCIPAL + "].");
+            throw new RuntimeException(
+                "HDFS Repository does not support [KERBEROS] authentication without "
+                    + "a valid Kerberos principal and keytab. Please specify a principal in the repository settings with ["
+                    + CONF_SECURITY_PRINCIPAL
+                    + "]."
+            );
         }
 
         // Now we can initialize the UGI with the configuration.
@@ -186,8 +258,11 @@ public final class HdfsRepository extends BlobStoreRepository {
             }
 
             if (originalPrincipal.equals(finalPrincipal) == false) {
-                logger.debug("Found service principal. Converted original principal name [{}] to server principal [{}]",
-                    originalPrincipal, finalPrincipal);
+                logger.debug(
+                    "Found service principal. Converted original principal name [{}] to server principal [{}]",
+                    originalPrincipal,
+                    finalPrincipal
+                );
             }
         }
         return finalPrincipal;
@@ -209,12 +284,7 @@ public final class HdfsRepository extends BlobStoreRepository {
 
     @Override
     protected HdfsBlobStore createBlobStore() {
-        // initialize our blobstore using elevated privileges.
-        SpecialPermission.check();
-        final HdfsBlobStore blobStore =
-            AccessController.doPrivileged((PrivilegedAction<HdfsBlobStore>)
-                () -> createBlobstore(uri, pathSetting, getMetadata().settings()));
-        return blobStore;
+        return createBlobstore(uri, pathSetting, getMetadata().settings());
     }
 
     @Override

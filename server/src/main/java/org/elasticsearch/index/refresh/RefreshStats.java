@@ -1,20 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.refresh;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -34,16 +34,13 @@ public class RefreshStats implements Writeable, ToXContentFragment {
      */
     private int listeners;
 
-    public RefreshStats() {
-    }
+    public RefreshStats() {}
 
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            externalTotal = in.readVLong();
-            externalTotalTimeInMillis = in.readVLong();
-        }
+        externalTotal = in.readVLong();
+        externalTotalTimeInMillis = in.readVLong();
         listeners = in.readVInt();
     }
 
@@ -51,10 +48,8 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeVLong(externalTotal);
-            out.writeVLong(externalTotalTimeInMillis);
-        }
+        out.writeVLong(externalTotal);
+        out.writeVLong(externalTotalTimeInMillis);
         out.writeVInt(listeners);
     }
 
@@ -91,7 +86,9 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     /*
      * The total number of external refresh executed.
      */
-    public long getExternalTotal() { return this.externalTotal; }
+    public long getExternalTotal() {
+        return this.externalTotal;
+    }
 
     /**
      * The total time spent executing refreshes (in milliseconds).
@@ -120,6 +117,7 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public TimeValue getExternalTotalTime() {
         return new TimeValue(externalTotalTimeInMillis);
     }
+
     /**
      * The number of waiting refresh listeners.
      */
@@ -146,10 +144,10 @@ public class RefreshStats implements Writeable, ToXContentFragment {
         }
         RefreshStats rhs = (RefreshStats) obj;
         return total == rhs.total
-                && totalTimeInMillis == rhs.totalTimeInMillis
-                && externalTotal == rhs.externalTotal
-                && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
-                && listeners == rhs.listeners;
+            && totalTimeInMillis == rhs.totalTimeInMillis
+            && externalTotal == rhs.externalTotal
+            && externalTotalTimeInMillis == rhs.externalTotalTimeInMillis
+            && listeners == rhs.listeners;
     }
 
     @Override

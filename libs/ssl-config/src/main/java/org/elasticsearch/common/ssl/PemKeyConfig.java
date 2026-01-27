@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -12,7 +13,6 @@ import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.PrivateKey;
@@ -27,7 +27,6 @@ import java.util.Objects;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
-
 
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
@@ -75,8 +74,8 @@ public final class PemKeyConfig implements SslKeyConfig {
         final List<StoredCertificate> info = new ArrayList<>(certificates.size());
         boolean first = true;
         for (Certificate cert : certificates) {
-            if (cert instanceof X509Certificate) {
-                info.add(new StoredCertificate((X509Certificate) cert, this.certificate, "PEM", null, first));
+            if (cert instanceof X509Certificate x509Certificate) {
+                info.add(new StoredCertificate(x509Certificate, this.certificate, "PEM", null, first));
             }
             first = false;
         }
@@ -93,8 +92,7 @@ public final class PemKeyConfig implements SslKeyConfig {
             final KeyStore keyStore = KeyStoreUtil.buildKeyStore(certificates, privateKey, keyPassword);
             return KeyStoreUtil.createKeyManager(keyStore, keyPassword, KeyManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException(
-                "failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
+            throw new SslConfigException("failed to load a KeyManager for certificate/key pair [" + certPath + "], [" + keyPath + "]", e);
         }
     }
 
@@ -107,8 +105,8 @@ public final class PemKeyConfig implements SslKeyConfig {
             return List.of();
         }
         final Certificate leafCertificate = certificates.get(0);
-        if (leafCertificate instanceof X509Certificate) {
-            return List.of(Tuple.tuple(getPrivateKey(keyPath), (X509Certificate) leafCertificate));
+        if (leafCertificate instanceof X509Certificate x509Certificate) {
+            return List.of(Tuple.tuple(getPrivateKey(keyPath), x509Certificate));
         } else {
             return List.of();
         }
@@ -126,7 +124,7 @@ public final class PemKeyConfig implements SslKeyConfig {
                 throw new SslConfigException("could not load ssl private key file [" + path + "]");
             }
             return privateKey;
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
@@ -138,7 +136,7 @@ public final class PemKeyConfig implements SslKeyConfig {
     private List<Certificate> getCertificates(Path path) {
         try {
             return PemUtils.readCertificates(Collections.singleton(path));
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(CERT_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CERT_FILE_TYPE, List.of(path), e);
@@ -161,9 +159,9 @@ public final class PemKeyConfig implements SslKeyConfig {
             return false;
         }
         final PemKeyConfig that = (PemKeyConfig) o;
-        return Objects.equals(this.certificate, that.certificate) &&
-            Objects.equals(this.key, that.key) &&
-            Arrays.equals(this.keyPassword, that.keyPassword);
+        return Objects.equals(this.certificate, that.certificate)
+            && Objects.equals(this.key, that.key)
+            && Arrays.equals(this.keyPassword, that.keyPassword);
     }
 
     @Override

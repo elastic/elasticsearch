@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
+import org.elasticsearch.core.Strings;
+import org.hamcrest.Matcher;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.core.Issuer;
 import org.opensaml.saml.saml2.core.LogoutRequest;
@@ -15,7 +15,9 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.security.x509.X509Credential;
 
-import java.io.UnsupportedEncodingException;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -23,13 +25,22 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.zip.Inflater;
+import java.util.zip.InflaterInputStream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SamlRedirectTests extends SamlTestCase {
 
@@ -41,47 +52,118 @@ public class SamlRedirectTests extends SamlTestCase {
 
     private static final SigningConfiguration NO_SIGNING = new SigningConfiguration(emptySet(), null);
 
+    /**
+     * XML template of LogoutRequest.
+     */
+    private static final String EXPECTED_LOGOUT_REQUEST_TEMPLATE = """
+        <?xml version="1.0" encoding="UTF-8"?>\
+        <saml2p:LogoutRequest xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" \
+        Destination="%s" \
+        ID="_id123456789" IssueInstant="2018-01-14T22:47:00.000Z" Version="2.0">\
+        <saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.test/</saml2:Issuer>\
+        <saml2:NameID xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">name-123456-7890</saml2:NameID>\
+        </saml2p:LogoutRequest>""";
+
     public void testRedirectUrlWithoutRelayStateOrSigning() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertThat(url, equalTo(LOGOUT_URL + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLCz30mAwz3" +
-                "wwv2351LftUA2lrcohDDkyZ2jbanHJ4PTwEKWyLjGTXih739mRH96zOoyLHvNMQLlIO42DQStKERnaK0NX4snvcowg59oN1trYtsNIbtZFupn04" +
-                "1xNGkW760HkhmrKidoYAq8oc3nUTi5vk9m6T3vsfolFVhpw0LgfB4zTgcRAnByEw2SDnIef8DdhxnePZcCmPs3m4Lv13Z0mkhqknFL96ZtF15kp" +
-                "48hlV%2BS%2FCJAbL0sBP5StgiSwuzx8HKL4B"));
+        assertRedirectUrl(url, Map.of("SAMLRequest", equalTo(buildExpectedLogoutRequestString(LOGOUT_URL))));
     }
 
     public void testRedirectUrlWithRelayStateAndSigning() throws Exception {
-        final SigningConfiguration signing =
-                new SigningConfiguration(singleton("*"), (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0));
+        final SigningConfiguration signing = new SigningConfiguration(
+            singleton("*"),
+            (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0)
+        );
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL), signing);
         final String url = redirect.getRedirectUrl("hello");
-        assertThat(url, startsWith(LOGOUT_URL + "?SAMLRequest=nZFBa4QwFIT%2FSnh3Naa2ax%2FqsiAFYdtDu91DLyVo2AY0cX2x9Oc36gpLC" +
-                "z30mAwz3wwv2351LftUA2lrcohDDkyZ2jbanHJ4PTwEKWyLjGTXih739mRH96zOoyLHvNMQLlIO42DQStKERnaK0NX4snvcowg59oN1trY" +
-                "tsNIbtZFupn041xNGkW760HkhmrKidoYAq8oc3nUTi5vk9m6T3vsfolFVhpw0LgfB4zTgcRAnByEw2SDnIef8DdhxnePZcCmPs3m4Lv13Z" +
-                "0mkhqknFL96ZtF15kp48hlV%2BS%2FCJAbL0sBP5StgiSwuzx8HKL4B" +
-                "&RelayState=hello" +
-                "&SigAlg=http%3A%2F%2Fwww.w3.org%2F2001%2F04%2Fxmldsig-more%23rsa-sha256" +
-                "&Signature="));
+        assertRedirectUrl(
+            url,
+            Map.of(
+                "SAMLRequest",
+                equalTo(buildExpectedLogoutRequestString(LOGOUT_URL)),
+                "RelayState",
+                equalTo("hello"),
+                "SigAlg",
+                equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"),
+                "Signature",
+                notNullValue(String.class)
+            )
+        );
     }
 
     public void testRedirectUrlWithExistingParameters() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?a=xyz"), NO_SIGNING);
         final String url = redirect.getRedirectUrl("foo");
-        assertThat(url, equalTo(LOGOUT_URL + "?a=xyz" +
-                "&SAMLRequest=nZFBS8QwFIT%2FSnn3tmmsbn00LUIRCqsHXT14kdCGNdAmtS%2BV1V9v2u7CouDBYzLMzDe8vDz0XfChRtLWCE" +
-                "giBoEyjW212Qt42t2GGZRFTrLv%2BIBbu7eTe1DvkyIXeKchXCUB02jQStKERvaK0DX4eHO3RR4xHEbrbGM7CCpv1Ea6pe3NuYE" +
-                "wjnU7RM4L8ZwVd0tJKcXh8wuCuhLwqtuEX6SXV5vs2v8QTao25KRxAjhLspAlYZLuOMd0g4xFjLEXCJ5PozwBHCfgYh7P0f8ml0" +
-                "RqnGmh%2BEWbx%2BeZp4Z7n1FX%2F2qYxXBdGvqp7FSwRhbH548zFN8%3D" +
-                "&RelayState=foo"));
+        assertRedirectUrl(
+            url,
+            Map.of(
+                "SAMLRequest",
+                equalTo(buildExpectedLogoutRequestString(LOGOUT_URL + "?a=xyz")),
+                "RelayState",
+                equalTo("foo"),
+                "a",
+                equalTo("xyz")
+            )
+        );
     }
 
     public void testRedirectUrlWithTrailingQuestionMark() {
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?"), NO_SIGNING);
         final String url = redirect.getRedirectUrl();
-        assertThat(url, equalTo(LOGOUT_URL + "?SAMLRequest=nZFPS8QwFMS%2FSnj3tmmsbn30D0IRCqsHXffgRUIb1kCb1L5U%2FPim7R" +
-                "YWBQ8ek2HmN8PLyq%2B%2BY59qJG1NDnHIgSnT2FabUw4vh%2FsghbLISPadGHBvT3ZyT%2BpjUuSYdxrCVcphGg1aSZrQyF4Rug" +
-                "af7x72KEKOw2idbWwHrPJGbaRbaO%2FODYRRpNshdF6I5qyoWyAlsLrK4U23sbhKrm926a3%2FIZpUbchJ43IQPE4DHgdxchACkx" +
-                "1yHnLOX4Edtz0eDuf2uJjHy9Z%2Fl5ZEapyLQvGraBZdZm6ER59RV%2F8izGKwLg38VL4B1sji%2FPxxgeIb"));
+        assertRedirectUrl(url, Map.of("SAMLRequest", equalTo(buildExpectedLogoutRequestString(LOGOUT_URL + "?"))));
+    }
+
+    private static String buildExpectedLogoutRequestString(String destination) {
+        return Strings.format(EXPECTED_LOGOUT_REQUEST_TEMPLATE, destination);
+    }
+
+    private static Map<String, String> parseAndDecodeUrlParameters(String url) {
+        return parseAndDecodeUrlParameters(url, (key, value) -> value);
+    }
+
+    private static Map<String, String> parseAndDecodeUrlParameters(String url, BiFunction<String, String, String> valueDecoder) {
+        Map<String, String> params = new HashMap<>();
+        String[] parts = url.split("\\?", 2);
+        if (parts.length < 2 || parts[1].isEmpty()) {
+            return params;
+        }
+        for (String param : parts[1].split("&")) {
+            String[] keyValue = param.split("=", 2);
+            if (keyValue.length == 2) {
+                String key = keyValue[0];
+                String value = URLDecoder.decode(keyValue[1], StandardCharsets.UTF_8);
+                params.put(key, valueDecoder.apply(key, value));
+            }
+        }
+        return params;
+    }
+
+    private void assertRedirectUrl(String actualRequestUrl, Map<String, Matcher<String>> expectedParams) {
+        String[] parts = actualRequestUrl.split("\\?", 2);
+        assertThat(parts[0], equalTo(LOGOUT_URL));
+
+        Map<String, String> actualParams = parseAndDecodeUrlParameters(actualRequestUrl, (key, value) -> {
+            if (key.equals("SAMLRequest")) {
+                return decompressAndBase64Decode(value);
+            }
+            return value;
+        });
+        assertThat("URL parameter keys", actualParams.keySet(), equalTo(expectedParams.keySet()));
+
+        for (Map.Entry<String, Matcher<String>> expected : expectedParams.entrySet()) {
+            assertThat("Parameter " + expected.getKey(), actualParams.get(expected.getKey()), expected.getValue());
+        }
+    }
+
+    private static String decompressAndBase64Decode(String compressedBase64) {
+        byte[] compressed = Base64.getDecoder().decode(compressedBase64);
+        Inflater inflater = new Inflater(true);
+        try (InflaterInputStream in = new InflaterInputStream(new ByteArrayInputStream(compressed), inflater)) {
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to decompress input: " + compressedBase64, e);
+        }
     }
 
     public void testLogoutRequestSigning() throws Exception {
@@ -90,14 +172,13 @@ public class SamlRedirectTests extends SamlTestCase {
         while (invalidCredential.getEntityCertificate().getSerialNumber().equals(credential.getEntityCertificate().getSerialNumber())) {
             invalidCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         }
-        final SigningConfiguration spConfig =
-            new SigningConfiguration(singleton("*"), credential);
+        final SigningConfiguration spConfig = new SigningConfiguration(singleton("*"), credential);
         final SamlRedirect redirect = new SamlRedirect(buildLogoutRequest(LOGOUT_URL + "?"), spConfig);
         final String url = redirect.getRedirectUrl();
         final String queryParam = url.split("\\?")[1].split("&Signature")[0];
         final String signature = validateUrlAndGetSignature(redirect.getRedirectUrl());
-        assertThat(validateSignature(queryParam,  signature, credential), equalTo(true));
-        assertThat(validateSignature(queryParam,  signature, invalidCredential), equalTo(false));
+        assertThat(validateSignature(queryParam, signature, credential), equalTo(true));
+        assertThat(validateSignature(queryParam, signature, invalidCredential), equalTo(false));
         assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential), equalTo(false));
     }
 
@@ -108,33 +189,33 @@ public class SamlRedirectTests extends SamlTestCase {
             invalidCredential = (X509Credential) buildOpenSamlCredential(readRandomKeyPair()).get(0);
         }
         final SigningConfiguration signingConfig = new SigningConfiguration(singleton("*"), credential);
-        SpConfiguration sp = new SpConfiguration(SP_ENTITY_ID, ACS_URL, LOGOUT_URL, signingConfig, null, Collections.emptyList());
+        SpConfiguration sp = new SingleSamlSpConfiguration(SP_ENTITY_ID, ACS_URL, LOGOUT_URL, signingConfig, null, Collections.emptyList());
 
         EntityDescriptor idpDescriptor = buildIdPDescriptor(IDP_URL, IDP_ENTITY_ID);
 
-        final SamlRedirect redirect = new SamlRedirect(new SamlAuthnRequestBuilder(sp, SAMLConstants.SAML2_POST_BINDING_URI,
-            idpDescriptor, SAMLConstants.SAML2_REDIRECT_BINDING_URI, Clock.systemUTC()).build(), signingConfig);
+        final SamlRedirect redirect = new SamlRedirect(
+            new SamlAuthnRequestBuilder(
+                sp,
+                SAMLConstants.SAML2_POST_BINDING_URI,
+                idpDescriptor,
+                SAMLConstants.SAML2_REDIRECT_BINDING_URI,
+                Clock.systemUTC()
+            ).build(),
+            signingConfig
+        );
         final String url = redirect.getRedirectUrl();
         final String queryParam = url.split("\\?")[1].split("&Signature")[0];
         final String signature = validateUrlAndGetSignature(redirect.getRedirectUrl());
         assertThat(validateSignature(queryParam, signature, credential), equalTo(true));
         assertThat(validateSignature(queryParam, signature, invalidCredential), equalTo(false));
-        assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential),
-            equalTo(false));
+        assertThat(validateSignature(queryParam.substring(0, queryParam.length() - 5), signature, credential), equalTo(false));
     }
 
-    private String parseAndUrlDecodeParameter(String parameter) throws UnsupportedEncodingException {
-        final String value = parameter.split("=", 2)[1];
-        return URLDecoder.decode(value, "UTF-8");
-    }
-
-    private String validateUrlAndGetSignature(String url) throws UnsupportedEncodingException {
-        final String params[] = url.split("\\?")[1].split("&");
-        assert (params.length == 3);
-        String sigAlg = parseAndUrlDecodeParameter(params[1]);
+    private String validateUrlAndGetSignature(String url) {
+        Map<String, String> params = parseAndDecodeUrlParameters(url);
         // We currently only support signing with SHA256withRSA, this test should be updated if we add support for more
-        assertThat(sigAlg, equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
-        return parseAndUrlDecodeParameter(params[2]);
+        assertThat(params.get("SigAlg"), equalTo("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"));
+        return params.get("Signature");
     }
 
     private boolean validateSignature(String queryParam, String signature, X509Credential credential) {
@@ -152,7 +233,7 @@ public class SamlRedirectTests extends SamlTestCase {
     private LogoutRequest buildLogoutRequest(String logoutUrl) {
         final LogoutRequest logoutRequest = SamlUtils.buildObject(LogoutRequest.class, LogoutRequest.DEFAULT_ELEMENT_NAME);
         logoutRequest.setDestination(logoutUrl);
-        logoutRequest.setIssueInstant(new DateTime(2018, 1, 14, 22, 47, DateTimeZone.UTC));
+        logoutRequest.setIssueInstant(ZonedDateTime.of(LocalDate.of(2018, 1, 14), LocalTime.of(22, 47), ZoneOffset.UTC).toInstant());
         logoutRequest.setID("_id123456789");
         final Issuer issuer = SamlUtils.buildObject(Issuer.class, Issuer.DEFAULT_ELEMENT_NAME);
         issuer.setValue(IDP_ENTITY_ID);

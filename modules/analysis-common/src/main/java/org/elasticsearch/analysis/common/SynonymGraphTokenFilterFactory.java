@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -14,20 +15,27 @@ import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
-    SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env,
-                                     String name, Settings settings) {
-        super(indexSettings, env, name, settings);
+    SynonymGraphTokenFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        SynonymsManagementAPIService synonymsManagementAPIService
+    ) {
+        super(indexSettings, env, name, settings, synonymsManagementAPIService);
     }
 
     @Override
@@ -36,11 +44,16 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
     }
 
     @Override
-    public TokenFilterFactory getChainAwareTokenFilterFactory(TokenizerFactory tokenizer, List<CharFilterFactory> charFilters,
-                                                              List<TokenFilterFactory> previousTokenFilters,
-                                                              Function<String, TokenFilterFactory> allFilters) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
-        final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
+    public TokenFilterFactory getChainAwareTokenFilterFactory(
+        IndexCreationContext context,
+        TokenizerFactory tokenizer,
+        List<CharFilterFactory> charFilters,
+        List<TokenFilterFactory> previousTokenFilters,
+        Function<String, TokenFilterFactory> allFilters
+    ) {
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
+        ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
+        final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
         final String name = name();
         return new TokenFilterFactory() {
             @Override
@@ -54,10 +67,32 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             }
 
             @Override
+            public TokenFilterFactory getSynonymFilter() {
+                // When building a synonym filter, we must prevent previous synonym filters in the chain
+                // from being active, as this would cause recursive synonym expansion during the building phase.
+                //
+                // Without this fix, when chaining multiple synonym filters (e.g., synonym_A → synonym_B → synonym_C),
+                // building synonym_C would use an analyzer containing active synonym_A and synonym_B filters.
+                // This causes:
+                // 1. Recursive synonym expansion when parsing synonym rules (e.g., synonyms are expanded via previous filters)
+                // 2. Each SynonymMap inflates since it applies all previous synonym rules again
+                // 3. Triggering O(n²) operations in SynonymGraphFilter.bufferOutputTokens()
+                // 4. Massive memory allocation during analyzer reload → OutOfMemoryError
+                //
+                // This matches the behavior of SynonymTokenFilterFactory and prevents OOM with chained
+                // synonym filters (critical for users with many chained synonym sets).
+                return IDENTITY_FILTER;
+            }
+
+            @Override
             public AnalysisMode getAnalysisMode() {
                 return analysisMode;
             }
+
+            @Override
+            public String getResourceName() {
+                return rulesReader.resource();
+            }
         };
     }
-
 }

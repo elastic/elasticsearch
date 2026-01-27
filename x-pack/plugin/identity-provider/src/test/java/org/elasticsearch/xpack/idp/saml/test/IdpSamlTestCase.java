@@ -11,13 +11,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ssl.PemUtils;
+import org.elasticsearch.core.XmlUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FileMatchers;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderResolver;
-import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.support.SamlInit;
 import org.elasticsearch.xpack.idp.saml.support.XmlValidator;
 import org.hamcrest.Matchers;
@@ -50,12 +50,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
 public abstract class IdpSamlTestCase extends ESTestCase {
@@ -72,11 +74,6 @@ public abstract class IdpSamlTestCase extends ESTestCase {
             restoreLocale = Locale.getDefault();
             Locale.setDefault(Locale.ENGLISH);
         }
-    }
-
-    private static boolean isTurkishLocale() {
-        return Locale.getDefault().getLanguage().equals(new Locale("tr").getLanguage())
-            || Locale.getDefault().getLanguage().equals(new Locale("az").getLanguage());
     }
 
     @AfterClass
@@ -98,19 +95,19 @@ public abstract class IdpSamlTestCase extends ESTestCase {
 
             listener.onResponse(sp);
             return null;
-        }).when(idp).resolveServiceProvider(Mockito.eq(entityId), Mockito.anyString(), Mockito.anyBoolean(),
-            Mockito.any(ActionListener.class));
+        })
+            .when(idp)
+            .resolveServiceProvider(Mockito.eq(entityId), nullable(String.class), Mockito.anyBoolean(), Mockito.any(ActionListener.class));
     }
 
     @SuppressWarnings("unchecked")
-    protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId,
-                                                        SamlServiceProvider sp) {
+    protected static void mockRegisteredServiceProvider(SamlServiceProviderResolver resolverMock, String entityId, SamlServiceProvider sp) {
         Mockito.doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             assertThat(args, Matchers.arrayWithSize(2));
             assertThat(args[0], Matchers.equalTo(entityId));
-            assertThat(args[args.length-1], Matchers.instanceOf(ActionListener.class));
-            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length-1];
+            assertThat(args[args.length - 1], Matchers.instanceOf(ActionListener.class));
+            ActionListener<SamlServiceProvider> listener = (ActionListener<SamlServiceProvider>) args[args.length - 1];
 
             listener.onResponse(sp);
             return null;
@@ -148,7 +145,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     }
 
     protected void print(Element element, Writer writer, boolean pretty) throws TransformerException {
-        final Transformer serializer = new SamlFactory().getHardenedXMLTransformer();
+        final Transformer serializer = XmlUtils.getHardenedXMLTransformer();
         if (pretty) {
             serializer.setOutputProperty(OutputKeys.INDENT, "yes");
         }
@@ -175,7 +172,7 @@ public abstract class IdpSamlTestCase extends ESTestCase {
     }
 
     protected void assertValidXml(String xml) throws Exception {
-        new XmlValidator( "saml-schema-metadata-2.0.xsd").validate(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
+        new XmlValidator("saml-schema-metadata-2.0.xsd").validate(new ByteArrayInputStream(xml.getBytes(StandardCharsets.UTF_8)));
     }
 
     protected String joinCertificateLines(String... lines) {

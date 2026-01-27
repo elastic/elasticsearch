@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -35,15 +37,20 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     private TransportMessageListener listener;
 
     @Override
-    public void setMessageListener(TransportMessageListener listener) {
+    public void setMessageListener(TransportMessageListener messageListener) {
         if (this.listener != null) {
             throw new IllegalStateException("listener already set");
         }
-        this.listener = listener;
+        this.listener = messageListener;
     }
 
     @Override
     public BoundTransportAddress boundAddress() {
+        return null;
+    }
+
+    @Override
+    public BoundTransportAddress boundRemoteIngressAddress() {
         return null;
     }
 
@@ -63,11 +70,16 @@ public class FakeTransport extends AbstractLifecycleComponent implements Transpo
     }
 
     @Override
-    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
-        listener.onResponse(new CloseableConnection() {
+    public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> actionListener) {
+        actionListener.onResponse(new CloseableConnection() {
             @Override
             public DiscoveryNode getNode() {
                 return node;
+            }
+
+            @Override
+            public TransportVersion getTransportVersion() {
+                return TransportVersion.current();
             }
 
             @Override

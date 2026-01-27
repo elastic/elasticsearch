@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -84,8 +85,7 @@ public class LoggerMessageFormat {
         return sbuf.toString();
     }
 
-    static boolean isEscapedDelimiter(String messagePattern,
-                                      int delimiterStartIndex) {
+    static boolean isEscapedDelimiter(String messagePattern, int delimiterStartIndex) {
 
         if (delimiterStartIndex == 0) {
             return false;
@@ -155,8 +155,7 @@ public class LoggerMessageFormat {
             final int len = a.length;
             for (int i = 0; i < len; i++) {
                 deeplyAppendParameter(sbuf, a[i], seen);
-                if (i != len - 1)
-                    sbuf.append(", ");
+                if (i != len - 1) sbuf.append(", ");
             }
             // allow repeats in siblings
             seen.remove(a);
@@ -171,8 +170,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -182,8 +180,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -193,8 +190,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -204,8 +200,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -215,8 +210,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -226,8 +220,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -237,8 +230,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }
@@ -248,8 +240,7 @@ public class LoggerMessageFormat {
         final int len = a.length;
         for (int i = 0; i < len; i++) {
             sbuf.append(a[i]);
-            if (i != len - 1)
-                sbuf.append(", ");
+            if (i != len - 1) sbuf.append(", ");
         }
         sbuf.append(']');
     }

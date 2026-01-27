@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.term;
@@ -15,17 +16,18 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -414,8 +416,10 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
                 } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                                                  "suggester[term] doesn't support field [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "suggester[term] doesn't support field [" + currentFieldName + "]"
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "suggester[term] parsing failed on [" + currentFieldName + "]");
@@ -424,14 +428,13 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         // now we should have field name, check and copy fields over to the suggestion builder we return
         if (fieldname == null) {
-            throw new ElasticsearchParseException(
-                "the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
+            throw new ElasticsearchParseException("the required field option [" + FIELDNAME_FIELD.getPreferredName() + "] is missing");
         }
         return new TermSuggestionBuilder(fieldname, tmpSuggestion);
     }
 
     @Override
-    public SuggestionContext build(SearchExecutionContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) {
         TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);
@@ -456,23 +459,38 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     }
 
     @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
     protected boolean doEquals(TermSuggestionBuilder other) {
-        return Objects.equals(suggestMode, other.suggestMode) &&
-               Objects.equals(accuracy, other.accuracy) &&
-               Objects.equals(sort, other.sort) &&
-               Objects.equals(stringDistance, other.stringDistance) &&
-               Objects.equals(maxEdits, other.maxEdits) &&
-               Objects.equals(maxInspections, other.maxInspections) &&
-               Objects.equals(maxTermFreq, other.maxTermFreq) &&
-               Objects.equals(prefixLength, other.prefixLength) &&
-               Objects.equals(minWordLength, other.minWordLength) &&
-               Objects.equals(minDocFreq, other.minDocFreq);
+        return Objects.equals(suggestMode, other.suggestMode)
+            && Objects.equals(accuracy, other.accuracy)
+            && Objects.equals(sort, other.sort)
+            && Objects.equals(stringDistance, other.stringDistance)
+            && Objects.equals(maxEdits, other.maxEdits)
+            && Objects.equals(maxInspections, other.maxInspections)
+            && Objects.equals(maxTermFreq, other.maxTermFreq)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(minWordLength, other.minWordLength)
+            && Objects.equals(minDocFreq, other.minDocFreq);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(suggestMode, accuracy, sort, stringDistance, maxEdits, maxInspections,
-                            maxTermFreq, prefixLength, minWordLength, minDocFreq);
+        return Objects.hash(
+            suggestMode,
+            accuracy,
+            sort,
+            stringDistance,
+            maxEdits,
+            maxInspections,
+            maxTermFreq,
+            prefixLength,
+            minWordLength,
+            minDocFreq
+        );
     }
 
     /** An enum representing the valid suggest modes. */
@@ -495,7 +513,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         ALWAYS {
             @Override
             public org.apache.lucene.search.spell.SuggestMode toLucene() {
-              return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
+                return org.apache.lucene.search.spell.SuggestMode.SUGGEST_ALWAYS;
             }
         };
 
@@ -567,19 +585,14 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         public static StringDistanceImpl resolve(final String str) {
             Objects.requireNonNull(str, "Input string is null");
             final String distanceVal = str.toLowerCase(Locale.ROOT);
-            switch (distanceVal) {
-                case "internal":
-                    return INTERNAL;
-                case "damerau_levenshtein":
-                    return DAMERAU_LEVENSHTEIN;
-                case "levenshtein":
-                    return LEVENSHTEIN;
-                case "ngram":
-                    return NGRAM;
-                case "jaro_winkler":
-                    return JARO_WINKLER;
-                default: throw new IllegalArgumentException("Illegal distance option " + str);
-            }
+            return switch (distanceVal) {
+                case "internal" -> INTERNAL;
+                case "damerau_levenshtein" -> DAMERAU_LEVENSHTEIN;
+                case "levenshtein" -> LEVENSHTEIN;
+                case "ngram" -> NGRAM;
+                case "jaro_winkler" -> JARO_WINKLER;
+                default -> throw new IllegalArgumentException("Illegal distance option " + str);
+            };
         }
 
         public abstract StringDistance toLucene();

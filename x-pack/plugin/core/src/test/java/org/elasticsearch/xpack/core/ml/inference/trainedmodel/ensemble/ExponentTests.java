@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 
 import java.io.IOException;
@@ -36,24 +36,28 @@ public class ExponentTests extends WeightedAggregatorTests<Exponent> {
     }
 
     @Override
+    protected Exponent mutateInstance(Exponent instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Exponent> instanceReader() {
         return Exponent::new;
     }
 
     public void testAggregate() {
-        double[] ones = new double[]{1.0, 1.0, 1.0, 1.0, 1.0};
-        double[][] values = new double[][]{
-            new double[] {.01},
-            new double[] {.2},
-            new double[] {.002},
-            new double[] {-.01},
-            new double[] {.1}
-        };
+        double[] ones = new double[] { 1.0, 1.0, 1.0, 1.0, 1.0 };
+        double[][] values = new double[][] {
+            new double[] { .01 },
+            new double[] { .2 },
+            new double[] { .002 },
+            new double[] { -.01 },
+            new double[] { .1 } };
 
         Exponent exponent = new Exponent(ones);
         assertThat(exponent.aggregate(exponent.processValues(values)), closeTo(1.35256, 0.00001));
 
-        double[] variedWeights = new double[]{.01, -1.0, .1, 0.0, 0.0};
+        double[] variedWeights = new double[] { .01, -1.0, .1, 0.0, 0.0 };
 
         exponent = new Exponent(variedWeights);
         assertThat(exponent.aggregate(exponent.processValues(values)), closeTo(0.81897, 0.00001));

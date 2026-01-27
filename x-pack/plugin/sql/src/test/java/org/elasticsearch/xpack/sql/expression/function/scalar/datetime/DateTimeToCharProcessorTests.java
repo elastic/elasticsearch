@@ -33,6 +33,15 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
 /**
  * Tests the {@link ToCharFormatter} against actual PostgreSQL output.
  *
+ * <p>
+ *     Note: Recreating the data set has some complexities,
+ *     as modern Postgres versions (+12) don't have some of the configured timezones,
+ *     and they also may generate different results for dates before 1900.
+ * </p>
+ * <p>
+ *     Consider if it's worth changing the dataset for this test.
+ * </p>
+ *
  * Process to (re)generate the test data:
  * <ol>
  *     <li>Run the @{link {@link ToCharTestScript#main(String[])}} class</li>
@@ -49,7 +58,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.To
  *     </li>
  * </ol>
  *
- * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.util.LuceneTestCase.AwaitsFix}
+ * In case you need to mute any of the tests, mute all tests by adding {@link org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix}
  * on the class level.
  */
 public class DateTimeToCharProcessorTests extends ESTestCase {
@@ -65,7 +74,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 continue;
             }
             String[] cols = line.split(quote(DELIMITER));
-            params.add(new Object[]{testFile, lineNumber, cols[0], cols[1], cols[2], cols[3], cols[4]});
+            params.add(new Object[] { testFile, lineNumber, cols[0], cols[1], cols[2], cols[3], cols[4] });
         }
         return params;
     }
@@ -91,8 +100,14 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
      *                       '[[formatString]]')</code>.
      */
     public DateTimeToCharProcessorTests(
-        String testFile, int lineNumber, String secondsAndFractionsSinceEpoch, String zone,
-        String formatString, String posgresTimestamp, String expectedResult) {
+        String testFile,
+        int lineNumber,
+        String secondsAndFractionsSinceEpoch,
+        String zone,
+        String formatString,
+        String posgresTimestamp,
+        String expectedResult
+    ) {
 
         this.testFile = testFile;
         this.lineNumber = lineNumber;
@@ -106,11 +121,9 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     public void test() {
         ZoneId zoneId = ZoneId.of(zone);
         ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
-        String actualResult =
-            (String) new ToChar(EMPTY, l(timestamp, DATETIME), l(formatString, KEYWORD), zoneId)
-                .makePipe()
-                .asProcessor()
-                .process(null);
+        String actualResult = (String) new ToChar(EMPTY, l(timestamp, DATETIME), l(formatString, KEYWORD), zoneId).makePipe()
+            .asProcessor()
+            .process(null);
         List<String> expectedResultSplitted = asList(expectedResult.split(quote(PATTERN_DELIMITER)));
         List<String> resultSplitted = asList(actualResult.split(quote(PATTERN_DELIMITER)));
         List<String> formatStringSplitted = asList(formatString.split(PATTERN_DELIMITER));
@@ -121,22 +134,35 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             String expectedPart = expectedResultSplitted.get(i);
             String actualPart = resultSplitted.get(i);
             assertEquals(
-                String.format(Locale.ROOT,
-                    "\n" +
-                        "Line number:                        %s (in %s)\n" +
-                        "zone:                               %s\n" +
-                        "timestamp (as epoch):               %s\n" +
-                        "timestamp (java, UTC):              %s\n" +
-                        "timestamp (postgres, to_timestamp): %s\n" +
-                        "timestamp (java with zone):         %s\n" +
-                        "format string:                      %s\n" +
-                        "expected (postgres to_char result): %s\n" +
-                        "actual (ES to_char result):         %s\n" +
-                        "    FAILED (sub)pattern: %s,",
-                    lineNumber, testFile,
-                    zone, secondsAndFractionsSinceEpoch, timestamp, posgresTimestamp, timestamp.withZoneSameInstant(zoneId),
-                    formatString, expectedResult, actualResult, patternMaybeWithIndex),
-                expectedPart, actualPart);
+                String.format(
+                    Locale.ROOT,
+                    """
+
+                        Line number:                        %s (in %s)
+                        zone:                               %s
+                        timestamp (as epoch):               %s
+                        timestamp (java, UTC):              %s
+                        timestamp (postgres, to_timestamp): %s
+                        timestamp (java with zone):         %s
+                        format string:                      %s
+                        expected (postgres to_char result): %s
+                        actual (ES to_char result):         %s
+                            FAILED (sub)pattern: %s,""",
+                    lineNumber,
+                    testFile,
+                    zone,
+                    secondsAndFractionsSinceEpoch,
+                    timestamp,
+                    posgresTimestamp,
+                    timestamp.withZoneSameInstant(zoneId),
+                    formatString,
+                    expectedResult,
+                    actualResult,
+                    patternMaybeWithIndex
+                ),
+                expectedPart,
+                actualPart
+            );
         }
     }
 
@@ -146,7 +172,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         int fractions = b.remainder(BigDecimal.ONE).movePointRight(9).intValueExact();
         int adjustment = 0;
         if (fractions < 0) {
-            fractions += 1e9;
+            fractions += (int) 1e9;
             adjustment = -1;
         }
         return dateTime((seconds + adjustment) * 1000).withNano(fractions);

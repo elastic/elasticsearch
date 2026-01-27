@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -15,9 +16,9 @@ import java.util.Map;
 public class NoSemiColonTests extends ScriptTestCase {
 
     public void testDeclarationStatement() {
-        assertEquals((byte)2, exec("byte a = 2; return a"));
-        assertEquals((short)2, exec("short a = 2; return a"));
-        assertEquals((char)2, exec("char a = 2; return a"));
+        assertEquals((byte) 2, exec("byte a = 2; return a"));
+        assertEquals((short) 2, exec("short a = 2; return a"));
+        assertEquals((char) 2, exec("char a = 2; return a"));
         assertEquals(2, exec("int a = 2; return a"));
         assertEquals(2L, exec("long a = 2; return a"));
         assertEquals(2F, exec("float a = 2; return a"));
@@ -61,7 +62,7 @@ public class NoSemiColonTests extends ScriptTestCase {
         assertEquals(10, exec("return 10"));
         assertEquals(5, exec("int x = 5; return x"));
         assertEquals(4, exec("int[] x = new int[2]; x[1] = 4; return x[1]"));
-        assertEquals(5, ((short[])exec("short[] s = new short[3]; s[1] = 5; return s"))[1]);
-        assertEquals(10, ((Map)exec("Map s = new HashMap(); s.put(\"x\", 10); return s")).get("x"));
+        assertEquals(5, ((short[]) exec("short[] s = new short[3]; s[1] = 5; return s"))[1]);
+        assertEquals(10, ((Map) exec("Map s = new HashMap(); s.put(\"x\", 10); return s")).get("x"));
     }
 }

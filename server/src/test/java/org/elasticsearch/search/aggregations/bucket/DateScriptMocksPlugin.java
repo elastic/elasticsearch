@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.search.lookup.LeafDocLookup;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
@@ -37,18 +39,21 @@ public class DateScriptMocksPlugin extends MockScriptPlugin {
             String fieldname = (String) params.get("fieldname");
             return docLookup.get(fieldname);
         });
-        scripts.put(
-            DOUBLE_PLUS_ONE_MONTH,
-            params -> new DateTime(Double.valueOf((double) params.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis()
-        );
-        scripts.put(LONG_PLUS_ONE_MONTH, params -> new DateTime((long) params.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis());
+        scripts.put(DOUBLE_PLUS_ONE_MONTH, params -> {
+            Instant instant = Instant.ofEpochMilli(Double.valueOf((double) params.get("_value")).longValue());
+            return ZonedDateTime.ofInstant(instant, ZoneOffset.UTC).plusMonths(1).toInstant().toEpochMilli();
+        });
+        scripts.put(LONG_PLUS_ONE_MONTH, params -> {
+            Instant instant = Instant.ofEpochMilli((long) params.get("_value"));
+            return ZonedDateTime.ofInstant(instant, ZoneOffset.UTC).plusMonths(1).toInstant().toEpochMilli();
+        });
         return scripts;
     }
 
     @Override
     protected Map<String, Function<Map<String, Object>, Object>> nonDeterministicPluginScripts() {
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-        scripts.put(CURRENT_DATE, params -> new DateTime().getMillis());
+        scripts.put(CURRENT_DATE, params -> ZonedDateTime.now().toInstant().toEpochMilli());
         return scripts;
     }
 }

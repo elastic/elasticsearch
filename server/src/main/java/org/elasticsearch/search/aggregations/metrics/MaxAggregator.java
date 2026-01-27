@@ -1,24 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -44,12 +45,10 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     MaxAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
         throws IOException {
         super(name, context, parent, metadata);
-        // TODO stop expecting nulls here
-        this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        assert config.hasValues();
+        this.valuesSource = (ValuesSource.Numeric) config.getValuesSource();
+        maxes = context.bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
         this.pointConverter = pointReaderIfAvailable(config);
         if (pointConverter != null) {
@@ -61,16 +60,13 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         if (pointConverter != null) {
-            Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
+            Number segMax = findLeafMaxValue(aggCtx.getLeafReaderContext().reader(), pointField, pointConverter);
             if (segMax != null) {
                 /*
                  * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
@@ -84,22 +80,19 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             }
         }
-        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
-        final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
+        final SortedNumericDoubleValues allValues = valuesSource.doubleValues(aggCtx.getLeafReaderContext());
+        final DoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxes.size()) {
-                    long from = maxes.size();
-                    maxes = bigArrays().grow(maxes, bucket + 1);
-                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
                 if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double max = maxes.get(bucket);
-                    max = Math.max(max, value);
-                    maxes.set(bucket, max);
+                    if (bucket >= maxes.size()) {
+                        long from = maxes.size();
+                        maxes = bigArrays().grow(maxes, bucket + 1);
+                        maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                    }
+                    maxes.set(bucket, Math.max(maxes.get(bucket), values.doubleValue()));
                 }
             }
 
@@ -108,7 +101,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+        if (owningBucketOrd >= maxes.size()) {
             return Double.NEGATIVE_INFINITY;
         }
         return maxes.get(owningBucketOrd);
@@ -116,15 +109,15 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= maxes.size()) {
+        if (bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
+        return new Max(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+        return Max.createEmptyMax(name, formatter, metadata());
     }
 
     @Override
@@ -168,7 +161,7 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue {
 
             @Override
             public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                if (FutureArrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
+                if (Arrays.equals(maxValue, 0, numBytes, maxPackedValue, 0, numBytes)) {
                     // we only check leaves that contain the max value for the segment.
                     return PointValues.Relation.CELL_CROSSES_QUERY;
                 } else {

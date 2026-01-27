@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
+
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.UnrecoverableKeyException;
 import java.util.List;
@@ -25,10 +27,7 @@ import java.util.stream.Collectors;
 final class SslFileUtil {
 
     static String pathsToString(List<Path> paths) {
-        return paths.stream()
-            .map(Path::toAbsolutePath)
-            .map(Object::toString)
-            .collect(Collectors.joining(","));
+        return paths.stream().map(Path::toAbsolutePath).map(Object::toString).collect(Collectors.joining(","));
     }
 
     static SslConfigException ioException(String fileType, List<Path> paths, IOException cause) {
@@ -80,14 +79,22 @@ final class SslFileUtil {
         return new SslConfigException(message, cause);
     }
 
-    static SslConfigException accessControlFailure(String fileType, List<Path> paths, AccessControlException cause, Path basePath) {
+    static SslConfigException notEntitledFailure(String fileType, List<Path> paths, NotEntitledException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
+    static SslConfigException accessControlFailure(String fileType, List<Path> paths, SecurityException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
+    private static SslConfigException innerAccessControlFailure(String fileType, List<Path> paths, Exception cause, Path basePath) {
         String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "] because ";
         if (paths.size() == 1) {
             message += "access to read the file is blocked";
         } else {
             message += "access to read one or more files is blocked";
         }
-        message += "; SSL resources should be placed in the " ;
+        message += "; SSL resources should be placed in the ";
         if (basePath == null) {
             message += "Elasticsearch config directory";
         } else {

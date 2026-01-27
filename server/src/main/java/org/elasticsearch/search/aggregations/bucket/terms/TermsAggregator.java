@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -12,8 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -24,15 +23,21 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 public abstract class TermsAggregator extends DeferableBucketAggregator {
+
+    /**
+     * This class provides bucket thresholds configuration, but can be used ensure default value immutability
+     */
+    public record ConstantBucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {}
 
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
@@ -66,6 +71,15 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
+            this(
+                bucketCountThresholds.minDocCount,
+                bucketCountThresholds.shardMinDocCount,
+                bucketCountThresholds.requiredSize,
+                bucketCountThresholds.shardSize
+            );
+        }
+
+        public BucketCountThresholds(ConstantBucketCountThresholds bucketCountThresholds) {
             this(
                 bucketCountThresholds.minDocCount,
                 bucketCountThresholds.shardMinDocCount,
@@ -175,10 +189,10 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final DocValueFormat format;
     protected final BucketCountThresholds bucketCountThresholds;
     protected final BucketOrder order;
-    protected final Comparator<InternalTerms.Bucket<?>> partiallyBuiltBucketComparator;
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
+    @SuppressWarnings("this-escape")
     public TermsAggregator(
         String name,
         AggregatorFactories factories,
@@ -193,13 +207,18 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         super(name, factories, context, parent, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
-        partiallyBuiltBucketComparator = order == null ? null : order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
+        if (order != null) {
+            order.validate(this);
+        }
         this.format = format;
-        if (subAggsNeedScore() && descendsFromNestedAggregator(parent)) {
+        if ((subAggsNeedScore() && descendsFromNestedAggregator(parent)) || context.isInSortOrderExecutionRequired()) {
             /**
              * Force the execution to depth_first because we need to access the score of
              * nested documents in a sub-aggregation and we are not able to generate this score
              * while replaying deferred documents.
+             *
+             * We also force depth_first for time-series aggs executions since they need to be visited in a particular order (index
+             * sort order) which might be changed by the breadth_first execution.
              */
             this.collectMode = SubAggCollectionMode.DEPTH_FIRST;
         } else {
@@ -217,8 +236,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         if (order instanceof Aggregation) {
             AggregationPath path = ((Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(root));
-        } else if (order instanceof CompoundOrder) {
-            CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
                     AggregationPath path = ((Aggregation) orderElement).path();

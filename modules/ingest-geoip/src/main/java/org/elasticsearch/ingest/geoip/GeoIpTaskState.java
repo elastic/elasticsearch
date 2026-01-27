@@ -1,54 +1,61 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTaskState;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getTaskWithId;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
+public class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     private static final ParseField DATABASES = new ParseField("databases");
 
-    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Collections.emptyMap());
+    static final GeoIpTaskState EMPTY = new GeoIpTaskState(Map.of());
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER =
-        new ConstructingObjectParser<>(GEOIP_DOWNLOADER, true,
-            args -> {
-                List<Tuple<String, Metadata>> databases = (List<Tuple<String, Metadata>>) args[0];
-                return new GeoIpTaskState(databases.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
-            });
+    private static final ConstructingObjectParser<GeoIpTaskState, Void> PARSER = new ConstructingObjectParser<>(
+        GEOIP_DOWNLOADER,
+        true,
+        args -> {
+            List<Tuple<String, Metadata>> databases = (List<Tuple<String, Metadata>>) args[0];
+            return new GeoIpTaskState(databases.stream().collect(Collectors.toMap(Tuple::v1, Tuple::v2)));
+        }
+    );
 
     static {
         PARSER.declareNamedObjects(constructorArg(), (p, c, name) -> Tuple.tuple(name, Metadata.fromXContent(p)), DATABASES);
@@ -65,12 +72,9 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     GeoIpTaskState(StreamInput input) throws IOException {
-        databases = Collections.unmodifiableMap(input.readMap(StreamInput::readString,
-            in -> {
-                long lastUpdate = in.readLong();
-                return new Metadata(lastUpdate, in.readVInt(), in.readVInt(), in.readString(),
-                    in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readLong() : lastUpdate);
-            }));
+        databases = input.readImmutableMap(
+            in -> new Metadata(in.readLong(), in.readVInt(), in.readVInt(), in.readString(), in.readLong(), input.readOptionalString())
+        );
     }
 
     public GeoIpTaskState put(String name, Metadata metadata) {
@@ -81,14 +85,6 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
     public Map<String, Metadata> getDatabases() {
         return databases;
-    }
-
-    public boolean contains(String name) {
-        return databases.containsKey(name);
-    }
-
-    public Metadata get(String name) {
-        return databases.get(name);
     }
 
     @Override
@@ -124,36 +120,52 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_13_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(databases, StreamOutput::writeString, (o, v) -> {
+        out.writeMap(databases, (o, v) -> {
             o.writeLong(v.lastUpdate);
             o.writeVInt(v.firstChunk);
             o.writeVInt(v.lastChunk);
             o.writeString(v.md5);
-            if (o.getVersion().onOrAfter(Version.V_7_14_0)) {
-                o.writeLong(v.lastCheck);
-            }
+            o.writeLong(v.lastCheck);
+            o.writeOptionalString(v.sha256);
         });
     }
 
-    static class Metadata implements ToXContentObject {
+    public record Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck, @Nullable String sha256)
+        implements
+            ToXContentObject {
 
-        static final String NAME = GEOIP_DOWNLOADER + "-metadata";
+        /**
+         * An empty Metadata object useful for getOrDefault -type calls. Crucially, the 'lastChunk' is -1, so it's safe to use
+         * with logic that says the new firstChunk is the old lastChunk + 1.
+         */
+        static Metadata EMPTY = new Metadata(-1, -1, -1, "", -1, null);
+
+        private static final String NAME = GEOIP_DOWNLOADER + "-metadata";
         private static final ParseField LAST_CHECK = new ParseField("last_check");
         private static final ParseField LAST_UPDATE = new ParseField("last_update");
         private static final ParseField FIRST_CHUNK = new ParseField("first_chunk");
         private static final ParseField LAST_CHUNK = new ParseField("last_chunk");
         private static final ParseField MD5 = new ParseField("md5");
+        private static final ParseField SHA256 = new ParseField("sha256");
 
-        private static final ConstructingObjectParser<Metadata, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true,
-                args -> new Metadata((long) args[0], (int) args[1], (int) args[2], (String) args[3], (long) (args[4] == null ? args[0] :
-                    args[4])));
+        private static final ConstructingObjectParser<Metadata, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Metadata(
+                (long) args[0],
+                (int) args[1],
+                (int) args[2],
+                (String) args[3],
+                (long) (args[4] == null ? args[0] : args[4]),
+                (String) args[5]
+            )
+        );
 
         static {
             PARSER.declareLong(constructorArg(), LAST_UPDATE);
@@ -161,6 +173,7 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             PARSER.declareInt(constructorArg(), LAST_CHUNK);
             PARSER.declareString(constructorArg(), MD5);
             PARSER.declareLong(optionalConstructorArg(), LAST_CHECK);
+            PARSER.declareString(optionalConstructorArg(), SHA256);
         }
 
         public static Metadata fromXContent(XContentParser parser) {
@@ -171,64 +184,42 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
             }
         }
 
-        private final long lastUpdate;
-        private final int firstChunk;
-        private final int lastChunk;
-        private final String md5;
-        private final long lastCheck;
+        public Metadata {
+            Objects.requireNonNull(md5);
+        }
 
         Metadata(long lastUpdate, int firstChunk, int lastChunk, String md5, long lastCheck) {
-            this.lastUpdate = lastUpdate;
-            this.firstChunk = firstChunk;
-            this.lastChunk = lastChunk;
-            this.md5 = Objects.requireNonNull(md5);
-            this.lastCheck = lastCheck;
+            this(lastUpdate, firstChunk, lastChunk, md5, lastCheck, null);
         }
 
-        public long getLastUpdate() {
-            return lastUpdate;
+        public boolean isCloseToExpiration() {
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isBefore(now.minus(25, ChronoUnit.DAYS));
         }
 
-        public boolean isCloseToExpiration(){
-            return Instant.ofEpochMilli(lastCheck).isBefore(Instant.now().minus(25, ChronoUnit.DAYS));
-        }
+        // these constants support the micro optimization below, see that note
+        private static final TimeValue THIRTY_DAYS = TimeValue.timeValueDays(30);
+        private static final long THIRTY_DAYS_MILLIS = THIRTY_DAYS.millis();
 
-        public boolean isValid(Settings settings) {
-            TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
-            return Instant.ofEpochMilli(lastCheck).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
-        }
+        @FixForMultiProject(description = "Replace caller from cluster settings to project settings")
+        public boolean isNewEnough(Settings settings) {
+            // micro optimization: this looks a little silly, but the expected case is that database_validity is only used in tests.
+            // we run this code on every document, though, so the argument checking and other bits that getAsTime does is enough
+            // to show up in a flame graph.
 
-        public int getFirstChunk() {
-            return firstChunk;
-        }
+            // if you grep for "ingest.geoip.database_validity" and you'll see that it's not a 'real' setting -- it's only defined in
+            // AbstractGeoIpIT, that's why it's an inline string constant here and no some static final, and also why it cannot
+            // be the case that this setting exists in a real running cluster
 
-        public int getLastChunk() {
-            return lastChunk;
-        }
+            final long valid;
+            if (settings.hasValue("ingest.geoip.database_validity")) {
+                valid = settings.getAsTime("ingest.geoip.database_validity", THIRTY_DAYS).millis();
+            } else {
+                valid = THIRTY_DAYS_MILLIS;
+            }
 
-        public String getMd5() {
-            return md5;
-        }
-
-        public long getLastCheck() {
-            return lastCheck;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Metadata metadata = (Metadata) o;
-            return lastUpdate == metadata.lastUpdate
-                && firstChunk == metadata.firstChunk
-                && lastChunk == metadata.lastChunk
-                && lastCheck == metadata.lastCheck
-                && md5.equals(metadata.md5);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(lastUpdate, firstChunk, lastChunk, md5, lastCheck);
+            final Instant now = Instant.ofEpochMilli(System.currentTimeMillis()); // millisecond precision is sufficient (and faster)
+            return Instant.ofEpochMilli(lastCheck).isAfter(now.minus(valid, ChronoUnit.MILLIS));
         }
 
         @Override
@@ -240,9 +231,27 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
                 builder.field(FIRST_CHUNK.getPreferredName(), firstChunk);
                 builder.field(LAST_CHUNK.getPreferredName(), lastChunk);
                 builder.field(MD5.getPreferredName(), md5);
+                if (sha256 != null) { // only serialize if not null, for prettiness reasons
+                    builder.field(SHA256.getPreferredName(), sha256);
+                }
             }
             builder.endObject();
             return builder;
         }
     }
+
+    /**
+     * Retrieves the geoip downloader's task state from the project metadata. This may return null in some circumstances,
+     * for example if the geoip downloader task hasn't been created yet (which it wouldn't be if it's disabled).
+     *
+     * @param projectMetadata the project metatdata to read the task state from.
+     * @param taskId the task ID of the geoip downloader task to read the state for.
+     * @return the geoip downloader's task state or null if there is not a state to read
+     */
+    @Nullable
+    static GeoIpTaskState getGeoIpTaskState(ProjectMetadata projectMetadata, String taskId) {
+        PersistentTasksCustomMetadata.PersistentTask<?> task = getTaskWithId(projectMetadata, taskId);
+        return (task == null) ? null : (GeoIpTaskState) task.getState();
+    }
+
 }

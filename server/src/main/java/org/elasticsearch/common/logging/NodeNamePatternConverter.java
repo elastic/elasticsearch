@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -25,7 +26,7 @@ import java.util.Arrays;
  * elasticsearch.yml.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
-@ConverterKeys({"ESnode_name","node_name"})
+@ConverterKeys({ "ESnode_name", "node_name" })
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
     /**
      * The name of this node.
@@ -39,9 +40,9 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
         NODE_NAME.set(nodeName);
     }
 
-    public static void setGlobalNodeName(String nodeName){
+    public static void setGlobalNodeName(String nodeName) {
         LoggerContext ctx = LoggerContext.getContext(false);
-        ctx.getConfiguration().getProperties().put("node_name",nodeName);
+        ctx.getConfiguration().getProperties().put("node_name", nodeName);
     }
 
     /**
@@ -49,8 +50,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
      */
     public static NodeNamePatternConverter newInstance(final String[] options) {
         if (options.length > 0) {
-            throw new IllegalArgumentException("no options supported but options provided: "
-                    + Arrays.toString(options));
+            throw new IllegalArgumentException("no options supported but options provided: " + Arrays.toString(options));
         }
         String nodeName = NODE_NAME.get();
         if (nodeName == null) {

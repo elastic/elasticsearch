@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.enrich.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionType;
@@ -17,23 +16,31 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
 import org.elasticsearch.xpack.enrich.EnrichPolicyExecutor;
 import org.elasticsearch.xpack.enrich.ExecuteEnrichPolicyTask;
 
+import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction.Request;
 import static org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction.Response;
 import static org.elasticsearch.xpack.enrich.EnrichPolicyExecutor.TASK_ACTION;
 
@@ -56,13 +63,53 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
     public static final String NAME = "cluster:admin/xpack/enrich/internal_execute";
 
     private InternalExecutePolicyAction() {
-        super(NAME, Response::new);
+        super(NAME);
+    }
+
+    public static class Request extends ExecuteEnrichPolicyAction.Request {
+
+        private final String enrichIndexName;
+
+        public Request(TimeValue masterNodeTimeout, String name, String enrichIndexName) {
+            super(masterNodeTimeout, name);
+            this.enrichIndexName = enrichIndexName;
+        }
+
+        public Request(StreamInput in) throws IOException {
+            super(in);
+            this.enrichIndexName = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeString(enrichIndexName);
+        }
+
+        public String getEnrichIndexName() {
+            return enrichIndexName;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (super.equals(o) == false) return false;
+            Request request = (Request) o;
+            return Objects.equals(enrichIndexName, request.enrichIndexName);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), enrichIndexName);
+        }
     }
 
     public static class Transport extends HandledTransportAction<Request, Response> {
 
         private final ClusterService clusterService;
         private final TransportService transportService;
+        private final ProjectResolver projectResolver;
         private final EnrichPolicyExecutor policyExecutor;
         private final AtomicInteger nodeGenerator = new AtomicInteger(Randomness.get().nextInt());
 
@@ -71,11 +118,13 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             TransportService transportService,
             ActionFilters actionFilters,
             ClusterService clusterService,
+            ProjectResolver projectResolver,
             EnrichPolicyExecutor policyExecutor
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.clusterService = clusterService;
             this.transportService = transportService;
+            this.projectResolver = projectResolver;
             this.policyExecutor = policyExecutor;
         }
 
@@ -84,61 +133,81 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
             var clusterState = clusterService.state();
             var targetNode = selectNodeForPolicyExecution(clusterState.nodes());
             if (clusterState.nodes().getLocalNode().equals(targetNode) == false) {
-                var handler = new ActionListenerResponseHandler<>(actionListener, Response::new);
+                var handler = new ActionListenerResponseHandler<>(actionListener, Response::new, TransportResponseHandler.TRANSPORT_WORKER);
                 transportService.sendRequest(targetNode, NAME, request, handler);
                 return;
             }
 
-            // Can't use provided task, because in the case wait_for_completion=false then
-            // as soon as actionListener#onResponse is invoked then the provided task get unregistered and
-            // then there no way to see the policy execution in the list tasks or get task APIs.
-            var task = (ExecuteEnrichPolicyTask) taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
+            try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+                // Can't use provided task, because in the case wait_for_completion=false then
+                // as soon as actionListener#onResponse is invoked then the provided task get unregistered and
+                // then there no way to see the policy execution in the list tasks or get task APIs.
+                var task = (ExecuteEnrichPolicyTask) taskManager.register("enrich", TASK_ACTION, new TaskAwareRequest() {
 
-                @Override
-                public void setParentTask(TaskId taskId) {
-                    request.setParentTask(taskId);
-                }
+                    @Override
+                    public void setParentTask(TaskId taskId) {
+                        request.setParentTask(taskId);
+                    }
 
-                @Override
-                public TaskId getParentTask() {
-                    return request.getParentTask();
-                }
+                    @Override
+                    public void setRequestId(long requestId) {
+                        request.setRequestId(requestId);
+                    }
 
-                @Override
-                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-                    String description = "executing enrich policy [" + request.getName() + "]";
-                    return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
-                }
-            });
+                    @Override
+                    public TaskId getParentTask() {
+                        return request.getParentTask();
+                    }
 
-            try {
-                ActionListener<ExecuteEnrichPolicyStatus> listener;
-                if (request.isWaitForCompletion()) {
-                    listener = ActionListener.wrap(result -> actionListener.onResponse(new Response(result)), actionListener::onFailure);
-                } else {
-                    listener = ActionListener.wrap(result -> LOGGER.debug("successfully executed policy [{}]", request.getName()), e -> {
-                        if (e instanceof TaskCancelledException) {
-                            LOGGER.info(e.getMessage());
-                        } else {
-                            LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
-                        }
-                    });
-                }
-                policyExecutor.runPolicyLocally(task, request.getName(), ActionListener.wrap(result -> {
+                    @Override
+                    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                        String description = "executing enrich policy ["
+                            + request.getName()
+                            + "] creating new enrich index ["
+                            + request.getEnrichIndexName()
+                            + "]";
+                        return new ExecuteEnrichPolicyTask(id, type, action, description, parentTaskId, headers);
+                    }
+                });
+
+                try {
+                    ActionListener<ExecuteEnrichPolicyStatus> listener;
+                    if (request.isWaitForCompletion()) {
+                        listener = actionListener.delegateFailureAndWrap((l, result) -> l.onResponse(new Response(result)));
+                    } else {
+                        listener = ActionListener.wrap(
+                            result -> LOGGER.debug("successfully executed policy [{}]", request.getName()),
+                            e -> {
+                                if (e instanceof TaskCancelledException) {
+                                    LOGGER.info(e.getMessage());
+                                } else {
+                                    LOGGER.error("failed to execute policy [" + request.getName() + "]", e);
+                                }
+                            }
+                        );
+                    }
+                    policyExecutor.runPolicyLocally(
+                        projectResolver.getProjectId(),
+                        task,
+                        request.getName(),
+                        request.getEnrichIndexName(),
+                        ActionListener.wrap(result -> {
+                            taskManager.unregister(task);
+                            listener.onResponse(result);
+                        }, e -> {
+                            taskManager.unregister(task);
+                            listener.onFailure(e);
+                        })
+                    );
+
+                    if (request.isWaitForCompletion() == false) {
+                        TaskId taskId = new TaskId(clusterState.nodes().getLocalNodeId(), task.getId());
+                        actionListener.onResponse(new Response(taskId));
+                    }
+                } catch (Exception e) {
                     taskManager.unregister(task);
-                    listener.onResponse(result);
-                }, e -> {
-                    taskManager.unregister(task);
-                    listener.onFailure(e);
-                }));
-
-                if (request.isWaitForCompletion() == false) {
-                    TaskId taskId = new TaskId(clusterState.nodes().getLocalNodeId(), task.getId());
-                    actionListener.onResponse(new Response(taskId));
+                    throw e;
                 }
-            } catch (Exception e) {
-                taskManager.unregister(task);
-                throw e;
             }
         }
 
@@ -161,14 +230,11 @@ public class InternalExecutePolicyAction extends ActionType<Response> {
                 return discoNodes.getLocalNode();
             }
 
-            final var nodes = discoNodes.getAllNodes()
-                .stream()
+            final var nodes = discoNodes.stream()
                 // filter out elected master node (which is the local node)
                 .filter(discoNode -> discoNode.getId().equals(discoNodes.getMasterNodeId()) == false)
                 // filter out dedicated master nodes
                 .filter(discoNode -> discoNode.getRoles().equals(Set.of(DiscoveryNodeRole.MASTER_ROLE)) == false)
-                // Filter out nodes that don't have this action yet
-                .filter(discoNode -> discoNode.getVersion().onOrAfter(Version.V_7_15_0))
                 .toArray(DiscoveryNode[]::new);
             if (nodes.length == 0) {
                 throw new IllegalStateException("no suitable node was found to perform enrich policy execution");

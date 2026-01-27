@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.dissect;
@@ -111,7 +112,8 @@ public class DissectKeyTests extends ESTestCase {
 
     public void testMultipleLeftModifiers() {
         String keyName = randomAlphaOfLengthBetween(1, 10);
-        List<String> validModifiers = EnumSet.allOf(DissectKey.Modifier.class).stream()
+        List<String> validModifiers = EnumSet.allOf(DissectKey.Modifier.class)
+            .stream()
             .filter(m -> m.equals(DissectKey.Modifier.NONE) == false)
             .map(DissectKey.Modifier::toString)
             .collect(Collectors.toList());
@@ -130,9 +132,10 @@ public class DissectKeyTests extends ESTestCase {
         assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
+
     public void testNamedSkipKey() {
         String keyName = "myname";
-        DissectKey dissectKey = new DissectKey("?" +keyName);
+        DissectKey dissectKey = new DissectKey("?" + keyName);
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NAMED_SKIP));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(false));
@@ -142,16 +145,17 @@ public class DissectKeyTests extends ESTestCase {
 
     public void testSkipKeyWithPadding() {
         String keyName = "";
-        DissectKey dissectKey = new DissectKey(keyName  + "->");
+        DissectKey dissectKey = new DissectKey(keyName + "->");
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NONE));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(true));
         assertThat(dissectKey.getAppendPosition(), equalTo(0));
         assertThat(dissectKey.getName(), equalTo(keyName));
     }
+
     public void testNamedEmptySkipKeyWithPadding() {
         String keyName = "";
-        DissectKey dissectKey = new DissectKey("?" +keyName + "->");
+        DissectKey dissectKey = new DissectKey("?" + keyName + "->");
         assertThat(dissectKey.getModifier(), equalTo(DissectKey.Modifier.NAMED_SKIP));
         assertThat(dissectKey.skip(), is(true));
         assertThat(dissectKey.skipRightPadding(), is(true));
@@ -160,7 +164,7 @@ public class DissectKeyTests extends ESTestCase {
     }
 
     public void testInvalidModifiers() {
-        //should never happen due to regex
+        // should never happen due to regex
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DissectKey.Modifier.fromString("x"));
         assertThat(e.getMessage(), CoreMatchers.containsString("invalid modifier"));
     }

@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DesiredNodes;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -31,8 +33,13 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
     }
 
     @Override
-    public Result isConditionMet(Index index, ClusterState clusterState) {
-        boolean present = DataTierAllocationDecider.preferredAvailableTier(tierPreference, clusterState.nodes()).isPresent();
+    public Result isConditionMet(Index index, ProjectState currentState) {
+        boolean present = DataTierAllocationDecider.preferredAvailableTier(
+            DataTier.parseTierList(tierPreference),
+            currentState.cluster().nodes(),
+            DesiredNodes.latestFromClusterState(currentState.cluster()),
+            currentState.cluster().metadata().nodeShutdowns()
+        ).isPresent();
         SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);
     }

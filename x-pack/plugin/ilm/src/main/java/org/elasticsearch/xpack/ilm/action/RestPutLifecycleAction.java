@@ -7,19 +7,33 @@
 
 package org.elasticsearch.xpack.ilm.action;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestPutLifecycleAction.class);
+
+    public static final String MAX_SIZE_DEPRECATION_MESSAGE = "Use of the [max_size] rollover condition found in phase [{}]. This"
+        + " condition has been deprecated in favour of the [max_primary_shard_size] condition and will be removed in a later version";
 
     @Override
     public List<Route> routes() {
@@ -33,13 +47,42 @@ public class RestPutLifecycleAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String lifecycleName = restRequest.param("name");
-        try (XContentParser parser = restRequest.contentParser()) {
-            PutLifecycleAction.Request putLifecycleRequest = PutLifecycleAction.Request.parseRequest(lifecycleName, parser);
-            putLifecycleRequest.timeout(restRequest.paramAsTime("timeout", putLifecycleRequest.timeout()));
-            putLifecycleRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
+        final PutLifecycleRequest putLifecycleRequest;
+        try (var parser = restRequest.contentParser()) {
+            putLifecycleRequest = PutLifecycleRequest.parseRequest(new PutLifecycleRequest.Factory() {
+                @Override
+                public PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy) {
+                    return new PutLifecycleRequest(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest), lifecyclePolicy);
+                }
 
-            return channel -> client.execute(PutLifecycleAction.INSTANCE, putLifecycleRequest, new RestToXContentListener<>(channel));
+                @Override
+                public String getPolicyName() {
+                    return restRequest.param("name");
+                }
+            }, parser);
         }
+
+        // Check for deprecated rollover conditions
+        for (Phase phase : putLifecycleRequest.getPolicy().getPhases().values()) {
+            for (LifecycleAction actionObj : phase.getActions().values()) {
+                if (actionObj instanceof RolloverAction rolloverAction) {
+                    if (rolloverAction.getConditions().getMaxSize() != null) {
+                        DEPRECATION_LOGGER.warn(
+                            DeprecationCategory.API,
+                            "rollover-max-size-condition",
+                            MAX_SIZE_DEPRECATION_MESSAGE,
+                            phase.getName()
+                        );
+                    }
+                }
+            }
+        }
+
+        return channel -> client.execute(ILMActions.PUT, putLifecycleRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("max_size_deprecation", "searchable_snapshot_force_merge_on_clone");
     }
 }

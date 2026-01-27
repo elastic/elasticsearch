@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.test;
@@ -22,7 +23,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import static org.elasticsearch.gradle.plugin.PluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
+import static org.elasticsearch.gradle.plugin.BasePluginBuildPlugin.BUNDLE_PLUGIN_TASK_NAME;
 
 public class JavaRestTestPlugin implements Plugin<Project> {
 
@@ -48,26 +49,28 @@ public class JavaRestTestPlugin implements Plugin<Project> {
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
             .getExtensions()
             .getByName(TestClustersPlugin.EXTENSION_NAME);
-        var cluster = testClusters.maybeCreate(JAVA_REST_TEST);
+        var clusterProvider = testClusters.register(JAVA_REST_TEST);
 
         // Register test task
         TaskProvider<StandaloneRestIntegTestTask> javaRestTestTask = project.getTasks()
             .register(JAVA_REST_TEST, StandaloneRestIntegTestTask.class, task -> {
-                task.useCluster(cluster);
+                task.useCluster(clusterProvider);
                 task.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
                 task.setClasspath(testSourceSet.getRuntimeClasspath());
 
+                var cluster = clusterProvider.get();
                 var nonInputProperties = new SystemPropertyCommandLineArgumentProvider();
                 nonInputProperties.systemProperty("tests.rest.cluster", () -> String.join(",", cluster.getAllHttpSocketURI()));
                 nonInputProperties.systemProperty("tests.cluster", () -> String.join(",", cluster.getAllTransportPortURI()));
                 nonInputProperties.systemProperty("tests.clustername", () -> cluster.getName());
+                nonInputProperties.systemProperty("tests.cluster.readiness", () -> String.join(",", cluster.getAllReadinessPortURI()));
                 task.getJvmArgumentProviders().add(nonInputProperties);
             });
 
         // Register plugin bundle with test cluster
         project.getPlugins().withType(PluginBuildPlugin.class, p -> {
             TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named(BUNDLE_PLUGIN_TASK_NAME);
-            cluster.plugin(bundle.flatMap(Zip::getArchiveFile));
+            clusterProvider.configure(c -> c.plugin(bundle.flatMap(Zip::getArchiveFile)));
             javaRestTestTask.configure(t -> t.dependsOn(bundle));
         });
 

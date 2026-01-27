@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -17,11 +18,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.test.ESTestCase.TestAnalysis;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -48,8 +49,7 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
         assertThat(filter, instanceOf(SetKeywordMarkerFilter.class));
         NamedAnalyzer analyzer = analysis.indexAnalyzers.get("my_keyword");
         // jogging is not part of the keywords set, so verify that its the only stemmed word
-        assertAnalyzesTo(analyzer, "running jogging sleeping",
-            new String[] { "running", "jog", "sleeping" });
+        assertAnalyzesTo(analyzer, "running jogging sleeping", new String[] { "running", "jog", "sleeping" });
     }
 
     /**
@@ -87,9 +87,10 @@ public class KeywordMarkerFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.analyzer.my_keyword.filter", "my_keyword, porter_stem")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin()));
-        assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`",
-            e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+        );
+        assertEquals("cannot specify both `keywords_pattern` and `keywords` or `keywords_path`", e.getMessage());
     }
 }

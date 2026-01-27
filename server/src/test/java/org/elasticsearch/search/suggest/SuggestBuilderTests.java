@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilderTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -140,12 +141,12 @@ public class SuggestBuilderTests extends ESTestCase {
     }
 
     private static SuggestionBuilder<?> randomSuggestionBuilder() {
-        switch (randomIntBetween(0, 2)) {
-            case 0: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-            case 1: return PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
-            case 2: return CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
-            default: return TermSuggestionBuilderTests.randomTermSuggestionBuilder();
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+            case 1 -> PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder();
+            case 2 -> CompletionSuggesterBuilderTests.randomCompletionSuggestionBuilder();
+            default -> TermSuggestionBuilderTests.randomTermSuggestionBuilder();
+        };
     }
 
     @Override

@@ -8,15 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
@@ -32,36 +31,33 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
-        PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    void innerPerformAction(String followerIndex, ProjectState currentState, ActionListener<Void> listener) {
+        PersistentTasksCustomMetadata persistentTasksMetadata = currentState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
             listener.onResponse(null);
             return;
         }
 
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks().stream()
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
                 return shardFollowTask.getFollowShardId().getIndexName().equals(followerIndex);
             })
-            .collect(Collectors.toList());
+            .toList();
 
         if (shardFollowTasks.isEmpty()) {
             listener.onResponse(null);
             return;
         }
 
-        PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
-        request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
-            r -> {
-                if (r.isAcknowledged() == false) {
-                    throw new ElasticsearchException("pause follow request failed to be acknowledged");
-                }
-                listener.onResponse(null);
-            },
-            listener::onFailure
-        ));
+        PauseFollowAction.Request request = new PauseFollowAction.Request(TimeValue.MAX_VALUE, followerIndex);
+        getClient(currentState.projectId()).execute(PauseFollowAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> {
+            if (r.isAcknowledged() == false) {
+                throw new ElasticsearchException("pause follow request failed to be acknowledged");
+            }
+            l.onResponse(null);
+        }));
     }
 }

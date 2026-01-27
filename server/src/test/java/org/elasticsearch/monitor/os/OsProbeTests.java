@@ -1,14 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -16,8 +19,6 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -48,7 +49,7 @@ public class OsProbeTests extends ESTestCase {
                 if (prettyName != null) {
                     final String quote = randomFrom("\"", "'", "");
                     final String space = randomFrom(" ", "");
-                    final String prettyNameLine = String.format(Locale.ROOT, "PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
+                    final String prettyNameLine = Strings.format("PRETTY_NAME=%s%s%s%s", quote, prettyName, quote, space);
                     return Arrays.asList("NAME=" + randomAlphaOfLength(16), prettyNameLine);
                 } else {
                     return Collections.singletonList("NAME=" + randomAlphaOfLength(16));
@@ -56,7 +57,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
         };
-        final OsInfo info = osProbe.osInfo(refreshInterval, allocatedProcessors);
+        final OsInfo info = osProbe.osInfo(refreshInterval, Processors.of((double) allocatedProcessors));
         assertNotNull(info);
         assertThat(info.getRefreshInterval(), equalTo(refreshInterval));
         assertThat(info.getName(), equalTo(Constants.OS_NAME));
@@ -109,6 +110,7 @@ public class OsProbeTests extends ESTestCase {
                 assertThat(loadAverage[2], equalTo((double) -1));
             }
         }
+        assertThat(stats.getCpu().getAvailableProcessors(), greaterThanOrEqualTo(1));
 
         assertNotNull(stats.getMem());
         assertThat(stats.getMem().getTotal().getBytes(), greaterThan(0L));
@@ -123,7 +125,7 @@ public class OsProbeTests extends ESTestCase {
         long total = stats.getSwap().getTotal().getBytes();
         if (total > 0) {
             assertThat(stats.getSwap().getTotal().getBytes(), greaterThan(0L));
-            assertThat(stats.getSwap().getFree().getBytes(), greaterThan(0L));
+            assertThat(stats.getSwap().getFree().getBytes(), greaterThanOrEqualTo(0L));
             assertThat(stats.getSwap().getUsed().getBytes(), greaterThanOrEqualTo(0L));
         } else {
             // On platforms with no swap
@@ -135,12 +137,12 @@ public class OsProbeTests extends ESTestCase {
         if (Constants.LINUX) {
             if (stats.getCgroup() != null) {
                 assertThat(stats.getCgroup().getCpuAcctControlGroup(), notNullValue());
-                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(0L));
+                assertThat(stats.getCgroup().getCpuAcctUsageNanos(), greaterThan(BigInteger.ZERO));
                 assertThat(stats.getCgroup().getCpuCfsQuotaMicros(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
                 assertThat(stats.getCgroup().getCpuCfsPeriodMicros(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(0L));
-                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(0L));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfElapsedPeriods(), greaterThanOrEqualTo(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getCpuStat().getNumberOfTimesThrottled(), greaterThanOrEqualTo(BigInteger.ZERO));
+                assertThat(stats.getCgroup().getCpuStat().getTimeThrottledNanos(), greaterThanOrEqualTo(BigInteger.ZERO));
                 // These could be null if transported from a node running an older version, but shouldn't be null on the current node
                 assertThat(stats.getCgroup().getMemoryControlGroup(), notNullValue());
                 String memoryLimitInBytes = stats.getCgroup().getMemoryLimitInBytes();
@@ -185,20 +187,34 @@ public class OsProbeTests extends ESTestCase {
 
         final OsStats.Cgroup cgroup = probe.osStats().getCgroup();
 
-        if (availableCgroupsVersion > 0) {
-            assertNotNull(cgroup);
-            assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(364869866063112L));
-            assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
-            assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
-            assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
-            assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(17992L));
-            assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(1311L));
-            assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(139298645489L));
-            assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
-            assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
-        } else {
-            assertNull(cgroup);
+        switch (availableCgroupsVersion) {
+            case 0 -> assertNull(cgroup);
+            case 1 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063112")));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(BigInteger.valueOf(17992)));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(BigInteger.valueOf(1311)));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(new BigInteger("139298645489")));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
+            case 2 -> {
+                assertNotNull(cgroup);
+                assertThat(cgroup.getCpuAcctControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuAcctUsageNanos(), equalTo(new BigInteger("364869866063000")));
+                assertThat(cgroup.getCpuControlGroup(), equalTo("/" + hierarchy));
+                assertThat(cgroup.getCpuCfsPeriodMicros(), equalTo(100000L));
+                assertThat(cgroup.getCpuCfsQuotaMicros(), equalTo(50000L));
+                assertThat(cgroup.getCpuStat().getNumberOfElapsedPeriods(), equalTo(BigInteger.valueOf(17992)));
+                assertThat(cgroup.getCpuStat().getNumberOfTimesThrottled(), equalTo(BigInteger.valueOf(1311)));
+                assertThat(cgroup.getCpuStat().getTimeThrottledNanos(), equalTo(new BigInteger("139298645000")));
+                assertThat(cgroup.getMemoryLimitInBytes(), equalTo("18446744073709551615"));
+                assertThat(cgroup.getMemoryUsageInBytes(), equalTo("4796416"));
+            }
         }
     }
 
@@ -208,7 +224,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpuacct
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(",cpuacct", ""))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -223,7 +239,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about cpu
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .map(line -> line.replaceFirst(":cpu,", ":"))
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -238,7 +254,7 @@ public class OsProbeTests extends ESTestCase {
         // This cgroup data is missing a line about memory
         List<String> procSelfCgroupLines = getProcSelfGroupLines(1, hierarchy).stream()
             .filter(line -> line.contains(":memory:") == false)
-            .collect(Collectors.toList());
+            .toList();
 
         final OsProbe probe = buildStubOsProbe(1, hierarchy, procSelfCgroupLines);
 
@@ -305,6 +321,19 @@ public class OsProbeTests extends ESTestCase {
         );
         probe = buildStubOsProbe(cgroupsVersion, "", List.of(), meminfoLines);
         assertThat(probe.getTotalMemFromProcMeminfo(), equalTo(memTotalInKb * 1024L));
+    }
+
+    public void testTotalMemoryOverride() {
+        assertThat(OsProbe.getTotalMemoryOverride("123456789"), is(123456789L));
+        assertThat(OsProbe.getTotalMemoryOverride("123456789123456789"), is(123456789123456789L));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("-1"));
+        assertThat(e.getMessage(), is("Negative memory size specified in [es.total_memory_bytes]: [-1]"));
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("abc"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [abc]"));
+        // Although numeric, this value overflows long. This won't be a problem in practice for sensible
+        // overrides, as it will be a very long time before machines have more than 8 exabytes of RAM.
+        e = expectThrows(IllegalArgumentException.class, () -> OsProbe.getTotalMemoryOverride("123456789123456789123456789"));
+        assertThat(e.getMessage(), is("Invalid value for [es.total_memory_bytes]: [123456789123456789123456789]"));
     }
 
     public void testGetTotalMemoryOnDebian8() throws Exception {
@@ -434,12 +463,12 @@ public class OsProbeTests extends ESTestCase {
             List<String> readCgroupV2CpuStats(String controlGroup) {
                 assertThat(controlGroup, equalTo("/" + hierarchy));
                 return List.of(
-                    "usage_usec 364869866063112",
+                    "usage_usec 364869866063",
                     "user_usec 34636",
                     "system_usec 9896",
                     "nr_periods 17992",
                     "nr_throttled 1311",
-                    "throttled_usec 139298645489"
+                    "throttled_usec 139298645"
                 );
             }
 

@@ -8,17 +8,14 @@ package org.elasticsearch.xpack.security.authc.file;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -27,6 +24,8 @@ import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.support.Validation.Users;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
 import org.elasticsearch.xpack.security.support.SecurityFiles;
 
@@ -34,6 +33,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -41,8 +41,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static java.security.AccessController.doPrivileged;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.core.Strings.format;
 
 public class FileUserPasswdStore {
     private static final Logger logger = LogManager.getLogger(FileUserPasswdStore.class);
@@ -59,9 +61,9 @@ public class FileUserPasswdStore {
     FileUserPasswdStore(RealmConfig config, ResourceWatcherService watcherService, Runnable listener) {
         file = resolveFile(config.env());
         settings = config.settings();
-        users = parseFileLenient(file, logger, settings);
+        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
         listeners = new CopyOnWriteArrayList<>(Collections.singletonList(listener));
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -78,7 +80,7 @@ public class FileUserPasswdStore {
         return users.size();
     }
 
-    public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
+    public AuthenticationResult<User> verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
         final char[] hash = users.get(username);
         if (hash == null) {
             return AuthenticationResult.notHandled();
@@ -94,7 +96,7 @@ public class FileUserPasswdStore {
     }
 
     public static Path resolveFile(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, "users");
+        return Security.resolveSecuredConfigFile(env, "users");
     }
 
     /**
@@ -106,9 +108,7 @@ public class FileUserPasswdStore {
             Map<String, char[]> map = parseFile(path, logger, settings);
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
-            logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to parse users file [{}]. skipping/removing all users...", path.toAbsolutePath()), e);
+            logger.error(() -> format("failed to parse users file [%s]. skipping/removing all users...", path.toAbsolutePath()), e);
             return emptyMap();
         }
     }
@@ -156,8 +156,12 @@ public class FileUserPasswdStore {
             String username = line.substring(0, i);
             Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
             if (validationError != null) {
-                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
-                        validationError);
+                logger.error(
+                    "invalid username [{}] in users file [{}], skipping... ({})",
+                    username,
+                    path.toAbsolutePath(),
+                    validationError
+                );
                 continue;
             }
             String hash = line.substring(i + 1);
@@ -169,10 +173,7 @@ public class FileUserPasswdStore {
     }
 
     public static void writeFile(Map<String, char[]> users, Path path) {
-        SecurityFiles.writeFileAtomically(
-                path,
-                users,
-                e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
+        SecurityFiles.writeFileAtomically(path, users, e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
     }
 
     void notifyRefresh() {
@@ -181,7 +182,7 @@ public class FileUserPasswdStore {
 
     private void tryReload() {
         final Map<String, char[]> previousUsers = users;
-        users = parseFileLenient(file, logger, settings);
+        users = doPrivileged((PrivilegedAction<Map<String, char[]>>) () -> parseFileLenient(file, logger, settings));
 
         if (Maps.deepEquals(previousUsers, users) == false) {
             logger.info("users file [{}] changed. updating users...", file.toAbsolutePath());

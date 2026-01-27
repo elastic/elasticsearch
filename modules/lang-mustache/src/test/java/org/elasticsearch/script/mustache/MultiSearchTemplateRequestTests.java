@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,10 +33,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
 
     public void testParseRequest() throws Exception {
         byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/script/mustache/simple-msearch-template.json");
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(data), XContentType.JSON).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
+            .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -66,12 +67,14 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseWithCarriageReturn() throws Exception {
-        final String content = "{\"index\":[\"test0\", \"test1\"], \"request_cache\": true}\r\n" +
-            "{\"source\": {\"query\" : {\"match_{{template}}\" :{}}}, \"params\": {\"template\": \"all\" } }\r\n";
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withContent(new BytesArray(content), XContentType.JSON).build();
+        final String content = """
+            {"index":["test0", "test1"], "request_cache": true}
+            {"source": {"query" : {"match_{{template}}" :{}}}, "params": {"template": "all" } }
+            """;
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
+            .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -88,8 +91,7 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
     public void testMaxConcurrentSearchRequests() {
         MultiSearchTemplateRequest request = new MultiSearchTemplateRequest();
         request.maxConcurrentSearchRequests(randomIntBetween(1, Integer.MAX_VALUE));
-        expectThrows(IllegalArgumentException.class, () ->
-                request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
+        expectThrows(IllegalArgumentException.class, () -> request.maxConcurrentSearchRequests(randomIntBetween(Integer.MIN_VALUE, 0)));
     }
 
     public void testMultiSearchTemplateToJson() throws Exception {
@@ -97,15 +99,16 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         MultiSearchTemplateRequest multiSearchTemplateRequest = new MultiSearchTemplateRequest();
         for (int i = 0; i < numSearchRequests; i++) {
             // Create a random request.
-            String[] indices = {"test"};
+            String[] indices = { "test" };
             SearchRequest searchRequest = new SearchRequest(indices);
             // scroll is not supported in the current msearch or msearchtemplate api, so unset it:
-            searchRequest.scroll((Scroll) null);
+            searchRequest.scroll(null);
             // batched reduce size is currently not set-able on a per-request basis as it is a query string parameter only
             searchRequest.setBatchedReduceSize(SearchRequest.DEFAULT_BATCHED_REDUCE_SIZE);
             SearchTemplateRequest searchTemplateRequest = new SearchTemplateRequest(searchRequest);
 
-            searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
+            searchTemplateRequest.setScript("""
+                {"query": { "match" : { "{{field}}" : "{{value}}" }}}""");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
 
@@ -117,13 +120,13 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
             multiSearchTemplateRequest.add(searchTemplateRequest);
         }
 
-        //Serialize the request
+        // Serialize the request
         String serialized = toJsonString(multiSearchTemplateRequest);
 
-        //Deserialize the request
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
-                .withContent(new BytesArray(serialized), XContentType.JSON).build();
-        MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        // Deserialize the request
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(serialized), XContentType.JSON)
+            .build();
+        MultiSearchTemplateRequest deser = new RestMultiSearchTemplateAction(Settings.EMPTY).parseRequest(restRequest, true);
 
         // For object equality purposes need to set the search requests' source to non-null
         for (SearchTemplateRequest str : deser.requests()) {

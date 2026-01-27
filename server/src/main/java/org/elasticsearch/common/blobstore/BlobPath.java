@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -54,14 +55,11 @@ public class BlobPath {
     @Nullable
     public BlobPath parent() {
         int size = paths.size();
-        switch (size) {
-            case 0:
-                return null;
-            case 1:
-                return EMPTY;
-            default:
-                return new BlobPath(List.copyOf(paths.subList(0, size - 1)));
-        }
+        return switch (size) {
+            case 0 -> null;
+            case 1 -> EMPTY;
+            default -> new BlobPath(List.copyOf(paths.subList(0, size - 1)));
+        };
     }
 
     @Override

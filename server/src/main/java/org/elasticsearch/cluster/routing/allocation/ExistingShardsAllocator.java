@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -12,11 +13,12 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Searches for, and allocates, shards for which there is an existing on-disk copy somewhere in the cluster. The default implementation is
@@ -28,8 +30,11 @@ public interface ExistingShardsAllocator {
      * Allows plugins to override how we allocate shards that may already exist on disk in the cluster.
      */
     Setting<String> EXISTING_SHARDS_ALLOCATOR_SETTING = Setting.simpleString(
-        "index.allocation.existing_shards_allocator", GatewayAllocator.ALLOCATOR_NAME,
-        Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+        "index.allocation.existing_shards_allocator",
+        GatewayAllocator.ALLOCATOR_NAME,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
 
     /**
      * Called before starting a round of allocation, allowing the allocator to invalidate some caches if appropriate.
@@ -40,13 +45,16 @@ public interface ExistingShardsAllocator {
      * Called during a round of allocation after attempting to allocate all the primaries but before any replicas, allowing the allocator
      * to prepare for replica allocation.
      */
-    void afterPrimariesBeforeReplicas(RoutingAllocation allocation);
+    void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate);
 
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      */
-    void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                            UnassignedAllocationHandler unassignedAllocationHandler);
+    void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    );
 
     /**
      * Returns an explanation for a single unassigned shard.
@@ -87,8 +95,12 @@ public interface ExistingShardsAllocator {
          *
          * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
          */
-        ShardRouting initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize,
-                                RoutingChangesObserver routingChangesObserver);
+        ShardRouting initialize(
+            String nodeId,
+            @Nullable String existingAllocationId,
+            long expectedShardSize,
+            RoutingChangesObserver routingChangesObserver
+        );
 
         /**
          * Removes and ignores the unassigned shard (will be ignored for this run, but

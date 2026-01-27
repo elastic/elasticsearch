@@ -15,10 +15,12 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 
@@ -36,13 +38,22 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
 
     private static final Logger logger = LogManager.getLogger(CachingServiceAccountTokenStore.class);
 
-    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("xpack.security.authc.service_token.cache.hash_algo",
-        "ssha256", Setting.Property.NodeScope);
+    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString(
+        "xpack.security.authc.service_token.cache.hash_algo",
+        "ssha256",
+        Setting.Property.NodeScope
+    );
 
-    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.service_token.cache.ttl",
-        TimeValue.timeValueMinutes(20), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(
+        "xpack.security.authc.service_token.cache.ttl",
+        TimeValue.timeValueMinutes(20),
+        Setting.Property.NodeScope
+    );
     public static final Setting<Integer> CACHE_MAX_TOKENS_SETTING = Setting.intSetting(
-        "xpack.security.authc.service_token.cache.max_tokens", 100_000, Setting.Property.NodeScope);
+        "xpack.security.authc.service_token.cache.max_tokens",
+        100_000,
+        Setting.Property.NodeScope
+    );
 
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -86,17 +97,17 @@ public abstract class CachingServiceAccountTokenStore implements ServiceAccountT
                 return new ListenableFuture<>();
             });
             if (valueAlreadyInCache.get()) {
-                listenableCacheEntry.addListener(ActionListener.wrap(result -> {
+                listenableCacheEntry.addListener(listener.delegateFailureAndWrap((l, result) -> {
                     if (result.success) {
-                        listener.onResponse(new StoreAuthenticationResult(result.verify(token), getTokenSource()));
+                        l.onResponse(StoreAuthenticationResult.fromBooleanResult(getTokenSource(), result.verify(token)));
                     } else if (result.verify(token)) {
                         // same wrong token
-                        listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
+                        l.onResponse(StoreAuthenticationResult.failed(getTokenSource()));
                     } else {
                         cache.invalidate(token.getQualifiedName(), listenableCacheEntry);
-                        authenticateWithCache(token, listener);
+                        authenticateWithCache(token, l);
                     }
-                }, listener::onFailure), threadPool.generic(), threadPool.getThreadContext());
+                }), threadPool.generic(), threadPool.getThreadContext());
             } else {
                 doAuthenticate(token, ActionListener.wrap(storeAuthenticationResult -> {
                     if (false == storeAuthenticationResult.isSuccess()) {

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.network.CIDRUtils;
-import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.network.NetworkDirectionUtils;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -17,38 +18,16 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
 public class NetworkDirectionProcessor extends AbstractProcessor {
-    static final byte[] UNDEFINED_IP4 = new byte[] { 0, 0, 0, 0 };
-    static final byte[] UNDEFINED_IP6 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-    static final byte[] BROADCAST_IP4 = new byte[] { (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff };
 
     public static final String TYPE = "network_direction";
-
-    public static final String DIRECTION_INTERNAL = "internal";
-    public static final String DIRECTION_EXTERNAL = "external";
-    public static final String DIRECTION_INBOUND = "inbound";
-    public static final String DIRECTION_OUTBOUND = "outbound";
-
-    private static final String LOOPBACK_NAMED_NETWORK = "loopback";
-    private static final String GLOBAL_UNICAST_NAMED_NETWORK = "global_unicast";
-    private static final String UNICAST_NAMED_NETWORK = "unicast";
-    private static final String LINK_LOCAL_UNICAST_NAMED_NETWORK = "link_local_unicast";
-    private static final String INTERFACE_LOCAL_NAMED_NETWORK = "interface_local_multicast";
-    private static final String LINK_LOCAL_MULTICAST_NAMED_NETWORK = "link_local_multicast";
-    private static final String MULTICAST_NAMED_NETWORK = "multicast";
-    private static final String UNSPECIFIED_NAMED_NETWORK = "unspecified";
-    private static final String PRIVATE_NAMED_NETWORK = "private";
-    private static final String PUBLIC_NAMED_NETWORK = "public";
 
     private final String sourceIpField;
     private final String destinationIpField;
@@ -126,7 +105,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             }
             networks.addAll(stringList);
         } else {
-            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).collect(Collectors.toList());
+            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).toList();
         }
 
         String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
@@ -139,107 +118,10 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             return null;
         }
 
-        boolean sourceInternal = isInternal(networks, sourceIpAddrString);
-        boolean destinationInternal = isInternal(networks, destIpAddrString);
+        boolean sourceInternal = NetworkDirectionUtils.isInternal(networks, sourceIpAddrString);
+        boolean destinationInternal = NetworkDirectionUtils.isInternal(networks, destIpAddrString);
 
-        if (sourceInternal && destinationInternal) {
-            return DIRECTION_INTERNAL;
-        }
-        if (sourceInternal) {
-            return DIRECTION_OUTBOUND;
-        }
-        if (destinationInternal) {
-            return DIRECTION_INBOUND;
-        }
-        return DIRECTION_EXTERNAL;
-    }
-
-    private boolean isInternal(List<String> networks, String ip) {
-        for (String network : networks) {
-            if (inNetwork(ip, network)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean inNetwork(String ip, String network) {
-        InetAddress address = InetAddresses.forString(ip);
-        switch (network) {
-            case LOOPBACK_NAMED_NETWORK:
-                return isLoopback(address);
-            case GLOBAL_UNICAST_NAMED_NETWORK:
-            case UNICAST_NAMED_NETWORK:
-                return isUnicast(address);
-            case LINK_LOCAL_UNICAST_NAMED_NETWORK:
-                return isLinkLocalUnicast(address);
-            case INTERFACE_LOCAL_NAMED_NETWORK:
-                return isInterfaceLocalMulticast(address);
-            case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
-                return isLinkLocalMulticast(address);
-            case MULTICAST_NAMED_NETWORK:
-                return isMulticast(address);
-            case UNSPECIFIED_NAMED_NETWORK:
-                return isUnspecified(address);
-            case PRIVATE_NAMED_NETWORK:
-                return isPrivate(ip);
-            case PUBLIC_NAMED_NETWORK:
-                return isPublic(ip);
-            default:
-                return CIDRUtils.isInRange(ip, network);
-        }
-    }
-
-    private boolean isLoopback(InetAddress ip) {
-        return ip.isLoopbackAddress();
-    }
-
-    private boolean isUnicast(InetAddress ip) {
-        return Arrays.equals(ip.getAddress(), BROADCAST_IP4) == false
-            && isUnspecified(ip) == false
-            && isLoopback(ip) == false
-            && isMulticast(ip) == false
-            && isLinkLocalUnicast(ip) == false;
-    }
-
-    private boolean isLinkLocalUnicast(InetAddress ip) {
-        return ip.isLinkLocalAddress();
-    }
-
-    private boolean isInterfaceLocalMulticast(InetAddress ip) {
-        return ip.isMCNodeLocal();
-    }
-
-    private boolean isLinkLocalMulticast(InetAddress ip) {
-        return ip.isMCLinkLocal();
-    }
-
-    private boolean isMulticast(InetAddress ip) {
-        return ip.isMulticastAddress();
-    }
-
-    private boolean isUnspecified(InetAddress ip) {
-        var address = ip.getAddress();
-        return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
-    }
-
-    private boolean isPrivate(String ip) {
-        return CIDRUtils.isInRange(ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8");
-    }
-
-    private boolean isPublic(String ip) {
-        return isLocalOrPrivate(ip) == false;
-    }
-
-    private boolean isLocalOrPrivate(String ip) {
-        var address = InetAddresses.forString(ip);
-        return isPrivate(ip)
-            || isLoopback(address)
-            || isUnspecified(address)
-            || isLinkLocalUnicast(address)
-            || isLinkLocalMulticast(address)
-            || isInterfaceLocalMulticast(address)
-            || Arrays.equals(address.getAddress(), BROADCAST_IP4);
+        return NetworkDirectionUtils.getDirection(sourceInternal, destinationInternal);
     }
 
     @Override
@@ -262,7 +144,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             final String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_ip", DEFAULT_SOURCE_IP);
             final String destIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_ip", DEFAULT_DEST_IP);
@@ -284,7 +167,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
                 throw newConfigurationException(
                     TYPE,
                     processorTag,
-                    "internal_networks", "and [internal_networks_field] cannot both be used in the same processor"
+                    "internal_networks",
+                    "and [internal_networks_field] cannot both be used in the same processor"
                 );
             }
 
@@ -292,7 +176,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             if (internalNetworks != null) {
                 internalNetworkTemplates = internalNetworks.stream()
                     .map(n -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "internal_networks", n, scriptService))
-                    .collect(Collectors.toList());
+                    .toList();
             }
             return new NetworkDirectionProcessor(
                 processorTag,

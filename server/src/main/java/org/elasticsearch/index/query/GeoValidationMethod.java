@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -24,7 +25,9 @@ import java.io.IOException;
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.
  * */
 public enum GeoValidationMethod implements Writeable {
-    COERCE, IGNORE_MALFORMED, STRICT;
+    COERCE,
+    IGNORE_MALFORMED,
+    STRICT;
 
     public static final GeoValidationMethod DEFAULT = STRICT;
     public static final boolean DEFAULT_LENIENT_PARSING = (DEFAULT != STRICT);
@@ -44,8 +47,9 @@ public enum GeoValidationMethod implements Writeable {
                 return method;
             }
         }
-        throw new IllegalArgumentException("operator needs to be either " + CollectionUtils.arrayAsArrayList(GeoValidationMethod.values())
-                + ", but not [" + op + "]");
+        throw new IllegalArgumentException(
+            "operator needs to be either " + CollectionUtils.arrayAsArrayList(GeoValidationMethod.values()) + ", but not [" + op + "]"
+        );
     }
 
     /** Returns whether or not to skip bounding box validation. */
@@ -56,17 +60,6 @@ public enum GeoValidationMethod implements Writeable {
     /** Returns whether or not to try and fix broken/wrapping bounding boxes. */
     public static boolean isCoerce(GeoValidationMethod method) {
         return method == GeoValidationMethod.COERCE;
-    }
-
-    /** Returns validation method corresponding to given coerce and ignoreMalformed values. */
-    public static GeoValidationMethod infer(boolean coerce, boolean ignoreMalformed) {
-        if (coerce) {
-            return GeoValidationMethod.COERCE;
-        } else if (ignoreMalformed) {
-            return GeoValidationMethod.IGNORE_MALFORMED;
-        } else {
-            return GeoValidationMethod.STRICT;
-        }
     }
 
 }

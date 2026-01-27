@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.intervals.IntervalQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextFamilyFieldType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -44,10 +47,6 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         this.sourceProvider = in.readNamedWriteable(IntervalsSourceProvider.class);
     }
 
-    public String getField() {
-        return field;
-    }
-
     public IntervalsSourceProvider getSourceProvider() {
         return sourceProvider;
     }
@@ -64,7 +63,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         builder.field(field);
         builder.startObject();
         sourceProvider.toXContent(builder, params);
-        printBoostAndQueryName(builder);
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -83,31 +82,31 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         String providerName = null;
         while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-                throw new ParsingException(parser.getTokenLocation(),
-                    "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
+                throw new ParsingException(parser.getTokenLocation(), "Expected [FIELD_NAME] but got [" + parser.currentToken() + "]");
             }
             switch (parser.currentName()) {
-                case "_name":
+                case "_name" -> {
                     parser.nextToken();
                     name = parser.text();
-                    break;
-                case "boost":
+                }
+                case "boost" -> {
                     parser.nextToken();
                     boost = parser.floatValue();
-                    break;
-                default:
+                }
+                default -> {
                     if (providerName != null) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Only one interval rule can be specified, found [" + providerName + "] and [" + parser.currentName() + "]"
+                        );
                     }
                     providerName = parser.currentName();
                     provider = IntervalsSourceProvider.fromXContent(parser);
-
+                }
             }
         }
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
+            throw new ParsingException(parser.getTokenLocation(), "Expected [END_OBJECT] but got [" + parser.currentToken() + "]");
         }
         if (provider == null) {
             throw new ParsingException(parser.getTokenLocation(), "Missing intervals from interval query definition");
@@ -124,7 +123,7 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             // Be lenient with unmapped fields so that cross-index search will work nicely
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         Set<String> maskedFields = new HashSet<>();
         sourceProvider.extractFields(maskedFields);
@@ -132,10 +131,15 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
             MappedFieldType ft = context.getFieldType(maskedField);
             if (ft == null) {
                 // Be lenient with unmapped fields so that cross-index search will work nicely
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
-        return new IntervalQuery(field, sourceProvider.getSource(context, fieldType));
+        if (fieldType instanceof TextFamilyFieldType tfft) {
+            return new IntervalQuery(field, sourceProvider.getSource(context, tfft));
+        }
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + field + "] which is of type [" + fieldType.typeName() + "]"
+        );
     }
 
     @Override
@@ -151,5 +155,10 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

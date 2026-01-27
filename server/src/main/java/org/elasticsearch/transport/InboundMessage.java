@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -11,10 +12,12 @@ package org.elasticsearch.transport;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Objects;
 
 public class InboundMessage implements Releasable {
@@ -25,6 +28,19 @@ public class InboundMessage implements Releasable {
     private final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
+
+    @SuppressWarnings("unused") // updated via CLOSED (and _only_ via CLOSED)
+    private boolean closed;
+
+    private static final VarHandle CLOSED;
+
+    static {
+        try {
+            CLOSED = MethodHandles.lookup().findVarHandle(InboundMessage.class, "closed", boolean.class);
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
         this.header = header;
@@ -82,25 +98,29 @@ public class InboundMessage implements Releasable {
 
     public StreamInput openOrGetStreamInput() throws IOException {
         assert isPing == false && content != null;
+        assert (boolean) CLOSED.getAcquire(this) == false;
         if (streamInput == null) {
             streamInput = content.streamInput();
-            streamInput.setVersion(header.getVersion());
+            streamInput.setTransportVersion(header.getVersion());
         }
         return streamInput;
     }
 
     @Override
+    public String toString() {
+        return "InboundMessage{" + header + "}";
+    }
+
+    @Override
     public void close() {
+        if (CLOSED.compareAndSet(this, false, true) == false) {
+            return;
+        }
         try {
             IOUtils.close(streamInput, content, breakerRelease);
         } catch (Exception e) {
             assert false : e;
             throw new ElasticsearchException(e);
         }
-    }
-
-    @Override
-    public String toString() {
-        return "InboundMessage{" + header + "}";
     }
 }

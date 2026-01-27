@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 
 import static com.carrotsearch.hppc.BitMixer.mix32;
 
@@ -29,15 +31,15 @@ public final class ScoreScriptUtils {
     /****** STATIC FUNCTIONS that can be used by users for score calculations **/
 
     public static double saturation(double value, double k) {
-        return value/ (k + value);
+        return value / (k + value);
     }
 
     /**
      * Calculate a sigmoid of <code>value</code>
      * with scaling parameters <code>k</code> and <code>a</code>
      */
-    public static double sigmoid(double value, double k, double a){
-        return Math.pow(value,a) / (Math.pow(k,a) + Math.pow(value,a));
+    public static double sigmoid(double value, double k, double a) {
+        return Math.pow(value, a) / (Math.pow(k, a) + Math.pow(value, a));
     }
 
     // random score based on the documents' values of the given field
@@ -45,7 +47,6 @@ public final class ScoreScriptUtils {
         private final ScoreScript scoreScript;
         private final ScriptDocValues<?> docValues;
         private final int saltedSeed;
-
 
         public RandomScoreField(ScoreScript scoreScript, int seed, String fieldName) {
             this.scoreScript = scoreScript;
@@ -57,10 +58,10 @@ public final class ScoreScriptUtils {
 
         public double randomScore() {
             try {
-                docValues.setNextDocId(scoreScript._getDocId());
+                docValues.getSupplier().setNextDocId(scoreScript._getDocId());
                 String seedValue = String.valueOf(docValues.get(0));
                 int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
-                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+                return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
@@ -81,7 +82,7 @@ public final class ScoreScriptUtils {
         public double randomScore() {
             String seedValue = Integer.toString(scoreScript._getDocBaseId());
             int hash = StringHelper.murmurhash3_x86_32(new BytesRef(seedValue), saltedSeed);
-            return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+            return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
         }
     }
 
@@ -143,7 +144,7 @@ public final class ScoreScriptUtils {
             this.originLat = origin.lat();
             this.originLon = origin.lon();
             this.offset = DistanceUnit.DEFAULT.parse(offsetStr, DistanceUnit.DEFAULT);
-            this.scaling =  0.5 * Math.pow(scale, 2.0) / Math.log(decay);
+            this.scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
         public double decayGeoGauss(GeoPoint docValue) {
@@ -215,7 +216,7 @@ public final class ScoreScriptUtils {
      *
      */
     private static final ZoneId defaultZoneId = ZoneId.of("UTC");
-    private static final DateMathParser dateParser =  DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
+    private static final DateMathParser dateParser = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.toDateMathParser();
 
     public static final class DecayDateLinear {
         long origin;
@@ -231,7 +232,7 @@ public final class ScoreScriptUtils {
             this.scaling = scale / (1.0 - decay);
         }
 
-        public double decayDateLinear(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateLinear(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             // as java.lang.Math#abs(long) is a forbidden API, have to use this comparison instead
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
@@ -254,14 +255,13 @@ public final class ScoreScriptUtils {
             this.scaling = Math.log(decay) / scale;
         }
 
-        public double decayDateExp(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateExp(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
             long distance = Math.max(0, diff - offset);
             return Math.exp(scaling * distance);
         }
     }
-
 
     public static final class DecayDateGauss {
         long origin;
@@ -277,7 +277,7 @@ public final class ScoreScriptUtils {
             this.scaling = 0.5 * Math.pow(scale, 2.0) / Math.log(decay);
         }
 
-        public double decayDateGauss(JodaCompatibleZonedDateTime docValueDate) {
+        public double decayDateGauss(ZonedDateTime docValueDate) {
             long docValue = docValueDate.toInstant().toEpochMilli();
             long diff = (docValue >= origin) ? (docValue - origin) : (origin - docValue);
             long distance = Math.max(0, diff - offset);

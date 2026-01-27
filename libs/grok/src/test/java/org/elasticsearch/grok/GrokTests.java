@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -15,14 +16,11 @@ import org.elasticsearch.test.ESTestCase;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.Function;
@@ -41,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-
 public class GrokTests extends ESTestCase {
 
     public void testMatchWithoutCaptures() {
@@ -50,7 +47,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testMatchWithoutCaptures(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "value", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "value", logger::warn);
         assertThat(grok.captures("value"), equalTo(Map.of()));
         assertThat(grok.captures("prefix_value"), equalTo(Map.of()));
         assertThat(grok.captures("no_match"), nullValue());
@@ -59,10 +56,21 @@ public class GrokTests extends ESTestCase {
     public void testCapturesBytes() {
         testCapturesBytes(false);
         testCapturesBytes(true);
+        testCaptureBytesSuffix(true);
+        testCaptureBytesSuffix(false);
+    }
+
+    private void testCaptureBytesSuffix(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        byte[] utf8 = "x1 a1 b1 12 x2 a2 b2 13 ".getBytes(StandardCharsets.UTF_8);
+        assertThat(captureBytes(grok, utf8, 0, 12), equalTo(Map.of("a", "a1", "b", "b1", "c", 12)));
+        assertNull(captureBytes(grok, utf8, 0, 9));
+        assertThat(captureBytes(grok, utf8, 12, 12), equalTo(Map.of("a", "a2", "b", "b2", "c", 13)));
+        assertNull(captureBytes(grok, utf8, 12, 9));
     }
 
     private void testCapturesBytes(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{NUMBER:n:int}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{NUMBER:n:int}", logger::warn);
         byte[] utf8 = "10".getBytes(StandardCharsets.UTF_8);
         assertThat(captureBytes(grok, utf8, 0, utf8.length), equalTo(Map.of("n", 10)));
         assertThat(captureBytes(grok, utf8, 0, 1), equalTo(Map.of("n", 1)));
@@ -73,15 +81,63 @@ public class GrokTests extends ESTestCase {
     }
 
     private Map<String, Object> captureBytes(Grok grok, byte[] utf8, int offset, int length) {
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(
+            grok.captureConfig(),
+            cfg -> cfg::objectExtracter
+        );
         if (grok.match(utf8, offset, length, extracter)) {
             return extracter.result();
         }
         return null;
     }
 
+    public void testCaptureRanges() {
+        captureRanges(false);
+        captureRanges(true);
+    }
+
+    private void captureRanges(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertThat(
+            grok.captureRanges("xx aaaaa bbb 1234 yyy"),
+            equalTo(
+                Map.of(
+                    "a",
+                    new GrokCaptureExtracter.Range("aaaaa", 3, 5),
+                    "b",
+                    new GrokCaptureExtracter.Range("bbb", 9, 3),
+                    "c",
+                    new GrokCaptureExtracter.Range("1234", 13, 4)
+                )
+            )
+        );
+    }
+
+    public void testCaptureRanges_noMatch() {
+        captureRanges_noMatch(false);
+        captureRanges_noMatch(true);
+    }
+
+    private void captureRanges_noMatch(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertNull(grok.captureRanges("xx aaaaa bbb ccc yyy"));
+    }
+
+    public void testCaptureRanges_multipleNamedCapturesWithSameName() {
+        captureRanges_multipleNamedCapturesWithSameName(false);
+        captureRanges_multipleNamedCapturesWithSameName(true);
+    }
+
+    private void captureRanges_multipleNamedCapturesWithSameName(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:parts} %{WORD:parts}", logger::warn);
+        assertThat(
+            grok.captureRanges("  aa bbb c ddd e  "),
+            equalTo(Map.of("parts", List.of(new GrokCaptureExtracter.Range("aa", 2, 2), new GrokCaptureExtracter.Range("bbb", 5, 3))))
+        );
+    }
+
     public void testNoMatchingPatternInDictionary() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(Collections.emptyMap(), "%{NOTFOUND}", logger::warn));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new Grok(PatternBank.EMPTY, "%{NOTFOUND}", logger::warn));
         assertThat(e.getMessage(), equalTo("Unable to find pattern [NOTFOUND] in Grok's pattern dictionary"));
     }
 
@@ -131,7 +187,7 @@ public class GrokTests extends ESTestCase {
         List<String> acceptedDuplicates
     ) {
         String line = "Mar 16 00:01:25 evita postfix/smtpd[1713]: connect from camomile.cloud9.net[168.100.1.3]";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{SYSLOGLINE}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{SYSLOGLINE}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();
         captureTypes.put(facility.v1().getKey(), facility.v1().getValue());
@@ -154,14 +210,14 @@ public class GrokTests extends ESTestCase {
         assertEquals(pid.v2(), matches.get(pid.v1().getKey()));
 
         String[] logsource = new String[1];
-        GrokCaptureExtracter logsourceExtracter =
-            namedConfig(grok, logSource.v1().getKey())
-                .nativeExtracter(new ThrowingNativeExtracterMap() {
-                    @Override
-                    public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
-                        return buildExtracter.apply(str -> logsource[0] = str);
-                    }
-                });
+        GrokCaptureExtracter logsourceExtracter = namedConfig(grok, logSource.v1().getKey()).nativeExtracter(
+            new ThrowingNativeExtracterMap() {
+                @Override
+                public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
+                    return buildExtracter.apply(str -> logsource[0] = str);
+                }
+            }
+        );
         assertThat(specificCapture(grok, line, logsourceExtracter), is(true));
         assertThat(logsource[0], equalTo(logSource.v2()));
     }
@@ -212,9 +268,9 @@ public class GrokTests extends ESTestCase {
         Tuple<Map.Entry<String, GrokCaptureType>, Object> ts,
         Tuple<Map.Entry<String, GrokCaptureType>, Object> ver
     ) {
-        String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] " +
-            "Hello, syslog.";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{SYSLOG5424LINE}", logger::warn);
+        String line = "<191>1 2009-06-30T18:30:00+02:00 paxton.local grokdebug 4123 - [id1 foo=\\\"bar\\\"][id2 baz=\\\"something\\\"] "
+            + "Hello, syslog.";
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{SYSLOG5424LINE}", logger::warn);
         assertCaptureConfig(
             grok,
             Map.ofEntries(app.v1(), host.v1(), msg.v1(), msgid.v1(), pri.v1(), proc.v1(), sd.v1(), ts.v1(), ver.v1())
@@ -238,7 +294,7 @@ public class GrokTests extends ESTestCase {
 
     private void testDatePattern(boolean ecsCompatibility) {
         String line = "fancy 12-12-12 12:12:12";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "(?<timestamp>%{DATE_EU} %{TIME})", logger::warn);
         assertCaptureConfig(grok, Map.of("timestamp", STRING));
         Map<String, Object> matches = grok.captures(line);
         assertEquals("12-12-12 12:12:12", matches.get("timestamp"));
@@ -250,12 +306,12 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNilCoercedValues(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "test (N/A|%{BASE10NUM:duration:float}ms)", logger::warn);
         assertCaptureConfig(grok, Map.of("duration", FLOAT));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals(28.4f, matches.get("duration"));
         matches = grok.captures("test N/A");
-        assertEquals(null, matches.get("duration"));
+        assertNull(matches.get("duration"));
     }
 
     public void testNilWithNoCoercion() {
@@ -264,12 +320,12 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNilWithNoCoercion(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "test (N/A|%{BASE10NUM:duration}ms)", logger::warn);
         assertCaptureConfig(grok, Map.of("duration", STRING));
         Map<String, Object> matches = grok.captures("test 28.4ms");
         assertEquals("28.4", matches.get("duration"));
         matches = grok.captures("test N/A");
-        assertEquals(null, matches.get("duration"));
+        assertNull(matches.get("duration"));
     }
 
     public void testUnicodeSyslog() {
@@ -279,10 +335,11 @@ public class GrokTests extends ESTestCase {
 
     private void testUnicodeSyslog(boolean ecsCompatibility) {
         Grok grok = new Grok(
-            Grok.getBuiltinPatterns(ecsCompatibility),
-            "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} " +
-                "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) " +
-                "%{GREEDYDATA:syslog_message}", logger::warn
+            GrokBuiltinPatterns.get(ecsCompatibility),
+            "<%{POSINT:syslog_pri}>%{SPACE}%{SYSLOGTIMESTAMP:syslog_timestamp} "
+                + "%{SYSLOGHOST:syslog_hostname} %{PROG:syslog_program}(:?)(?:\\[%{GREEDYDATA:syslog_pid}\\])?(:?) "
+                + "%{GREEDYDATA:syslog_message}",
+            logger::warn
         );
         assertCaptureConfig(
             grok,
@@ -295,9 +352,11 @@ public class GrokTests extends ESTestCase {
                 Map.entry("syslog_timestamp", STRING)
             )
         );
-        Map<String, Object> matches = grok.captures("<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : " +
-                "SPF permerror (Junk encountered in record 'v=spf1 mx a:mail.domain.no ip4:192.168.0.4 �all'): Envelope-from: " +
-                "email@domain.no");
+        Map<String, Object> matches = grok.captures(
+            "<22>Jan  4 07:50:46 mailmaster postfix/policy-spf[9454]: : "
+                + "SPF permerror (Junk encountered in record 'v=spf1 mx a:mail.domain.no ip4:192.168.0.4 �all'): Envelope-from: "
+                + "email@domain.no"
+        );
         assertThat(matches.get("syslog_pri"), equalTo("22"));
         assertThat(matches.get("syslog_program"), equalTo("postfix/policy-spf"));
         assertThat(matches.get("tags"), nullValue());
@@ -309,7 +368,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNamedFieldsWithWholeTextMatch(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{DATE_EU:stimestamp}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{DATE_EU:stimestamp}", logger::warn);
         assertCaptureConfig(grok, Map.of("stimestamp", STRING));
         Map<String, Object> matches = grok.captures("11/01/01");
         assertThat(matches.get("stimestamp"), equalTo("11/01/01"));
@@ -321,7 +380,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testWithOniguramaNamedCaptures(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "(?<foo>\\w+)", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "(?<foo>\\w+)", logger::warn);
         assertCaptureConfig(grok, Map.of("foo", STRING));
         Map<String, Object> matches = grok.captures("hello world");
         assertThat(matches.get("foo"), equalTo("hello"));
@@ -333,24 +392,24 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testISO8601(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, Map.of());
         List<String> timeMessages = Arrays.asList(
-                "2001-01-01T00:00:00",
-                "1974-03-02T04:09:09",
-                "2010-05-03T08:18:18+00:00",
-                "2004-07-04T12:27:27-00:00",
-                "2001-09-05T16:36:36+0000",
-                "2001-11-06T20:45:45-0000",
-                "2001-12-07T23:54:54Z",
-                "2001-01-01T00:00:00.123456",
-                "1974-03-02T04:09:09.123456",
-                "2010-05-03T08:18:18.123456+00:00",
-                "2004-07-04T12:27:27.123456-00:00",
-                "2001-09-05T16:36:36.123456+0000",
-                "2001-11-06T20:45:45.123456-0000",
-                "2001-12-07T23:54:54.123456Z",
-                "2001-12-07T23:54:60.123456Z" // '60' second is a leap second.
+            "2001-01-01T00:00:00",
+            "1974-03-02T04:09:09",
+            "2010-05-03T08:18:18+00:00",
+            "2004-07-04T12:27:27-00:00",
+            "2001-09-05T16:36:36+0000",
+            "2001-11-06T20:45:45-0000",
+            "2001-12-07T23:54:54Z",
+            "2001-01-01T00:00:00.123456",
+            "1974-03-02T04:09:09.123456",
+            "2010-05-03T08:18:18.123456+00:00",
+            "2004-07-04T12:27:27.123456-00:00",
+            "2001-09-05T16:36:36.123456+0000",
+            "2001-11-06T20:45:45.123456-0000",
+            "2001-12-07T23:54:54.123456Z",
+            "2001-12-07T23:54:60.123456Z" // '60' second is a leap second.
         );
         for (String msg : timeMessages) {
             assertThat(grok.match(msg), is(true));
@@ -363,30 +422,30 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testNotISO8601(boolean ecsCompatibility, List<String> additionalCases) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "^%{TIMESTAMP_ISO8601}$", logger::warn);
         assertCaptureConfig(grok, Map.of());
         List<String> timeMessages = Arrays.asList(
-                "2001-13-01T00:00:00", // invalid month
-                "2001-00-01T00:00:00", // invalid month
-                "2001-01-00T00:00:00", // invalid day
-                "2001-01-32T00:00:00", // invalid day
-                "2001-01-aT00:00:00", // invalid day
-                "2001-01-1aT00:00:00", // invalid day
-                "2001-01-01Ta0:00:00", // invalid hour
-                "2001-01-01T25:00:00", // invalid hour
-                "2001-01-01T01:60:00", // invalid minute
-                "2001-01-01T00:aa:00", // invalid minute
-                "2001-01-01T00:00:aa", // invalid second
-                "2001-01-01T00:00:-1", // invalid second
-                "2001-01-01T00:00:61", // invalid second
-                "2001-01-01T00:00:00A", // invalid timezone
-                "2001-01-01T00:00:00+", // invalid timezone
-                "2001-01-01T00:00:00+25", // invalid timezone
-                "2001-01-01T00:00:00+2500", // invalid timezone
-                "2001-01-01T00:00:00+25:00", // invalid timezone
-                "2001-01-01T00:00:00-25", // invalid timezone
-                "2001-01-01T00:00:00-2500", // invalid timezone
-                "2001-01-01T00:00:00-00:61" // invalid timezone
+            "2001-13-01T00:00:00", // invalid month
+            "2001-00-01T00:00:00", // invalid month
+            "2001-01-00T00:00:00", // invalid day
+            "2001-01-32T00:00:00", // invalid day
+            "2001-01-aT00:00:00", // invalid day
+            "2001-01-1aT00:00:00", // invalid day
+            "2001-01-01Ta0:00:00", // invalid hour
+            "2001-01-01T25:00:00", // invalid hour
+            "2001-01-01T01:60:00", // invalid minute
+            "2001-01-01T00:aa:00", // invalid minute
+            "2001-01-01T00:00:aa", // invalid second
+            "2001-01-01T00:00:-1", // invalid second
+            "2001-01-01T00:00:61", // invalid second
+            "2001-01-01T00:00:00A", // invalid timezone
+            "2001-01-01T00:00:00+", // invalid timezone
+            "2001-01-01T00:00:00+25", // invalid timezone
+            "2001-01-01T00:00:00+2500", // invalid timezone
+            "2001-01-01T00:00:00+25:00", // invalid timezone
+            "2001-01-01T00:00:00-25", // invalid timezone
+            "2001-01-01T00:00:00-2500", // invalid timezone
+            "2001-01-01T00:00:00-00:61" // invalid timezone
         );
         List<String> timesToTest = new ArrayList<>(timeMessages);
         timesToTest.addAll(additionalCases);
@@ -396,19 +455,15 @@ public class GrokTests extends ESTestCase {
     }
 
     public void testNoNamedCaptures() {
-        Map<String, String> bank = new HashMap<>();
-
-        bank.put("NAME", "Tal");
-        bank.put("EXCITED_NAME", "!!!%{NAME:name}!!!");
-        bank.put("TEST", "hello world");
+        var bank = new PatternBank(Map.of("NAME", "Tal", "EXCITED_NAME", "!!!%{NAME:name}!!!", "TEST", "hello world"));
 
         String text = "wowza !!!Tal!!! - Tal";
         String pattern = "%{EXCITED_NAME} - %{NAME}";
         Grok g = new Grok(bank, pattern, false, logger::warn);
         assertCaptureConfig(g, Map.of("EXCITED_NAME_0", STRING, "NAME_21", STRING, "NAME_22", STRING));
 
-        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(pattern));
-        assertEquals(true, g.match(text));
+        assertEquals("(?<EXCITED_NAME_0>!!!(?<NAME_21>Tal)!!!) - (?<NAME_22>Tal)", g.toRegex(bank, pattern));
+        assertTrue(g.match(text));
 
         Object actual = g.captures(text);
         Map<String, Object> expected = new HashMap<>();
@@ -418,77 +473,6 @@ public class GrokTests extends ESTestCase {
         assertEquals(expected, actual);
     }
 
-    public void testCircularReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME:name}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("NAME", "!!!%{NAME:name:int}!!!");
-            String pattern = "%{NAME}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME][!!!%{NAME:name:int}!!!]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME2][!!!%{NAME1}!!!] back to pattern [NAME1]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME3}!!!");
-            bank.put("NAME3", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [NAME3][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2]", e.getMessage());
-
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new TreeMap<>();
-            bank.put("NAME1", "!!!%{NAME2}!!!");
-            bank.put("NAME2", "!!!%{NAME3}!!!");
-            bank.put("NAME3", "!!!%{NAME4}!!!");
-            bank.put("NAME4", "!!!%{NAME5}!!!");
-            bank.put("NAME5", "!!!%{NAME1}!!!");
-            String pattern = "%{NAME1}";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals(
-            "circular reference in pattern [NAME5][!!!%{NAME1}!!!] back to pattern [NAME1] via patterns [NAME2=>NAME3=>NAME4]",
-            e.getMessage()
-        );
-    }
-
-    public void testCircularSelfReference() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> {
-            Map<String, String> bank = new HashMap<>();
-            bank.put("ANOTHER", "%{INT}");
-            bank.put("INT", "%{INT}");
-            String pattern = "does_not_matter";
-            new Grok(bank, pattern, false, logger::warn);
-        });
-        assertEquals("circular reference in pattern [INT][%{INT}]", e.getMessage());
-    }
-
     public void testBooleanCaptures() {
         testBooleanCaptures(false);
         testBooleanCaptures(true);
@@ -496,7 +480,7 @@ public class GrokTests extends ESTestCase {
 
     private void testBooleanCaptures(boolean ecsCompatibility) {
         String pattern = "%{WORD:name}=%{WORD:status:boolean}";
-        Grok g = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), pattern, logger::warn);
+        Grok g = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("name", STRING, "status", BOOLEAN));
 
         String text = "active=true";
@@ -524,7 +508,7 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:id:long} %{NUMBER:rating:double}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("bytes", FLOAT, "id", LONG, "rating", DOUBLE));
 
         String text = "12009.34 20000000000 4820.092";
@@ -558,7 +542,7 @@ public class GrokTests extends ESTestCase {
 
         double[] rating = new double[1];
         GrokCaptureExtracter ratingExtracter = namedConfig(g, "rating").nativeExtracter(new ThrowingNativeExtracterMap() {
-            public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer,GrokCaptureExtracter> buildExtracter) {
+            public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
                 return buildExtracter.apply(d -> rating[0] = d);
             }
         });
@@ -572,7 +556,7 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:bytes:float} %{NUMBER:status} %{NUMBER}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("bytes", FLOAT, "status", STRING));
 
         String text = "12009.34 200 9032";
@@ -590,14 +574,14 @@ public class GrokTests extends ESTestCase {
         bank.put("NUMBER", "(?:%{BASE10NUM})");
 
         String pattern = "%{NUMBER:f:not_a_valid_type}";
-        Grok g = new Grok(bank, pattern, logger::warn);
+        Grok g = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(g, Map.of("f", STRING));
         assertThat(g.captures("12009.34"), equalTo(Map.of("f", "12009.34")));
     }
 
     public void testApacheLog() {
-        final String agent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 " +
-            "YaBrowser/13.12.1599.12785 Safari/537.36";
+        final String agent = "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 "
+            + "YaBrowser/13.12.1599.12785 Safari/537.36";
         final String clientIp = "31.184.238.164";
         final String timestamp = "24/Jul/2014:05:35:37 +0530";
         final String verb = "GET";
@@ -652,10 +636,11 @@ public class GrokTests extends ESTestCase {
         Tuple<Map.Entry<String, GrokCaptureType>, Object> verb,
         List<Tuple<Map.Entry<String, GrokCaptureType>, Object>> additionalFields
     ) {
-        String logLine = "31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] \"GET /logs/access.log HTTP/1.0\" 200 69849 " +
-                "\"http://8rursodiol.enjin.com\" \"Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 Safari/537.36\" \"www.dlwindianrailways.com\"";
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
+        String logLine = """
+            31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] "GET /logs/access.log HTTP/1.0" 200 69849 "http://8rursodiol.enjin.com" \
+            "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 \
+            Safari/537.36" "www.dlwindianrailways.com\"""";
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();
         captureTypes.put(agent.v1().getKey(), agent.v1().getValue());
@@ -685,7 +670,7 @@ public class GrokTests extends ESTestCase {
         assertEquals(httpVersion.v2(), matches.get(httpVersion.v1().getKey()));
         assertEquals(bytes.v2(), matches.get(bytes.v1().getKey()));
         assertEquals(referrer.v2(), matches.get(referrer.v1().getKey()));
-        assertEquals(null, matches.get("port"));
+        assertNull(matches.get("port"));
         assertEquals(agent.v2(), matches.get(agent.v1().getKey()));
         assertEquals(rawRequest.v2(), matches.get(rawRequest.v1().getKey()));
         for (var additionalField : additionalFields) {
@@ -696,8 +681,11 @@ public class GrokTests extends ESTestCase {
     public void testComplete() {
         Map<String, String> bank = new HashMap<>();
         bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
-        bank.put("MONTH", "\\b(?:Jan(?:uary|uar)?|Feb(?:ruary|ruar)?|M(?:a|ä)?r(?:ch|z)?|Apr(?:il)?|Ma(?:y|i)?|Jun(?:e|i)" +
-                "?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|O(?:c|k)?t(?:ober)?|Nov(?:ember)?|De(?:c|z)(?:ember)?)\\b");
+        bank.put(
+            "MONTH",
+            "\\b(?:Jan(?:uary|uar)?|Feb(?:ruary|ruar)?|M(?:a|ä)?r(?:ch|z)?|Apr(?:il)?|Ma(?:y|i)?|Jun(?:e|i)"
+                + "?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|O(?:c|k)?t(?:ober)?|Nov(?:ember)?|De(?:c|z)(?:ember)?)\\b"
+        );
         bank.put("MINUTE", "(?:[0-5][0-9])");
         bank.put("YEAR", "(?>\\d\\d){1,2}");
         bank.put("HOUR", "(?:2[0123]|[01]?[0-9])");
@@ -708,19 +696,25 @@ public class GrokTests extends ESTestCase {
         bank.put("WORD", "\\b\\w+\\b");
         bank.put("BASE10NUM", "(?<![0-9.+-])(?>[+-]?(?:(?:[0-9]+(?:\\.[0-9]+)?)|(?:\\.[0-9]+)))");
         bank.put("NUMBER", "(?:%{BASE10NUM})");
-        bank.put("IPV6", "((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]" +
-                "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4})" +
-                "{1,2})|:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:)" +
-                "{4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\" +
-                "d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]" +
-                "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4})" +
-                "{1,5})" +
-                "|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))" +
-                "|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)" +
-                "(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}" +
-                ":((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:)))(%.+)?");
-        bank.put("IPV4", "(?<![0-9])(?:(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.]" +
-                "(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5]))(?![0-9])");
+        bank.put(
+            "IPV6",
+            "((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]"
+                + "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4})"
+                + "{1,2})|:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3})|:))|(([0-9A-Fa-f]{1,4}:)"
+                + "{4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\"
+                + "d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]"
+                + "\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4})"
+                + "{1,5})"
+                + "|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))"
+                + "|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)"
+                + "(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}"
+                + ":((25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)(\\.(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)){3}))|:)))(%.+)?"
+        );
+        bank.put(
+            "IPV4",
+            "(?<![0-9])(?:(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.]"
+                + "(?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5])[.](?:[0-1]?[0-9]{1,2}|2[0-4][0-9]|25[0-5]))(?![0-9])"
+        );
         bank.put("IP", "(?:%{IPV6}|%{IPV4})");
         bank.put("HOSTNAME", "\\b(?:[0-9A-Za-z][0-9A-Za-z-]{0,62})(?:\\.(?:[0-9A-Za-z][0-9A-Za-z-]{0,62}))*(\\.?|\\b)");
         bank.put("IPORHOST", "(?:%{IP}|%{HOSTNAME})");
@@ -728,14 +722,15 @@ public class GrokTests extends ESTestCase {
         bank.put("DATA", ".*?");
         bank.put("QS", "(?>(?<!\\\\)(?>\"(?>\\\\.|[^\\\\\"]+)+\"|\"\"|(?>'(?>\\\\.|[^\\\\']+)+')|''|(?>`(?>\\\\.|[^\\\\`]+)+`)|``))");
 
-        String text = "83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] \"GET /presentations/logstash-monitorama-2013/images/" +
-                "kibana-dashboard3.png HTTP/1.1\" 200 171717 \"http://semicomplete.com/presentations/logstash-monitorama-2013/\" " +
-                "\"Mozilla" +
-                "/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"";
-        String pattern = "%{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] \"%{WORD:verb} %{DATA:request} " +
-                "HTTP/%{NUMBER:httpversion}\" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}";
+        String text = """
+            83.149.9.216 - - [19/Jul/2015:08:13:42 +0000] "GET /presentations/logstash-monitorama-2013/images/kibana-dashboard3.png \
+            HTTP/1.1" 200 171717 "http://semicomplete.com/presentations/logstash-monitorama-2013/" "Mozilla/5.0 (Macintosh; Intel Mac \
+            OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/32.0.1700.77 Safari/537.36\"""";
+        String pattern = """
+            %{IPORHOST:clientip} %{USER:ident} %{USER:auth} \\[%{HTTPDATE:timestamp}\\] "%{WORD:verb} %{DATA:request} \
+            HTTP/%{NUMBER:httpversion}" %{NUMBER:response:int} (?:-|%{NUMBER:bytes:int}) %{QS:referrer} %{QS:agent}""";
 
-        Grok grok = new Grok(bank, pattern, logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), pattern, logger::warn);
         assertCaptureConfig(
             grok,
             Map.ofEntries(
@@ -764,8 +759,11 @@ public class GrokTests extends ESTestCase {
         expected.put("response", 200);
         expected.put("bytes", 171717);
         expected.put("referrer", "\"http://semicomplete.com/presentations/logstash-monitorama-2013/\"");
-        expected.put("agent", "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) " +
-                "Chrome/32.0.1700.77 Safari/537.36\"");
+        expected.put(
+            "agent",
+            "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_1) AppleWebKit/537.36 (KHTML, like Gecko) "
+                + "Chrome/32.0.1700.77 Safari/537.36\""
+        );
 
         Map<String, Object> actual = grok.captures(text);
 
@@ -775,19 +773,25 @@ public class GrokTests extends ESTestCase {
     public void testNoMatch() {
         Map<String, String> bank = new HashMap<>();
         bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
-        Grok grok = new Grok(bank, "%{MONTHDAY:greatday}", logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), "%{MONTHDAY:greatday}", logger::warn);
         assertThat(grok.captures("nomatch"), nullValue());
     }
 
     public void testMultipleNamedCapturesWithSameName() {
         Map<String, String> bank = new HashMap<>();
         bank.put("SINGLEDIGIT", "[0-9]");
-        Grok grok = new Grok(bank, "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
+        Grok grok = new Grok(new PatternBank(bank), "%{SINGLEDIGIT:num}%{SINGLEDIGIT:num}", logger::warn);
         assertCaptureConfig(grok, Map.of("num", STRING));
 
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("num", "1");
-        assertThat(grok.captures("12"), equalTo(expected));
+        assertThat(grok.captures("12"), equalTo(Map.of("num", List.of("1", "2"))));
+
+        grok = new Grok(new PatternBank(bank), "%{SINGLEDIGIT:num:int}(%{SINGLEDIGIT:num:int})?", logger::warn);
+        assertCaptureConfig(grok, Map.of("num", INTEGER));
+        assertEquals(grok.captures("1"), Map.of("num", 1));
+        assertEquals(grok.captures("1a"), Map.of("num", 1));
+        assertEquals(grok.captures("a1"), Map.of("num", 1));
+        assertEquals(grok.captures("12"), Map.of("num", List.of(1, 2)));
+        assertEquals(grok.captures("123"), Map.of("num", List.of(1, 2)));
     }
 
     public void testExponentialExpressions() {
@@ -796,33 +800,12 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testExponentialExpressions(boolean ecsCompatibility) {
-        AtomicBoolean run = new AtomicBoolean(true); // to avoid a lingering thread when test has completed
-
-        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] " +
-            "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
-        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] " +
-            "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
-        BiConsumer<Long, Runnable> scheduler = (delay, command) -> {
-            try {
-                Thread.sleep(delay);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
-            Thread t = new Thread(() -> {
-                if (run.get()) {
-                    command.run();
-                }
-            });
-            t.start();
-        };
-        Grok grok = new Grok(
-            Grok.getBuiltinPatterns(ecsCompatibility),
-            grokPattern,
-            MatcherWatchdog.newInstance(10, 200, System::currentTimeMillis, scheduler),
-            logger::warn
-        );
+        String grokPattern = "Bonsuche mit folgender Anfrage: Belegart->\\[%{WORD:param2},(?<param5>(\\s*%{NOTSPACE})*)\\] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->%{WORD:param9} Bonnummer->%{WORD:param10} Datum->%{DATESTAMP_OTHER:param11}";
+        String logLine = "Bonsuche mit folgender Anfrage: Belegart->[EINGESCHRAENKTER_VERKAUF, VERKAUF, NACHERFASSUNG] "
+            + "Zustand->ABGESCHLOSSEN Kassennummer->2 Bonnummer->6362 Datum->Mon Jan 08 00:00:00 UTC 2018";
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), grokPattern, MatcherWatchdog.newInstance(200), logger::warn);
         Exception e = expectThrows(RuntimeException.class, () -> grok.captures(logLine));
-        run.set(false);
         assertThat(e.getMessage(), equalTo("grok pattern matching was interrupted after [200] ms"));
     }
 
@@ -865,7 +848,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testUnsupportedBracketsInFieldName(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{WORD:unsuppo(r)ted}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:unsuppo(r)ted}", logger::warn);
         Map<String, Object> matches = grok.captures("line");
         assertNull(matches);
     }
@@ -876,7 +859,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testJavaClassPatternWithUnderscore(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{JAVACLASS}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{JAVACLASS}", logger::warn);
         assertThat(grok.match("Test_Class.class"), is(true));
     }
 
@@ -886,7 +869,7 @@ public class GrokTests extends ESTestCase {
     }
 
     private void testJavaFilePatternWithSpaces(boolean ecsCompatibility) {
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{JAVAFILE}", logger::warn);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{JAVAFILE}", logger::warn);
         assertThat(grok.match("Test Class.java"), is(true));
     }
 
@@ -897,17 +880,36 @@ public class GrokTests extends ESTestCase {
 
     private void testLogCallBack(boolean ecsCompatibility) {
         AtomicReference<String> message = new AtomicReference<>();
-        Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), ".*\\[.*%{SPACE}*\\].*", message::set);
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), ".*\\[.*%{SPACE}*\\].*", message::set);
         grok.match("[foo]");
-        //this message comes from Joni, so updates to Joni may change the expectation
+        // this message comes from Joni, so updates to Joni may change the expectation
         assertThat(message.get(), containsString("regular expression has redundant nested repeat operator"));
+    }
+
+    public void testCombinedPatterns() {
+        String matchKey = "_ingest._grok_match_index";
+        String combined;
+        combined = Grok.combinePatterns(List.of(""), null);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of(""), matchKey);
+        assertThat(combined, equalTo(""));
+        combined = Grok.combinePatterns(List.of("foo"), null);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo"), matchKey);
+        assertThat(combined, equalTo("foo"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), null);
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"));
+        assertThat(combined, equalTo("(?:foo)|(?:bar)"));
+        combined = Grok.combinePatterns(List.of("foo", "bar"), matchKey);
+        assertThat(combined, equalTo("(?<_ingest._grok_match_index.0>foo)|(?<_ingest._grok_match_index.1>bar)"));
     }
 
     private void assertGrokedField(String fieldName) {
         String line = "foo";
         // test both with and without ECS compatibility
-        for (boolean ecsCompatibility : new boolean[]{false, true}) {
-            Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{WORD:" + fieldName + "}", logger::warn);
+        for (boolean ecsCompatibility : new boolean[] { false, true }) {
+            Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:" + fieldName + "}", logger::warn);
             Map<String, Object> matches = grok.captures(line);
             assertEquals(line, matches.get(fieldName));
         }
@@ -937,7 +939,7 @@ public class GrokTests extends ESTestCase {
         return grok.match(utf8, 0, utf8.length, extracter);
     }
 
-    private abstract class ThrowingNativeExtracterMap implements NativeExtracterMap<GrokCaptureExtracter> {
+    private abstract static class ThrowingNativeExtracterMap implements NativeExtracterMap<GrokCaptureExtracter> {
         @Override
         public GrokCaptureExtracter forString(Function<Consumer<String>, GrokCaptureExtracter> buildExtracter) {
             throw new IllegalArgumentException();

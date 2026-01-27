@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.sql.common.io;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,22 +24,20 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    private final ZoneId zoneId;
-
-    public SqlStreamInput(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        this(Base64.getDecoder().decode(base64encoded), namedWriteableRegistry, version);
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version)
+        throws IOException {
+        byte[] bytes = Base64.getDecoder().decode(base64encoded);
+        StreamInput in = StreamInput.wrap(bytes);
+        TransportVersion inVersion = TransportVersion.readVersion(in);
+        return new SqlStreamInput(CompressorFactory.COMPRESSOR.threadLocalStreamInput(in), namedWriteableRegistry, inVersion);
     }
 
-    public SqlStreamInput(byte[] input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(StreamInput.wrap(input), namedWriteableRegistry);
+    private final ZoneId zoneId;
 
-        // version check first
-        Version ver = Version.readVersion(delegate);
-        if (version.compareTo(ver) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", ver, version);
-        }
-        delegate.setVersion(version);
-        // configuration settings
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, TransportVersion version) throws IOException {
+        super(input, namedWriteableRegistry);
+
+        delegate.setTransportVersion(version);
         zoneId = delegate.readZoneId();
     }
 

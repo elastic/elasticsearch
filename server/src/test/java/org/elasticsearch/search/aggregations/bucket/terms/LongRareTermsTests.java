@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -42,14 +44,8 @@ public class LongRareTermsTests extends InternalRareTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedLongRareTerms> implementationClass() {
-        return ParsedLongRareTerms.class;
-    }
-
-    @Override
     protected InternalRareTerms<?, ?> mutateInstance(InternalRareTerms<?, ?> instance) {
-        if (instance instanceof LongRareTerms) {
-            LongRareTerms longRareTerms = (LongRareTerms) instance;
+        if (instance instanceof LongRareTerms longRareTerms) {
             String name = longRareTerms.getName();
             BucketOrder order = longRareTerms.order;
             DocValueFormat format = longRareTerms.format;
@@ -57,45 +53,37 @@ public class LongRareTermsTests extends InternalRareTermsTestCase {
             Map<String, Object> metadata = longRareTerms.getMetadata();
             List<LongRareTerms.Bucket> buckets = longRareTerms.getBuckets();
             switch (between(0, 3)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    maxDocCount = between(1, 5);
-                    break;
-                case 2:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> maxDocCount = between(1, 5);
+                case 2 -> {
                     buckets = new ArrayList<>(buckets);
                     buckets.add(new LongRareTerms.Bucket(randomLong(), randomNonNegativeLong(), InternalAggregations.EMPTY, format));
-                    break;
-                case 3:
+                }
+                case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new LongRareTerms(name, order, metadata, format, buckets, maxDocCount, null);
         } else {
             String name = instance.getName();
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 1)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new UnmappedRareTerms(name, metadata);
         }

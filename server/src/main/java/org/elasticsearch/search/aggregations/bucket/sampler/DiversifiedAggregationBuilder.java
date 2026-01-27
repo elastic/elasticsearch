@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -22,10 +22,13 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilder<DiversifiedAggregationBuilder> {
     public static final String NAME = "diversified_sampler";
@@ -105,13 +108,6 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned from each shard.
-     */
-    public int shardSize() {
-        return shardSize;
-    }
-
-    /**
      * Set the max num docs to be returned per value.
      */
     public DiversifiedAggregationBuilder maxDocsPerValue(int maxDocsPerValue) {
@@ -125,25 +121,11 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     /**
-     * Get the max num docs to be returned per value.
-     */
-    public int maxDocsPerValue() {
-        return maxDocsPerValue;
-    }
-
-    /**
      * Set the execution hint.
      */
     public DiversifiedAggregationBuilder executionHint(String executionHint) {
         this.executionHint = executionHint;
         return this;
-    }
-
-    /**
-     * Get the execution hint.
-     */
-    public String executionHint() {
-        return executionHint;
     }
 
     @Override
@@ -205,7 +187,12 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        return false;
     }
 }

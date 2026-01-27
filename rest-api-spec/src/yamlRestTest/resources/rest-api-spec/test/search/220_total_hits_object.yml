@@ -10,43 +10,43 @@ setup:
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar }
 
   - do:
       index:
         index:  test_1
-        id:     3
+        id:     "3"
         body:   { foo: baz }
 
   - do:
       index:
         index:  test_1
-        id:     2
+        id:     "2"
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_1
-        id:     4
+        id:     "4"
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_2
-        id:     42
+        id:     "42"
         body:   { foo: bar }
 
   - do:
       index:
         index:  test_2
-        id:     24
+        id:     "24"
         body:   { foo: baz }
 
   - do:
       index:
         index:  test_2
-        id:     36
+        id:     "36"
         body:   { foo: bar }
 
   - do:
@@ -55,8 +55,8 @@ setup:
 
 ---
 "hits.total as an object":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: hits.total is rendered as an object in 7.0.0
 
   - do:

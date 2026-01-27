@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
@@ -32,40 +33,32 @@ public class InternalEngineSettingsTests extends ESSingleNodeTestCase {
             long gcDeletes = random().nextLong() & (Long.MAX_VALUE >> 11);
 
             Settings build = Settings.builder()
-                    .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), gcDeletes, TimeUnit.MILLISECONDS)
-                    .build();
+                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), gcDeletes, TimeUnit.MILLISECONDS)
+                .build();
             assertEquals(gcDeletes, build.getAsTime(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), null).millis());
 
-            client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
+            indicesAdmin().prepareUpdateSettings("foo").setSettings(build).get();
             LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
             assertEquals(currentIndexWriterConfig.getUseCompoundFile(), true);
-
 
             assertEquals(engine.config().getIndexSettings().getGcDeletesInMillis(), gcDeletes);
             assertEquals(engine.getGcDeletesInMillis(), gcDeletes);
 
         }
 
-        Settings settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS)
-                .build();
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
+        Settings settings = Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS).build();
+        indicesAdmin().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
         assertTrue(engine.config().isEnableGcDeletes());
 
+        settings = Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "0ms").build();
 
-        settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "0ms")
-                .build();
-
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
+        indicesAdmin().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 0);
         assertTrue(engine.config().isEnableGcDeletes());
 
-        settings = Settings.builder()
-                .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS)
-                .build();
-        client().admin().indices().prepareUpdateSettings("foo").setSettings(settings).get();
+        settings = Settings.builder().put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), 1000, TimeUnit.MILLISECONDS).build();
+        indicesAdmin().prepareUpdateSettings("foo").setSettings(settings).get();
         assertEquals(engine.getGcDeletesInMillis(), 1000);
         assertTrue(engine.config().isEnableGcDeletes());
     }

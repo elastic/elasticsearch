@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -42,10 +43,15 @@ public abstract class InnerHitContextBuilder {
         int maxInnerResultWindow = parentSearchContext.getSearchExecutionContext().getIndexSettings().getMaxInnerResultWindow();
         if (innerResultWindow > maxInnerResultWindow) {
             throw new IllegalArgumentException(
-                "Inner result window is too large, the inner hit definition's [" + innerHitBuilder.getName() +
-                    "]'s from + size must be less than or equal to: [" + maxInnerResultWindow + "] but was [" + innerResultWindow +
-                    "]. This limit can be set by changing the [" + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey() +
-                    "] index level setting."
+                "Inner result window is too large, the inner hit definition's ["
+                    + innerHitBuilder.getName()
+                    + "]'s from + size must be less than or equal to: ["
+                    + maxInnerResultWindow
+                    + "] but was ["
+                    + innerResultWindow
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING.getKey()
+                    + "] index level setting."
             );
         }
         doBuild(parentSearchContext, innerHitsContext);
@@ -60,14 +66,20 @@ public abstract class InnerHitContextBuilder {
     public static void extractInnerHits(QueryBuilder query, Map<String, InnerHitContextBuilder> innerHitBuilders) {
         if (query instanceof AbstractQueryBuilder) {
             ((AbstractQueryBuilder<?>) query).extractInnerHitBuilders(innerHitBuilders);
+        } else if (query instanceof InterceptedQueryBuilderWrapper interceptedQuery) {
+            // Unwrap an intercepted query here
+            extractInnerHits(interceptedQuery.queryBuilder, innerHitBuilders);
         } else {
-            throw new IllegalStateException("provided query builder [" + query.getClass() +
-                "] class should inherit from AbstractQueryBuilder, but it doesn't");
+            throw new IllegalStateException(
+                "provided query builder [" + query.getClass() + "] class should inherit from AbstractQueryBuilder, but it doesn't"
+            );
         }
     }
 
-    protected void setupInnerHitsContext(SearchExecutionContext searchExecutionContext,
-                                         InnerHitsContext.InnerHitSubContext innerHitsContext) throws IOException {
+    protected void setupInnerHitsContext(
+        SearchExecutionContext searchExecutionContext,
+        InnerHitsContext.InnerHitSubContext innerHitsContext
+    ) throws IOException {
         innerHitsContext.from(innerHitBuilder.getFrom());
         innerHitsContext.size(innerHitBuilder.getSize());
         innerHitsContext.explain(innerHitBuilder.isExplain());
@@ -90,12 +102,18 @@ public abstract class InnerHitContextBuilder {
                 SearchExecutionContext innerContext = innerHitsContext.getSearchExecutionContext();
                 FieldScript.Factory factory = innerContext.compile(field.script(), FieldScript.CONTEXT);
                 FieldScript.LeafFactory fieldScript = factory.newFactory(field.script().getParams(), innerContext.lookup());
-                innerHitsContext.scriptFields().add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
-                    field.fieldName(), fieldScript, field.ignoreFailure()));
+                innerHitsContext.scriptFields()
+                    .add(
+                        new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
+                            field.fieldName(),
+                            fieldScript,
+                            field.ignoreFailure()
+                        )
+                    );
             }
         }
         if (innerHitBuilder.getFetchSourceContext() != null) {
-            innerHitsContext.fetchSourceContext(innerHitBuilder.getFetchSourceContext() );
+            innerHitsContext.fetchSourceContext(innerHitBuilder.getFetchSourceContext());
         }
         if (innerHitBuilder.getSorts() != null) {
             Optional<SortAndFormats> optionalSort = SortBuilder.buildSort(innerHitBuilder.getSorts(), searchExecutionContext);
@@ -108,19 +126,22 @@ public abstract class InnerHitContextBuilder {
         }
         ParsedQuery parsedQuery = new ParsedQuery(query.toQuery(searchExecutionContext), searchExecutionContext.copyNamedQueries());
         innerHitsContext.parsedQuery(parsedQuery);
-        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren =
-            buildChildInnerHits(innerHitsContext.parentSearchContext(), children);
+        Map<String, InnerHitsContext.InnerHitSubContext> baseChildren = buildChildInnerHits(
+            innerHitsContext.parentSearchContext(),
+            children
+        );
         innerHitsContext.setChildInnerHits(baseChildren);
     }
 
-    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(SearchContext parentSearchContext,
-                                Map<String, InnerHitContextBuilder> children) throws IOException {
+    private static Map<String, InnerHitsContext.InnerHitSubContext> buildChildInnerHits(
+        SearchContext parentSearchContext,
+        Map<String, InnerHitContextBuilder> children
+    ) throws IOException {
 
         Map<String, InnerHitsContext.InnerHitSubContext> childrenInnerHits = new HashMap<>();
         for (Map.Entry<String, InnerHitContextBuilder> entry : children.entrySet()) {
             InnerHitsContext childInnerHitsContext = new InnerHitsContext();
-            entry.getValue().build(
-                parentSearchContext, childInnerHitsContext);
+            entry.getValue().build(parentSearchContext, childInnerHitsContext);
             if (childInnerHitsContext.getInnerHits() != null) {
                 childrenInnerHits.putAll(childInnerHitsContext.getInnerHits());
             }

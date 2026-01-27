@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
@@ -22,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 import static org.objectweb.asm.Opcodes.H_INVOKEINTERFACE;
@@ -48,9 +50,17 @@ public class FunctionRef {
      * @param constants constants used for injection when necessary
      * @param needsScriptInstance uses an instance method and so receiver must be captured.
      */
-    public static FunctionRef create(PainlessLookup painlessLookup, FunctionTable functionTable, Location location,
-            Class<?> targetClass, String typeName, String methodName, int numberOfCaptures, Map<String, Object> constants,
-            boolean needsScriptInstance) {
+    public static FunctionRef create(
+        PainlessLookup painlessLookup,
+        FunctionTable functionTable,
+        Location location,
+        Class<?> targetClass,
+        String typeName,
+        String methodName,
+        int numberOfCaptures,
+        Map<String, Object> constants,
+        boolean needsScriptInstance
+    ) {
 
         Objects.requireNonNull(painlessLookup);
         Objects.requireNonNull(targetClass);
@@ -64,12 +74,18 @@ public class FunctionRef {
             interfaceMethod = painlessLookup.lookupFunctionalInterfacePainlessMethod(targetClass);
 
             if (interfaceMethod == null) {
-                throw new IllegalArgumentException("cannot convert function reference [" + typeName + "::" + methodName + "] " +
-                        "to a non-functional interface [" + targetClassName + "]");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "cannot convert function reference [%s::%s] to a non-functional interface [%s]",
+                        typeName,
+                        methodName,
+                        targetClassName
+                    )
+                );
             }
 
-            String interfaceMethodName = interfaceMethod.javaMethod.getName();
-            MethodType interfaceMethodType = interfaceMethod.methodType.dropParameterTypes(0, 1);
+            String interfaceMethodName = interfaceMethod.javaMethod().getName();
+            MethodType interfaceMethodType = interfaceMethod.methodType().dropParameterTypes(0, 1);
             String delegateClassName;
             boolean isDelegateInterface;
             boolean isDelegateAugmented;
@@ -80,7 +96,7 @@ public class FunctionRef {
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
-            int interfaceTypeParametersSize = interfaceMethod.typeParameters.size();
+            int interfaceTypeParametersSize = interfaceMethod.typeParameters().size();
 
             if ("this".equals(typeName)) {
                 Objects.requireNonNull(functionTable);
@@ -93,9 +109,15 @@ public class FunctionRef {
                 LocalFunction localFunction = functionTable.getFunction(localFunctionKey);
 
                 if (localFunction == null) {
-                    throw new IllegalArgumentException("function reference [this::" + localFunctionKey + "] " +
-                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found" + (localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : "")
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "function reference [this::%s] matching [%s, %s/%d] not found%s",
+                            localFunctionKey,
+                            targetClassName,
+                            interfaceMethodName,
+                            interfaceTypeParametersSize,
+                            localFunctionKey.contains("$") ? " due to an incorrect number of arguments" : ""
+                        )
                     );
                 }
 
@@ -117,52 +139,78 @@ public class FunctionRef {
                 PainlessConstructor painlessConstructor = painlessLookup.lookupPainlessConstructor(typeName, interfaceTypeParametersSize);
 
                 if (painlessConstructor == null) {
-                    throw new IllegalArgumentException("function reference [" + typeName + "::new/" + interfaceTypeParametersSize + "] " +
-                            "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                            "not found");
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "function reference [%s::new/%d] matching [%s, %s/%d] not found",
+                            typeName,
+                            interfaceTypeParametersSize,
+                            targetClassName,
+                            interfaceMethodName,
+                            interfaceTypeParametersSize
+                        )
+                    );
                 }
 
-                delegateClassName = painlessConstructor.javaConstructor.getDeclaringClass().getName();
+                delegateClassName = painlessConstructor.javaConstructor().getDeclaringClass().getName();
                 isDelegateInterface = false;
                 isDelegateAugmented = false;
                 delegateInvokeType = H_NEWINVOKESPECIAL;
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
-                delegateMethodType = painlessConstructor.methodType;
+                delegateMethodType = painlessConstructor.methodType();
                 delegateInjections = new Object[0];
 
-                delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
-                delegateMethodParameters = painlessConstructor.typeParameters;
+                delegateMethodReturnType = painlessConstructor.javaConstructor().getDeclaringClass();
+                delegateMethodParameters = painlessConstructor.typeParameters();
             } else {
                 if (numberOfCaptures != 0 && numberOfCaptures != 1) {
                     throw new IllegalStateException("internal error");
                 }
 
                 boolean captured = numberOfCaptures == 1;
-                PainlessMethod painlessMethod =
-                        painlessLookup.lookupPainlessMethod(typeName, true, methodName, interfaceTypeParametersSize);
+                PainlessMethod painlessMethod = painlessLookup.lookupPainlessMethod(
+                    typeName,
+                    true,
+                    methodName,
+                    interfaceTypeParametersSize
+                );
 
                 if (painlessMethod == null) {
-                    painlessMethod = painlessLookup.lookupPainlessMethod(typeName, false, methodName,
-                            captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1);
+                    painlessMethod = painlessLookup.lookupPainlessMethod(
+                        typeName,
+                        false,
+                        methodName,
+                        captured ? interfaceTypeParametersSize : interfaceTypeParametersSize - 1
+                    );
 
                     if (painlessMethod == null) {
                         throw new IllegalArgumentException(
-                                "function reference " + "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
-                                "matching [" + targetClassName + ", " + interfaceMethodName + "/" + interfaceTypeParametersSize + "] " +
-                                "not found");
+                            Strings.format(
+                                "function reference [%s::%s/%d] matching [%s, %s/%d] not found",
+                                typeName,
+                                methodName,
+                                interfaceTypeParametersSize,
+                                targetClassName,
+                                interfaceMethodName,
+                                interfaceTypeParametersSize
+                            )
+                        );
                     }
                 } else if (captured) {
                     throw new IllegalArgumentException(
-                            "cannot use a static method as a function reference " +
-                            "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
-                            "with a non-static captured variable");
+                        Strings.format(
+                            "cannot use a static method as a function reference [%s::%s/%d] with a non-static captured variable",
+                            typeName,
+                            methodName,
+                            interfaceTypeParametersSize
+                        )
+                    );
                 }
 
-                delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
-                isDelegateInterface = painlessMethod.javaMethod.getDeclaringClass().isInterface();
-                isDelegateAugmented = painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.targetClass;
+                delegateClassName = painlessMethod.javaMethod().getDeclaringClass().getName();
+                isDelegateInterface = painlessMethod.javaMethod().getDeclaringClass().isInterface();
+                isDelegateAugmented = painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.targetClass();
 
-                if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+                if (Modifier.isStatic(painlessMethod.javaMethod().getModifiers())) {
                     delegateInvokeType = H_INVOKESTATIC;
                 } else if (isDelegateInterface) {
                     delegateInvokeType = H_INVOKEINTERFACE;
@@ -170,54 +218,64 @@ public class FunctionRef {
                     delegateInvokeType = H_INVOKEVIRTUAL;
                 }
 
-                delegateMethodName = painlessMethod.javaMethod.getName();
-                delegateMethodType = painlessMethod.methodType;
+                delegateMethodName = painlessMethod.javaMethod().getName();
+                delegateMethodType = painlessMethod.methodType();
 
                 // interfaces that override a method from Object receive the method handle for
                 // Object rather than for the interface; we change the first parameter to match
                 // the interface type so the constant interface method reference is correctly
                 // written to the constant pool
-                if (delegateInvokeType != H_INVOKESTATIC &&
-                        painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
-                    if (painlessMethod.methodType.parameterType(0) != Object.class) {
+                if (delegateInvokeType != H_INVOKESTATIC
+                    && painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.methodType().parameterType(0)) {
+                    if (painlessMethod.methodType().parameterType(0) != Object.class) {
                         throw new IllegalStateException("internal error");
                     }
-                    
-                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
+
+                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod().getDeclaringClass());
                 }
 
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
-                delegateMethodReturnType = painlessMethod.returnType;
+                delegateMethodReturnType = painlessMethod.returnType();
 
-                if (delegateMethodType.parameterList().size() > painlessMethod.typeParameters.size()) {
-                    delegateMethodParameters = new ArrayList<>(painlessMethod.typeParameters);
+                if (delegateMethodType.parameterList().size() > painlessMethod.typeParameters().size()) {
+                    delegateMethodParameters = new ArrayList<>(painlessMethod.typeParameters());
                     delegateMethodParameters.add(0, delegateMethodType.parameterType(0));
                 } else {
-                    delegateMethodParameters = painlessMethod.typeParameters;
+                    delegateMethodParameters = painlessMethod.typeParameters();
                 }
             }
 
             if (location != null) {
                 for (int typeParameter = 0; typeParameter < interfaceTypeParametersSize; ++typeParameter) {
-                    Class<?> from = interfaceMethod.typeParameters.get(typeParameter);
+                    Class<?> from = interfaceMethod.typeParameters().get(typeParameter);
                     Class<?> to = delegateMethodParameters.get(numberOfCaptures + typeParameter);
                     AnalyzerCaster.getLegalCast(location, from, to, false, true);
                 }
 
-                if (interfaceMethod.returnType != void.class) {
-                    AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType, false, true);
+                if (interfaceMethod.returnType() != void.class) {
+                    AnalyzerCaster.getLegalCast(location, delegateMethodReturnType, interfaceMethod.returnType(), false, true);
                 }
             }
 
-            MethodType factoryMethodType = MethodType.methodType(targetClass,
-                    delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
+            MethodType factoryMethodType = MethodType.methodType(
+                targetClass,
+                delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount())
+            );
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
-            return new FunctionRef(interfaceMethodName, interfaceMethodType,
-                    delegateClassName, isDelegateInterface, isDelegateAugmented,
-                    delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
-                    factoryMethodType, needsScriptInstance ? WriterConstants.CLASS_TYPE : null
+            return new FunctionRef(
+                interfaceMethodName,
+                interfaceMethodType,
+                delegateClassName,
+                isDelegateInterface,
+                isDelegateAugmented,
+                delegateInvokeType,
+                delegateMethodName,
+                delegateMethodType,
+                delegateInjections,
+                factoryMethodType,
+                needsScriptInstance ? WriterConstants.CLASS_TYPE : null
             );
         } catch (IllegalArgumentException iae) {
             if (location != null) {
@@ -252,10 +310,18 @@ public class FunctionRef {
     public final Type factoryMethodReceiver;
 
     private FunctionRef(
-            String interfaceMethodName, MethodType interfaceMethodType,
-            String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
-            int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
-            MethodType factoryMethodType, Type factoryMethodReceiver) {
+        String interfaceMethodName,
+        MethodType interfaceMethodType,
+        String delegateClassName,
+        boolean isDelegateInterface,
+        boolean isDelegateAugmented,
+        int delegateInvokeType,
+        String delegateMethodName,
+        MethodType delegateMethodType,
+        Object[] delegateInjections,
+        MethodType factoryMethodType,
+        Type factoryMethodReceiver
+    ) {
 
         this.interfaceMethodName = interfaceMethodName;
         this.interfaceMethodType = interfaceMethodType;
@@ -275,19 +341,20 @@ public class FunctionRef {
         if (factoryMethodReceiver == null) {
             return factoryMethodType.toMethodDescriptorString();
         }
-        List<Type> arguments = factoryMethodType.parameterList().stream().map(Type::getType).collect(Collectors.toList());
-        arguments.add(0, factoryMethodReceiver);
-        Type[] argArray = new Type[arguments.size()];
-        arguments.toArray(argArray);
-        return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), argArray);
+        Type[] arguments = Stream.concat(Stream.of(factoryMethodReceiver), factoryMethodType.parameterList().stream().map(Type::getType))
+            .toArray(Type[]::new);
+        return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), arguments);
     }
 
     /** Get the factory method type, updating the receiver if {@code factoryMethodReceiverClass} is non-null */
     public Class<?>[] factoryMethodParameters(Class<?> factoryMethodReceiverClass) {
-        List<Class<?>> parameters = new ArrayList<>(factoryMethodType.parameterList());
+        Class<?>[] parameters = factoryMethodType.parameterList().toArray(Class<?>[]::new);
         if (factoryMethodReceiverClass != null) {
-            parameters.add(0, factoryMethodReceiverClass);
+            Class<?>[] withReceiver = new Class<?>[parameters.length + 1];
+            withReceiver[0] = factoryMethodReceiverClass;
+            System.arraycopy(parameters, 0, withReceiver, 1, parameters.length);
+            parameters = withReceiver;
         }
-        return parameters.toArray(new Class<?>[0]);
+        return parameters;
     }
 }

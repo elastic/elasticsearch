@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.engine;
@@ -45,7 +46,11 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
         DocsEnum,
         DocsAndPositionsEnum,
         Fields,
-        Norms, NumericDocValues, BinaryDocValues, SortedDocValues, SortedSetDocValues;
+        Norms,
+        NumericDocValues,
+        BinaryDocValues,
+        SortedDocValues,
+        SortedSetDocValues;
     }
 
     /**
@@ -79,13 +84,6 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
             return terms == null ? null : new ThrowingTerms(terms, thrower);
         }
         return terms;
-    }
-
-    @Override
-    public Fields getTermVectors(int docID) throws IOException {
-        Fields fields = super.getTermVectors(docID);
-        thrower.maybeThrow(Flags.TermVectors);
-        return fields == null ? null : new ThrowingFields(fields, thrower);
     }
 
     /**
@@ -156,7 +154,6 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
         }
     }
 
-
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
         thrower.maybeThrow(Flags.NumericDocValues);
@@ -187,7 +184,6 @@ public class ThrowingLeafReaderWrapper extends SequentialStoredFieldsLeafReader 
         thrower.maybeThrow(Flags.Norms);
         return super.getNormValues(field);
     }
-
 
     @Override
     public CacheHelper getCoreCacheHelper() {

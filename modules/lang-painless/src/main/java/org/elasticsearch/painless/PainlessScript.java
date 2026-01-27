@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -45,6 +46,9 @@ public interface PainlessScript {
      * @return The generated ScriptException.
      */
     default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+        if (t instanceof PainlessWrappedException) {
+            t = t.getCause();
+        }
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;
@@ -77,12 +81,20 @@ public interface PainlessScript {
                     pos = new ScriptException.Position(originalOffset, startOffset, endOffset);
                 }
                 break;
-            // but filter our own internal stacks (e.g. indy bootstrap)
+                // but filter our own internal stacks (e.g. indy bootstrap)
             } else if (shouldFilter(element) == false) {
                 scriptStack.add(element.toString());
             }
         }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, getName(), PainlessScriptEngine.NAME, pos);
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        ScriptException scriptException = new ScriptException(
+            "runtime error",
+            cause,
+            scriptStack,
+            getName(),
+            PainlessScriptEngine.NAME,
+            pos
+        );
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
             scriptException.addMetadata(entry.getKey(), entry.getValue());
         }
@@ -91,9 +103,9 @@ public interface PainlessScript {
 
     /** returns true for methods that are part of the runtime */
     default boolean shouldFilter(StackTraceElement element) {
-        return element.getClassName().startsWith("org.elasticsearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.") ||
-               element.getClassName().startsWith("sun.invoke.");
+        return element.getClassName().startsWith("org.elasticsearch.painless.")
+            || element.getClassName().startsWith("java.lang.invoke.")
+            || element.getClassName().startsWith("sun.invoke.");
     }
 
     /**

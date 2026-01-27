@@ -27,7 +27,7 @@
     - do:
         index:
             index:  test
-            id:     1
+            id:     "1"
             body:   { "text": "Bâton enflammé" }
     - do:
         indices.refresh: {}

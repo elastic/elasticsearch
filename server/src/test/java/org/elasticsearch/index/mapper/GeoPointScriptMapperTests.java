@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,22 +14,28 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
 public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFieldScript.Factory> {
 
-    private static GeoPointFieldScript.Factory factory(Consumer<GeoPointFieldScript> executor) {
+    private static GeoPointFieldScript.Factory factory(Consumer<GeoPointFieldScript.Emit> executor) {
         return new GeoPointFieldScript.Factory() {
             @Override
-            public GeoPointFieldScript.LeafFactory newFactory(String fieldName, Map<String, Object> params, SearchLookup searchLookup) {
+            public GeoPointFieldScript.LeafFactory newFactory(
+                String fieldName,
+                Map<String, Object> params,
+                SearchLookup searchLookup,
+                OnScriptError onScriptError
+            ) {
                 return new GeoPointFieldScript.LeafFactory() {
                     @Override
                     public GeoPointFieldScript newInstance(LeafReaderContext ctx) {
-                        return new GeoPointFieldScript(fieldName, params, searchLookup, ctx) {
+                        return new GeoPointFieldScript(fieldName, params, searchLookup, OnScriptError.FAIL, ctx) {
                             @Override
                             public void execute() {
-                                executor.accept(this);
+                                executor.accept(new Emit(this));
                             }
                         };
                     }
@@ -49,42 +56,38 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
 
     @Override
     protected GeoPointFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override
     protected GeoPointFieldScript.Factory singleValueScript() {
-        return factory(s -> s.emit(1));
+        return factory(s -> s.emit(-1, 1));
     }
 
     @Override
     protected GeoPointFieldScript.Factory multipleValuesScript() {
         return factory(s -> {
-            s.emit(1);
-            s.emit(2);
+            s.emit(-1, 1);
+            s.emit(-2, 2);
         });
     }
 
     @Override
-    protected void assertMultipleValues(IndexableField[] fields) {
-        assertEquals(4, fields.length);
-        assertEquals("LatLonPoint <field:0.0,8.381903171539307E-8>", fields[0].toString());
-        assertEquals("LatLonDocValuesField <field:0.0,8.381903171539307E-8>", fields[1].toString());
-        assertEquals("LatLonPoint <field:0.0,1.6763806343078613E-7>", fields[2].toString());
-        assertEquals("LatLonDocValuesField <field:0.0,1.6763806343078613E-7>", fields[3].toString());
+    protected void assertMultipleValues(List<IndexableField> fields) {
+        assertEquals(2, fields.size());
+        assertEquals("LatLonPointWithDocValues <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
+        assertEquals("LatLonPointWithDocValues <field:-2.000000006519258,1.9999999646097422>", fields.get(1).toString());
     }
 
     @Override
-    protected void assertDocValuesDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LatLonPoint <field:0.0,8.381903171539307E-8>", fields[0].toString());
+    protected void assertDocValuesDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LatLonPoint <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
     }
 
     @Override
-    protected void assertIndexDisabled(IndexableField[] fields) {
-        assertEquals(1, fields.length);
-        assertEquals("LatLonDocValuesField <field:0.0,8.381903171539307E-8>", fields[0].toString());
+    protected void assertIndexDisabled(List<IndexableField> fields) {
+        assertEquals(1, fields.size());
+        assertEquals("LatLonDocValuesField <field:-1.000000024214387,0.9999999403953552>", fields.get(0).toString());
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.ir;
@@ -43,7 +44,7 @@ public abstract class IRNode {
 
     @SuppressWarnings("unchecked")
     public <V> V attachDecoration(IRDecoration<V> decoration) {
-        IRDecoration<V> previous = (IRDecoration<V>)decorations.put((Class<? extends IRDecoration<?>>)decoration.getClass(), decoration);
+        IRDecoration<V> previous = (IRDecoration<V>) decorations.put((Class<? extends IRDecoration<?>>) decoration.getClass(), decoration);
         return previous == null ? null : previous.getValue();
     }
 
@@ -100,6 +101,7 @@ public abstract class IRNode {
     /* ---- end node data, begin visitor ---- */
 
     public abstract <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
+
     public abstract <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope);
 
     /* ---- end visitor ---- */

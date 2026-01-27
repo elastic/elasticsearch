@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -51,9 +52,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefNotTypedRet() {
-        assertEquals((double)~1, exec("def x = (byte)1; double y = ~x; return y;"));
-        assertEquals((float)~1, exec("def x = (short)1; float y = ~x; return y;"));
-        assertEquals((long)~1, exec("def x = (char)1; long y = ~x; return y;"));
+        assertEquals((double) ~1, exec("def x = (byte)1; double y = ~x; return y;"));
+        assertEquals((float) ~1, exec("def x = (short)1; float y = ~x; return y;"));
+        assertEquals((long) ~1, exec("def x = (char)1; long y = ~x; return y;"));
         assertEquals(~1, exec("def x = 1; int y = ~x; return y;"));
     }
 
@@ -68,9 +69,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefNegTypedRet() {
-        assertEquals((double)-1, exec("def x = (byte)1; double y = -x; return y;"));
-        assertEquals((float)-1, exec("def x = (short)1; float y = -x; return y;"));
-        assertEquals((long)-1, exec("def x = (char)1; long y = -x; return y;"));
+        assertEquals((double) -1, exec("def x = (byte)1; double y = -x; return y;"));
+        assertEquals((float) -1, exec("def x = (short)1; float y = -x; return y;"));
+        assertEquals((long) -1, exec("def x = (char)1; long y = -x; return y;"));
         assertEquals(-1, exec("def x = 1; int y = -x; return y;"));
     }
 
@@ -85,9 +86,9 @@ public class UnaryTests extends ScriptTestCase {
     }
 
     public void testDefPlusTypedRet() {
-        assertEquals((double)-1, exec("def x = (byte)-1; double y = +x; return y;"));
-        assertEquals((float)-1, exec("def x = (short)-1; float y = +x; return y;"));
-        assertEquals((long)65535, exec("def x = (char)-1; long y = +x; return y;"));
+        assertEquals((double) -1, exec("def x = (byte)-1; double y = +x; return y;"));
+        assertEquals((float) -1, exec("def x = (short)-1; float y = +x; return y;"));
+        assertEquals((long) 65535, exec("def x = (char)-1; long y = +x; return y;"));
         assertEquals(-1, exec("def x = -1; int y = +x; return y;"));
     }
 }

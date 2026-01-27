@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -20,13 +21,18 @@ public abstract class SimilarityScript {
      * @param term   term-level statistics
      * @param doc    per-document statistics
      */
-    public abstract double execute(double weight, ScriptedSimilarity.Query query,
-            ScriptedSimilarity.Field field, ScriptedSimilarity.Term term, ScriptedSimilarity.Doc doc);
+    public abstract double execute(
+        double weight,
+        ScriptedSimilarity.Query query,
+        ScriptedSimilarity.Field field,
+        ScriptedSimilarity.Term term,
+        ScriptedSimilarity.Doc doc
+    );
 
     public interface Factory extends ScriptFactory {
         SimilarityScript newInstance();
     }
 
-    public static final String[] PARAMETERS = new String[] {"weight", "query", "field", "term", "doc"};
+    public static final String[] PARAMETERS = new String[] { "weight", "query", "field", "term", "doc" };
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("similarity", Factory.class);
 }

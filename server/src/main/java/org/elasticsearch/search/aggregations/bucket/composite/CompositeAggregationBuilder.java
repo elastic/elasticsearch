@@ -1,26 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdFieldType;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,8 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class CompositeAggregationBuilder extends AbstractAggregationBuilder<CompositeAggregationBuilder> {
     public static final String NAME = "composite";
@@ -88,6 +93,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         return new CompositeAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     public CompositeAggregationBuilder(StreamInput in) throws IOException {
         super(in);
         int num = in.readVInt();
@@ -98,20 +108,17 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         }
         this.size = in.readVInt();
         if (in.readBoolean()) {
-            this.after = in.readMap();
+            this.after = in.readGenericMap();
         }
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(sources.size());
-        for (CompositeValuesSourceBuilder<?> builder : sources) {
-            CompositeValuesSourceParserHelper.writeTo(builder, out);
-        }
+        out.writeCollection(sources, (o, v) -> CompositeValuesSourceParserHelper.writeTo(v, o));
         out.writeVInt(size);
         out.writeBoolean(after != null);
         if (after != null) {
-            out.writeMap(after);
+            out.writeGenericMap(after);
         }
     }
 
@@ -166,14 +173,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
+    private static AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory || factory instanceof FilterAggregatorFactory) {
-            return validateParentAggregations(factory.getParent());
-        } else {
-            return factory;
-        }
+        } else if (factory instanceof NestedAggregatorFactory
+            || factory instanceof FilterAggregationBuilder.FilterAggregatorFactory
+            || factory instanceof RandomSamplerAggregatorFactory) {
+                return validateParentAggregations(factory.getParent());
+            } else {
+                return factory;
+            }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {
@@ -204,6 +213,9 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         AggregatorFactory parent,
         AggregatorFactories.Builder subfactoriesBuilder
     ) throws IOException {
+        if (context.isInSortOrderExecutionRequired()) {
+            throw new IllegalArgumentException("[composite] aggregation is incompatible with time series execution mode");
+        }
         AggregatorFactory invalid = validateParentAggregations(parent);
         if (invalid != null) {
             throw new IllegalArgumentException(
@@ -235,17 +247,24 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
                 Object obj = after.get(sourceName);
                 if (configs[i].missingBucket() && obj == null) {
                     values[i] = null;
-                } else if (obj instanceof Comparable) {
-                    values[i] = (Comparable<?>) obj;
-                } else {
-                    throw new IllegalArgumentException(
-                        "Invalid value for [after."
-                            + sources.get(i).name()
-                            + "], expected comparable, got ["
-                            + (obj == null ? "null" : obj.getClass().getSimpleName())
-                            + "]"
-                    );
-                }
+                } else if (obj instanceof String s
+                    && configs[i].fieldType() != null
+                    && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        values[i] = configs[i].format().parseBytesRef(s);
+                    } else if (obj instanceof Comparable<?> c) {
+                        values[i] = c;
+                    } else if (obj instanceof Map<?, ?> && configs[i].fieldType().getClass() == TimeSeriesIdFieldType.class) {
+                        // If input is a _tsid map, encode the map to the _tsid BytesRef
+                        values[i] = configs[i].format().parseBytesRef(obj);
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Invalid value for [after."
+                                + sources.get(i).name()
+                                + "], expected comparable, got ["
+                                + (obj == null ? "null" : obj.getClass().getSimpleName())
+                                + "]"
+                        );
+                    }
             }
             afterKey = new CompositeKey(values);
         } else {
@@ -282,5 +301,20 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         if (super.equals(obj) == false) return false;
         CompositeAggregationBuilder other = (CompositeAggregationBuilder) obj;
         return size == other.size && Objects.equals(sources, other.sources) && Objects.equals(after, other.after);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        for (CompositeValuesSourceBuilder<?> source : sources) {
+            if (source.supportsParallelCollection(fieldCardinalityResolver) == false) {
+                return false;
+            }
+        }
+        return super.supportsParallelCollection(fieldCardinalityResolver);
     }
 }

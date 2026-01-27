@@ -7,10 +7,10 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -19,19 +19,17 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestGetBasicStatus extends BaseRestHandler {
 
-    RestGetBasicStatus() {}
+    public RestGetBasicStatus() {}
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_license/basic_status")
-                .replaces(GET, "/_xpack/license/basic_status", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/_license/basic_status"));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> new GetBasicStatusRequestBuilder(client).execute(new RestToXContentListener<>(channel));
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+        final var request = new GetBasicStatusRequest(RestUtils.getMasterNodeTimeout(restRequest));
+        return channel -> client.execute(TransportGetBasicStatusAction.TYPE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

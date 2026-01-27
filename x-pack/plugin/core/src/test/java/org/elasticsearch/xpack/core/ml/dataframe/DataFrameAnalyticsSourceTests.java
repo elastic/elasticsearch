@@ -7,16 +7,16 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -54,6 +54,11 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return createRandom();
     }
 
+    @Override
+    protected DataFrameAnalyticsSource mutateInstance(DataFrameAnalyticsSource instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
     public static DataFrameAnalyticsSource createRandom() {
         String[] index = generateRandomStringArray(10, 10, false, false);
         QueryProvider queryProvider = null;
@@ -67,9 +72,11 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
             }
         }
         if (randomBoolean()) {
-            sourceFiltering = new FetchSourceContext(true,
+            sourceFiltering = FetchSourceContext.of(
+                true,
                 generateRandomStringArray(10, 10, false, false),
-                generateRandomStringArray(10, 10, false, false));
+                generateRandomStringArray(10, 10, false, false)
+            );
         }
         Map<String, Object> runtimeMappings = null;
         if (randomBoolean()) {
@@ -83,7 +90,7 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
         return new DataFrameAnalyticsSource(index, queryProvider, sourceFiltering, runtimeMappings);
     }
 
-    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, Version version) {
+    public static DataFrameAnalyticsSource mutateForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return instance;
     }
 
@@ -93,14 +100,23 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     public void testConstructor_GivenDisabledSource() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new DataFrameAnalyticsSource(
-            new String[] {"index"}, null, new FetchSourceContext(false, null, null), null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DataFrameAnalyticsSource(new String[] { "index" }, null, FetchSourceContext.DO_NOT_FETCH_SOURCE, null)
+        );
         assertThat(e.getMessage(), equalTo("source._source cannot be disabled"));
     }
 
     public void testConstructor_GivenInvalidRuntimeMappings() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsSource(
-            new String[] {"index"}, null, null, Collections.singletonMap("typeless", Collections.singletonMap("not a type", "42"))));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DataFrameAnalyticsSource(
+                new String[] { "index" },
+                null,
+                null,
+                Collections.singletonMap("typeless", Collections.singletonMap("not a type", "42"))
+            )
+        );
         assertThat(e.getMessage(), equalTo("No type specified for runtime field [typeless]"));
     }
 
@@ -110,8 +126,12 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     public void testIsFieldExcluded_GivenSourceFilteringWithNulls() {
-        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(new String[] { "index" }, null,
-            new FetchSourceContext(true, null, null), null);
+        DataFrameAnalyticsSource source = new DataFrameAnalyticsSource(
+            new String[] { "index" },
+            null,
+            FetchSourceContext.FETCH_SOURCE,
+            null
+        );
         assertThat(source.isFieldExcluded(randomAlphaOfLength(10)), is(false));
     }
 
@@ -139,8 +159,10 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
 
     public void testIsFieldExcluded_GivenIncludesAndExcludes() {
         // Excludes take precedence
-        assertThat(newSourceWithIncludesExcludes(Collections.singletonList("foo"), Collections.singletonList("foo"))
-            .isFieldExcluded("foo"), is(true));
+        assertThat(
+            newSourceWithIncludesExcludes(Collections.singletonList("foo"), Collections.singletonList("foo")).isFieldExcluded("foo"),
+            is(true)
+        );
     }
 
     private static DataFrameAnalyticsSource newSourceWithIncludes(String... includes) {
@@ -152,13 +174,12 @@ public class DataFrameAnalyticsSourceTests extends AbstractBWCSerializationTestC
     }
 
     private static DataFrameAnalyticsSource newSourceWithIncludesExcludes(List<String> includes, List<String> excludes) {
-        FetchSourceContext sourceFiltering = new FetchSourceContext(true,
-            includes.toArray(new String[0]), excludes.toArray(new String[0]));
-        return new DataFrameAnalyticsSource(new String[] { "index" } , null, sourceFiltering, null);
+        FetchSourceContext sourceFiltering = FetchSourceContext.of(true, includes.toArray(new String[0]), excludes.toArray(new String[0]));
+        return new DataFrameAnalyticsSource(new String[] { "index" }, null, sourceFiltering, null);
     }
 
     @Override
-    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, Version version) {
+    protected DataFrameAnalyticsSource mutateInstanceForVersion(DataFrameAnalyticsSource instance, TransportVersion version) {
         return mutateForVersion(instance, version);
     }
 }

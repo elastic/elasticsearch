@@ -6,32 +6,32 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Map;
 
 class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
+    private final AggregateMetricsValuesSource.AggregateMetricDouble valuesSource;
     final DocValueFormat formatter;
     DoubleArray maxes;
 
@@ -43,28 +43,23 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        this.valuesSource = config.hasValues() ? (AggregateMetricsValuesSource.AggregateDoubleMetric) config.getValuesSource() : null;
-        if (valuesSource != null) {
-            maxes = context.bigArrays().newDoubleArray(1, false);
-            maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
-        }
+        assert config.hasValues();
+        this.valuesSource = (AggregateMetricsValuesSource.AggregateMetricDouble) config.getValuesSource();
+        maxes = context.bigArrays().newDoubleArray(1, false);
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
         this.formatter = config.format();
     }
 
     @Override
     public ScoreMode scoreMode() {
-        return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
+        return valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        if (valuesSource == null) {
-            return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
-
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = bigArrays();
-        final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(ctx, Metric.max);
-        final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
+        final SortedNumericDoubleValues allValues = valuesSource.getAggregateMetricValues(aggCtx.getLeafReaderContext(), Metric.max);
+        final DoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
 
             @Override
@@ -86,7 +81,7 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (valuesSource == null || owningBucketOrd >= maxes.size()) {
+        if (owningBucketOrd >= maxes.size()) {
             return Double.NEGATIVE_INFINITY;
         }
         return maxes.get(owningBucketOrd);
@@ -94,15 +89,15 @@ class AggregateMetricBackedMaxAggregator extends NumericMetricsAggregator.Single
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (valuesSource == null || bucket >= maxes.size()) {
+        if (bucket >= maxes.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMax(name, maxes.get(bucket), formatter, metadata());
+        return new Max(name, maxes.get(bucket), formatter, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMax(name, Double.NEGATIVE_INFINITY, formatter, metadata());
+        return Max.createEmptyMax(name, formatter, metadata());
     }
 
     @Override

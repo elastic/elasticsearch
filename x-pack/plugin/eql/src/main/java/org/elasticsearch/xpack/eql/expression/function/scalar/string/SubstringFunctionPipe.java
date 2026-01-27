@@ -102,8 +102,6 @@ public class SubstringFunctionPipe extends Pipe {
         }
 
         SubstringFunctionPipe other = (SubstringFunctionPipe) obj;
-        return Objects.equals(input(), other.input())
-                && Objects.equals(start(), other.start())
-                && Objects.equals(end(), other.end());
+        return Objects.equals(input(), other.input()) && Objects.equals(start(), other.start()) && Objects.equals(end(), other.end());
     }
 }

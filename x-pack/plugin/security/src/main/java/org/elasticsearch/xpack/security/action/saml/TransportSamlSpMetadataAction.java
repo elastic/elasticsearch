@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.security.action.saml;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.XmlUtils;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
@@ -27,33 +28,31 @@ import org.opensaml.saml.saml2.metadata.EntityDescriptor;
 import org.opensaml.saml.saml2.metadata.impl.EntityDescriptorMarshaller;
 import org.w3c.dom.Element;
 
-import javax.xml.transform.Transformer;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import java.util.List;
 import java.util.Locale;
+
+import javax.xml.transform.Transformer;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlRealm.findSamlRealms;
 
 /**
  * Transport action responsible for generating a SAML SP Metadata.
  */
-public class TransportSamlSpMetadataAction
-    extends HandledTransportAction<SamlSpMetadataRequest, SamlSpMetadataResponse>  {
+public class TransportSamlSpMetadataAction extends HandledTransportAction<SamlSpMetadataRequest, SamlSpMetadataResponse> {
 
     private final Realms realms;
 
     @Inject
     public TransportSamlSpMetadataAction(TransportService transportService, ActionFilters actionFilters, Realms realms) {
-        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new
-        );
+        super(SamlSpMetadataAction.NAME, transportService, actionFilters, SamlSpMetadataRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.realms = realms;
     }
 
     @Override
-    protected void doExecute(Task task, SamlSpMetadataRequest request,
-                             ActionListener<SamlSpMetadataResponse> listener) {
+    protected void doExecute(Task task, SamlSpMetadataRequest request, ActionListener<SamlSpMetadataResponse> listener) {
         List<SamlRealm> realms = findSamlRealms(this.realms, request.getRealmName(), null);
         if (realms.isEmpty()) {
             listener.onFailure(SamlUtils.samlException("Cannot find any matching realm for [{}]", request.getRealmName()));
@@ -77,12 +76,11 @@ public class TransportSamlSpMetadataAction
             final EntityDescriptor descriptor = builder.build();
             final Element element = marshaller.marshall(descriptor);
             final StringWriter writer = new StringWriter();
-            final Transformer serializer = SamlUtils.getHardenedXMLTransformer();
+            final Transformer serializer = XmlUtils.getHardenedXMLTransformer();
             serializer.transform(new DOMSource(element), new StreamResult(writer));
             listener.onResponse(new SamlSpMetadataResponse(writer.toString()));
         } catch (Exception e) {
-            logger.error(new ParameterizedMessage(
-                "Error during SAML SP metadata generation for realm [{}]", realm.name()), e);
+            logger.error(() -> "Error during SAML SP metadata generation for realm [" + realm.name() + "]", e);
             listener.onFailure(e);
         }
     }

@@ -7,12 +7,13 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -61,11 +62,7 @@ public class WeeklySchedule extends CronnableSchedule {
 
     static String[] crons(WeekTimes[] times) {
         assert times.length > 0 : "at least one time must be defined";
-        List<String> crons = new ArrayList<>(times.length);
-        for (WeekTimes time : times) {
-            crons.addAll(time.crons());
-        }
-        return crons.toArray(new String[crons.size()]);
+        return Arrays.stream(times).flatMap(wt -> wt.crons().stream()).toArray(String[]::new);
     }
 
     public static class Parser implements Schedule.Parser<WeeklySchedule> {
@@ -96,8 +93,12 @@ public class WeeklySchedule extends CronnableSchedule {
                 }
                 return times.isEmpty() ? new WeeklySchedule() : new WeeklySchedule(times.toArray(new WeekTimes[times.size()]));
             }
-            throw new ElasticsearchParseException("could not parse [{}] schedule. expected either an object or an array " +
-                    "of objects representing weekly times, but found [{}] instead", TYPE, parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] schedule. expected either an object or an array "
+                    + "of objects representing weekly times, but found [{}] instead",
+                TYPE,
+                parser.currentToken()
+            );
         }
     }
 
@@ -119,6 +120,5 @@ public class WeeklySchedule extends CronnableSchedule {
         }
 
     }
-
 
 }

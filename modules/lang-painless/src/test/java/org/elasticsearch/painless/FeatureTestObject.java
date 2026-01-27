@@ -1,16 +1,17 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
 package org.elasticsearch.painless;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
 
 /** Currently just a dummy class for testing a few features not yet exposed by whitelist! */
 public class FeatureTestObject {
@@ -47,8 +48,7 @@ public class FeatureTestObject {
     private Integer i;
 
     /** empty ctor */
-    public FeatureTestObject() {
-    }
+    public FeatureTestObject() {}
 
     /** ctor with params */
     public FeatureTestObject(int x, int y) {
@@ -95,7 +95,7 @@ public class FeatureTestObject {
     }
 
     public int injectWithLambda(int injected, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*injected;
+        return this.x * fn.apply(arg) * injected;
     }
 
     public int injectMultiTimesX(int inject1, int inject2, int inject3, short user) {
@@ -103,15 +103,15 @@ public class FeatureTestObject {
     }
 
     public int injectMultiWithLambda(int inject1, int inject2, int inject3, Function<Short, Integer> fn, short arg) {
-        return this.x*fn.apply(arg)*(inject1 + inject2 + inject3);
+        return this.x * fn.apply(arg) * (inject1 + inject2 + inject3);
     }
 
-    public Double mixedAdd(int i, Byte b, char c, Float f) {
-        return (double)(i + b + c + f);
+    public Double mixedAdd(int someInt, Byte b, char c, Float f) {
+        return (double) (someInt + b + c + f);
     }
 
     /** method taking two functions! */
-    public Object twoFunctionsOfX(Function<Object,Object> f, Function<Object,Object> g) {
+    public Object twoFunctionsOfX(Function<Object, Object> f, Function<Object, Object> g) {
         return f.apply(g.apply(x));
     }
 

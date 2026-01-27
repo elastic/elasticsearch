@@ -6,19 +6,16 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
-import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
@@ -27,9 +24,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomChecksumBytes;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,10 +34,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -70,20 +66,20 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length
                 ? randomFrom(
-                    new ByteSizeValue(partSize, ByteSizeUnit.BYTES),
-                    new ByteSizeValue(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(partSize, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(randomLongBetween(partSize, Long.MAX_VALUE), ByteSizeUnit.BYTES),
                     ByteSizeValue.ZERO,
-                    new ByteSizeValue(-1, ByteSizeUnit.BYTES),
+                    ByteSizeValue.of(-1, ByteSizeUnit.BYTES),
                     null
                 )
-                : new ByteSizeValue(partSize, ByteSizeUnit.BYTES)
+                : ByteSizeValue.of(partSize, ByteSizeUnit.BYTES)
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyInt())).thenAnswer(invocationOnMock -> {
-            String name = (String) invocationOnMock.getArguments()[0];
-            long position = (long) invocationOnMock.getArguments()[1];
-            long length = (long) invocationOnMock.getArguments()[2];
+        when(blobContainer.readBlob(any(OperationPurpose.class), anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
+            String name = (String) invocationOnMock.getArguments()[1];
+            long position = (long) invocationOnMock.getArguments()[2];
+            long length = (long) invocationOnMock.getArguments()[3];
             assertThat(
                 "Reading [" + length + "] bytes from [" + name + "] at [" + position + "] exceeds part size [" + partSize + "]",
                 position + length,
@@ -123,18 +119,13 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             }
         });
 
-        final SearchableSnapshotDirectory directory = mock(SearchableSnapshotDirectory.class);
-        when(directory.getCachedBlob(anyString(), any(ByteRange.class))).thenReturn(CachedBlob.CACHE_NOT_READY);
-        when(directory.blobContainer()).thenReturn(blobContainer);
-
         final DirectBlobContainerIndexInput indexInput = new DirectBlobContainerIndexInput(
             fileName,
-            directory,
+            blobContainer,
             fileInfo,
             randomIOContext(),
             new IndexInputStats(1L, fileInfo.length(), fileInfo.length(), fileInfo.length(), () -> 0L),
-            minimumReadSize,
-            randomBoolean() ? BufferedIndexInput.BUFFER_SIZE : between(BufferedIndexInput.MIN_BUFFER_SIZE, BufferedIndexInput.BUFFER_SIZE)
+            minimumReadSize
         );
         assertEquals(input.length, indexInput.length());
         return indexInput;
@@ -150,6 +141,25 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             assertEquals(0, indexInput.getFilePointer());
             byte[] output = randomReadAndSlice(indexInput, input.length);
             assertArrayEquals(input, output);
+        }
+    }
+
+    public void testCloneAndLargeRead() throws IOException {
+        final Tuple<String, byte[]> bytes = randomChecksumBytes(between(ByteSizeUnit.KB.toIntBytes(2), ByteSizeUnit.KB.toIntBytes(10)));
+        try (var indexInput = createIndexInput(bytes)) {
+            indexInput.readLong();
+
+            final var clone = indexInput.clone();
+
+            // do a read which is large enough to exercise the path which bypasses the buffer and fills the output directly
+
+            final var originalBytes = new byte[2048];
+            indexInput.readBytes(originalBytes, 0, originalBytes.length);
+
+            final var cloneBytes = new byte[originalBytes.length];
+            clone.readBytes(cloneBytes, 0, cloneBytes.length);
+
+            assertArrayEquals(originalBytes, cloneBytes);
         }
     }
 
@@ -177,16 +187,12 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             randomReadAndSlice(indexInput, firstReadLen);
             expectThrows(IOException.class, () -> {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        indexInput.seek(Integer.MAX_VALUE + 4L);
-                        break;
-                    case 1:
-                        indexInput.seek(-randomIntBetween(1, 10));
-                        break;
-                    default:
+                    case 0 -> indexInput.seek(Integer.MAX_VALUE + 4L);
+                    case 1 -> indexInput.seek(-randomIntBetween(1, 10));
+                    default -> {
                         int seek = input.length + randomIntBetween(1, 100);
                         indexInput.seek(seek);
-                        break;
+                    }
                 }
             });
         }
@@ -202,7 +208,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
             final String checksum = bytes.v1();
 
             final AtomicInteger readBlobCount = new AtomicInteger();
-            final BufferedIndexInput indexInput = createIndexInput(
+            final DirectBlobContainerIndexInput indexInput = createIndexInput(
                 input,
                 partSize,
                 minimumReadSize,

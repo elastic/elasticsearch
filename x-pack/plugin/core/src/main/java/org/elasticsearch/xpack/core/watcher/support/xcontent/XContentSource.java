@@ -12,17 +12,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.XContentUtils;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentUtils;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -112,16 +110,15 @@ public class XContentSource implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // EMPTY is safe here because we never use namedObject
-        try (InputStream stream = bytes.streamInput();
-             XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
+        try (XContentParser parser = parser(bytes)) {
             parser.nextToken();
             builder.generator().copyCurrentStructure(parser);
             return builder;
         }
     }
 
-    public XContentParser parser(NamedXContentRegistry xContentRegistry, InputStream stream) throws IOException {
-        return contentType.xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream);
+    public XContentParser parser(BytesReference bytes) throws IOException {
+        return XContentHelper.createParserNotCompressed(LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG, bytes, contentType);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
@@ -135,9 +132,7 @@ public class XContentSource implements ToXContent {
 
     private Object data() {
         if (data == null) {
-            // EMPTY is safe here because we never use namedObject
-            try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = parser(NamedXContentRegistry.EMPTY, stream)) {
+            try (XContentParser parser = parser(bytes)) {
                 data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);

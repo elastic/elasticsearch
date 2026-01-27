@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.lookup.Source;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -27,6 +31,7 @@ import java.util.Set;
 public abstract class ArraySourceValueFetcher implements ValueFetcher {
     private final Set<String> sourcePaths;
     private final @Nullable Object nullValue;
+    private final IgnoredSourceFormat ignoredSourceFormat;
 
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context) {
         this(fieldName, context, null);
@@ -38,15 +43,26 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
      * @param nullValue A optional substitute value if the _source value is 'null'.
      */
     public ArraySourceValueFetcher(String fieldName, SearchExecutionContext context, Object nullValue) {
-        this.sourcePaths = context.sourcePath(fieldName);
+        this.sourcePaths = context.isSourceEnabled() ? context.sourcePath(fieldName) : Collections.emptySet();
         this.nullValue = nullValue;
+        this.ignoredSourceFormat = context.getIndexSettings().getIgnoredSourceFormat();
+    }
+
+    /**
+     * @param sourcePaths   The paths to pull source values from
+     * @param nullValue     An optional substitute value if the _source value is `null`
+     */
+    public ArraySourceValueFetcher(Set<String> sourcePaths, Object nullValue, IgnoredSourceFormat ignoredSourceFormat) {
+        this.sourcePaths = sourcePaths;
+        this.nullValue = nullValue;
+        this.ignoredSourceFormat = ignoredSourceFormat;
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
-        List<Object> values = new ArrayList<>();
+    public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) {
+        ArrayList<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
-            Object sourceValue = lookup.extractValue(path, nullValue);
+            Object sourceValue = source.extractValue(path, nullValue);
             if (sourceValue == null) {
                 return List.of();
             }
@@ -55,10 +71,16 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             } catch (Exception e) {
                 // if parsing fails here then it would have failed at index time
                 // as well, meaning that we must be ignoring malformed values.
-                // So ignore it here too.
+                ignoredValues.add(sourceValue);
             }
         }
+        values.trimToSize();
         return values;
+    }
+
+    @Override
+    public StoredFieldsSpec storedFieldsSpec() {
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, sourcePaths);
     }
 
     /**

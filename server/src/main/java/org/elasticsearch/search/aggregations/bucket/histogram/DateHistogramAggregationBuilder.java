@@ -1,21 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -29,12 +28,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SimpleTimeZone;
+import java.util.function.Consumer;
 
 import static java.util.Map.entry;
 
@@ -62,10 +66,12 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         entry("1d", Rounding.DateTimeUnit.DAY_OF_MONTH),
         entry("hour", Rounding.DateTimeUnit.HOUR_OF_DAY),
         entry("1h", Rounding.DateTimeUnit.HOUR_OF_DAY),
-        entry("minute", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
-        entry("1m", Rounding.DateTimeUnit.MINUTES_OF_HOUR),
+        entry("minute", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
+        entry("1m", Rounding.DateTimeUnit.MINUTE_OF_HOUR),
         entry("second", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
-        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE)
+        entry("1s", Rounding.DateTimeUnit.SECOND_OF_MINUTE),
+        entry("years", Rounding.DateTimeUnit.YEARS_OF_CENTURY),
+        entry("months", Rounding.DateTimeUnit.MONTHS_OF_YEAR)
     );
 
     public static final ObjectParser<DateHistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
@@ -155,9 +161,12 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -173,9 +182,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /**
@@ -186,6 +193,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The calendar interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder calendarInterval(DateHistogramInterval interval) {
         dateHistogramInterval.calendarInterval(interval);
         return this;
@@ -199,6 +207,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
      *
      * @param interval The fixed interval to use with the aggregation
      */
+    @Override
     public DateHistogramAggregationBuilder fixedInterval(DateHistogramInterval interval) {
         dateHistogramInterval.fixedInterval(interval);
         return this;
@@ -279,11 +288,6 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         }
         this.extendedBounds = extendedBounds;
         return this;
-    }
-
-    /** Return hard bounds for this histogram, or {@code null} if none are set. */
-    public LongBounds hardBounds() {
-        return hardBounds;
     }
 
     /** Set hard bounds on this histogram, specifying boundaries outside which buckets cannot be created. */
@@ -398,20 +402,57 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder
     ) throws IOException {
-        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        final DateIntervalWrapper.IntervalTypeEnum dateHistogramIntervalType = dateHistogramInterval.getIntervalType();
 
+        boolean downsampledResultsOffset = false;
         final ZoneId tz = timeZone();
+
+        String downsamplingInterval = context.getIndexSettings().getIndexMetadata().getDownsamplingInterval();
+        if (downsamplingInterval != null) {
+            if (DateIntervalWrapper.IntervalTypeEnum.CALENDAR.equals(dateHistogramIntervalType)) {
+                throw new IllegalArgumentException(
+                    config.getDescription()
+                        + " is not supported for aggregation ["
+                        + getName()
+                        + "] with interval type ["
+                        + dateHistogramIntervalType.getPreferredName()
+                        + "]"
+                );
+            }
+
+            // Downsampled data in time-series indexes contain aggregated values that get calculated over UTC-based intervals.
+            // When they get aggregated using a different timezone, the resulting buckets may need to be offset to account for
+            // the difference between UTC (where stored data refers to) and the requested timezone. For instance:
+            // a. A TZ shifted by -01:15 over hourly downsampled data will lead to buckets with times XX:45, instead of XX:00
+            // b. A TZ shifted by +07:00 over daily downsampled data will lead to buckets with times 07:00, instead of 00:00
+            // c. Intervals over DST are approximate, not including gaps in time buckets. This applies to date histogram aggregation in
+            // general.
+            if (tz != null && ZoneId.of("UTC").equals(tz) == false && field().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+
+                // Get the downsampling interval.
+                DateHistogramInterval interval = new DateHistogramInterval(downsamplingInterval);
+                long downsamplingResolution = interval.estimateMillis();
+                long aggregationResolution = dateHistogramInterval.getAsFixedInterval().estimateMillis();
+
+                // If the aggregation resolution is not a multiple of the downsampling resolution, the reported time for each
+                // bucket needs to be shifted by the mod - in addition to rounding that's applied as usual.
+                // Note that the aggregation resolution gets shifted to match the specified timezone. Timezone.getOffset() normally expects
+                // a date but it can also process an offset (interval) in milliseconds as it uses the Unix epoch for reference.
+                long aggregationOffset = SimpleTimeZone.getTimeZone(tz).getOffset(aggregationResolution) % downsamplingResolution;
+                if (aggregationOffset != 0) {
+                    downsampledResultsOffset = true;
+                    offset += aggregationOffset;
+                }
+            }
+        }
+
+        DateHistogramAggregationSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         final Rounding rounding = dateHistogramInterval.createRounding(tz, offset);
 
         LongBounds roundedBounds = null;
@@ -459,6 +500,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             order,
             keyed,
             minDocCount,
+            downsampledResultsOffset,
             rounding,
             roundedBounds,
             roundedHardBounds,
@@ -488,5 +530,20 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {}
+
+    @Override
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        if (minDocCount != 0) {
+            addValidationError.accept("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
+        }
     }
 }

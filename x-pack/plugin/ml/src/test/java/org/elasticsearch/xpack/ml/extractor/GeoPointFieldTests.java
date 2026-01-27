@@ -22,13 +22,13 @@ public class GeoPointFieldTests extends ESTestCase {
     public void testGivenGeoPoint() {
         double lat = 38.897676;
         double lon = -77.03653;
-        String[] expected = new String[] {lat + "," + lon};
+        String[] expected = new String[] { lat + "," + lon };
         SearchHit hit = new SearchHitBuilder(42).addField("geo", lat + ", " + lon).build();
 
         // doc_value field
         ExtractedField geo = new GeoPointField("geo");
 
-        assertThat(geo.value(hit), equalTo(expected));
+        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(expected));
         assertThat(geo.getName(), equalTo("geo"));
         assertThat(geo.getSearchField(), equalTo("geo"));
         assertThat(geo.getMethod(), equalTo(ExtractedField.Method.DOC_VALUE));
@@ -45,7 +45,7 @@ public class GeoPointFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoPointField("missing");
 
-        assertThat(geo.value(hit), equalTo(new Object[0]));
+        assertThat(geo.value(hit, new SourceSupplier(hit)), equalTo(new Object[0]));
     }
 
     public void testArray() {
@@ -53,7 +53,7 @@ public class GeoPointFieldTests extends ESTestCase {
 
         ExtractedField geo = new GeoPointField("geo");
 
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> geo.value(hit));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> geo.value(hit, new SourceSupplier(hit)));
         assertThat(e.getMessage(), equalTo("Unexpected values for a geo_point field: [1, 2]"));
     }
 }

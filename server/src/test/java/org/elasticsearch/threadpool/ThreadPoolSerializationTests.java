@@ -1,29 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -39,20 +40,19 @@ public class ThreadPoolSerializationTests extends ESTestCase {
     }
 
     public void testThatQueueSizeSerializationWorks() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10,
-                TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("10k"));
-        output.setVersion(Version.CURRENT);
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), 10_000L);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
         ThreadPool.Info newInfo = new ThreadPool.Info(input);
 
-        assertThat(newInfo.getQueueSize().singles(), is(10000L));
+        assertThat(newInfo.getQueueSize(), is(10_000L));
     }
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
-        output.setVersion(Version.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -78,15 +78,14 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = Settings.builder().put("node.name", "write").put("thread_pool.write.queue_size", "-1").build();
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         assertThat(threadPool.info("write").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }
 
     @SuppressWarnings("unchecked")
     public void testThatToXContentWritesInteger() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10,
-                TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), 1_000L);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -101,7 +100,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType);
-        output.setVersion(Version.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();

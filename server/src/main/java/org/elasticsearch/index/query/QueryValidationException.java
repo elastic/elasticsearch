@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -26,8 +27,11 @@ public class QueryValidationException extends ValidationException {
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
-    public static QueryValidationException addValidationError(String queryId, String validationError,
-                                                                    QueryValidationException validationException) {
+    public static QueryValidationException addValidationError(
+        String queryId,
+        String validationError,
+        QueryValidationException validationException
+    ) {
         if (validationException == null) {
             validationException = new QueryValidationException();
         }
@@ -42,8 +46,10 @@ public class QueryValidationException extends ValidationException {
      * @param validationException an initial exception. Can be {@code null}, in which case a new exception is created.
      * @return a {@link QueryValidationException} with added validation error message
      */
-    public static QueryValidationException addValidationErrors(List<String> validationErrors,
-                                                                    QueryValidationException validationException) {
+    public static QueryValidationException addValidationErrors(
+        List<String> validationErrors,
+        QueryValidationException validationException
+    ) {
         if (validationException == null) {
             validationException = new QueryValidationException();
         }

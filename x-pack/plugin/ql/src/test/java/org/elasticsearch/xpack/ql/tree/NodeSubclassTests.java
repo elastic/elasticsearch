@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttributeTests;
@@ -45,22 +47,24 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -169,8 +173,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Object originalArgValue = nodeCtorArgs[changedArgOffset];
             Type changedArgType = argTypes[changedArgOffset];
 
-            if (originalArgValue instanceof Collection) {
-                Collection<?> col = (Collection<?>) originalArgValue;
+            if (originalArgValue instanceof Collection<?> col) {
 
                 if (col.isEmpty() || col instanceof EnumSet) {
                     /*
@@ -185,16 +188,15 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                     continue;
                 }
 
-                List<?> originalList = (List<?>) originalArgValue;
-
-                if (node.children().equals(originalList)) {
+                if (col instanceof List<?> originalList && node.children().equals(originalList)) {
                     // The arg we're looking at *is* the children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
                     List<B> newChildren = (List<B>) makeListOfSameSizeOtherThan(changedArgType, originalList);
                     B transformed = node.replaceChildren(newChildren);
                     assertTransformedOrReplacedChildren(node, transformed, ctor, nodeCtorArgs, changedArgOffset, newChildren);
-                } else if (false == originalList.isEmpty() && node.children().containsAll(originalList)) {
+                } else if (false == col.isEmpty() && node.children().containsAll(col)) {
                     // The arg we're looking at is a collection contained within the children
+                    List<?> originalList = (List<?>) originalArgValue;
 
                     // First make the new children
                     @SuppressWarnings("unchecked") // we pass a reasonable type so get reasonable results
@@ -235,8 +237,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
     }
 
-    private void assertTransformedOrReplacedChildren(T node, B transformed, Constructor<T> ctor,
-            Object[] nodeCtorArgs, int changedArgOffset, Object changedArgValue) throws Exception {
+    private void assertTransformedOrReplacedChildren(
+        T node,
+        B transformed,
+        Constructor<T> ctor,
+        Object[] nodeCtorArgs,
+        int changedArgOffset,
+        Object changedArgValue
+    ) throws Exception {
         if (node instanceof Function) {
             /*
              * Functions have a weaker definition of transform then other
@@ -282,7 +290,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     static <T> Constructor<T> longestCtor(Class<T> clazz) {
         Constructor<T> longest = null;
-        for (Constructor<?> ctor: clazz.getConstructors()) {
+        for (Constructor<?> ctor : clazz.getConstructors()) {
             if (longest == null || longest.getParameterCount() < ctor.getParameterCount()) {
                 @SuppressWarnings("unchecked") // Safe because the ctor has to be a ctor for T
                 Constructor<T> castCtor = (Constructor<T>) ctor;
@@ -302,10 +310,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     @ParametersFactory
     @SuppressWarnings("rawtypes")
     public static List<Object[]> nodeSubclasses() throws IOException {
-        return subclassesOf(Node.class).stream()
+        return subclassesOf(Node.class, CLASSNAME_FILTER).stream()
             .filter(c -> testClassFor(c) == null)
-            .map(c -> new Object[] {c})
-            .collect(toList());
+            .map(c -> new Object[] { c })
+            .toList();
     }
 
     /**
@@ -319,19 +327,19 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         for (int i = 0; i < argTypes.length; i++) {
             final int currentArgIndex = i;
             args[i] = randomValueOtherThanMany(candidate -> {
-                    for (int a = 0; a < currentArgIndex; a++) {
-                        if (Objects.equals(args[a], candidate)) {
-                            return true;
-                        }
+                for (int a = 0; a < currentArgIndex; a++) {
+                    if (Objects.equals(args[a], candidate)) {
+                        return true;
                     }
-                    return false;
-                }, () -> {
-                    try {
-                        return makeArg(ctor.getDeclaringClass(), argTypes[currentArgIndex]);
-                    } catch (Exception e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                }
+                return false;
+            }, () -> {
+                try {
+                    return makeArg(ctor.getDeclaringClass(), argTypes[currentArgIndex]);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            });
         }
         return args;
     }
@@ -354,13 +362,15 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     @SuppressWarnings("unchecked")
     private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
-        if (argType instanceof ParameterizedType) {
-            ParameterizedType pt = (ParameterizedType) argType;
+        if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
                 return makeMap(toBuildClass, pt);
             }
             if (pt.getRawType() == List.class) {
                 return makeList(toBuildClass, pt);
+            }
+            if (pt.getRawType() == Set.class) {
+                return makeSet(toBuildClass, pt);
             }
             if (pt.getRawType() == EnumSet.class) {
                 @SuppressWarnings("rawtypes")
@@ -393,12 +403,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                         }
                     };
                 }
-
             }
-            throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "]");
+            Object obj = pluggableMakeParameterizedArg(toBuildClass, pt);
+            if (obj != null) {
+                return obj;
+            }
+            throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "], for " + toBuildClass.getSimpleName());
         }
-        if (argType instanceof WildcardType) {
-            WildcardType wt = (WildcardType) argType;
+        if (argType instanceof WildcardType wt) {
             if (wt.getLowerBounds().length > 0 || wt.getUpperBounds().length > 1) {
                 throw new IllegalArgumentException("Unsupported wildcard type [" + wt + "]");
             }
@@ -414,12 +426,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // InnerAggregate's AggregateFunction must be an EnclosedAgg.
             if (argClass == AggregateFunction.class) {
                 return makeEnclosedAgg();
-            }
-            else if (argClass == CompoundAggregate.class) {
+            } else if (argClass == CompoundAggregate.class) {
                 return makeCompoundAgg();
             }
-        }
-        else if (toBuildClass == FieldAttribute.class) {
+        } else if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {
                 return null;
@@ -468,6 +478,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
              */
             return UnresolvedAttributeTests.randomUnresolvedAttribute();
         }
+        if (EnrichPolicy.class == argClass) {
+            List<String> enrichFields = randomSubsetOf(List.of("e1", "e2", "e3"));
+            return new EnrichPolicy(randomFrom("match", "range"), null, List.of(), randomFrom("m1", "m2"), enrichFields);
+        }
 
         if (Pipe.class == argClass) {
             /*
@@ -515,6 +529,10 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             // Location is final and can't be mocked but we have a handy method to generate ones.
             return SourceTests.randomSource();
         }
+        if (argClass == ZoneId.class) {
+            // ZoneId is a sealed class (cannot be mocked) starting with Java 19
+            return randomZone();
+        }
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -530,7 +548,11 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return makeArg(TestEnclosedAgg.class);
     }
 
-    protected Object pluggableMakeArg(Class<? extends Node<?>> toBuildClass, Class<?> argClass) {
+    protected Object pluggableMakeArg(Class<? extends Node<?>> toBuildClass, Class<?> argClass) throws Exception {
+        return null;
+    }
+
+    protected Object pluggableMakeParameterizedArg(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) {
         return null;
     }
 
@@ -540,6 +562,18 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
+        for (int i = 0; i < size; i++) {
+            list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
+        }
+        return list;
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+        return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
+    }
+
+    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+        Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
         }
@@ -587,12 +621,13 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
 
     public <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
-            nodeClass = randomFrom(subclassesOf(nodeClass));
+            nodeClass = randomFrom(innerSubclassesOf(nodeClass));
         }
         Class<?> testSubclassFor = testClassFor(nodeClass);
         if (testSubclassFor != null) {
             // Delegate to the test class for a node if there is one
             Method m = testSubclassFor.getMethod("random" + Strings.capitalize(nodeClass.getSimpleName()));
+            assert Modifier.isStatic(m.getModifiers()) : "Expected static method, got:" + m;
             return nodeClass.cast(m.invoke(null));
         }
         Constructor<? extends T> ctor = longestCtor(nodeClass);
@@ -606,10 +641,33 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      */
     private static final Map<Class<?>, Set<?>> subclassCache = new HashMap<>();
 
+    private static final Predicate<String> CLASSNAME_FILTER = className -> {
+        // filter the class that are not interested
+        // (and IDE folders like eclipse)
+        if (className.startsWith("org.elasticsearch.xpack.ql") == false
+            && className.startsWith("org.elasticsearch.xpack.sql") == false
+            && className.startsWith("org.elasticsearch.xpack.eql") == false) {
+            return false;
+        }
+        return true;
+    };
+
+    protected Predicate<String> pluggableClassNameFilter() {
+        return CLASSNAME_FILTER;
+    }
+
+    private <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
+        return subclassesOf(clazz, pluggableClassNameFilter());
+    }
+
+    public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+        return subclassesOf(clazz, CLASSNAME_FILTER);
+    }
+
     /**
      * Find all subclasses of a particular class.
      */
-    public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
+    public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz, Predicate<String> classNameFilter) throws IOException {
         @SuppressWarnings("unchecked") // The map is built this way
         Set<Class<? extends T>> lookup = (Set<Class<? extends T>>) subclassCache.get(clazz);
         if (lookup != null) {
@@ -617,7 +675,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         }
         Set<Class<? extends T>> results = new LinkedHashSet<>();
         String[] paths = System.getProperty("java.class.path").split(System.getProperty("path.separator"));
-        for (String path: paths) {
+        for (String path : paths) {
             Path root = PathUtils.get(path);
             int rootLength = root.toString().length() + 1;
 
@@ -632,7 +690,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                         String name = je.getName();
                         if (name.endsWith(".class")) {
                             String className = name.substring(0, name.length() - ".class".length()).replace("/", ".");
-                            maybeLoadClass(clazz, className, root + "!/" + name, results);
+                            maybeLoadClass(clazz, className, root + "!/" + name, classNameFilter, results);
                         }
                     }
                 }
@@ -648,7 +706,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
                             String className = fileName.substring(rootLength, fileName.length() - ".class".length());
                             // Go from "path" style to class style
                             className = className.replace(PathUtils.getDefaultFileSystem().getSeparator(), ".");
-                            maybeLoadClass(clazz, className, fileName, results);
+                            maybeLoadClass(clazz, className, fileName, classNameFilter, results);
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -667,13 +725,14 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     /**
      * Load classes from predefined packages (hack to limit the scope) and if they match the hierarchy, add them to the cache
      */
-    private static <T> void maybeLoadClass(Class<T> clazz, String className, String location, Set<Class<? extends T>> results)
-            throws IOException {
-
-        // filter the class that are not interested
-        // (and IDE folders like eclipse)
-        if (className.startsWith("org.elasticsearch.xpack.ql") == false && className.startsWith("org.elasticsearch.xpack.sql") == false
-            && className.startsWith("org.elasticsearch.xpack.eql") == false) {
+    private static <T> void maybeLoadClass(
+        Class<T> clazz,
+        String className,
+        String location,
+        Predicate<String> classNameFilter,
+        Set<Class<? extends T>> results
+    ) throws IOException {
+        if (classNameFilter.test(className) == false) {
             return;
         }
 
@@ -684,9 +743,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             throw new IOException("Couldn't load " + location, e);
         }
 
-        if (false == Modifier.isAbstract(c.getModifiers())
-                && false == c.isAnonymousClass()
-                && clazz.isAssignableFrom(c)) {
+        if (false == Modifier.isAbstract(c.getModifiers()) && false == c.isAnonymousClass() && clazz.isAssignableFrom(c)) {
             Class<? extends T> s = c.asSubclass(clazz);
             results.add(s);
         }
@@ -697,7 +754,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * if there isn't such a class or it doesn't extend
      * {@link AbstractNodeTestCase}.
      */
-    private static Class<?> testClassFor(Class<?> nodeSubclass) {
+    protected static Class<?> testClassFor(Class<?> nodeSubclass) {
         String testClassName = nodeSubclass.getName() + "Tests";
         try {
             Class<?> c = Class.forName(testClassName);

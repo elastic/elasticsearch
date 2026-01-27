@@ -6,66 +6,85 @@
  */
 package org.elasticsearch.xpack.security;
 
+import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
+
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.AnnotationTestOrdering;
+import org.elasticsearch.test.AnnotationTestOrdering.Order;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.hamcrest.Matchers;
-import org.junit.BeforeClass;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+@TestCaseOrdering(AnnotationTestOrdering.class)
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
+    private static MutableSettingsProvider clusterSettings = new MutableSettingsProvider() {
+        {
+            put("xpack.ml.enabled", "false");
+            put("xpack.security.enabled", "false");
+            put("xpack.license.self_generated.type", "basic");
+        }
+    };
 
-    private static boolean securityEnabled;
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .distribution(DistributionType.DEFAULT)
+        .settings(clusterSettings)
+        .configFile("transport.key", Resource.fromClasspath("ssl/transport.key"))
+        .configFile("transport.crt", Resource.fromClasspath("ssl/transport.crt"))
+        .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
+        .rolesFile(Resource.fromClasspath("roles.yml"))
+        .user("admin_user", "admin-password")
+        .user("security_test_user", "security-test-password", "security_test_role", false)
+        .build();
 
-    @BeforeClass
-    public static void checkTestMode() {
-        final String hasSecurity = System.getProperty("tests.has_security");
-        securityEnabled = Booleans.parseBoolean(hasSecurity);
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
-    }
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        // If this is the first run (security is disabled), then don't clean up afterwards because we want to test restart
-        // with data
-        return securityEnabled == false;
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
@@ -75,8 +94,30 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         return builder.build();
     }
 
+    @Order(1)
+    public void testSecurityDisabledSetup() throws Exception {
+        checkSecuritySetup(false);
+    }
 
-    public void testSecuritySetup() throws Exception {
+    @Order(2)
+    public void testEnableSecurityAndRestartCluster() throws IOException {
+        clusterSettings.put("xpack.security.enabled", "true");
+        clusterSettings.put("xpack.security.authc.anonymous.roles", "anonymous");
+        clusterSettings.put("xpack.security.transport.ssl.enabled", "true");
+        clusterSettings.put("xpack.security.transport.ssl.certificate", "transport.crt");
+        clusterSettings.put("xpack.security.transport.ssl.key", "transport.key");
+        clusterSettings.put("xpack.security.transport.ssl.key_passphrase", "transport-password");
+        clusterSettings.put("xpack.security.transport.ssl.certificate_authorities", "ca.crt");
+        cluster.restart(false);
+        closeClients();
+    }
+
+    @Order(3)
+    public void testSecurityEnabledSetup() throws Exception {
+        checkSecuritySetup(true);
+    }
+
+    public void checkSecuritySetup(boolean securityEnabled) throws Exception {
         logger.info("Security status: {}", securityEnabled);
         logger.info("Cluster:\n{}", getClusterInfo());
         logger.info("Indices:\n{}", getIndices());
@@ -105,7 +146,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_cat/indices");
         Response response = client().performRequest(request);
         List<String> warningHeaders = response.getWarnings();
-        assertThat (warningHeaders, Matchers.empty());
+        assertThat(warningHeaders, Matchers.empty());
     }
 
     private String getClusterInfo() throws IOException {
@@ -129,7 +170,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 throw new AssertionError(e);
             }
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     private void checkSecurityStatus(boolean expectEnabled) throws IOException {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -16,15 +17,16 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testTermQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        QueryShardException e = expectThrows(QueryShardException.class,
-            () -> ft.termQuery(10L, randomMockContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.termQuery(10L, randomMockContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] is not searchable", e.getMessage());
     }
 
     public void testRangeQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
+        );
         assertEquals("Field [_doc_count] of type [_doc_count] does not support range queries", e.getMessage());
     }
 

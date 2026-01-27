@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest;
@@ -13,13 +14,16 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskListener;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.junit.After;
 import org.junit.Before;
@@ -35,20 +39,19 @@ import java.util.function.BiFunction;
  */
 public abstract class RestActionTestCase extends ESTestCase {
     private RestController controller;
+    private TestThreadPool threadPool;
     protected VerifyingClient verifyingClient;
 
     @Before
     public void setUpController() {
-        verifyingClient = new VerifyingClient(this.getTestName());
-        controller = new RestController(Collections.emptySet(), null,
-            verifyingClient,
-            new NoneCircuitBreakerService(),
-            new UsageService());
+        threadPool = createThreadPool();
+        verifyingClient = new VerifyingClient(threadPool);
+        controller = new RestController(null, verifyingClient, new NoneCircuitBreakerService(), new UsageService(), TelemetryProvider.NOOP);
     }
 
     @After
     public void tearDownController() {
-        verifyingClient.close();
+        threadPool.close();
     }
 
     /**
@@ -63,26 +66,28 @@ public abstract class RestActionTestCase extends ESTestCase {
      * Sends the given request to the test controller in {@link #controller()}.
      */
     protected void dispatchRequest(RestRequest request) {
-        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        FakeRestChannel channel = new FakeRestChannel(request, true, 1);
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
-        try(ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller.dispatchRequest(request, channel, threadContext);
+        } finally {
+            Releasables.close(channel.capturedResponse());
         }
     }
 
     /**
-     * A mocked {@link org.elasticsearch.client.node.NodeClient} which can be easily reconfigured to verify arbitrary verification
+     * A mocked {@link org.elasticsearch.client.internal.node.NodeClient} which can be easily reconfigured to verify arbitrary verification
      * functions, and can be reset to allow reconfiguration partway through a test without having to construct a new object.
      *
      * By default, will throw {@link AssertionError} when any execution method is called, unless configured otherwise using
      * {@link #setExecuteVerifier} or {@link #setExecuteLocallyVerifier}.
      */
-    public static class VerifyingClient extends NoOpNodeClient {
+    public static final class VerifyingClient extends NoOpNodeClient {
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeVerifier = new AtomicReference<>();
         AtomicReference<BiFunction<ActionType<?>, ActionRequest, ActionResponse>> executeLocallyVerifier = new AtomicReference<>();
 
-        public VerifyingClient(String testName) {
-            super(testName);
+        public VerifyingClient(ThreadPool threadPool) {
+            super(threadPool);
             reset();
         }
 
@@ -97,12 +102,8 @@ public abstract class RestActionTestCase extends ESTestCase {
          * {@link AssertionError} if called.
          */
         public void reset() {
-            executeVerifier.set((arg1, arg2) -> {
-                throw new AssertionError();
-            });
-            executeLocallyVerifier.set((arg1, arg2) -> {
-                throw new AssertionError();
-            });
+            executeVerifier.set((arg1, arg2) -> { throw new AssertionError(); });
+            executeLocallyVerifier.set((arg1, arg2) -> { throw new AssertionError(); });
         }
 
         /**
@@ -128,17 +129,20 @@ public abstract class RestActionTestCase extends ESTestCase {
         }
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             @SuppressWarnings("unchecked") // The method signature of setExecuteVerifier forces this case to work
             Response response = (Response) executeVerifier.get().apply(action, request);
             listener.onResponse(response);
         }
 
         /**
-         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, TaskListener)}is called. The given
-         * function should return either a subclass of {@link ActionResponse} or {@code null}.
-         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
+         * Sets the function that will be called when {@link #executeLocally(ActionType, ActionRequest, ActionListener)} is called. The
+         * given function should return either a subclass of {@link ActionResponse} or {@code null}.
+         * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, ActionListener)}
          */
         public void setExecuteLocallyVerifier(BiFunction<ActionType<?>, ActionRequest, ActionResponse> verifier) {
             executeLocallyVerifier.set(verifier);
@@ -147,27 +151,21 @@ public abstract class RestActionTestCase extends ESTestCase {
         private static final AtomicLong taskIdGenerator = new AtomicLong(0L);
 
         @Override
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+        public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+            ActionType<Response> action,
+            Request request,
+            ActionListener<Response> listener
+        ) {
             @SuppressWarnings("unchecked") // Callers are responsible for lining this up
             Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(response);
+            ActionListener.respondAndRelease(listener, response);
             return request.createTask(
-                    taskIdGenerator.incrementAndGet(),
-                    "transport",
-                    action.name(),
-                    request.getParentTask(),
-                    Collections.emptyMap());
+                taskIdGenerator.incrementAndGet(),
+                "transport",
+                action.name(),
+                request.getParentTask(),
+                Collections.emptyMap()
+            );
         }
-
-        @Override
-        public <Request extends ActionRequest, Response extends ActionResponse>
-        Task executeLocally(ActionType<Response> action, Request request, TaskListener<Response> listener) {
-            @SuppressWarnings("unchecked") // Callers are responsible for lining this up
-            Response response = (Response) executeLocallyVerifier.get().apply(action, request);
-            listener.onResponse(null, response);
-            return null;
-        }
-
     }
 }

@@ -1,28 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.AbstractFileSystem;
 import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.core.SuppressForbidden;
+import org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.util.Progressable;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.Streams;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.hamcrest.CoreMatchers;
-
-import javax.security.auth.Subject;
+import org.mockito.AdditionalMatchers;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -37,18 +52,22 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Arrays;
 import java.util.Collections;
 
+import javax.security.auth.Subject;
+
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.randomBytes;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.readBlobFully;
 import static org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase.writeBlob;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
-@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
+@ThreadLeakFilters(filters = { HdfsClientThreadLeakFilter.class })
 public class HdfsBlobStoreContainerTests extends ESTestCase {
 
     private FileContext createTestContext() {
         FileContext fileContext;
         try {
-            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>)
-                () -> createContext(new URI("hdfs:///")));
+            fileContext = AccessController.doPrivileged((PrivilegedExceptionAction<FileContext>) () -> createContext(new URI("hdfs:///")));
         } catch (PrivilegedActionException e) {
             throw new RuntimeException(e.getCause());
         }
@@ -75,8 +94,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
 
         try {
             Principal principal = (Principal) ctor.newInstance(System.getProperty("user.name"));
-            subject = new Subject(false, Collections.singleton(principal),
-                    Collections.emptySet(), Collections.emptySet());
+            subject = new Subject(false, Collections.singleton(principal), Collections.emptySet(), Collections.emptySet());
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
@@ -92,11 +110,27 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         return Subject.doAs(subject, (PrivilegedAction<FileContext>) () -> {
             try {
                 TestingFs fs = (TestingFs) AbstractFileSystem.get(uri, cfg);
+                fs = Mockito.spy(fs);
                 return FileContext.getFileContext(fs, cfg);
             } catch (UnsupportedFileSystemException e) {
                 throw new RuntimeException(e);
             }
         });
+    }
+
+    public void testRepositoryProjectId() {
+        final var projectId = randomProjectIdOrDefault();
+        final var repository = new HdfsRepository(
+            projectId,
+            new RepositoryMetadata(randomIdentifier(), "hdfs", Settings.builder().put("uri", "hdfs:///").put("path", "foo").build()),
+            mock(Environment.class),
+            NamedXContentRegistry.EMPTY,
+            BlobStoreTestUtil.mockClusterService(),
+            MockBigArrays.NON_RECYCLING_INSTANCE,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            SnapshotMetrics.NOOP
+        );
+        assertThat(repository.getProjectId(), equalTo(projectId));
     }
 
     public void testReadOnly() throws Exception {
@@ -125,7 +159,7 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(container.blobExists("foo"));
+        assertTrue(container.blobExists(randomPurpose(), "foo"));
     }
 
     public void testReadRange() throws Exception {
@@ -155,8 +189,32 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         int pos = randomIntBetween(0, data.length / 2);
         int len = randomIntBetween(pos, data.length) - pos;
-        assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos+len));
-        assertTrue(container.blobExists("foo"));
+        assertArrayEquals(readBlobPartially(container, "foo", pos, len), Arrays.copyOfRange(data, pos, pos + len));
+        assertTrue(container.blobExists(randomPurpose(), "foo"));
+    }
+
+    public void testReplicationFactor() throws Exception {
+        FileContext fileContext = createTestContext();
+        short replicationFactor = 8;
+
+        HdfsBlobStore hdfsBlobStore = new HdfsBlobStore(fileContext, "dir", 1024, false, false, replicationFactor);
+        BlobContainer container = hdfsBlobStore.blobContainer(BlobPath.EMPTY.add("path"));
+
+        writeBlob(container, "foo", new BytesArray("test"), false);
+
+        // Verify that the right replicationFactor was applied.
+        Mockito.verify(fileContext.getDefaultFileSystem(), Mockito.atLeastOnce())
+            .createInternal(
+                Mockito.any(Path.class),
+                AdditionalMatchers.or(Mockito.isNull(), Mockito.any()),
+                Mockito.nullable(FsPermission.class),
+                Mockito.anyInt(),
+                Mockito.eq(replicationFactor),
+                Mockito.anyLong(),
+                Mockito.nullable(Progressable.class),
+                Mockito.nullable(Options.ChecksumOpt.class),
+                Mockito.anyBoolean()
+            );
     }
 
     public void testListBlobsByPrefix() throws Exception {
@@ -179,24 +237,24 @@ public class HdfsBlobStoreContainerTests extends ESTestCase {
         byte[] data = randomBytes(randomIntBetween(10, scaledRandomIntBetween(1024, 1 << 16)));
         writeBlob(container, "foo", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "foo", data.length), data);
-        assertTrue(container.blobExists("foo"));
+        assertTrue(container.blobExists(randomPurpose(), "foo"));
         writeBlob(container, "bar", new BytesArray(data), randomBoolean());
         assertArrayEquals(readBlobFully(container, "bar", data.length), data);
-        assertTrue(container.blobExists("bar"));
+        assertTrue(container.blobExists(randomPurpose(), "bar"));
 
-        assertEquals(2, container.listBlobsByPrefix(null).size());
-        assertEquals(1, container.listBlobsByPrefix("fo").size());
-        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
+        assertEquals(2, container.listBlobsByPrefix(randomPurpose(), null).size());
+        assertEquals(1, container.listBlobsByPrefix(randomPurpose(), "fo").size());
+        assertEquals(0, container.listBlobsByPrefix(randomPurpose(), "noSuchFile").size());
 
-        container.delete();
-        assertEquals(0, container.listBlobsByPrefix(null).size());
-        assertEquals(0, container.listBlobsByPrefix("fo").size());
-        assertEquals(0, container.listBlobsByPrefix("noSuchFile").size());
+        container.delete(randomPurpose());
+        assertEquals(0, container.listBlobsByPrefix(randomPurpose(), null).size());
+        assertEquals(0, container.listBlobsByPrefix(randomPurpose(), "fo").size());
+        assertEquals(0, container.listBlobsByPrefix(randomPurpose(), "noSuchFile").size());
     }
 
     public static byte[] readBlobPartially(BlobContainer container, String name, int pos, int length) throws IOException {
         byte[] data = new byte[length];
-        try (InputStream inputStream = container.readBlob(name, pos, length)) {
+        try (InputStream inputStream = container.readBlob(randomPurpose(), name, pos, length)) {
             assertThat(Streams.readFully(inputStream, data), CoreMatchers.equalTo(length));
             assertThat(inputStream.read(), CoreMatchers.equalTo(-1));
         }

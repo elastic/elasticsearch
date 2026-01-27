@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -11,15 +12,13 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * Class used to encapsulate a number of {@link RerouteExplanation}
@@ -50,7 +49,7 @@ public class RoutingExplanations implements ToXContentFragment {
             .map(explanation -> explanation.command().getMessage())
             .filter(Optional::isPresent)
             .map(Optional::get)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     /**
@@ -70,10 +69,7 @@ public class RoutingExplanations implements ToXContentFragment {
      * Write the RoutingExplanations object
      */
     public static void writeTo(RoutingExplanations explanations, StreamOutput out) throws IOException {
-        out.writeVInt(explanations.explanations.size());
-        for (RerouteExplanation explanation : explanations.explanations) {
-            RerouteExplanation.writeTo(explanation, out);
-        }
+        out.writeCollection(explanations.explanations, (o, v) -> RerouteExplanation.writeTo(v, o));
     }
 
     @Override

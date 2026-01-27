@@ -9,52 +9,25 @@ package org.elasticsearch.xpack.transform.integration.continuous;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.client.transform.DeleteTransformRequest;
-import org.elasticsearch.client.transform.GetTransformRequest;
-import org.elasticsearch.client.transform.GetTransformResponse;
-import org.elasticsearch.client.transform.GetTransformStatsRequest;
-import org.elasticsearch.client.transform.GetTransformStatsResponse;
-import org.elasticsearch.client.transform.PutTransformRequest;
-import org.elasticsearch.client.transform.StartTransformRequest;
-import org.elasticsearch.client.transform.StartTransformResponse;
-import org.elasticsearch.client.transform.StopTransformRequest;
-import org.elasticsearch.client.transform.StopTransformResponse;
-import org.elasticsearch.client.transform.transforms.TransformConfig;
-import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.transform.integration.TransformRestTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -63,10 +36,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInRelativeOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.core.Is.is;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Test runner for testing continuous transforms, testing
@@ -106,8 +81,9 @@ import static org.hamcrest.core.Is.is;
  *          to check that optimizations worked
  *      - repeat
  */
-public class TransformContinuousIT extends ESRestTestCase {
+public class TransformContinuousIT extends TransformRestTestCase {
 
+    public static final int MAX_WAIT_TIME_ONE_ITERATION_SECONDS = 120;
     private List<ContinuousTestCase> transformTestCases = new ArrayList<>();
 
     @Before
@@ -116,15 +92,17 @@ public class TransformContinuousIT extends ESRestTestCase {
         // Set logging level to trace
         // see: https://github.com/elastic/elasticsearch/issues/45562
         Request addFailureRetrySetting = new Request("PUT", "/_cluster/settings");
-        addFailureRetrySetting.setJsonEntity(
-            "{\"transient\": {\"xpack.transform.num_transform_failure_retries\": \""
-                + 0
-                + "\","
-                + "\"logger.org.elasticsearch.action.bulk\": \"info\","
-                + // reduces bulk failure spam
-                "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
-                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
-        );
+        // reduces bulk failure spam
+        addFailureRetrySetting.setJsonEntity("""
+            {
+              "persistent": {
+                "xpack.transform.num_transform_failure_retries": "0",
+                "logger.org.elasticsearch.action.bulk": "info",
+                "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
+                "logger.org.elasticsearch.xpack.transform": "debug",
+                "logger.org.elasticsearch.xpack.transform.transforms.scheduling": "trace"
+              }
+            }""");
         client().performRequest(addFailureRetrySetting);
     }
 
@@ -144,9 +122,12 @@ public class TransformContinuousIT extends ESRestTestCase {
     }
 
     @After
+    @SuppressWarnings("unchecked")
     public void removeAllTransforms() throws IOException {
-        for (TransformConfig config : getTransforms().getTransformConfigurations()) {
-            deleteTransform(config.getId(), true);
+        var allTransforms = getTransforms("_all");
+        var configs = (List<Map<String, Object>>) allTransforms.get("transforms");
+        for (var config : configs) {
+            deleteTransform((String) config.get("id"), true);
         }
     }
 
@@ -155,7 +136,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    public void testContinousEvents() throws Exception {
+    public void testContinuousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
         String dateType = randomBoolean() ? "date_nanos" : "date";
@@ -173,7 +154,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         List<Integer> metric_bucket = new ArrayList<>();
         metric_bucket.add(null);
         for (int i = 0; i < 100; i++) {
-            metric_bucket.add(Integer.valueOf(i * 100));
+            metric_bucket.add(i * 100);
         }
 
         // generate locations to group on by geo location
@@ -212,11 +193,14 @@ public class TransformContinuousIT extends ESRestTestCase {
             Collections.shuffle(dates, random());
 
             final StringBuilder source = new StringBuilder();
-            BulkRequest bulkRequest = new BulkRequest(sourceIndexName);
 
             int numDocs = randomIntBetween(1000, 20000);
             Set<String> modifiedEvents = new HashSet<>();
+            String action = Strings.format("""
+                {"create":{"_index":"%s"}}
+                """, sourceIndexName);
             for (int numDoc = 0; numDoc < numDocs; numDoc++) {
+                source.append(action);
                 source.append("{");
 
                 String event = events.get((numDoc + randomIntBetween(0, 50)) % 50);
@@ -237,7 +221,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     // randomize within the same bucket
                     int randomizedLat = location.v1() + randomIntBetween(0, 9);
                     int randomizedLon = location.v2() + randomIntBetween(0, 17);
-                    source.append("\"location\":\"").append(randomizedLat + "," + randomizedLon).append("\",");
+                    source.append("\"location\":\"").append(randomizedLat).append(",").append(randomizedLon).append("\",");
                 }
 
                 String date = dates.get((numDoc + randomIntBetween(0, 50)) % 50);
@@ -257,43 +241,30 @@ public class TransformContinuousIT extends ESRestTestCase {
                 // for data streams
                 source.append("\"@timestamp\":\"").append(dateString).append("\",");
                 source.append("\"run\":").append(run);
-                source.append("}");
+                source.append("}\r\n");
 
-                bulkRequest.add(new IndexRequest().create(true).source(source.toString(), XContentType.JSON));
-                source.setLength(0);
                 if (numDoc % 100 == 0) {
-                    bulkIndex(bulkRequest);
-                    bulkRequest = new BulkRequest(sourceIndexName);
+                    source.append("\r\n");
+                    doBulk(source.toString(), false);
+                    source.setLength(0);
+
                 }
             }
             if (source.length() > 0) {
-                bulkIndex(bulkRequest);
+                source.append("\r\n");
+                doBulk(source.toString(), false);
             }
             refreshIndex(sourceIndexName);
 
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
-
             waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
 
             // test the output
             for (ContinuousTestCase testCase : transformTestCases) {
-                try {
-                    testCase.testIteration(run, modifiedEvents);
-                } catch (AssertionError testFailure) {
-                    throw new AssertionError(
-                        "Error in test case ["
-                            + testCase.getName()
-                            + "]."
-                            + "If you want to mute the test, please mute ["
-                            + testCase.getClass().getName()
-                            + "] only, but _not_ ["
-                            + this.getClass().getName()
-                            + "] as a whole.",
-                        testFailure
-                    );
-                }
+                int thisRun = run;
+                assertForTestCase(() -> testCase.testIteration(thisRun, modifiedEvents), testCase);
             }
         }
     }
@@ -391,7 +362,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value.minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value"
+                            + ".minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject()
@@ -400,7 +372,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .startObject("script")
                     .field(
                         "source",
-                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value.minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value"
+                            + ".minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
                     )
                     .endObject()
                     .endObject();
@@ -427,17 +400,13 @@ public class TransformContinuousIT extends ESRestTestCase {
             logger.info("Creating source index with: {}", indexSettingsAndMappings);
             if (isDataStream) {
                 Request createCompositeTemplate = new Request("PUT", "_index_template/" + indexName + "_template");
-                createCompositeTemplate.setJsonEntity(
-                    "{\n"
-                        + "  \"index_patterns\": [ \""
-                        + indexName
-                        + "\" ],\n"
-                        + "  \"data_stream\": {\n"
-                        + "  },\n"
-                        + "  \"template\": \n"
-                        + indexSettingsAndMappings
-                        + "}"
-                );
+                createCompositeTemplate.setJsonEntity(Strings.format("""
+                    {
+                      "index_patterns": [ "%s" ],
+                      "data_stream": {
+                      },
+                      "template": %s
+                    }""", indexName, indexSettingsAndMappings));
                 client().performRequest(createCompositeTemplate);
                 client().performRequest(new Request("PUT", "_data_stream/" + indexName));
             } else {
@@ -451,19 +420,19 @@ public class TransformContinuousIT extends ESRestTestCase {
 
     private void createTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            assertTrue(putTransform(testCase.createConfig()).isAcknowledged());
+            putTransform(testCase.getName(), Strings.toString(testCase.createConfig()), RequestOptions.DEFAULT);
         }
     }
 
     private void startTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            assertTrue(startTransform(testCase.getName()).isAcknowledged());
+            startTransform(testCase.getName(), RequestOptions.DEFAULT);
         }
     }
 
     private void stopTransforms() throws IOException {
         for (ContinuousTestCase testCase : transformTestCases) {
-            assertTrue(stopTransform(testCase.getName(), true, null, false).isAcknowledged());
+            stopTransform(testCase.getName());
         }
     }
 
@@ -479,21 +448,13 @@ public class TransformContinuousIT extends ESRestTestCase {
             .endArray()
             .endObject();
 
-        assertTrue(
-            putPipeline(new PutPipelineRequest(ContinuousTestCase.INGEST_PIPELINE, BytesReference.bytes(pipeline), XContentType.JSON))
-                .isAcknowledged()
-        );
+        putPipeline(ContinuousTestCase.INGEST_PIPELINE, Strings.toString(pipeline));
+
         // Make sure the pipeline really got created and is seen in the cluster state.
         Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
         @SuppressWarnings("unchecked")
         List<String> pipelineIds = (List<String>) XContentMapValues.extractValue(clusterState, "metadata", "ingest", "pipeline", "id");
         assertThat(pipelineIds, containsInRelativeOrder(ContinuousTestCase.INGEST_PIPELINE));
-    }
-
-    private GetTransformStatsResponse getTransformStats(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
-        }
     }
 
     private void waitUntilTransformsProcessedNewData(TimeValue delay, int iteration) throws Exception {
@@ -504,21 +465,33 @@ public class TransformContinuousIT extends ESRestTestCase {
             delay,
             iteration
         );
-        for (ContinuousTestCase testCase : transformTestCases) {
-            assertBusy(() -> {
-                TransformStats stats = getTransformStats(testCase.getName()).getTransformsStats().get(0);
-                assertThat(
-                    "transform ["
-                        + testCase.getName()
-                        + "] does not progress, state: "
-                        + stats.getState()
-                        + ", reason: "
-                        + stats.getReason(),
-                    stats.getCheckpointingInfo().getLastSearchTime(),
-                    greaterThan(waitUntil)
-                );
-            }, 30, TimeUnit.SECONDS);
-        }
+        assertBusy(() -> {
+            for (ContinuousTestCase testCase : transformTestCases) {
+                assertForTestCase(() -> {
+                    var stats = getTransformStats(testCase.getName());
+                    Object lastSearchTimeObj = XContentMapValues.extractValue("checkpointing.last_search_time", stats);
+                    assertThat(lastSearchTimeObj, is(notNullValue()));
+                    long lastSearchTime = (long) lastSearchTimeObj;
+                    assertThat(
+                        Strings.format(
+                            "Timeout [%ds] waiting for transform [%s] to finish next checkpoint, "
+                                + "iteration [%d], state [%s], reason in case of failure [%s], last search time [%d]",
+                            MAX_WAIT_TIME_ONE_ITERATION_SECONDS,
+                            testCase.getName(),
+                            iteration,
+                            stats.get("state"),
+                            stats.get("reason"),
+                            lastSearchTime
+                        ),
+                        Instant.ofEpochMilli(lastSearchTime),
+                        is(greaterThan(waitUntil))
+                    );
+                    // assert a checkpoint isn't in progress
+                    Object state = XContentMapValues.extractValue("state", stats);
+                    assertThat(state, is(equalTo("started")));
+                }, testCase);
+            }
+        }, MAX_WAIT_TIME_ONE_ITERATION_SECONDS, TimeUnit.SECONDS);
     }
 
     private void addTestCaseIfNotDisabled(ContinuousTestCase testCaseInstance) {
@@ -535,87 +508,35 @@ public class TransformContinuousIT extends ESRestTestCase {
         transformTestCases.add(testCaseInstance);
     }
 
-    private void bulkIndex(BulkRequest bulkRequest) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            BulkResponse response = restClient.bulk(bulkRequest, RequestOptions.DEFAULT);
-            assertThat(response.buildFailureMessage(), response.hasFailures(), is(false));
+    private void putPipeline(String pipelineId, String pipelineDefinition) throws IOException {
+        logger.info("putPipeline {}: {}", pipelineId, pipelineDefinition);
+        Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipelineId);
+        putPipeline.setEntity(new StringEntity(pipelineDefinition, ContentType.APPLICATION_JSON));
+        assertOK(client().performRequest(putPipeline));
+    }
+
+    private void deletePipeline(String pipelineId) throws IOException {
+        logger.info("deletePipeline: {}", pipelineId);
+        Request putPipeline = new Request("DELETE", "/_ingest/pipeline/" + pipelineId);
+        assertAcknowledged(client().performRequest(putPipeline));
+    }
+
+    private void assertForTestCase(CheckedRunnable<Exception> codeBlock, ContinuousTestCase testCase) throws Exception {
+        try {
+            codeBlock.run();
+        } catch (AssertionError testFailure) {
+            throw new AssertionError(
+                "Error in test case ["
+                    + testCase.getName()
+                    + "]."
+                    + "If you want to mute the test, please mute ["
+                    + testCase.getClass().getName()
+                    + "] only, but _not_ ["
+                    + this.getClass().getName()
+                    + "] as a whole.",
+                testFailure
+            );
         }
     }
 
-    private void refreshIndex(String index) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            restClient.indices().refresh(new RefreshRequest(index), RequestOptions.DEFAULT);
-        }
-    }
-
-    private AcknowledgedResponse putTransform(TransformConfig config) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            PutTransformRequest request = new PutTransformRequest(config);
-            logger.info("putTransform: {}", Strings.toString(request));
-            return restClient.transform().putTransform(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    private org.elasticsearch.action.support.master.AcknowledgedResponse putPipeline(PutPipelineRequest request) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            logger.info("putPipeline: {}", Strings.toString(request));
-            return restClient.ingest().putPipeline(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    private org.elasticsearch.action.support.master.AcknowledgedResponse deletePipeline(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            DeletePipelineRequest request = new DeletePipelineRequest(id);
-            logger.info("deletePipeline: {}", request.getId());
-            return restClient.ingest().deletePipeline(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    private GetTransformResponse getTransforms() throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().getTransform(GetTransformRequest.getAllTransformRequest(), RequestOptions.DEFAULT);
-        }
-    }
-
-    private StartTransformResponse startTransform(String id) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            StartTransformRequest request = new StartTransformRequest(id);
-            logger.info("startTransform: {}", request.getId());
-            return restClient.transform().startTransform(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    private StopTransformResponse stopTransform(String id, boolean waitForCompletion, TimeValue timeout, boolean waitForCheckpoint)
-        throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            StopTransformRequest request = new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint);
-            logger.info("stopTransform: {}", request.getId());
-            return restClient.transform().stopTransform(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    private AcknowledgedResponse deleteTransform(String id, boolean force) throws IOException {
-        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            DeleteTransformRequest request = new DeleteTransformRequest(id);
-            request.setForce(force);
-            logger.info("deleteTransform: {}", request.getId());
-            return restClient.transform().deleteTransform(request, RequestOptions.DEFAULT);
-        }
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        final String token = "Basic "
-            + Base64.getEncoder().encodeToString(("x_pack_rest_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    private static class TestRestHighLevelClient extends RestHighLevelClient {
-        private static final List<NamedXContentRegistry.Entry> X_CONTENT_ENTRIES = new SearchModule(Settings.EMPTY, Collections.emptyList())
-            .getNamedXContents();
-
-        TestRestHighLevelClient() {
-            super(client(), restClient -> {}, X_CONTENT_ENTRIES);
-        }
-    }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.alias;
@@ -92,24 +93,24 @@ public final class RandomAliasActionsGenerator {
         for (int i = 0; i < members; i++) {
             Object value;
             switch (between(0, 3)) {
-            case 0:
-                if (maxDepth > 0) {
-                    value = randomMap(maxDepth - 1);
-                } else {
+                case 0:
+                    if (maxDepth > 0) {
+                        value = randomMap(maxDepth - 1);
+                    } else {
+                        value = randomAlphaOfLength(5);
+                    }
+                    break;
+                case 1:
                     value = randomAlphaOfLength(5);
-                }
-                break;
-            case 1:
-                value = randomAlphaOfLength(5);
-                break;
-            case 2:
-                value = randomBoolean();
-                break;
-            case 3:
-                value = randomLong();
-                break;
-            default:
-                throw new UnsupportedOperationException();
+                    break;
+                case 2:
+                    value = randomBoolean();
+                    break;
+                case 3:
+                    value = randomLong();
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
             result.put(randomAlphaOfLength(5), value);
         }

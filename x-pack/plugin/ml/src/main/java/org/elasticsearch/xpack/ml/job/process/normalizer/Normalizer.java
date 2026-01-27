@@ -8,14 +8,13 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResultHandler;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -51,21 +50,20 @@ public class Normalizer {
      * @param quantilesState            The state to be used to seed the system change
      *                                  normalizer
      */
-    public void normalize(Integer bucketSpan,
-                          List<? extends Normalizable> results, String quantilesState) {
-        NormalizerProcess process = processFactory.createNormalizerProcess(jobId, quantilesState, bucketSpan,
-                 executorService);
+    public void normalize(Integer bucketSpan, List<? extends Normalizable> results, String quantilesState) {
+        NormalizerProcess process = processFactory.createNormalizerProcess(jobId, quantilesState, bucketSpan, executorService);
         NormalizerResultHandler resultsHandler = process.createNormalizedResultsHandler();
         Future<?> resultsHandlerFuture = executorService.submit(() -> {
             try {
                 resultsHandler.process();
             } catch (IOException e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Error reading normalizer results", new Object[] { jobId }), e);
+                LOGGER.error(() -> "[" + new Object[] { jobId } + "] Error reading normalizer results", e);
             }
         });
 
         try {
-            process.writeRecord(new String[] {
+            process.writeRecord(
+                new String[] {
                     NormalizerResult.LEVEL_FIELD.getPreferredName(),
                     NormalizerResult.PARTITION_FIELD_NAME_FIELD.getPreferredName(),
                     NormalizerResult.PARTITION_FIELD_VALUE_FIELD.getPreferredName(),
@@ -74,8 +72,8 @@ public class Normalizer {
                     NormalizerResult.FUNCTION_NAME_FIELD.getPreferredName(),
                     NormalizerResult.VALUE_FIELD_NAME_FIELD.getPreferredName(),
                     NormalizerResult.PROBABILITY_FIELD.getPreferredName(),
-                    NormalizerResult.NORMALIZED_SCORE_FIELD.getPreferredName()
-            });
+                    NormalizerResult.NORMALIZED_SCORE_FIELD.getPreferredName() }
+            );
 
             for (Normalizable result : results) {
                 writeNormalizableAndChildrenRecursively(result, process);
@@ -95,26 +93,26 @@ public class Normalizer {
             resultsHandlerFuture.get();
             mergeNormalizedScoresIntoResults(resultsHandler.getNormalizedResults(), results);
         } catch (ExecutionException e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Error processing normalizer results", new Object[] { jobId }), e);
+            LOGGER.error(() -> "[" + new Object[] { jobId } + "] Error processing normalizer results", e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
     }
 
-    private static void writeNormalizableAndChildrenRecursively(Normalizable normalizable,
-                                                                NormalizerProcess process) throws IOException {
+    private static void writeNormalizableAndChildrenRecursively(Normalizable normalizable, NormalizerProcess process) throws IOException {
         if (normalizable.isContainerOnly() == false) {
-            process.writeRecord(new String[] {
+            process.writeRecord(
+                new String[] {
                     normalizable.getLevel().asString(),
-                    Strings.coalesceToEmpty(normalizable.getPartitionFieldName()),
-                    Strings.coalesceToEmpty(normalizable.getPartitionFieldValue()),
-                    Strings.coalesceToEmpty(normalizable.getPersonFieldName()),
-                    Strings.coalesceToEmpty(normalizable.getPersonFieldValue()),
-                    Strings.coalesceToEmpty(normalizable.getFunctionName()),
-                    Strings.coalesceToEmpty(normalizable.getValueFieldName()),
+                    Objects.requireNonNullElse(normalizable.getPartitionFieldName(), ""),
+                    Objects.requireNonNullElse(normalizable.getPartitionFieldValue(), ""),
+                    Objects.requireNonNullElse(normalizable.getPersonFieldName(), ""),
+                    Objects.requireNonNullElse(normalizable.getPersonFieldValue(), ""),
+                    Objects.requireNonNullElse(normalizable.getFunctionName(), ""),
+                    Objects.requireNonNullElse(normalizable.getValueFieldName(), ""),
                     Double.toString(normalizable.getProbability()),
-                    Double.toString(normalizable.getNormalizedScore())
-            });
+                    Double.toString(normalizable.getNormalizedScore()) }
+            );
         }
         for (Normalizable child : normalizable.getChildren()) {
             writeNormalizableAndChildrenRecursively(child, process);
@@ -124,15 +122,18 @@ public class Normalizer {
     /**
      * Updates the normalized scores on the results.
      */
-    private void mergeNormalizedScoresIntoResults(List<NormalizerResult> normalizedScores,
-                                                  List<? extends Normalizable> results) {
+    private void mergeNormalizedScoresIntoResults(List<NormalizerResult> normalizedScores, List<? extends Normalizable> results) {
         Iterator<NormalizerResult> scoresIter = normalizedScores.iterator();
         for (Normalizable result : results) {
             mergeRecursively(scoresIter, null, false, result);
         }
         if (scoresIter.hasNext()) {
-            LOGGER.error("[{}] Unused normalized scores remain after updating all results: {} for {}",
-                    jobId, normalizedScores.size(), results.size());
+            LOGGER.error(
+                "[{}] Unused normalized scores remain after updating all results: {} for {}",
+                jobId,
+                normalizedScores.size(),
+                results.size()
+            );
         }
     }
 
@@ -145,8 +146,12 @@ public class Normalizer {
      * @param result             the result to be updated
      * @return the effective normalized score of the given result
      */
-    private double mergeRecursively(Iterator<NormalizerResult> scoresIter, Normalizable parent,
-                                    boolean parentHadBigChange, Normalizable result) {
+    private double mergeRecursively(
+        Iterator<NormalizerResult> scoresIter,
+        Normalizable parent,
+        boolean parentHadBigChange,
+        Normalizable result
+    ) {
         boolean hasBigChange = false;
         if (result.isContainerOnly() == false) {
             if (scoresIter.hasNext() == false) {
@@ -177,9 +182,7 @@ public class Normalizer {
             if (children.isEmpty() == false) {
                 double maxChildrenScore = 0.0;
                 for (Normalizable child : children) {
-                    maxChildrenScore = Math.max(
-                            mergeRecursively(scoresIter, result, hasBigChange, child),
-                            maxChildrenScore);
+                    maxChildrenScore = Math.max(mergeRecursively(scoresIter, result, hasBigChange, child), maxChildrenScore);
                 }
                 hasBigChange |= result.setMaxChildrenScore(childrenType, maxChildrenScore);
             }

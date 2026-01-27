@@ -10,12 +10,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.protocol.xpack.common.ProtocolUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,7 +30,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         status = LicensesStatus.fromId(in.readVInt());
         acknowledgeHeader = in.readOptionalString();
         int size = in.readVInt();
-        Map<String, String[]> acknowledgeMessages = new HashMap<>(size);
+        Map<String, String[]> acknowledgeMessages = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String feature = in.readString();
             int nMessages = in.readVInt();
@@ -47,8 +47,12 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         this(acknowledged, status, null, Collections.<String, String[]>emptyMap());
     }
 
-    public PutLicenseResponse(boolean acknowledged, LicensesStatus status, String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public PutLicenseResponse(
+        boolean acknowledged,
+        LicensesStatus status,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
         super(acknowledged);
         this.status = status;
         this.acknowledgeHeader = acknowledgeHeader;
@@ -63,23 +67,12 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         return acknowledgeMessages;
     }
 
-    public String acknowledgeHeader() {
-        return acknowledgeHeader;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(status.id());
         out.writeOptionalString(acknowledgeHeader);
-        out.writeVInt(acknowledgeMessages.size());
-        for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVInt(entry.getValue().length);
-            for (String message : entry.getValue()) {
-                out.writeString(message);
-            }
-        }
+        out.writeMap(acknowledgeMessages, StreamOutput::writeStringArray);
     }
 
     @Override
@@ -89,11 +82,7 @@ public class PutLicenseResponse extends AcknowledgedResponse {
             builder.startObject("acknowledge");
             builder.field("message", acknowledgeHeader);
             for (Map.Entry<String, String[]> entry : acknowledgeMessages.entrySet()) {
-                builder.startArray(entry.getKey());
-                for (String message : entry.getValue()) {
-                    builder.value(message);
-                }
-                builder.endArray();
+                builder.array(entry.getKey(), entry.getValue());
             }
             builder.endObject();
         }
@@ -111,9 +100,9 @@ public class PutLicenseResponse extends AcknowledgedResponse {
         if (super.equals(o) == false) return false;
         PutLicenseResponse that = (PutLicenseResponse) o;
 
-        return status == that.status &&
-            ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages) &&
-            Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
+        return status == that.status
+            && ProtocolUtils.equals(acknowledgeMessages, that.acknowledgeMessages)
+            && Objects.equals(acknowledgeHeader, that.acknowledgeHeader);
     }
 
     @Override

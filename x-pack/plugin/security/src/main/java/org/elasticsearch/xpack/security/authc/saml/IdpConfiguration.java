@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.opensaml.security.credential.Credential;
+
 import java.util.List;
 import java.util.function.Supplier;
-
-import org.opensaml.security.credential.Credential;
 
 /**
  * A simple container class that holds all configuration related to a SAML Identity Provider (IdP).

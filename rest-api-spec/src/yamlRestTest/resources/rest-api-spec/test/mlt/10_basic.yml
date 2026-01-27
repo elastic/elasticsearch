@@ -4,9 +4,6 @@
      indices.create:
        index:    test_1
        body:
-         settings:
-           index:
-             number_of_replicas: 0
          mappings:
            properties:
              foo:
@@ -17,15 +14,11 @@
   - do:
       index:
           index:  test_1
-          id:     1
+          id:     "1"
           body:   { foo: bar, title: howdy }
 
   - do:
       indices.refresh: {}
-
-  - do:
-      cluster.health:
-           wait_for_status: green
 
   - do:
       search:
@@ -36,7 +29,7 @@
               more_like_this:
                 like:
                   -
-                    _id: 1
+                    _id: "1"
                 fields: ["title"]
 
   - match: {hits.total: 0}

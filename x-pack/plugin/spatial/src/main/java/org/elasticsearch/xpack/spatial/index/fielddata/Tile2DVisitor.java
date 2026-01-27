@@ -7,18 +7,22 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
+import org.elasticsearch.lucene.spatial.TriangleTreeVisitor;
+import org.elasticsearch.lucene.spatial.TriangleTreeWriter;
+
 import static org.apache.lucene.geo.GeoUtils.orient;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.abFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.bcFromTriangle;
+import static org.elasticsearch.lucene.spatial.TriangleTreeVisitor.caFromTriangle;
 
 /**
  * A reusable tree reader visitor for a previous serialized {@link org.elasticsearch.geometry.Geometry} using
  * {@link TriangleTreeWriter}.
  *
- * This class supports checking bounding box relations against a serialized triangle tree. Note that this differ
- * from Rectangle2D lucene implementation because it excludes north and east boundary intersections with tiles
- * from intersection consideration for consistent tiling definition of shapes on the boundaries of tiles
+ * This class supports checking bounding box relations against a serialized triangle tree.
  *
  */
-class Tile2DVisitor implements TriangleTreeReader.Visitor {
+class Tile2DVisitor implements TriangleTreeVisitor {
 
     private GeoRelation relation;
     private int minX;
@@ -26,8 +30,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     private int minY;
     private int maxY;
 
-    Tile2DVisitor() {
-    }
+    Tile2DVisitor() {}
 
     public void reset(int minX, int minY, int maxX, int maxY) {
         this.minX = minX;
@@ -60,12 +63,12 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
 
     @Override
     public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {
-        boolean ab = (metadata & 1 << 4) == 1 << 4;
-        boolean bc = (metadata & 1 << 5) == 1 << 5;
-        boolean ca = (metadata & 1 << 6) == 1 << 6;
-        GeoRelation relation = relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
-        if (relation != GeoRelation.QUERY_DISJOINT) {
-            this.relation = relation;
+        boolean ab = abFromTriangle(metadata);
+        boolean bc = bcFromTriangle(metadata);
+        boolean ca = caFromTriangle(metadata);
+        GeoRelation geoRelation = relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
+        if (geoRelation != GeoRelation.QUERY_DISJOINT) {
+            this.relation = geoRelation;
         }
     }
 
@@ -90,17 +93,16 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public boolean push(int minX, int minY, int maxX, int maxY) {
-        // exclude north and east boundary intersections with tiles from intersection consideration
-        // for consistent tiling definition of shapes on the boundaries of tiles
-        if (minX >= this.maxX || maxX < this.minX || minY > this.maxY || maxY <= this.minY) {
+        if (minX > this.maxX || maxX < this.minX || minY > this.maxY || maxY < this.minY) {
             // shapes are disjoint
             relation = GeoRelation.QUERY_DISJOINT;
             return false;
         }
         if (this.minX <= minX && this.maxX >= maxX && this.minY <= minY && this.maxY >= maxY) {
             // the rectangle fully contains the shape
-            relation = GeoRelation.QUERY_CROSSES;
+            relation = GeoRelation.QUERY_CONTAINS;
             return false;
         }
         return true;
@@ -110,7 +112,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
      * Checks if the rectangle contains the provided point
      **/
     public boolean contains(int x, int y) {
-        return (x <= minX || x > maxX || y < minY || y >= maxY) == false;
+        return x >= minX && x <= maxX && y >= minY && y <= maxY;
     }
 
     /**
@@ -129,7 +131,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         int tMaxY = StrictMath.max(aY, bY);
 
         // 2. check bounding boxes are disjoint
-        if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
+        if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
             return false;
         }
 
@@ -150,8 +152,8 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         int tMinY = StrictMath.min(StrictMath.min(aY, bY), cY);
         int tMaxY = StrictMath.max(StrictMath.max(aY, bY), cY);
 
-        // 1. check bounding boxes are disjoint, where north and east boundaries are not considered as crossing
-        if (tMaxX <= minX || tMinX > maxX || tMinY > maxY || tMaxY <= minY) {
+        // 1. check bounding boxes are disjoint
+        if (tMaxX < minX || tMinX > maxX || tMinY > maxY || tMaxY < minY) {
             return GeoRelation.QUERY_DISJOINT;
         }
 
@@ -195,32 +197,31 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
      */
     private boolean edgeIntersectsQuery(int ax, int ay, int bx, int by) {
         // shortcut: check bboxes of edges are disjoint
-        if (boxesAreDisjoint(Math.min(ax, bx), Math.max(ax, bx), Math.min(ay, by), Math.max(ay, by),
-            minX, maxX, minY, maxY)) {
+        if (boxesAreDisjoint(Math.min(ax, bx), Math.max(ax, bx), Math.min(ay, by), Math.max(ay, by), minX, maxX, minY, maxY)) {
             return false;
         }
 
         // top
-        if (orient(ax, ay, bx, by, minX, maxY) * orient(ax, ay, bx, by, maxX, maxY) <= 0 &&
-            orient(minX, maxY, maxX, maxY, ax, ay) * orient(minX, maxY, maxX, maxY, bx, by) <= 0) {
+        if (orient(ax, ay, bx, by, minX, maxY) * orient(ax, ay, bx, by, maxX, maxY) <= 0
+            && orient(minX, maxY, maxX, maxY, ax, ay) * orient(minX, maxY, maxX, maxY, bx, by) <= 0) {
             return true;
         }
 
         // right
-        if (orient(ax, ay, bx, by, maxX, maxY) * orient(ax, ay, bx, by, maxX, minY) <= 0 &&
-            orient(maxX, maxY, maxX, minY, ax, ay) * orient(maxX, maxY, maxX, minY, bx, by) <= 0) {
+        if (orient(ax, ay, bx, by, maxX, maxY) * orient(ax, ay, bx, by, maxX, minY) <= 0
+            && orient(maxX, maxY, maxX, minY, ax, ay) * orient(maxX, maxY, maxX, minY, bx, by) <= 0) {
             return true;
         }
 
         // bottom
-        if (orient(ax, ay, bx, by, maxX, minY) * orient(ax, ay, bx, by, minX, minY) <= 0 &&
-            orient(maxX, minY, minX, minY, ax, ay) * orient(maxX, minY, minX, minY, bx, by) <= 0) {
+        if (orient(ax, ay, bx, by, maxX, minY) * orient(ax, ay, bx, by, minX, minY) <= 0
+            && orient(maxX, minY, minX, minY, ax, ay) * orient(maxX, minY, minX, minY, bx, by) <= 0) {
             return true;
         }
 
         // left
-        if (orient(ax, ay, bx, by, minX, minY) * orient(ax, ay, bx, by, minX, maxY) <= 0 &&
-            orient(minX, minY, minX, maxY, ax, ay) * orient(minX, minY, minX, maxY, bx, by) <= 0) {
+        if (orient(ax, ay, bx, by, minX, minY) * orient(ax, ay, bx, by, minX, maxY) <= 0
+            && orient(minX, minY, minX, maxY, ax, ay) * orient(minX, minY, minX, maxY, bx, by) <= 0) {
             return true;
         }
 
@@ -230,10 +231,22 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     /**
      * Compute whether the given x, y point is in a triangle; uses the winding order method
      */
-    private static boolean pointInTriangle(double minX, double maxX, double minY, double maxY, double x, double y,
-                                           double aX, double aY, double bX, double bY, double cX, double cY) {
-        //check the bounding box because if the triangle is degenerated, e.g points and lines, we need to filter out
-        //coplanar points that are not part of the triangle.
+    private static boolean pointInTriangle(
+        double minX,
+        double maxX,
+        double minY,
+        double maxY,
+        double x,
+        double y,
+        double aX,
+        double aY,
+        double bX,
+        double bY,
+        double cX,
+        double cY
+    ) {
+        // check the bounding box because if the triangle is degenerated, e.g points and lines, we need to filter out
+        // coplanar points that are not part of the triangle.
         if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
             int a = orient(x, y, aX, aY, bX, bY);
             int b = orient(x, y, bX, bY, cX, cY);
@@ -250,8 +263,16 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     /**
      * utility method to check if two boxes are disjoint
      */
-    private static boolean boxesAreDisjoint(final int aMinX, final int aMaxX, final int aMinY, final int aMaxY,
-                                            final int bMinX, final int bMaxX, final int bMinY, final int bMaxY) {
+    private static boolean boxesAreDisjoint(
+        final int aMinX,
+        final int aMaxX,
+        final int aMinY,
+        final int aMaxY,
+        final int bMinX,
+        final int bMaxX,
+        final int bMinY,
+        final int bMaxY
+    ) {
         return (aMaxX < bMinX || aMinX > bMaxX || aMaxY < bMinY || aMinY > bMaxY);
     }
 }

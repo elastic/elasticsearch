@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.Map;
 
@@ -24,8 +25,8 @@ import java.util.Map;
  */
 public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsRequest, TermVectorsResponse> {
 
-    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action) {
-        super(client, action, new TermVectorsRequest());
+    public TermVectorsRequestBuilder(ElasticsearchClient client) {
+        super(client, TermVectorsAction.INSTANCE, new TermVectorsRequest());
     }
 
     /**
@@ -33,8 +34,8 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
      * from the provided index. Use {@code index}, {@code type} and
      * {@code id} to specify the document to load.
      */
-    public TermVectorsRequestBuilder(ElasticsearchClient client, TermVectorsAction action, String index, String id) {
-        super(client, action, new TermVectorsRequest(index, id));
+    public TermVectorsRequestBuilder(ElasticsearchClient client, String index, String id) {
+        super(client, TermVectorsAction.INSTANCE, new TermVectorsRequest(index, id));
     }
 
     /**
@@ -87,7 +88,6 @@ public class TermVectorsRequestBuilder extends ActionRequestBuilder<TermVectorsR
         request.offsets(offsets);
         return this;
     }
-
 
     /**
      * Sets whether to return the positions for each term if stored or skip.

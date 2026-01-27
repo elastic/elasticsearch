@@ -6,14 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
-
 
 public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyperparameters> {
 
@@ -28,7 +27,8 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
             // If supplied, the importance values are possibly nullable
             supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, true),
             supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, true),
-            supplied);
+            supplied
+        );
     }
 
     @Before
@@ -39,6 +39,11 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
     @Override
     protected Hyperparameters createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected Hyperparameters mutateInstance(Hyperparameters instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -57,7 +62,7 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
     }
 
     @Override
-    protected Hyperparameters mutateInstanceForVersion(Hyperparameters instance, Version version) {
+    protected Hyperparameters mutateInstanceForVersion(Hyperparameters instance, TransportVersion version) {
         return instance;
     }
 }

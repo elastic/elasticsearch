@@ -1,18 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,8 +30,7 @@ import java.util.function.Consumer;
  */
 public final class XContentParserUtils {
 
-    private XContentParserUtils() {
-    }
+    private XContentParserUtils() {}
 
     /**
      * Makes sure that current token is of type {@link Token#FIELD_NAME} and the field name is equal to the provided one
@@ -45,17 +48,17 @@ public final class XContentParserUtils {
     /**
      * @throws ParsingException with a "unknown field found" reason
      */
-    public static void throwUnknownField(String field, XContentLocation location) {
+    public static void throwUnknownField(String field, XContentParser parser) {
         String message = "Failed to parse object: unknown field [%s] found";
-        throw new ParsingException(location, String.format(Locale.ROOT, message, field));
+        throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, field));
     }
 
     /**
      * @throws ParsingException with a "unknown token found" reason
      */
-    public static void throwUnknownToken(Token token, XContentLocation location) {
+    public static void throwUnknownToken(Token token, XContentParser parser) {
         String message = "Failed to parse object: unexpected token [%s] found";
-        throw new ParsingException(location, String.format(Locale.ROOT, message, token));
+        throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, token));
     }
 
     /**
@@ -69,9 +72,25 @@ public final class XContentParserUtils {
         }
     }
 
-    private static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
-        return new ParsingException(parser.getTokenLocation(),
-                String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual));
+    /**
+     * Makes sure the provided token {@linkplain Token#isValue() is a value type}
+     *
+     * @throws ParsingException if the token is not a value type
+     */
+    public static void expectValueToken(Token actual, XContentParser parser) {
+        if (actual.isValue() == false) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                String.format(Locale.ROOT, "Failed to parse object: expecting value token but found [%s]", actual)
+            );
+        }
+    }
+
+    public static ParsingException parsingException(XContentParser parser, Token expected, Token actual) {
+        return new ParsingException(
+            parser.getTokenLocation(),
+            String.format(Locale.ROOT, "Failed to parse object: expecting token of type [%s] but found [%s]", expected, actual)
+        );
     }
 
     /**
@@ -93,14 +112,14 @@ public final class XContentParserUtils {
         Token token = parser.currentToken();
         Object value = null;
         if (token == Token.VALUE_STRING) {
-            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            // binary values will be parsed back and returned as base64 strings when reading from json and yaml
             value = parser.text();
         } else if (token == Token.VALUE_NUMBER) {
             value = parser.numberValue();
         } else if (token == Token.VALUE_BOOLEAN) {
             value = parser.booleanValue();
         } else if (token == Token.VALUE_EMBEDDED_OBJECT) {
-            //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+            // binary values will be parsed back and returned as BytesArray when reading from cbor and smile
             value = new BytesArray(parser.binaryValue());
         } else if (token == Token.VALUE_NULL) {
             value = null;
@@ -109,7 +128,7 @@ public final class XContentParserUtils {
         } else if (token == Token.START_ARRAY) {
             value = parser.listOrderedMap();
         } else {
-            throwUnknownToken(token, parser.getTokenLocation());
+            throwUnknownToken(token, parser);
         }
         return value;
     }
@@ -135,9 +154,9 @@ public final class XContentParserUtils {
      * @throws ParsingException if the parser isn't positioned on either START_OBJECT or START_ARRAY at the beginning
      */
     public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
-            throws IOException {
+        throws IOException {
         if (parser.currentToken() != Token.START_OBJECT && parser.currentToken() != Token.START_ARRAY) {
-            throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+            throwUnknownToken(parser.currentToken(), parser);
         }
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
@@ -163,8 +182,8 @@ public final class XContentParserUtils {
      * @param valueParser parser for expected list value type
      * @return list parsed from parser
      */
-    public static <T> List<T> parseList(XContentParser parser,
-                                        CheckedFunction<XContentParser, T, IOException> valueParser) throws IOException {
+    public static <T> List<T> parseList(XContentParser parser, CheckedFunction<XContentParser, T, IOException> valueParser)
+        throws IOException {
         XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
         if (parser.nextToken() == Token.END_ARRAY) {
             return List.of();
@@ -173,6 +192,35 @@ public final class XContentParserUtils {
         do {
             list.add(valueParser.apply(parser));
         } while (parser.nextToken() != Token.END_ARRAY);
+        return list;
+    }
+
+    /**
+     * This is the same as {@link #parseList(XContentParser, CheckedFunction)}
+     * except that it passes the array index while parsing the array. Parses a list of a given type from the given {@code parser}
+     * while passing the valueParser the current array index.
+     * Assumes that the parser is currently positioned on a {@link Token#START_ARRAY} token and will fail if it is not.
+     * The returned list may or may not be mutable.
+     *
+     * @param parser      x-content parser
+     * @param valueParser parser for expected list value type
+     * @return list parsed from parser
+     */
+    public static <T> List<T> parseList(XContentParser parser, CheckedBiFunction<XContentParser, Integer, T, IOException> valueParser)
+        throws IOException {
+        XContentParserUtils.ensureExpectedToken(Token.START_ARRAY, parser.currentToken(), parser);
+
+        if (parser.nextToken() == Token.END_ARRAY) {
+            return List.of();
+        }
+
+        final ArrayList<T> list = new ArrayList<>();
+
+        int index = 0;
+        do {
+            list.add(valueParser.apply(parser, index++));
+        } while (parser.nextToken() != Token.END_ARRAY);
+
         return list;
     }
 }

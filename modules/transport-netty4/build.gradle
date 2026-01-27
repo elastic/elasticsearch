@@ -1,32 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.test.rest.InternalJavaRestTestPlugin
+
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.publish'
 
 /*
  TODOs:
    * fix permissions such that only netty4 can open sockets etc?
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
-   * maybe figure out a way to run all tests from core with netty4/network?
  */
 esplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.Netty4Plugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.elasticsearch.transport.netty4.Netty4Plugin'
+}
+
+// exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
+configurations {
+  [testCompileClasspath, testRuntimeClasspath, internalClusterTestCompileClasspath, internalClusterTestRuntimeClasspath].each {
+    it.exclude group: 'org.elasticsearch.plugin', module: 'transport-netty4'
+  }
 }
 
 dependencies {
+  api project(":libs:ssl-config")
+
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
   api "io.netty:netty-codec:${versions.netty}"
@@ -35,11 +46,16 @@ dependencies {
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+
+  testImplementation project(':modules:rest-root')
+
+  clusterModules project(':modules:rest-root')
 }
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes'
+    include '_common', 'cluster', 'nodes', 'ping'
   }
 }
 
@@ -50,31 +66,26 @@ tasks.named("dependencyLicenses").configure {
 TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
   include '**/*Tests.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  classpath = sourceSets.test.runtimeClasspath
+  testClassesDirs = sourceSets.test.output.classesDirs
 }
 
 TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
   include '**/*IT.class'
   systemProperty 'es.use_unpooled_allocator', 'false'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
 }
 
-TaskProvider<RestIntegTestTask> pooledJavaRestTest = tasks.register("pooledJavaRestTest", RestIntegTestTask) {
-    SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-    SourceSet javaRestTestSourceSet = sourceSets.getByName(InternalJavaRestTestPlugin.SOURCE_SET_NAME)
-    setTestClassesDirs(javaRestTestSourceSet.getOutput().getClassesDirs())
-    setClasspath(javaRestTestSourceSet.getRuntimeClasspath())
-
-
-  testClusters.pooledJavaRestTest {
-    systemProperty 'es.use_unpooled_allocator', 'false'
-  }
+tasks.named("internalClusterTest").configure {
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("check").configure {
-  dependsOn(pooledTest, pooledJavaRestTest, pooledInternalClusterTest)
+  dependsOn(pooledTest, pooledInternalClusterTest)
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -83,7 +94,7 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.Brotli4jLoader',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
     'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
-    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
 
@@ -103,7 +114,9 @@ tasks.named("thirdPartyAudit").configure {
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
@@ -111,10 +124,13 @@ tasks.named("thirdPartyAudit").configure {
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
-    'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
-    'org.bouncycastle.asn1.x500.X500Name',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
 
     // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
     'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
@@ -142,11 +158,14 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.LoggerFactory',
     'org.slf4j.spi.LocationAwareLogger',
 
+
     'com.google.protobuf.ExtensionRegistryLite',
     'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.github.luben.zstd.Zstd',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
+    'com.github.luben.zstd.util.Native',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -187,7 +206,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.PlatformDependent0$1',
     'io.netty.util.internal.PlatformDependent0$2',
     'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
     'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
@@ -197,19 +217,17 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
-    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess'
   )
 }
 
-tasks.named('splitPackagesAudit').configure {
-  // transport is owned by server, these should be renamed to netty specific
-  ignoreClasses 'org.elasticsearch.transport.CopyBytesServerSocketChannel',
-    'org.elasticsearch.transport.CopyBytesSocketChannel',
-    'org.elasticsearch.transport.Netty4NioSocketChannel',
-    'org.elasticsearch.transport.Netty4Plugin',
-    'org.elasticsearch.transport.NettyAllocator',
-    'org.elasticsearch.transport.NettyByteBufSizer',
-    'org.elasticsearch.transport.SharedGroupFactory'
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/netty-signatures.txt')
 }

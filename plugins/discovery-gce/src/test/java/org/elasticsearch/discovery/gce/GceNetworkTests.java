@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.gce;
@@ -70,8 +71,10 @@ public class GceNetworkTests extends ESTestCase {
      * network.host: _local_
      */
     public void networkHostCoreLocal() throws IOException {
-        resolveGce("_local_", new NetworkService(Collections.emptyList())
-            .resolveBindHostAddresses(new String[] { NetworkService.DEFAULT_NETWORK_HOST }));
+        resolveGce(
+            "_local_",
+            new NetworkService(Collections.emptyList()).resolveBindHostAddresses(new String[] { NetworkService.DEFAULT_NETWORK_HOST })
+        );
     }
 
     /**
@@ -81,7 +84,7 @@ public class GceNetworkTests extends ESTestCase {
      * @throws IOException Well... If something goes wrong :)
      */
     private void resolveGce(String gceNetworkSetting, InetAddress expected) throws IOException {
-        resolveGce(gceNetworkSetting, expected == null ? null : new InetAddress [] { expected });
+        resolveGce(gceNetworkSetting, expected == null ? null : new InetAddress[] { expected });
     }
 
     /**
@@ -91,15 +94,14 @@ public class GceNetworkTests extends ESTestCase {
      * @throws IOException Well... If something goes wrong :)
      */
     private void resolveGce(String gceNetworkSetting, InetAddress[] expected) throws IOException {
-        Settings nodeSettings = Settings.builder()
-                .put("network.host", gceNetworkSetting)
-                .build();
+        Settings nodeSettings = Settings.builder().put("network.host", gceNetworkSetting).build();
 
         GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings);
         NetworkService networkService = new NetworkService(Collections.singletonList(new GceNameResolver(mock)));
         try {
             InetAddress[] addresses = networkService.resolveBindHostAddresses(
-                NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
+                NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY)
+            );
             if (expected == null) {
                 fail("We should get a IllegalArgumentException when setting network.host: _gce:doesnotexist_");
             }

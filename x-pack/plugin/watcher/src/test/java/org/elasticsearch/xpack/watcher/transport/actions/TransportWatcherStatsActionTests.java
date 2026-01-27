@@ -6,21 +6,25 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
@@ -28,35 +32,42 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransportWatcherStatsActionTests extends ESTestCase {
 
+    private ThreadPool threadPool;
     private TransportWatcherStatsAction action;
 
     @Before
     public void setupTransportAction() {
+        ProjectId projectId = randomProjectIdOrDefault();
+        threadPool = new TestThreadPool("TransportWatcherStatsActionTests");
         TransportService transportService = mock(TransportService.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         ClusterService clusterService = mock(ClusterService.class);
-        DiscoveryNode discoveryNode = new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.create("nodeId");
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         ClusterName clusterName = new ClusterName("cluster_name");
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).build()).build();
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
         when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
@@ -79,8 +90,22 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         secondTriggerServiceStats.inc("foo.bar.baz", 1024);
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
-        action = new TransportWatcherStatsAction(transportService, clusterService, threadPool, new
-            ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
+        action = new TransportWatcherStatsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            watcherLifeCycleService,
+            executionService,
+            triggerService,
+            TestProjectResolvers.singleProject(projectId)
+        );
+    }
+
+    @After
+    public void cleanup() {
+        ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        threadPool = null;
     }
 
     public void testWatcherStats() throws Exception {
@@ -89,8 +114,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
         WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
 
-        WatcherStatsResponse response = action.newResponse(request,
-            Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
+        WatcherStatsResponse response = action.newResponse(request, Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
         assertThat(response.getWatchesCount(), is(40L));
 
         try (XContentBuilder builder = jsonBuilder()) {

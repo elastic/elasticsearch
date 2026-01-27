@@ -20,7 +20,6 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
           mappings:
             properties:
               field:
@@ -54,8 +53,6 @@
   - match: { shards.0.0.index: test_index }
   - match: { indices.test_index.aliases: [test_alias_filter_1] }
   - match: { indices.test_index.filter.term.field.value: value1 }
-  - lte: { indices.test_index.filter.term.field.boost: 1.0 }
-  - gte: { indices.test_index.filter.term.field.boost: 1.0 }
 
   - do:
       search_shards:
@@ -65,12 +62,6 @@
   - match: { shards.0.0.index: test_index }
   - match: { indices.test_index.aliases: [test_alias_filter_1, test_alias_filter_2]}
   - length: { indices.test_index.filter.bool.should: 2 }
-  - lte: { indices.test_index.filter.bool.should.0.term.field.boost: 1.0 }
-  - gte: { indices.test_index.filter.bool.should.0.term.field.boost: 1.0 }
-  - lte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
-  - gte: { indices.test_index.filter.bool.should.1.term.field.boost: 1.0 }
-  - lte: { indices.test_index.filter.bool.boost: 1.0 }
-  - gte: { indices.test_index.filter.bool.boost: 1.0 }
 
   - do:
       search_shards:

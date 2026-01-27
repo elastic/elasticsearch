@@ -1,47 +1,43 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
-    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY =
-        new Setting<>(FIELDDATA_CACHE_KEY, (s) -> FIELDDATA_CACHE_VALUE_NODE, (s) -> {
-            switch (s) {
-                case "node":
-                case "none":
-                    return s;
-                default:
-                    throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
-            }
-        }, Property.IndexScope);
+    public static final Setting<String> INDEX_FIELDDATA_CACHE_KEY = new Setting<>(
+        FIELDDATA_CACHE_KEY,
+        FIELDDATA_CACHE_VALUE_NODE,
+        (s) -> switch (s) {
+            case "node", "none" -> s;
+            default -> throw new IllegalArgumentException("failed to parse [" + s + "] must be one of [node,none]");
+        },
+        Property.IndexScope
+    );
 
     private final CircuitBreakerService circuitBreakerService;
 
@@ -49,18 +45,14 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     // the below map needs to be modified under a lock
     private final Map<String, IndexFieldDataCache> fieldDataCaches = new HashMap<>();
     private static final IndexFieldDataCache.Listener DEFAULT_NOOP_LISTENER = new IndexFieldDataCache.Listener() {
-        @Override
-        public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
-        }
-
-        @Override
-        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
-        }
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
-    public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
-                                 CircuitBreakerService circuitBreakerService) {
+    public IndexFieldDataService(
+        IndexSettings indexSettings,
+        IndicesFieldDataCache indicesFieldDataCache,
+        CircuitBreakerService circuitBreakerService
+    ) {
         super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
@@ -97,13 +89,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
      * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
      * a {@link SearchLookup} supplier available that is required for runtime fields.
      */
-    @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType,
-                                                           String fullyQualifiedIndexName,
-                                                           Supplier<SearchLookup> searchLookup) {
-        final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, FieldDataContext fieldDataContext) {
+        return getFromBuilder(fieldType, fieldType.fielddataBuilder(fieldDataContext));
+    }
 
+    @SuppressWarnings("unchecked")
+    public <IFD extends IndexFieldData<?>> IFD getFromBuilder(MappedFieldType fieldType, IndexFieldData.Builder builder) {
+        final String fieldName = fieldType.name();
         IndexFieldDataCache cache;
         synchronized (this) {
             cache = fieldDataCaches.get(fieldName);
@@ -111,7 +103,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 String cacheType = indexSettings.getValue(INDEX_FIELDDATA_CACHE_KEY);
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
                     cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldName);
-                } else if ("none".equals(cacheType)){
+                } else if ("none".equals(cacheType)) {
                     cache = new IndexFieldDataCache.None();
                 } else {
                     throw new IllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
@@ -140,7 +132,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         clear();
     }
 }

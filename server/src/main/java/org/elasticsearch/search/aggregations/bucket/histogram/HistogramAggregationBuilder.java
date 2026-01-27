@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -27,11 +25,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * A builder for histograms on numeric fields.  This builder can operate on either base numeric fields, or numeric range fields.  IP range
@@ -43,15 +44,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         NAME,
         HistogramAggregatorSupplier.class
     );
-
-    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
-        Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
-        () -> new double[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
-    );
-    static {
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[0] = d, new ParseField("min"));
-        EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
-    }
 
     public static final ObjectParser<HistogramAggregationBuilder, String> PARSER = ObjectParser.fromBuilder(
         NAME,
@@ -127,6 +119,11 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new HistogramAggregationBuilder(this, factoriesBuilder, metadata);
     }
@@ -139,18 +136,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         minDocCount = in.readVLong();
         interval = in.readDouble();
         offset = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
-            hardBounds = in.readOptionalWriteable(DoubleBounds::new);
-        } else {
-            double minBound = in.readDouble();
-            double maxBound = in.readDouble();
-            if (minBound == Double.POSITIVE_INFINITY && maxBound == Double.NEGATIVE_INFINITY) {
-                extendedBounds = null;
-            } else {
-                extendedBounds = new DoubleBounds(minBound, maxBound);
-            }
-        }
+        extendedBounds = in.readOptionalWriteable(DoubleBounds::new);
+        hardBounds = in.readOptionalWriteable(DoubleBounds::new);
     }
 
     @Override
@@ -160,18 +147,8 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
         out.writeVLong(minDocCount);
         out.writeDouble(interval);
         out.writeDouble(offset);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeOptionalWriteable(extendedBounds);
-            out.writeOptionalWriteable(hardBounds);
-        } else {
-            if (extendedBounds != null) {
-                out.writeDouble(extendedBounds.getMin());
-                out.writeDouble(extendedBounds.getMax());
-            } else {
-                out.writeDouble(Double.POSITIVE_INFINITY);
-                out.writeDouble(Double.NEGATIVE_INFINITY);
-            }
-        }
+        out.writeOptionalWriteable(extendedBounds);
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval that is set on this builder. */
@@ -207,10 +184,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     /** Get the current maximum bound that is set on this builder. */
     public double maxBound() {
         return DoubleBounds.getEffectiveMax(extendedBounds);
-    }
-
-    protected DoubleBounds extendedBounds() {
-        return extendedBounds;
     }
 
     /**
@@ -358,11 +331,6 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     protected ValuesSourceAggregatorFactory innerBuild(
         AggregationContext context,
         ValuesSourceConfig config,
@@ -432,5 +400,20 @@ public class HistogramAggregationBuilder extends ValuesSourceAggregationBuilder<
             && Objects.equals(offset, other.offset)
             && Objects.equals(extendedBounds, other.extendedBounds)
             && Objects.equals(hardBounds, other.hardBounds);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
+    protected void validateSequentiallyOrdered(String type, String name, Consumer<String> addValidationError) {}
+
+    @Override
+    protected void validateSequentiallyOrderedWithoutGaps(String type, String name, Consumer<String> addValidationError) {
+        if (minDocCount != 0) {
+            addValidationError.accept("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
+        }
     }
 }

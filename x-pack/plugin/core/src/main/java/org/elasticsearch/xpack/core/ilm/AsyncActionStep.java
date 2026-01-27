@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Performs an action which must be performed asynchronously because it may take time to complete.
@@ -24,14 +26,24 @@ public abstract class AsyncActionStep extends Step {
         this.client = client;
     }
 
-    protected Client getClient() {
+    // For testing only
+    @Nullable
+    Client getClientWithoutProject() {
         return client;
+    }
+
+    protected Client getClient(ProjectId projectId) {
+        return client.projectClient(projectId);
     }
 
     public boolean indexSurvives() {
         return true;
     }
 
-    public abstract void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                                       ClusterStateObserver observer, ActionListener<Void> listener);
+    public abstract void performAction(
+        IndexMetadata indexMetadata,
+        ProjectState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    );
 }

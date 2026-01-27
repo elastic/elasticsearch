@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,11 +12,11 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
@@ -23,19 +24,24 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,9 +49,22 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    @Override
+    protected ScriptFactory parseFromSource() {
+        return DoubleFieldScript.PARSE_FROM_SOURCE;
+    }
+
+    @Override
+    protected ScriptFactory dummyScript() {
+        return DoubleFieldScriptTests.DUMMY;
+    }
 
     public void testFormat() throws IOException {
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
@@ -59,14 +78,14 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [3.14, 1.4]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.0]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [3.14, 1.4]}"))));
             List<Double> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1));
-                DoubleScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
-                searcher.search(new MatchAllDocsQuery(), new Collector() {
+                DoubleScriptFieldType ft = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                DoubleScriptFieldData ifd = ft.fielddataBuilder(mockFielddataContext()).build(null, null);
+                searcher.search(Queries.ALL_DOCS_INSTANCE, new Collector() {
                     @Override
                     public ScoreMode scoreMode() {
                         return ScoreMode.COMPLETE_NO_SCORES;
@@ -90,7 +109,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(2.0, 2.4, 4.140000000000001)));
+                assertThat(results, containsInAnyOrder(2.0, 2.4, 4.140000000000001));
             }
         }
     }
@@ -98,17 +117,27 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
+                DoubleScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
-                TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1.1]}"));
-                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2.1]}"));
-                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4.2]}"));
+                TopFieldDocs docs = searcher.search(Queries.ALL_DOCS_INSTANCE, 3, new Sort(sf));
+                StoredFields storedFields = reader.storedFields();
+                assertThat(
+                    storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [1.1]}")
+                );
+                assertThat(
+                    storedFields.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [2.1]}")
+                );
+                assertThat(
+                    storedFields.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [4.2]}")
+                );
             }
         }
     }
@@ -116,29 +145,37 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1.1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [4.2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
-                                return doubles.get(0);
-                            }
-                        };
-                    }
-                }, searchContext.lookup(), 2.5f, "test", 0, Version.CURRENT)), equalTo(1));
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
+
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) getDoc().get("test");
+                                    return doubles.get(0);
+                                }
+                            };
+                        }
+                    }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -146,8 +183,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
@@ -158,9 +195,9 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.5]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.5]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -183,14 +220,17 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("1", mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1, mockContext())), equalTo(1));
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(1.1, mockContext())), equalTo(0));
-                assertThat(searcher.count(build("add_param", Map.of("param", 1)).termQuery(2, mockContext())), equalTo(1));
+                assertThat(
+                    searcher.count(build("add_param", Map.of("param", 1), OnScriptError.FAIL).termQuery(2, mockContext())),
+                    equalTo(1)
+                );
             }
         }
     }
@@ -203,8 +243,8 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"foo\": [2.1]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(List.of("1"), mockContext())), equalTo(1));
@@ -216,6 +256,89 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         }
     }
 
+    public void testBlockLoader() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = build("add_param", Map.of("param", 1), OnScriptError.FAIL);
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(2d, 3d)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(3d)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(2d, 3d)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeField() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [1.1]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"test\": [2.1]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
+                assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(List.of(1.1, 2.1)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(2.1)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1.1, 2.1)));
+            }
+        }
+    }
+
+    public void testBlockLoaderSourceOnlyRuntimeFieldWithSyntheticSource() throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+
+            var document1 = createDocumentWithIgnoredSource("[1.1]");
+            var document2 = createDocumentWithIgnoredSource("[2.1]");
+
+            iw.addDocuments(List.of(document1, document2));
+            try (DirectoryReader reader = iw.getReader()) {
+                DoubleScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+
+                // Assert implementations:
+                BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
+                assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
+                // ignored source doesn't support column at a time loading:
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                assertThat(columnAtATimeLoader, nullValue());
+                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
+                assertThat(
+                    rowStrideReader.getClass().getName(),
+                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                );
+
+                // Assert values:
+                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(List.of(1.1, 2.1)));
+            }
+        }
+    }
+
     @Override
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(List.of(randomLong()), ctx);
@@ -223,12 +346,16 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
 
     @Override
     protected DoubleScriptFieldType simpleMappedFieldType() {
-        return build("read_foo", Map.of());
+        return build("read_foo", Map.of(), OnScriptError.FAIL);
+    }
+
+    private DoubleScriptFieldType simpleSourceOnlyMappedFieldType() {
+        return build("read_test", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
     protected MappedFieldType loopFieldType() {
-        return build("loop", Map.of());
+        return build("loop", Map.of(), OnScriptError.FAIL);
     }
 
     @Override
@@ -236,42 +363,88 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
         return "double";
     }
 
-    private static DoubleScriptFieldType build(String code, Map<String, Object> params) {
-        return build(new Script(ScriptType.INLINE, "test", code, params));
+    protected DoubleScriptFieldType build(String code, Map<String, Object> params, OnScriptError onScriptError) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        return new DoubleScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
     private static DoubleFieldScript.Factory factory(Script script) {
-        switch (script.getIdOrCode()) {
-            case "read_foo":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue());
-                        }
-                    }
-                };
-            case "add_param":
-                return (fieldName, params, lookup) -> (ctx) -> new DoubleFieldScript(fieldName, params, lookup, ctx) {
-                    @Override
-                    public void execute() {
-                        for (Object foo : (List<?>) lookup.source().get("foo")) {
-                            emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
-                        }
-                    }
-                };
-            case "loop":
-                return (fieldName, params, lookup) -> {
-                    // Indicate that this script wants the field call "test", which *is* the name of this field
-                    lookup.forkAndTrackFieldReferences("test");
-                    throw new IllegalStateException("shoud have thrown on the line above");
-                };
-            default:
-                throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
-        }
-    }
+        return switch (script.getIdOrCode()) {
+            case "read_test" -> new DoubleFieldScript.Factory() {
+                @Override
+                public DoubleFieldScript.LeafFactory newFactory(
+                    String fieldName,
+                    Map<String, Object> params,
+                    SearchLookup lookup,
+                    OnScriptError onScriptError
+                ) {
+                    return (ctx) -> new DoubleFieldScript(fieldName, params, lookup, onScriptError, ctx) {
+                        @Override
+                        @SuppressWarnings("unchecked")
+                        public void execute() {
+                            Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                            for (Object foo : (List<?>) source.get("test")) {
+                                emit(((Number) foo).doubleValue());
+                            }
+                        };
+                    };
+                }
 
-    private static DoubleScriptFieldType build(Script script) {
-        return new DoubleScriptFieldType("test", factory(script), script, emptyMap());
+                @Override
+                public boolean isParsedFromSource() {
+                    return true;
+                }
+            };
+            case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new DoubleFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                @SuppressWarnings("unchecked")
+                public void execute() {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
+                        emit(((Number) foo).doubleValue());
+                    }
+                }
+            };
+            case "add_param" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new DoubleFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                @SuppressWarnings("unchecked")
+                public void execute() {
+                    Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                    for (Object foo : (List<?>) source.get("foo")) {
+                        emit(((Number) foo).doubleValue() + ((Number) getParams().get("param")).doubleValue());
+                    }
+                }
+            };
+            case "loop" -> (fieldName, params, lookup, onScriptError) -> {
+                // Indicate that this script wants the field call "test", which *is* the name of this field
+                lookup.forkAndTrackFieldReferences("test");
+                throw new IllegalStateException("should have thrown on the line above");
+            };
+            case "error" -> (fieldName, params, lookup, onScriptError) -> ctx -> new DoubleFieldScript(
+                fieldName,
+                params,
+                lookup,
+                onScriptError,
+                ctx
+            ) {
+                @Override
+                public void execute() {
+                    throw new RuntimeException("test error");
+                }
+            };
+            default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
+        };
     }
 }

@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.searchablesnapshots.action;
 
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 
-public class ClearSearchableSnapshotsCacheAction extends ActionType<ClearSearchableSnapshotsCacheResponse> {
+public class ClearSearchableSnapshotsCacheAction extends ActionType<BroadcastResponse> {
 
     public static final ClearSearchableSnapshotsCacheAction INSTANCE = new ClearSearchableSnapshotsCacheAction();
     static final String NAME = "cluster:admin/xpack/searchable_snapshots/cache/clear";
 
     private ClearSearchableSnapshotsCacheAction() {
-        super(NAME, ClearSearchableSnapshotsCacheResponse::new);
+        super(NAME);
     }
 }

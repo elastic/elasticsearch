@@ -1,13 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
@@ -23,7 +26,8 @@ public class MockScriptService extends ScriptService {
     public static class TestPlugin extends Plugin {}
 
     public MockScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
-        super(settings, engines, contexts);
+        // Since this script service is used in mock nodes for internal cluster tests, we need to always resolve the default project ID.
+        super(settings, engines, contexts, () -> 1L, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
     }
 
     @Override
@@ -31,8 +35,11 @@ public class MockScriptService extends ScriptService {
         return false;
     }
 
-    public static <T> MockScriptService singleContext(ScriptContext<T> context, Function<String, T> compile,
-                                                      Map<String, StoredScriptSource> storedLookup) {
+    public static <T> MockScriptService singleContext(
+        ScriptContext<T> context,
+        Function<String, T> compile,
+        Map<String, StoredScriptSource> storedLookup
+    ) {
         ScriptEngine engine = new ScriptEngine() {
             @Override
             public String getType() {
@@ -40,8 +47,12 @@ public class MockScriptService extends ScriptService {
             }
 
             @Override
-            public <FactoryType> FactoryType compile(String name, String code, ScriptContext<FactoryType> context,
-                                                     Map<String, String> params) {
+            public <FactoryType> FactoryType compile(
+                String name,
+                String code,
+                ScriptContext<FactoryType> context,
+                Map<String, String> params
+            ) {
                 return context.factoryClazz.cast(compile.apply(code));
             }
 
@@ -52,7 +63,7 @@ public class MockScriptService extends ScriptService {
         };
         return new MockScriptService(Settings.EMPTY, Map.of("lang", engine), Map.of(context.name, context)) {
             @Override
-            protected StoredScriptSource getScriptFromClusterState(String id) {
+            protected StoredScriptSource getScriptFromClusterState(ProjectId projectId, String id) {
                 return storedLookup.get(id);
             }
         };

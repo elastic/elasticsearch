@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.rest.action.service;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsRequest;
@@ -21,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetServiceAccountCredentialsAction extends SecurityBaseRestHandler {
 
     public RestGetServiceAccountCredentialsAction(Settings settings, XPackLicenseState licenseState) {
@@ -29,9 +32,7 @@ public class RestGetServiceAccountCredentialsAction extends SecurityBaseRestHand
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_security/service/{namespace}/{service}/credential")
-        );
+        return List.of(new Route(GET, "/_security/service/{namespace}/{service}/credential"));
     }
 
     @Override
@@ -41,10 +42,14 @@ public class RestGetServiceAccountCredentialsAction extends SecurityBaseRestHand
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
-            new GetServiceAccountCredentialsRequest(request.param("namespace"), request.param("service"));
+        final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest = new GetServiceAccountCredentialsRequest(
+            request.param("namespace"),
+            request.param("service")
+        );
         return channel -> client.execute(
-            GetServiceAccountCredentialsAction.INSTANCE, getServiceAccountCredentialsRequest,
-            new RestToXContentListener<>(channel));
+            GetServiceAccountCredentialsAction.INSTANCE,
+            getServiceAccountCredentialsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

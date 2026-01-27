@@ -9,46 +9,71 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalProjectMetadataAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Request;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction.Response;
 
-public class TransportGetStatusAction extends TransportMasterNodeAction<Request, Response> {
+import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
+public class TransportGetStatusAction extends TransportLocalProjectMetadataAction<GetStatusAction.Request, Response> {
+
+    /**
+     * NB prior to 9.1 this was a TransportMasterNodeAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
+    @SuppressWarnings("this-escape")
     @Inject
-    public TransportGetStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            Request::new, indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportGetStatusAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
+        super(
+            GetStatusAction.NAME,
+            actionFilters,
+            transportService.getTaskManager(),
+            clusterService,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT),
+            projectResolver
+        );
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetStatusAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
+
     }
 
     @Override
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-        IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        final Response response;
-        if (metadata == null) {
-            // no need to actually install metadata just yet, but safe to say it is not stopped
-            response = new Response(OperationMode.RUNNING);
-        } else {
-            response = new Response(metadata.getOperationMode());
-        }
-        listener.onResponse(response);
+    protected void localClusterStateOperation(
+        Task task,
+        GetStatusAction.Request request,
+        ProjectState state,
+        ActionListener<Response> listener
+    ) {
+        listener.onResponse(new Response(currentILMMode(state.metadata())));
     }
 
     @Override
-    protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(GetStatusAction.Request request, ProjectState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

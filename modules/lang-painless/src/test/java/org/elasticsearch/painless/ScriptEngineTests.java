@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -16,7 +17,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
     public void testSimpleEquation() {
         final Object value = exec("return 1 + 2;");
-        assertEquals(3, ((Number)value).intValue());
+        assertEquals(3, ((Number) value).intValue());
     }
 
     @SuppressWarnings("unchecked") // We know its Map<String, Object> because we put them there in the test
@@ -31,7 +32,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         vars.put("obj1", obj1);
 
         Object value = exec("return params['obj1'];", vars, true);
-        obj1 = (Map<String, Object>)value;
+        obj1 = (Map<String, Object>) value;
         assertEquals("value1", obj1.get("prop1"));
         assertEquals("value2", ((Map<String, Object>) obj1.get("obj2")).get("prop2"));
 
@@ -53,9 +54,9 @@ public class ScriptEngineTests extends ScriptTestCase {
         assertEquals("1", exec("return params.l.0;", vars, true));
 
         Object value = exec("return params.l.3;", vars, true);
-        obj1 = (Map<String, Object>)value;
+        obj1 = (Map<String, Object>) value;
         assertEquals("value1", obj1.get("prop1"));
-        assertEquals("value2", ((Map<String, Object>)obj1.get("obj2")).get("prop2"));
+        assertEquals("value2", ((Map<String, Object>) obj1.get("obj2")).get("prop2"));
 
         assertEquals("value1", exec("return params.l.3.prop1;", vars, true));
     }

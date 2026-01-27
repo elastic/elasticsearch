@@ -14,10 +14,11 @@ import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -46,12 +47,14 @@ public class BasicQueryClient implements QueryClient {
     final Client client;
     final String[] indices;
     final List<FieldAndFormat> fetchFields;
+    private final boolean allowPartialSearchResults;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
         this.fetchFields = cfg.fetchFields();
+        this.allowPartialSearchResults = cfg.allowPartialSearchResults();
     }
 
     @Override
@@ -59,12 +62,11 @@ public class BasicQueryClient implements QueryClient {
         SearchSourceBuilder searchSource = request.searchSource();
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
-
-        SearchRequest search = prepareRequest(searchSource, false, indices);
-        search(search, searchLogListener(listener, log));
+        SearchRequest search = prepareRequest(searchSource, false, allowPartialSearchResults, indices);
+        search(search, allowPartialSearchResults, searchLogListener(listener, log, allowPartialSearchResults));
     }
 
-    protected void search(SearchRequest search, ActionListener<SearchResponse> listener) {
+    protected void search(SearchRequest search, boolean allowPartialSearchResults, ActionListener<SearchResponse> listener) {
         if (cfg.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
@@ -74,10 +76,14 @@ public class BasicQueryClient implements QueryClient {
             log.trace("About to execute query {} on {}", StringUtils.toString(search.source()), indices);
         }
 
+        // PIT contains the options already, and _search won't accept them a second time
+        if (usingPit() == false && cfg.crossProjectEnabled()) {
+            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        }
         client.search(search, listener);
     }
 
-    protected void search(MultiSearchRequest search, ActionListener<MultiSearchResponse> listener) {
+    protected void search(MultiSearchRequest search, boolean allowPartialSearchResults, ActionListener<MultiSearchResponse> listener) {
         if (cfg.isCancelled()) {
             listener.onFailure(new TaskCancelledException("cancelled"));
             return;
@@ -90,8 +96,11 @@ public class BasicQueryClient implements QueryClient {
             }
             log.trace("About to execute multi-queries {} on {}", sj, indices);
         }
-
-        client.multiSearch(search, multiSearchLogListener(listener, log));
+        // PIT contains the options already, and _search won't accept them a second time
+        if (usingPit() == false && cfg.crossProjectEnabled()) {
+            search.indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(search.indicesOptions()));
+        }
+        client.multiSearch(search, multiSearchLogListener(listener, allowPartialSearchResults, log));
     }
 
     @Override
@@ -120,7 +129,7 @@ public class BasicQueryClient implements QueryClient {
         final int topListSize = counter / listSize;
 
         // pre-allocate the response matrix
-        @SuppressWarnings({"rawtypes", "unchecked"})
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         List<SearchHit>[] hits = new List[topListSize];
         for (int i = 0; i < hits.length; i++) {
             hits[i] = Arrays.asList(new SearchHit[listSize]);
@@ -147,33 +156,50 @@ public class BasicQueryClient implements QueryClient {
                 builder.runtimeMappings(cfg.runtimeMappings());
             }
 
-            SearchRequest search = prepareRequest(builder, false, entry.getKey());
+            SearchRequest search = prepareRequest(builder, false, allowPartialSearchResults, entry.getKey());
             multiSearchBuilder.add(search);
         }
 
-        search(multiSearchBuilder.request(), ActionListener.wrap(r -> {
+        search(multiSearchBuilder.request(), allowPartialSearchResults, listener.delegateFailureAndWrap((delegate, r) -> {
             for (MultiSearchResponse.Item item : r.getResponses()) {
                 // check for failures
                 if (item.isFailure()) {
-                    listener.onFailure(item.getFailure());
+                    delegate.onFailure(item.getFailure());
                     return;
                 }
                 // otherwise proceed
-                List<SearchHit> docs = RuntimeUtils.searchHits(item.getResponse());
                 // for each doc, find its reference and its position inside the matrix
-                for (SearchHit doc : docs) {
+                for (SearchHit doc : item.getResponse().getHits()) {
                     HitReference docRef = new HitReference(doc);
                     List<Integer> positions = referenceToPosition.get(docRef);
                     positions.forEach(pos -> {
-                        SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc);
+                        // TODO: stop using unpooled
+                        SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc.asUnpooled());
                         if (previous != null) {
-                            throw new EqlIllegalArgumentException("Overriding sequence match [{}] with [{}]",
-                                new HitReference(previous), docRef);
+                            throw new EqlIllegalArgumentException(
+                                "Overriding sequence match [{}] with [{}]",
+                                new HitReference(previous),
+                                docRef
+                            );
                         }
                     });
                 }
             }
-            listener.onResponse(seq);
-        }, listener::onFailure));
+            delegate.onResponse(seq);
+        }));
+    }
+
+    @Override
+    public void multiQuery(List<SearchRequest> searches, ActionListener<MultiSearchResponse> listener) {
+        MultiSearchRequestBuilder multiSearchBuilder = client.prepareMultiSearch();
+        for (SearchRequest request : searches) {
+            request.indices(indices);
+            multiSearchBuilder.add(request);
+        }
+        search(multiSearchBuilder.request(), allowPartialSearchResults, listener);
+    }
+
+    protected boolean usingPit() {
+        return false;
     }
 }

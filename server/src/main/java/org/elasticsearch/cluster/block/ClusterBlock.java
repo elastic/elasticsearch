@@ -1,30 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.block;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class ClusterBlock implements Writeable, ToXContentFragment {
 
     private final int id;
-    @Nullable private final String uuid;
+    @Nullable
+    private final String uuid;
     private final String description;
     private final EnumSet<ClusterBlockLevel> levels;
     private final boolean retryable;
@@ -43,13 +46,28 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         allowReleaseResources = in.readBoolean();
     }
 
-    public ClusterBlock(int id, String description, boolean retryable, boolean disableStatePersistence,
-                        boolean allowReleaseResources, RestStatus status, EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(
+        int id,
+        String description,
+        boolean retryable,
+        boolean disableStatePersistence,
+        boolean allowReleaseResources,
+        RestStatus status,
+        EnumSet<ClusterBlockLevel> levels
+    ) {
         this(id, null, description, retryable, disableStatePersistence, allowReleaseResources, status, levels);
     }
 
-    public ClusterBlock(int id, String uuid, String description, boolean retryable, boolean disableStatePersistence,
-                        boolean allowReleaseResources, RestStatus status, EnumSet<ClusterBlockLevel> levels) {
+    public ClusterBlock(
+        int id,
+        String uuid,
+        String description,
+        boolean retryable,
+        boolean disableStatePersistence,
+        boolean allowReleaseResources,
+        RestStatus status,
+        EnumSet<ClusterBlockLevel> levels
+    ) {
         this.id = id;
         this.uuid = uuid;
         this.description = description;
@@ -82,12 +100,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
     }
 
     public boolean contains(ClusterBlockLevel level) {
-        for (ClusterBlockLevel testLevel : levels) {
-            if (testLevel == level) {
-                return true;
-            }
-        }
-        return false;
+        return levels.contains(level);
     }
 
     /**
@@ -167,10 +180,25 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, uuid);
+        return 31 * Integer.hashCode(id) + Objects.hashCode(uuid);
     }
 
     public boolean isAllowReleaseResources() {
         return allowReleaseResources;
+    }
+
+    static EnumSet<ClusterBlockLevel> filterLevels(EnumSet<ClusterBlockLevel> levels, Predicate<ClusterBlockLevel> predicate) {
+        assert levels != null;
+        int size = levels.size();
+        if (size == 0 || (size == 1 && predicate.test(levels.iterator().next()))) {
+            return levels;
+        }
+        var filteredLevels = EnumSet.noneOf(ClusterBlockLevel.class);
+        for (ClusterBlockLevel level : levels) {
+            if (predicate.test(level)) {
+                filteredLevels.add(level);
+            }
+        }
+        return filteredLevels;
     }
 }

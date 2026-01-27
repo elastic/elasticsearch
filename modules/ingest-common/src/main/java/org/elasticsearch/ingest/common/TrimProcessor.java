@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -39,10 +40,15 @@ public final class TrimProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected TrimProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                             boolean ignoreMissing, String targetField) {
+        protected TrimProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new TrimProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }
-

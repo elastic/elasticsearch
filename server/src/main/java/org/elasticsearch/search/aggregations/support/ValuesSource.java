@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
@@ -14,14 +15,12 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.Prepared;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -31,12 +30,14 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortingNumericLongValues;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileCellIdSource;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -89,7 +90,7 @@ public abstract class ValuesSource {
      * need to call it many times over the course of running the aggregation.
      * Other aggregations should feel free to call it once.
      */
-    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException;
+    protected abstract Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException;
 
     /**
      * Check if this values source supports using global and segment ordinals.
@@ -116,8 +117,8 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-            throw new AggregationExecutionException("can't round a [BYTES]");
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+            throw AggregationErrors.unsupportedRounding("BYTES");
         }
 
         /**
@@ -152,6 +153,10 @@ public abstract class ValuesSource {
                     return LongUnaryOperator.identity();
                 }
 
+                @Override
+                public boolean supportsGlobalOrdinalsMapping() {
+                    return true;
+                }
             };
 
             @Override
@@ -222,9 +227,7 @@ public abstract class ValuesSource {
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
              */
-            public boolean supportsGlobalOrdinalsMapping() {
-                return true;
-            }
+            public abstract boolean supportsGlobalOrdinalsMapping();
 
             @Override
             public boolean hasOrdinals() {
@@ -247,8 +250,7 @@ public abstract class ValuesSource {
              * Get the maximum global ordinal. Requires {@link #globalOrdinalsValues}
              * so see the note about its performance.
              */
-            public long globalMaxOrd(IndexSearcher indexSearcher) throws IOException {
-                IndexReader indexReader = indexSearcher.getIndexReader();
+            public long globalMaxOrd(IndexReader indexReader) throws IOException {
                 if (indexReader.leaves().isEmpty()) {
                     return 0;
                 } else {
@@ -423,8 +425,8 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) {
-                return DocValues.emptySortedNumeric();
+            public SortedNumericLongValues longValues(LeafReaderContext context) {
+                return SortedNumericLongValues.EMPTY;
             }
 
             @Override
@@ -462,7 +464,7 @@ public abstract class ValuesSource {
          * <a href="https://docs.oracle.com/javase/specs/jls/se15/html/jls-5.html#jls-5.1.3">"narrowed"</a>
          * but they'll accurately represent values up to {@link Long#MAX_VALUE}.
          */
-        public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
+        public abstract SortedNumericLongValues longValues(LeafReaderContext context) throws IOException;
 
         /**
          * Get a double precision floating point view into the values in this leaf.
@@ -481,13 +483,13 @@ public abstract class ValuesSource {
                 final SortedNumericDoubleValues values = doubleValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             } else {
-                final SortedNumericDocValues values = longValues(context);
+                final SortedNumericLongValues values = longValues(context);
                 return org.elasticsearch.index.fielddata.FieldData.docsWithValue(values);
             }
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             return Rounding::prepareForUnknown;
         }
 
@@ -520,7 +522,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
                 return new LongValues(delegate.longValues(context), script.newInstance(context));
             }
 
@@ -529,12 +531,12 @@ public abstract class ValuesSource {
                 return new DoubleValues(delegate.doubleValues(context), script.newInstance(context));
             }
 
-            static class LongValues extends AbstractSortingNumericDocValues implements ScorerAware {
+            static final class LongValues extends SortingNumericLongValues implements ScorerAware {
 
-                private final SortedNumericDocValues longValues;
+                private final SortedNumericLongValues longValues;
                 private final AggregationScript script;
 
-                LongValues(SortedNumericDocValues values, AggregationScript script) {
+                LongValues(SortedNumericLongValues values, AggregationScript script) {
                     this.longValues = values;
                     this.script = script;
                 }
@@ -611,7 +613,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) {
+            public SortedNumericLongValues longValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getLongValues();
             }
 
@@ -639,7 +641,7 @@ public abstract class ValuesSource {
             }
 
             @Override
-            public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
+            public SortedNumericLongValues longValues(LeafReaderContext context) throws IOException {
                 return new ScriptLongValues(script.newInstance(context));
             }
 
@@ -685,7 +687,7 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer(AggregationContext context) throws IOException {
             // TODO lookup the min and max rounding when appropriate
             return Rounding::prepareForUnknown;
         }
@@ -704,8 +706,8 @@ public abstract class ValuesSource {
         public static final GeoPoint EMPTY = new GeoPoint() {
 
             @Override
-            public MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return org.elasticsearch.index.fielddata.FieldData.emptyMultiGeoPoints();
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return SortedNumericLongValues.EMPTY;
             }
 
             @Override
@@ -722,11 +724,23 @@ public abstract class ValuesSource {
         }
 
         @Override
-        public final Function<Rounding, Rounding.Prepared> roundingPreparer() throws IOException {
-            throw new AggregationExecutionException("can't round a [GEO_POINT]");
+        public final Function<Rounding, Rounding.Prepared> roundingPreparer(AggregationContext context) throws IOException {
+            throw AggregationErrors.unsupportedRounding("GEO_POINT");
         }
 
-        public abstract MultiGeoPointValues geoPointValues(LeafReaderContext context);
+        /**
+         * Return geo-point values.
+         */
+        public final MultiGeoPointValues geoPointValues(LeafReaderContext context) {
+            return new MultiGeoPointValues(geoSortedNumericDocValues(context));
+        }
+
+        /**
+         * Return the internal representation of geo_point doc values as a {@link SortedNumericDocValues}.
+         * A point is encoded as a long that can be decoded by using
+         * {@link org.elasticsearch.common.geo.GeoPoint#resetFromEncoded(long)}
+         */
+        public abstract SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context);
 
         public static class Fielddata extends GeoPoint {
 
@@ -741,8 +755,9 @@ public abstract class ValuesSource {
                 return indexFieldData.load(context).getBytesValues();
             }
 
-            public org.elasticsearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
-                return indexFieldData.load(context).getGeoPointValues();
+            @Override
+            public SortedNumericLongValues geoSortedNumericDocValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getSortedNumericLongValues();
             }
         }
     }

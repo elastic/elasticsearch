@@ -73,7 +73,7 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
         when(bucket2.getKeyAsString()).thenReturn("b");
         when(bucket2.getDocCount()).thenReturn(33L);
 
-        List<Bucket> buckets =  Arrays.asList(bucket1, bucket2);
+        List<Bucket> buckets = Arrays.asList(bucket1, bucket2);
         when(termsAggregation.getBuckets()).thenReturn(buckets);
 
         CountAccumulator accumulator = CountAccumulator.fromTermsAggregation(termsAggregation);
@@ -91,6 +91,11 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
         }
 
         return accumulator;
+    }
+
+    @Override
+    protected CountAccumulator mutateInstance(CountAccumulator instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -12,7 +12,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -23,14 +22,15 @@ import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
-import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationFunction;
+import org.elasticsearch.xpack.ml.aggs.correlation.CountCorrelationIndicator;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.closeTo;
 
 public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
@@ -41,9 +41,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
         int[] isCat = new int[10000];
         int[] isDog = new int[10000];
 
-        client().admin().indices().prepareCreate("data")
-            .setMapping("metric", "type=double", "term", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate("data").setMapping("metric", "type=double", "term", "type=keyword").get();
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk("data");
         for (int i = 0; i < 5000; i++) {
             IndexRequest indexRequest = new IndexRequest("data");
@@ -72,46 +70,43 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
         double dogCorrelation = pearsonCorrelation(xs, isDog);
 
         AtomicLong counter = new AtomicLong();
-        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double)l).toArray();
-        SearchResponse percentilesSearch = client().prepareSearch("data")
-            .addAggregation(
-                AggregationBuilders
-                    .percentiles("percentiles")
-                    .field("metric")
-                    .percentiles(steps)
-            )
-            .setSize(0)
-            .setTrackTotalHits(true)
-            .get();
-        long totalHits = percentilesSearch.getHits().getTotalHits().value;
-        Percentiles percentiles = percentilesSearch.getAggregations().get("percentiles");
-        Tuple<RangeAggregationBuilder, BucketCorrelationAggregationBuilder> aggs = buildRangeAggAndSetExpectations(
-            percentiles,
-            steps,
-            totalHits,
-            "metric"
+        double[] steps = Stream.generate(() -> counter.getAndAdd(2L)).limit(50).mapToDouble(l -> (double) l).toArray();
+        assertResponse(
+            client().prepareSearch("data")
+                .addAggregation(AggregationBuilders.percentiles("percentiles").field("metric").percentiles(steps))
+                .setSize(0)
+                .setTrackTotalHits(true),
+            percentilesSearch -> {
+                long totalHits = percentilesSearch.getHits().getTotalHits().value();
+                Percentiles percentiles = percentilesSearch.getAggregations().get("percentiles");
+                Tuple<RangeAggregationBuilder, BucketCorrelationAggregationBuilder> aggs = buildRangeAggAndSetExpectations(
+                    percentiles,
+                    steps,
+                    totalHits,
+                    "metric"
+                );
+
+                assertResponse(
+                    client().prepareSearch("data")
+                        .setSize(0)
+                        .setTrackTotalHits(false)
+                        .addAggregation(
+                            AggregationBuilders.terms("buckets").field("term").subAggregation(aggs.v1()).subAggregation(aggs.v2())
+                        ),
+                    countCorrelations -> {
+
+                        Terms terms = countCorrelations.getAggregations().get("buckets");
+                        Terms.Bucket catBucket = terms.getBucketByKey("cat");
+                        Terms.Bucket dogBucket = terms.getBucketByKey("dog");
+                        NumericMetricsAggregation.SingleValue approxCatCorrelation = catBucket.getAggregations().get("correlates");
+                        NumericMetricsAggregation.SingleValue approxDogCorrelation = dogBucket.getAggregations().get("correlates");
+
+                        assertThat(approxCatCorrelation.value(), closeTo(catCorrelation, 0.1));
+                        assertThat(approxDogCorrelation.value(), closeTo(dogCorrelation, 0.1));
+                    }
+                );
+            }
         );
-
-        SearchResponse countCorrelations = client()
-            .prepareSearch("data")
-            .setSize(0)
-            .setTrackTotalHits(false)
-            .addAggregation(AggregationBuilders
-                .terms("buckets")
-                .field("term")
-                .subAggregation(aggs.v1())
-                .subAggregation(aggs.v2())
-            )
-            .get();
-
-        Terms terms = countCorrelations.getAggregations().get("buckets");
-        Terms.Bucket catBucket = terms.getBucketByKey("cat");
-        Terms.Bucket dogBucket = terms.getBucketByKey("dog");
-        NumericMetricsAggregation.SingleValue approxCatCorrelation = catBucket.getAggregations().get("correlates");
-        NumericMetricsAggregation.SingleValue approxDogCorrelation = dogBucket.getAggregations().get("correlates");
-
-        assertThat(approxCatCorrelation.value(), closeTo(catCorrelation, 0.1));
-        assertThat(approxDogCorrelation.value(), closeTo(dogCorrelation, 0.1));
     }
 
     private static Tuple<RangeAggregationBuilder, BucketCorrelationAggregationBuilder> buildRangeAggAndSetExpectations(
@@ -139,7 +134,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
                 percentiles.add(percentile_r);
             }
         }
-        fractions.add(2.0/100);
+        fractions.add(2.0 / 100);
         double[] expectations = new double[percentiles.size() + 1];
         expectations[0] = percentile_0;
         for (int i = 1; i < percentiles.size(); i++) {
@@ -167,7 +162,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
 
     private double pearsonCorrelation(double[] xs, int[] ys) {
         double meanX = MovingFunctions.unweightedAvg(xs);
-        double meanY = sum(ys)/(double)ys.length;
+        double meanY = sum(ys) / (double) ys.length;
         double varX = Math.pow(MovingFunctions.stdDev(xs, meanX), 2.0);
         double varY = 0.0;
         for (int y : ys) {
@@ -181,9 +176,9 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
 
         double corXY = 0.0;
         for (int i = 0; i < xs.length; i++) {
-            corXY += (((xs[i] - meanX)*(ys[i] - meanY))/Math.sqrt(varX*varY));
+            corXY += (((xs[i] - meanX) * (ys[i] - meanY)) / Math.sqrt(varX * varY));
         }
-        return corXY/xs.length;
+        return corXY / xs.length;
     }
 
     private static int sum(int[] xs) {
@@ -195,9 +190,7 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
     }
 
     private void sendAndMaybeFail(BulkRequestBuilder bulkRequestBuilder) {
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {
@@ -209,8 +202,5 @@ public class BucketCorrelationAggregationIT extends MlSingleNodeTestCase {
             fail("Bulk response contained " + failures + " failures");
         }
     }
-
-
-
 
 }

@@ -1,0 +1,160 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.CartesianPointVisitor;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.GeoPointVisitor;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+
+import java.io.IOException;
+import java.util.List;
+
+import static java.lang.Double.POSITIVE_INFINITY;
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
+import static org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor.WrapLongitude.WRAP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialGeo;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+
+/**
+ * Determines the minimum value of the y-coordinate from a geometry.
+ * The function `st_ymin` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
+ * Alternatively, it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_YMIN.html">PostGIS:ST_YMIN</a>.
+ */
+public class StYMin extends SpatialUnaryDocValuesFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StYMin", StYMin::new);
+
+    @FunctionInfo(
+        returnType = "double",
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
+        description = "Extracts the minimum value of the `y` coordinates from the supplied geometry.\n"
+            + "If the geometry is of type `geo_point` or `geo_shape` this is equivalent to extracting the minimum `latitude` value.",
+        examples = @Example(file = "spatial_shapes", tag = "st_x_y_min_max"),
+        depthOffset = 1  // So this appears as a subsection of ST_ENVELOPE
+    )
+    public StYMin(
+        Source source,
+        @Param(
+            name = "point",
+            type = { "geo_point", "geo_shape", "cartesian_point", "cartesian_shape" },
+            description = "Expression of type `geo_point`, `geo_shape`, `cartesian_point` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`."
+        ) Expression field
+    ) {
+        this(source, field, false);
+    }
+
+    private StYMin(Source source, Expression field, boolean spatialDocValues) {
+        super(source, field, spatialDocValues);
+    }
+
+    private StYMin(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public SpatialDocValuesFunction withDocValues(boolean useDocValues) {
+        return new StYMin(source(), spatialField(), useDocValues);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        // Create the results-builder as a factory, so thread-local instances can be used in evaluators
+        var resultsBuilder = isSpatialGeo(spatialField().dataType())
+            ? new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))
+            : new SpatialEnvelopeResults.Factory<DoubleBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
+        var spatial = toEvaluator.apply(spatialField());
+        if (spatialDocValues) {
+            if (isSpatialPoint(spatialField().dataType())) {
+                // Both use linear optimization with different decode functions
+                return isSpatialGeo(spatialField().dataType())
+                    ? new StYMinFromGeoDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get)
+                    : new StYMinFromCartesianDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
+            }
+            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+        }
+        return new StYMinFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
+    }
+
+    @Override
+    public DataType dataType() {
+        return DOUBLE;
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new StYMin(source(), newChildren.getFirst(), spatialDocValues);
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, StYMin::new, spatialField());
+    }
+
+    static void buildEnvelopeResults(DoubleBlock.Builder results, Rectangle rectangle, SpatialCoordinateTypes type) {
+        results.appendDouble(type.decodeY(type.pointAsLong(0, rectangle.getMinY())));
+    }
+
+    @Evaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
+    static void fromWKB(
+        DoubleBlock.Builder results,
+        @Position int p,
+        BytesRefBlock wkbBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromWellKnownBinary(results, p, wkbBlock, StYMin::buildEnvelopeResults);
+    }
+
+    // Cartesian and Geo both use linear optimization but with different decode functions
+    @Evaluator(extraName = "FromCartesianDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromCartesianDocValues(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, POSITIVE_INFINITY, (v, e) -> Math.min(v, CARTESIAN.decodeY(e)));
+    }
+
+    @Evaluator(extraName = "FromGeoDocValues", warnExceptions = { IllegalArgumentException.class })
+    static void fromGeoDocValues(
+        DoubleBlock.Builder results,
+        @Position int p,
+        LongBlock encodedBlock,
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder
+    ) {
+        resultsBuilder.fromDocValuesLinear(results, p, encodedBlock, POSITIVE_INFINITY, (v, e) -> Math.min(v, GEO.decodeY(e)));
+    }
+}

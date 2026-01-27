@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.security.authc.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.node.Node;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -19,12 +21,13 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.util.HashMap;
 import java.util.Map;
 
-public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
+public final class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
 
     private Map<String, Tuple<SecureString, User>> users;
 
     public DummyUsernamePasswordRealm(RealmConfig config) {
         super(config);
+        setRealmRef(new Authentication.RealmRef(config.name(), config.type(), Node.NODE_NAME_SETTING.get(config.settings())));
         this.users = new HashMap<>();
     }
 
@@ -37,9 +40,8 @@ public class DummyUsernamePasswordRealm extends UsernamePasswordRealm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
-        if (token instanceof UsernamePasswordToken) {
-            UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) token;
+    public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
+        if (token instanceof UsernamePasswordToken usernamePasswordToken) {
             User user = authenticate(usernamePasswordToken.principal(), usernamePasswordToken.credentials());
             if (user != null) {
                 listener.onResponse(AuthenticationResult.success(user));

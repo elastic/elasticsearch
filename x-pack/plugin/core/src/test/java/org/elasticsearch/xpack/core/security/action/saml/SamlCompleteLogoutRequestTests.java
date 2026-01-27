@@ -40,8 +40,10 @@ public class SamlCompleteLogoutRequestTests extends ESTestCase {
     public void testCannotSetQueryStringTwice() {
         final SamlCompleteLogoutRequest samlCompleteLogoutRequest = new SamlCompleteLogoutRequest();
         samlCompleteLogoutRequest.setQueryString("query_string");
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> samlCompleteLogoutRequest.setQueryString("queryString"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> samlCompleteLogoutRequest.setQueryString("queryString")
+        );
         assertThat(e.getMessage(), containsString("Must use either [query_string] or [queryString], not both at the same time"));
     }
 }

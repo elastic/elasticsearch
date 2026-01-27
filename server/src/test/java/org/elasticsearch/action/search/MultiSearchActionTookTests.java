@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,14 +33,12 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
-import java.util.List;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -59,12 +58,10 @@ public class MultiSearchActionTookTests extends ESTestCase {
     private ClusterService clusterService;
 
     @BeforeClass
-    public static void beforeClass() {
-    }
+    public static void beforeClass() {}
 
     @AfterClass
-    public static void afterClass() {
-    }
+    public static void afterClass() {}
 
     @Before
     public void setUp() throws Exception {
@@ -96,15 +93,19 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
         TransportMultiSearchAction action = createTransportMultiSearchAction(controlledClock, expected);
 
-        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<MultiSearchResponse>() {
+        action.doExecute(mock(Task.class), multiSearchRequest, new ActionListener<>() {
             @Override
             public void onResponse(MultiSearchResponse multiSearchResponse) {
                 if (controlledClock) {
-                    assertThat(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
-                            equalTo(multiSearchResponse.getTook().getMillis()));
+                    assertThat(
+                        TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS),
+                        equalTo(multiSearchResponse.getTook().getMillis())
+                    );
                 } else {
-                    assertThat(multiSearchResponse.getTook().getMillis(),
-                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                    assertThat(
+                        multiSearchResponse.getTook().getMillis(),
+                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 }
             }
 
@@ -117,33 +118,45 @@ public class MultiSearchActionTookTests extends ESTestCase {
 
     private TransportMultiSearchAction createTransportMultiSearchAction(boolean controlledClock, AtomicLong expected) {
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(),
-            UUIDs.randomBase64UUID()), null, Collections.emptySet()) {
-            @Override
-            public TaskManager getTaskManager() {
-                return taskManager;
-            }
-        };
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNodeUtils.builder(UUIDs.randomBase64UUID())
+                .applySettings(settings)
+                .address(boundAddress.publishAddress())
+                .build(),
+            null,
+            Collections.emptySet()
+        );
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("test")).build());
 
         final int availableProcessors = Runtime.getRuntime().availableProcessors();
         AtomicInteger counter = new AtomicInteger();
-        final List<String> threadPoolNames = Arrays.asList(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME);
-        Randomness.shuffle(threadPoolNames);
-        final ExecutorService commonExecutor = threadPool.executor(threadPoolNames.get(0));
+        final Executor commonExecutor = randomExecutor(threadPool);
         final Set<SearchRequest> requests = Collections.newSetFromMap(Collections.synchronizedMap(new IdentityHashMap<>()));
 
-        NodeClient client = new NodeClient(settings, threadPool) {
+        NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             public void search(final SearchRequest request, final ActionListener<SearchResponse> listener) {
                 requests.add(request);
                 commonExecutor.execute(() -> {
                     counter.decrementAndGet();
-                    listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, 0, 0L,
-                        ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY));
+                    ActionListener.respondAndRelease(
+                        listener,
+                        SearchResponseUtils.emptyWithTotalHits(
+                            null,
+                            0,
+                            0,
+                            0,
+                            0L,
+                            ShardSearchFailure.EMPTY_ARRAY,
+                            SearchResponse.Clusters.EMPTY
+                        )
+                    );
                 });
             }
 
@@ -154,21 +167,45 @@ public class MultiSearchActionTookTests extends ESTestCase {
         };
 
         if (controlledClock) {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService, availableProcessors,
-                                                  expected::get, client) {
+            return new TransportMultiSearchAction(
+                actionFilters,
+                transportService,
+                clusterService,
+                availableProcessors,
+                expected::get,
+                client,
+                DefaultProjectResolver.INSTANCE
+            ) {
                 @Override
-                void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
+                void executeSearch(
+                    final Queue<SearchRequestSlot> requests,
+                    final AtomicArray<MultiSearchResponse.Item> responses,
+                    final AtomicInteger responseCounter,
+                    final ActionListener<MultiSearchResponse> listener,
+                    long startTimeInNanos
+                ) {
                     expected.set(1000000);
                     super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);
                 }
             };
         } else {
-            return new TransportMultiSearchAction(threadPool, actionFilters, transportService, clusterService,
-                                                  availableProcessors, System::nanoTime, client) {
+            return new TransportMultiSearchAction(
+                actionFilters,
+                transportService,
+                clusterService,
+                availableProcessors,
+                System::nanoTime,
+                client,
+                DefaultProjectResolver.INSTANCE
+            ) {
                 @Override
-                void executeSearch(final Queue<SearchRequestSlot> requests, final AtomicArray<MultiSearchResponse.Item> responses,
-                        final AtomicInteger responseCounter, final ActionListener<MultiSearchResponse> listener, long startTimeInNanos) {
+                void executeSearch(
+                    final Queue<SearchRequestSlot> requests,
+                    final AtomicArray<MultiSearchResponse.Item> responses,
+                    final AtomicInteger responseCounter,
+                    final ActionListener<MultiSearchResponse> listener,
+                    long startTimeInNanos
+                ) {
                     long elapsed = spinForAtLeastNMilliseconds(randomIntBetween(0, 10));
                     expected.set(elapsed);
                     super.executeSearch(requests, responses, responseCounter, listener, startTimeInNanos);

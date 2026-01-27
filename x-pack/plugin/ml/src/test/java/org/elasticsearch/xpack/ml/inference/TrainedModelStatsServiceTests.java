@@ -7,9 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,6 +25,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -59,18 +59,19 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
                 .routingTable(routingTable.build())
                 .metadata(metadata);
 
-            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver),
-                equalTo(false));
+            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver), equalTo(false));
         }
         {
             Metadata.Builder metadata = Metadata.builder();
             RoutingTable.Builder routingTable = RoutingTable.builder();
             // With concrete ONLY
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -78,8 +79,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .routingTable(routingTable.build())
                 .metadata(metadata);
-            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver),
-                equalTo(false));
+            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver), equalTo(false));
         }
         {
             // With Alias And Concrete index
@@ -87,10 +87,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             RoutingTable.Builder routingTable = RoutingTable.builder();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -98,8 +100,7 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .routingTable(routingTable.build())
                 .metadata(metadata);
-            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver),
-                equalTo(true));
+            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver), equalTo(true));
         }
         {
             // With Alias And Concrete index but routing is missing or concrete index
@@ -107,10 +108,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             RoutingTable.Builder routingTable = RoutingTable.builder();
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             metadata.put(indexMetadata);
             addToRoutingTable(concreteIndex, routingTable);
@@ -119,18 +122,23 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
             } else {
                 Index index = new Index(concreteIndex, "_uuid");
                 ShardId shardId = new ShardId(index, 0);
-                ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+                ShardRouting shardRouting = ShardRouting.newUnassigned(
+                    shardId,
+                    true,
+                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                    ShardRouting.Role.DEFAULT
+                );
                 shardRouting = shardRouting.initialize("node_id", null, 0L);
-                routingTable.add(IndexRoutingTable.builder(index)
-                    .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+                routingTable.add(
+                    IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting))
+                );
             }
 
             ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"))
                 .routingTable(routingTable.build())
                 .metadata(metadata);
-            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver),
-                equalTo(false));
+            assertThat(TrainedModelStatsService.verifyIndicesExistAndPrimaryShardsAreActive(csBuilder.build(), resolver), equalTo(false));
         }
     }
 
@@ -151,18 +159,25 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ResultsPersisterService persisterService = mock(ResultsPersisterService.class);
 
-        TrainedModelStatsService service = new TrainedModelStatsService(persisterService,
-            originSettingClient, resolver, clusterService, threadPool);
+        TrainedModelStatsService service = new TrainedModelStatsService(
+            persisterService,
+            originSettingClient,
+            resolver,
+            clusterService,
+            threadPool
+        );
 
         InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator("testUpdateStatsUpgradeMode", "test-node", 1L);
 
         {
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
             Metadata.Builder metadata = Metadata.builder().put(indexMetadata);
 
@@ -185,10 +200,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             // now set the upgrade mode
@@ -215,10 +232,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             Metadata.Builder metadata = Metadata.builder()
@@ -255,8 +274,13 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ResultsPersisterService persisterService = mock(ResultsPersisterService.class);
 
-        TrainedModelStatsService service = new TrainedModelStatsService(persisterService,
-            originSettingClient, resolver, clusterService, threadPool);
+        TrainedModelStatsService service = new TrainedModelStatsService(
+            persisterService,
+            originSettingClient,
+            resolver,
+            clusterService,
+            threadPool
+        );
 
         InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator("testUpdateStatsUpgradeMode", "test-node", 1L);
 
@@ -265,10 +289,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             // now set the upgrade mode
@@ -295,10 +321,12 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
                 .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
-                .settings(Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
                 );
 
             Metadata.Builder metadata = Metadata.builder()
@@ -321,11 +349,15 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
     private static void addToRoutingTable(String concreteIndex, RoutingTable.Builder routingTable) {
         Index index = new Index(concreteIndex, "_uuid");
         ShardId shardId = new ShardId(index, 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
+        );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
-        shardRouting = shardRouting.moveToStarted();
-        routingTable.add(IndexRoutingTable.builder(index)
-            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        routingTable.add(IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)));
     }
 }

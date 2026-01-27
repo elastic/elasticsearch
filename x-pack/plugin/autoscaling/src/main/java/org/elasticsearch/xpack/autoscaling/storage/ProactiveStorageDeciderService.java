@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,13 +16,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,12 +33,17 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final AllocationDeciders allocationDeciders;
-    private final DataTierAllocationDecider dataTierAllocationDecider;
+    private final ShardRoutingRoleStrategy shardRoutingRoleStrategy;
 
-    public ProactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
+    public ProactiveStorageDeciderService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        AllocationDeciders allocationDeciders,
+        ShardRoutingRoleStrategy shardRoutingRoleStrategy
+    ) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
+        this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
     }
 
     @Override
@@ -65,9 +70,10 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             context,
             diskThresholdSettings,
             allocationDeciders,
-            dataTierAllocationDecider
+            shardRoutingRoleStrategy
+
         );
-        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation().sizeInBytes();
         assert unassignedBytesBeforeForecast >= 0;
 
         TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
@@ -76,16 +82,16 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
             System.currentTimeMillis()
         );
 
-        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
-        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
+        long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation().sizeInBytes();
+        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove().sizeInBytes();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;
         assert maxShardSize >= 0;
         String message = ReactiveStorageDeciderService.message(unassignedBytes, assignedBytes);
         AutoscalingCapacity requiredCapacity = AutoscalingCapacity.builder()
-            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null)
-            .node(maxShardSize, null)
+            .total(autoscalingCapacity.total().storage().getBytes() + unassignedBytes + assignedBytes, null, null)
+            .node(maxShardSize, null, null)
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,

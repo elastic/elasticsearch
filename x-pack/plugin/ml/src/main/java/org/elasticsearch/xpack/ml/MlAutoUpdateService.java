@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -20,16 +19,18 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
 
     public interface UpdateAction {
-        boolean isMinNodeVersionSupported(Version minNodeVersion);
+        boolean isMinTransportVersionSupported(TransportVersion minTransportVersion);
+
         boolean isAbleToRun(ClusterState latestState);
+
         String getName();
-        void runUpdate();
+
+        void runUpdate(ClusterState latestState);
     }
 
     private final List<UpdateAction> updateActions;
@@ -46,36 +47,40 @@ public class MlAutoUpdateService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
         if (event.localNodeMaster() == false) {
             return;
         }
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            return;
+        }
 
-        Version minNodeVersion = event.state().getNodes().getMinNodeVersion();
+        if (completedUpdates.size() == updateActions.size()) {
+            return; // all work complete
+        }
+
+        final var latestState = event.state();
+        TransportVersion minTransportVersion = latestState.getMinTransportVersion();
         final List<UpdateAction> toRun = updateActions.stream()
-            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
+            .filter(action -> action.isMinTransportVersionSupported(minTransportVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
-            .filter(action -> action.isAbleToRun(event.state()))
+            .filter(action -> action.isAbleToRun(latestState))
             .filter(action -> currentlyUpdating.add(action.getName()))
-            .collect(Collectors.toList());
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> toRun.forEach(this::runUpdate)
-        );
+            .toList();
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+            .execute(() -> toRun.forEach((action) -> this.runUpdate(action, latestState)));
     }
 
-    private void runUpdate(UpdateAction action) {
+    private void runUpdate(UpdateAction action, ClusterState latestState) {
         try {
-            logger.debug(() -> new ParameterizedMessage("[{}] starting executing update action", action.getName()));
-            action.runUpdate();
+            logger.debug(() -> "[" + action.getName() + "] starting executing update action");
+            action.runUpdate(latestState);
             this.completedUpdates.add(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] succeeded executing update action", action.getName()));
+            logger.debug(() -> "[" + action.getName() + "] succeeded executing update action");
         } catch (Exception ex) {
-            logger.warn(new ParameterizedMessage("[{}] failure executing update action", action.getName()), ex);
+            logger.warn(() -> "[" + action.getName() + "] failure executing update action", ex);
         } finally {
             this.currentlyUpdating.remove(action.getName());
-            logger.debug(() -> new ParameterizedMessage("[{}] no longer executing update action", action.getName()));
+            logger.debug(() -> "[" + action.getName() + "] no longer executing update action");
         }
     }
 

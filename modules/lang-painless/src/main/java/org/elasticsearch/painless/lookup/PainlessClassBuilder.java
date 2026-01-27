@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.lookup;
@@ -21,6 +22,7 @@ final class PainlessClassBuilder {
     final Map<String, PainlessField> staticFields;
     final Map<String, PainlessField> fields;
     PainlessMethod functionalInterfaceMethod;
+    final Map<Class<?>, Object> annotations;
 
     final Map<String, PainlessMethod> runtimeMethods;
     final Map<String, MethodHandle> getterMethodHandles;
@@ -33,6 +35,7 @@ final class PainlessClassBuilder {
         staticFields = new HashMap<>();
         fields = new HashMap<>();
         functionalInterfaceMethod = null;
+        annotations = new HashMap<>();
 
         runtimeMethods = new HashMap<>();
         getterMethodHandles = new HashMap<>();
@@ -40,8 +43,18 @@ final class PainlessClassBuilder {
     }
 
     PainlessClass build() {
-        return new PainlessClass(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod,
-                runtimeMethods, getterMethodHandles, setterMethodHandles);
+        return new PainlessClass(
+            constructors,
+            staticMethods,
+            methods,
+            staticFields,
+            fields,
+            functionalInterfaceMethod,
+            annotations,
+            runtimeMethods,
+            getterMethodHandles,
+            setterMethodHandles
+        );
     }
 
     @Override
@@ -54,18 +67,19 @@ final class PainlessClassBuilder {
             return false;
         }
 
-        PainlessClassBuilder that = (PainlessClassBuilder)object;
+        PainlessClassBuilder that = (PainlessClassBuilder) object;
 
-        return Objects.equals(constructors, that.constructors) &&
-                Objects.equals(staticMethods, that.staticMethods) &&
-                Objects.equals(methods, that.methods) &&
-                Objects.equals(staticFields, that.staticFields) &&
-                Objects.equals(fields, that.fields) &&
-                Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod);
+        return Objects.equals(constructors, that.constructors)
+            && Objects.equals(staticMethods, that.staticMethods)
+            && Objects.equals(methods, that.methods)
+            && Objects.equals(staticFields, that.staticFields)
+            && Objects.equals(fields, that.fields)
+            && Objects.equals(functionalInterfaceMethod, that.functionalInterfaceMethod)
+            && Objects.equals(annotations, that.annotations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod);
+        return Objects.hash(constructors, staticMethods, methods, staticFields, fields, functionalInterfaceMethod, annotations);
     }
 }

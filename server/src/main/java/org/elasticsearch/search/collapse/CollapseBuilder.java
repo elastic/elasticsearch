@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.collapse;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.mapper.MappedFieldType.CollapseType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,8 +37,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
-    private static final ObjectParser<CollapseBuilder, Void> PARSER =
-        new ObjectParser<>("collapse", CollapseBuilder::new);
+    private static final ObjectParser<CollapseBuilder, Void> PARSER = new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
@@ -79,14 +79,14 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        this.innerHits = in.readList(InnerHitBuilder::new);
+        this.innerHits = in.readCollectionAsList(InnerHitBuilder::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        out.writeList(innerHits);
+        out.writeCollection(innerHits);
     }
 
     public static CollapseBuilder fromXContent(XContentParser parser) {
@@ -103,11 +103,21 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
+        if (innerHit.getName() == null) {
+            throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+        }
         this.innerHits = Collections.singletonList(innerHit);
         return this;
     }
 
     public CollapseBuilder setInnerHits(List<InnerHitBuilder> innerHits) {
+        if (innerHits != null) {
+            for (InnerHitBuilder innerHit : innerHits) {
+                if (innerHit.getName() == null) {
+                    throw new IllegalArgumentException("inner_hits must have a [name]; set the [name] field in the inner_hits definition");
+                }
+            }
+        }
         this.innerHits = innerHits;
         return this;
     }
@@ -186,23 +196,30 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return Strings.toString(this, true, true);
+    }
+
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
         }
         if (fieldType.collapseType() == CollapseType.NONE) {
-            throw new IllegalArgumentException("collapse is not supported for the field [" + fieldType.name() +
-                "] of the type [" + fieldType.typeName() + "]");
+            throw new IllegalArgumentException(
+                "collapse is not supported for the field [" + fieldType.name() + "] of the type [" + fieldType.typeName() + "]"
+            );
         }
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.isSearchable() == false && (innerHits != null && innerHits.isEmpty() == false)) {
-            throw new IllegalArgumentException("cannot expand `inner_hits` for collapse field `"
-                + field + "`, " + "only indexed field can retrieve `inner_hits`");
+        if (fieldType.indexType().hasDenseIndex() == false && (innerHits != null && innerHits.isEmpty() == false)) {
+            throw new IllegalArgumentException(
+                "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
+            );
         }
 
-        return new CollapseContext(field, fieldType, innerHits);
+        return new CollapseContext(field, fieldType);
     }
 }

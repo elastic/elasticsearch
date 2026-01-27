@@ -68,7 +68,7 @@ setup:
   - match: { hits.hits.0.fields.location_from_doc_value.0.type: "Point" }
   - match: { hits.hits.0.fields.location_from_doc_value.0.coordinates: [ 34.889999935403466, 13.499999991618097 ] }
   - match: { hits.hits.0.fields.location_from_source.0.type: "Point" }
-  - match: { hits.hits.0.fields.location_from_source.0.coordinates: [ 34.889999935403466, 13.499999991618097 ] }
+  - match: { hits.hits.0.fields.location_from_source.0.coordinates: [ 34.89, 13.5 ] }
 
 ---
 "exists query":

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -11,8 +12,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -38,7 +39,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         this.type = in.readString();
         this.count = in.readInt();
         this.indexCount = in.readInt();
-        this.scriptLangs = in.readSet(StreamInput::readString);
+        this.scriptLangs = in.readCollectionAsSet(StreamInput::readString);
         this.scriptLessCount = in.readLong();
         this.shadowedCount = in.readLong();
         this.fieldScriptStats = new FieldScriptStats(in);
@@ -53,7 +54,7 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
         out.writeString(type);
         out.writeInt(count);
         out.writeInt(indexCount);
-        out.writeCollection(scriptLangs, StreamOutput::writeString);
+        out.writeStringCollection(scriptLangs);
         out.writeLong(scriptLessCount);
         out.writeLong(shadowedCount);
         fieldScriptStats.writeTo(out);
@@ -82,13 +83,13 @@ public final class RuntimeFieldStats implements Writeable, ToXContentObject {
             return false;
         }
         RuntimeFieldStats that = (RuntimeFieldStats) o;
-        return count == that.count &&
-            indexCount == that.indexCount &&
-            scriptLessCount == that.scriptLessCount &&
-            shadowedCount == that.shadowedCount &&
-            fieldScriptStats.equals(that.fieldScriptStats) &&
-            type.equals(that.type) &&
-            scriptLangs.equals(that.scriptLangs);
+        return count == that.count
+            && indexCount == that.indexCount
+            && scriptLessCount == that.scriptLessCount
+            && shadowedCount == that.shadowedCount
+            && fieldScriptStats.equals(that.fieldScriptStats)
+            && type.equals(that.type)
+            && scriptLangs.equals(that.scriptLangs);
     }
 
     @Override

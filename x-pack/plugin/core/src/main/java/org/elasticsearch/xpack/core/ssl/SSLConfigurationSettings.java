@@ -13,8 +13,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
+import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
 import java.util.ArrayList;
@@ -25,7 +29,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
 import javax.net.ssl.TrustManagerFactory;
+
+import static org.elasticsearch.common.ssl.SslConfigurationLoader.GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS;
+import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_PREFIX;
 
 /**
  * Bridges SSLConfiguration into the {@link Settings} framework, using {@link Setting} objects.
@@ -42,9 +50,11 @@ public class SSLConfigurationSettings {
     final Setting<String> truststoreAlgorithm;
     final Setting<Optional<String>> truststoreType;
     final Setting<Optional<String>> trustRestrictionsPath;
+    final Setting<List<X509Field>> trustRestrictionsX509Fields;
     final Setting<List<String>> caPaths;
     final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
     final Setting<Optional<SslVerificationMode>> verificationMode;
+    final Setting<TimeValue> handshakeTimeout;
 
     // public for PKI realm
     private final Setting<SecureString> legacyTruststorePassword;
@@ -52,10 +62,8 @@ public class SSLConfigurationSettings {
     private final List<Setting<?>> enabledSettings;
     private final List<Setting<?>> disabledSettings;
 
-    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.listSetting(
+    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.stringListSetting(
         key,
-        List.of(),
-        Function.identity(),
         Property.NodeScope,
         Property.Filtered
     );
@@ -63,7 +71,7 @@ public class SSLConfigurationSettings {
 
     private static final SslSetting<List<String>> SUPPORTED_PROTOCOLS = SslSetting.setting(
         SslConfigurationKeys.PROTOCOLS,
-        key -> Setting.listSetting(key, List.of(), Function.identity(), Property.NodeScope, Property.Filtered)
+        key -> Setting.stringListSetting(key, Property.NodeScope, Property.Filtered)
     );
 
     private static final SslSetting<Optional<String>> KEYSTORE_PATH = SslSetting.setting(
@@ -103,7 +111,7 @@ public class SSLConfigurationSettings {
 
     public static final SslSetting<SecureString> LEGACY_TRUSTSTORE_PASSWORD = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_LEGACY_PASSWORD,
-        key -> new Setting<>(key, "", SecureString::new, Property.Deprecated, Property.Filtered, Property.NodeScope)
+        key -> new Setting<>(key, "", SecureString::new, Property.DeprecatedWarning, Property.Filtered, Property.NodeScope)
     );
 
     public static final SslSetting<SecureString> TRUSTSTORE_PASSWORD = SslSetting.secureSetting(
@@ -142,16 +150,29 @@ public class SSLConfigurationSettings {
         TRUST_STORE_TYPE_TEMPLATE
     );
 
-    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_PATH_TEMPLATE = key -> new Setting<>(
         key,
         s -> null,
         Optional::ofNullable,
         Property.NodeScope,
         Property.Filtered
     );
-    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS = SslSetting.setting(
+    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS_PATH = SslSetting.setting(
         "trust_restrictions.path",
-        TRUST_RESTRICTIONS_TEMPLATE
+        TRUST_RESTRICTIONS_PATH_TEMPLATE
+    );
+
+    public static final Function<String, Setting<List<X509Field>>> TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE = key -> Setting.listSetting(
+        key,
+        GLOBAL_DEFAULT_RESTRICTED_TRUST_FIELDS.stream().map(X509Field::toString).collect(Collectors.toList()),
+        X509Field::parseForRestrictedTrust,
+        Property.NodeScope,
+        Property.Filtered
+    );
+
+    public static final SslSetting<List<X509Field>> TRUST_RESTRICTIONS_X509_FIELDS = SslSetting.setting(
+        SslConfigurationKeys.TRUST_RESTRICTIONS_X509_FIELDS,
+        TRUST_RESTRICTIONS_X509_FIELDS_TEMPLATE
     );
 
     private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD = SslSetting.setting(
@@ -169,10 +190,8 @@ public class SSLConfigurationSettings {
         X509KeyPairSettings.CERT_TEMPLATE
     );
 
-    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.listSetting(
+    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.stringListSetting(
         key,
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope,
         Property.Filtered
     );
@@ -209,10 +228,15 @@ public class SSLConfigurationSettings {
     public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
         VERIFICATION_MODE::realm;
 
+    public static final SslSetting<TimeValue> HANDSHAKE_TIMEOUT = SslSetting.setting(
+        SslConfigurationKeys.HANDSHAKE_TIMEOUT,
+        key -> Setting.positiveTimeSetting(key, SslConfigurationLoader.DEFAULT_HANDSHAKE_TIMEOUT, Property.NodeScope)
+    );
+
     /**
      * @param prefix The prefix under which each setting should be defined. Must be either the empty string (<code>""</code>) or a string
      *               ending in <code>"."</code>
-     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords should be accepted
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      * @see #withoutPrefix
      * @see #withPrefix
      */
@@ -227,10 +251,12 @@ public class SSLConfigurationSettings {
         truststorePassword = TRUSTSTORE_PASSWORD.withPrefix(prefix);
         truststoreAlgorithm = TRUSTSTORE_ALGORITHM.withPrefix(prefix);
         truststoreType = TRUSTSTORE_TYPE.withPrefix(prefix);
-        trustRestrictionsPath = TRUST_RESTRICTIONS.withPrefix(prefix);
+        trustRestrictionsPath = TRUST_RESTRICTIONS_PATH.withPrefix(prefix);
+        trustRestrictionsX509Fields = TRUST_RESTRICTIONS_X509_FIELDS.withPrefix(prefix);
         caPaths = CERT_AUTH_PATH.withPrefix(prefix);
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
+        handshakeTimeout = HANDSHAKE_TIMEOUT.withPrefix(prefix);
 
         final List<Setting<? extends Object>> enabled = CollectionUtils.arrayAsArrayList(
             ciphers,
@@ -240,6 +266,7 @@ public class SSLConfigurationSettings {
             truststoreAlgorithm,
             truststoreType,
             trustRestrictionsPath,
+            trustRestrictionsX509Fields,
             caPaths,
             clientAuth,
             verificationMode
@@ -253,6 +280,16 @@ public class SSLConfigurationSettings {
 
         enabled.addAll(x509KeyPair.getEnabledSettings());
         disabled.addAll(x509KeyPair.getDisabledSettings());
+
+        if (TRANSPORT_SSL_PREFIX.equals(prefix)
+            || XPackSettings.REMOTE_CLUSTER_CLIENT_SSL_PREFIX.equals(prefix)
+            || XPackSettings.REMOTE_CLUSTER_SERVER_SSL_PREFIX.equals(prefix)) {
+            enabled.add(handshakeTimeout);
+        } else {
+            // Today the handshake timeout is only adjustable for transport connections - see SecurityNetty4Transport. In principle we
+            // could extend this to other contexts too, we just haven't done so yet.
+            disabled.add(handshakeTimeout);
+        }
 
         this.enabledSettings = Collections.unmodifiableList(enabled);
         this.disabledSettings = Collections.unmodifiableList(disabled);
@@ -269,7 +306,7 @@ public class SSLConfigurationSettings {
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
      * keys are the root names of the <code>Settings</code>.
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withoutPrefix(boolean acceptNonSecurePasswords) {
         return new SSLConfigurationSettings("", acceptNonSecurePasswords);
@@ -280,7 +317,7 @@ public class SSLConfigurationSettings {
      * keys are prefixed-children of the <code>Settings</code>.
      *
      * @param prefix A string that must end in <code>"ssl."</code>
-     * @param acceptNonSecurePasswords
+     * @param acceptNonSecurePasswords Whether legacy (non-secure passwords) should be accepted
      */
     public static SSLConfigurationSettings withPrefix(String prefix, boolean acceptNonSecurePasswords) {
         assert prefix.endsWith(".") : "The ssl config prefix (" + prefix + ") should end in '.'";
@@ -303,14 +340,16 @@ public class SSLConfigurationSettings {
             TRUSTSTORE_ALGORITHM,
             KEY_STORE_TYPE,
             TRUSTSTORE_TYPE,
-            TRUST_RESTRICTIONS,
+            TRUST_RESTRICTIONS_PATH,
+            TRUST_RESTRICTIONS_X509_FIELDS,
             KEY_PATH,
             LEGACY_KEY_PASSWORD,
             KEY_PASSWORD,
             CERT,
             CERT_AUTH_PATH,
             CLIENT_AUTH_SETTING,
-            VERIFICATION_MODE
+            VERIFICATION_MODE,
+            HANDSHAKE_TIMEOUT
         );
     }
 
@@ -386,8 +425,8 @@ public class SSLConfigurationSettings {
             return Setting.affixKeySetting(groupPrefix, keyPrefix + name, template);
         }
 
-        public Setting<T> transportProfile(String name) {
-            return transportProfile().getConcreteSetting(name);
+        public Setting<T> transportProfile(String settingName) {
+            return transportProfile().getConcreteSetting(settingName);
         }
     }
 

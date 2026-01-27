@@ -8,10 +8,14 @@ package org.elasticsearch.xpack.monitoring.collector.shards;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
@@ -20,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Collector for shards.
@@ -30,8 +36,7 @@ import java.util.List;
  */
 public class ShardsCollector extends Collector {
 
-    public ShardsCollector(final ClusterService clusterService,
-                           final XPackLicenseState licenseState) {
+    public ShardsCollector(final ClusterService clusterService, final XPackLicenseState licenseState) {
         super(ShardMonitoringDoc.TYPE, clusterService, null, licenseState);
     }
 
@@ -41,35 +46,76 @@ public class ShardsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState)
+        throws Exception {
         final List<MonitoringDoc> results = new ArrayList<>(1);
         if (clusterState != null) {
-            RoutingTable routingTable = clusterState.routingTable();
+            @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+            RoutingTable routingTable = clusterState.routingTable(ProjectId.DEFAULT);
             if (routingTable != null) {
-                List<ShardRouting> shards = routingTable.allShards();
-                if (shards != null) {
-                    final String clusterUuid = clusterUuid(clusterState);
-                    final String stateUUID = clusterState.stateUUID();
-                    final long timestamp = timestamp();
+                final String clusterUuid = clusterUuid(clusterState);
+                final String stateUUID = clusterState.stateUUID();
+                final long timestamp = timestamp();
 
-                    final String[] indices = getCollectionIndices();
-                    final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices));
+                final String[] indicesToMonitor = getCollectionIndices();
+                final boolean isAllIndices = IndexNameExpressionResolver.isAllIndices(Arrays.asList(indicesToMonitor));
+                final String[] indices = isAllIndices
+                    ? routingTable.indicesRouting().keySet().toArray(new String[0])
+                    : expandIndexPattern(indicesToMonitor, routingTable.indicesRouting().keySet().toArray(new String[0]));
 
-                    for (ShardRouting shard : shards) {
-                        if (isAllIndices || Regex.simpleMatch(indices, shard.getIndexName())) {
-                            MonitoringDoc.Node shardNode = null;
-                            if (shard.assignedToNode()) {
+                for (String index : indices) {
+                    IndexRoutingTable indexRoutingTable = routingTable.index(index);
+                    if (indexRoutingTable != null) {
+                        final int shardCount = indexRoutingTable.size();
+                        for (int i = 0; i < shardCount; i++) {
+                            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+
+                            ShardRouting primary = shardRoutingTable.primaryShard();
+                            MonitoringDoc.Node primaryShardNode = null;
+                            if (primary.assignedToNode()) {
                                 // If the shard is assigned to a node, the shard monitoring document refers to this node
-                                shardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(shard.currentNodeId()));
+                                primaryShardNode = convertNode(node.getTimestamp(), clusterState.getNodes().get(primary.currentNodeId()));
                             }
-                            results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, shardNode, shard, stateUUID));
+                            results.add(new ShardMonitoringDoc(clusterUuid, timestamp, interval, primaryShardNode, primary, stateUUID, 0));
+
+                            List<ShardRouting> replicas = shardRoutingTable.replicaShards();
+                            for (int j = 0; j < replicas.size(); j++) {
+                                ShardRouting replica = replicas.get(j);
+
+                                MonitoringDoc.Node replicaShardNode = null;
+                                if (replica.assignedToNode()) {
+                                    replicaShardNode = convertNode(
+                                        node.getTimestamp(),
+                                        clusterState.getNodes().get(replica.currentNodeId())
+                                    );
+                                }
+                                results.add(
+                                    new ShardMonitoringDoc(clusterUuid, timestamp, interval, replicaShardNode, replica, stateUUID, j + 1)
+                                );
+                            }
                         }
                     }
                 }
             }
         }
         return Collections.unmodifiableCollection(results);
+    }
+
+    private static String[] expandIndexPattern(String[] indicesToMonitor, String[] indices) {
+        final Set<String> expandedIndices = new HashSet<>();
+
+        for (String indexOrPattern : indicesToMonitor) {
+            if (indexOrPattern.contains("*")) {
+                for (String index : indices) {
+                    if (Regex.simpleMatch(indexOrPattern, index)) {
+                        expandedIndices.add(index);
+                    }
+                }
+            } else {
+                expandedIndices.add(indexOrPattern);
+            }
+        }
+
+        return expandedIndices.toArray(new String[0]);
     }
 }

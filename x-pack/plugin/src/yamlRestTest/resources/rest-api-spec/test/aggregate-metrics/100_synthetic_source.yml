@@ -1,0 +1,127 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+---
+aggregate_metric_double:
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
+      reason: synthetic source support added  in 8.5.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, value_count]
+                default_metric: max
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: false # Do not refresh on every insert so that we get both docs in the same segment
+        body:
+          metric:
+            min: 18.2
+            max: 100
+            value_count: 50
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        refresh: true
+        body:
+          metric:
+            min: 10.0
+            max: 20.0
+            value_count: 5
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1, 2]
+  - match:
+      hits.hits.0._source:
+        metric:
+          min: 18.2
+          max: 100.0
+          value_count: 50
+
+---
+aggregate_metric_double with ignore_malformed:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, value_count]
+                default_metric: max
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          metric:
+            min: 18.2
+            max: 100
+            field: "field"
+            sub:
+              array: [1, 2, 3]
+              field: "field"
+            value_count: 50
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          metric: ["hey", {"value_count": 1, "min": 18.2,"max": 100}, [123, 456]]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+
+  - match:
+      _source:
+        metric:
+          min: 18.2
+          max: 100
+          field: "field"
+          sub:
+            array: [1, 2, 3]
+            field: "field"
+          value_count: 50
+
+  - do:
+      get:
+        index: test
+        id: "2"
+
+  - match:
+      _source:
+        metric: [{"min": 18.2,"max": 100.0, "value_count": 1}, "hey", 123, 456]
+

@@ -1,20 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.ScoreMode;
 
 import java.io.IOException;
@@ -25,7 +23,7 @@ import java.util.List;
 /**
  * A {@link BucketCollector} which allows running a bucket collection with several
  * {@link BucketCollector}s. It is similar to the {@link MultiCollector} except that the
- * {@link #wrap} method filters out the {@link BucketCollector#NO_OP_COLLECTOR}s and not
+ * {@link #wrap} method filters out the {@link BucketCollector#NO_OP_BUCKET_COLLECTOR}s and not
  * the null ones.
  */
 public class MultiBucketCollector extends BucketCollector {
@@ -33,12 +31,12 @@ public class MultiBucketCollector extends BucketCollector {
      * Wraps a list of {@link BucketCollector}s with a {@link MultiBucketCollector}. This
      * method works as follows:
      * <ul>
-     * <li>Filters out the {@link BucketCollector#NO_OP_COLLECTOR}s collectors, so they are not used
+     * <li>Filters out the {@link BucketCollector#NO_OP_BUCKET_COLLECTOR}s collectors, so they are not used
      * during search time.
      * <li>If the input contains 1 real collector we wrap it in a collector that takes
      * {@code terminateIfNoop} into account.
      * <li>Otherwise the method returns a {@link MultiBucketCollector} which wraps the
-     * non-{@link BucketCollector#NO_OP_COLLECTOR} collectors.
+     * non-{@link BucketCollector#NO_OP_BUCKET_COLLECTOR} collectors.
      * </ul>
      * @param terminateIfNoop Pass true if {@link #getLeafCollector} should throw
      * {@link CollectionTerminatedException} if all leaf collectors are noop. Pass
@@ -54,13 +52,13 @@ public class MultiBucketCollector extends BucketCollector {
         // and dropped from the array we save for actual collection time.
         int n = 0;
         for (BucketCollector c : collectors) {
-            if (c != NO_OP_COLLECTOR) {
+            if (c != NO_OP_BUCKET_COLLECTOR) {
                 n++;
             }
         }
 
         if (n == 0) {
-            return NO_OP_COLLECTOR;
+            return NO_OP_BUCKET_COLLECTOR;
         } else if (n == 1) {
             // only 1 Collector - return it.
             BucketCollector col = null;
@@ -89,9 +87,9 @@ public class MultiBucketCollector extends BucketCollector {
                 }
 
                 @Override
-                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                     try {
-                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
+                        LeafBucketCollector leafCollector = collector.getLeafCollector(aggCtx);
                         if (false == leafCollector.isNoop()) {
                             return leafCollector;
                         }
@@ -128,7 +126,7 @@ public class MultiBucketCollector extends BucketCollector {
         this.terminateIfNoop = terminateIfNoop;
         this.collectors = collectors;
         int numNeedsScores = 0;
-        for (Collector collector : collectors) {
+        for (BucketCollector collector : collectors) {
             if (collector.scoreMode().needsScores()) {
                 numNeedsScores += 1;
             }
@@ -139,7 +137,7 @@ public class MultiBucketCollector extends BucketCollector {
     @Override
     public ScoreMode scoreMode() {
         ScoreMode scoreMode = null;
-        for (Collector collector : collectors) {
+        for (BucketCollector collector : collectors) {
             if (scoreMode == null) {
                 scoreMode = collector.scoreMode();
             } else if (scoreMode != collector.scoreMode()) {
@@ -169,11 +167,11 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         final List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
         for (BucketCollector collector : collectors) {
             try {
-                LeafBucketCollector leafCollector = collector.getLeafCollector(context);
+                LeafBucketCollector leafCollector = collector.getLeafCollector(aggCtx);
                 if (false == leafCollector.isNoop()) {
                     leafCollectors.add(leafCollector);
                 }
@@ -185,17 +183,16 @@ public class MultiBucketCollector extends BucketCollector {
                 );
             }
         }
-        switch (leafCollectors.size()) {
-            case 0:
+        return switch (leafCollectors.size()) {
+            case 0 -> {
                 if (terminateIfNoop) {
                     throw new CollectionTerminatedException();
                 }
-                return LeafBucketCollector.NO_OP_COLLECTOR;
-            case 1:
-                return leafCollectors.get(0);
-            default:
-                return new MultiLeafBucketCollector(leafCollectors, cacheScores);
-        }
+                yield LeafBucketCollector.NO_OP_COLLECTOR;
+            }
+            case 1 -> leafCollectors.get(0);
+            default -> new MultiLeafBucketCollector(leafCollectors, cacheScores);
+        };
     }
 
     private static class MultiLeafBucketCollector extends LeafBucketCollector {
@@ -203,6 +200,7 @@ public class MultiBucketCollector extends BucketCollector {
         private final boolean cacheScores;
         private final LeafBucketCollector[] collectors;
         private int numCollectors;
+        private ScoreCachingScorable scorable;
 
         private MultiLeafBucketCollector(List<LeafBucketCollector> collectors, boolean cacheScores) {
             this.collectors = collectors.toArray(new LeafBucketCollector[collectors.size()]);
@@ -213,11 +211,11 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
-                scorer = new ScoreCachingWrappingScorer(scorer);
+                scorable = new ScoreCachingScorable(scorer);
             }
             for (int i = 0; i < numCollectors; ++i) {
                 final LeafCollector c = collectors[i];
-                c.setScorer(scorer);
+                c.setScorer(cacheScores ? scorable : scorer);
             }
         }
 
@@ -229,6 +227,9 @@ public class MultiBucketCollector extends BucketCollector {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
+            if (scorable != null) {
+                scorable.curDoc = doc;
+            }
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
             for (int i = 0; i < numCollectors;) {
@@ -244,6 +245,27 @@ public class MultiBucketCollector extends BucketCollector {
                     }
                 }
             }
+        }
+    }
+
+    private static class ScoreCachingScorable extends Scorable {
+
+        private final Scorable in;
+        private int curDoc = -1; // current document
+        private int scoreDoc = -1; // document that score was computed on
+        private float score;
+
+        ScoreCachingScorable(Scorable in) {
+            this.in = in;
+        }
+
+        @Override
+        public float score() throws IOException {
+            if (curDoc != scoreDoc) {
+                score = in.score();
+                scoreDoc = curDoc;
+            }
+            return score;
         }
     }
 }

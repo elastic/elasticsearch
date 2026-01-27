@@ -1,0 +1,171 @@
+---
+setup:
+  - skip:
+      features:  headers
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "test_user"
+        body: >
+          {
+            "password": "s3cr3t-password",
+            "roles" : [ "superuser" ]
+          }
+  - do:
+      security.put_user:
+        username: "pre_hashed_user1"
+        body:  >
+          {
+            "password": "new-test-password",
+            "roles" : [ "superuser" ]
+          }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "pre_hashed_user1"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "pre_hashed_user2"
+        ignore: 404
+
+---
+"Test creating users with pre-hashed password":
+  - skip:
+      features: ["catch_unauthorized", "warnings"]
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  # create user with pre-hashed PBKDF2 password with 16 bytes salt and 512 bits key lengths
+  - do:
+      security.put_user:
+        username: "pre_hashed_user2"
+        body:  >
+          {
+            "password_hash": "{PBKDF2}50000$SGRCCCwQ9vz105opttTJAQ==$9FVXEWMXeiwlFTwbvkiQ6h0vN3REnWvukzWlle7ql8QosHdusRhFMBWhRjM7CLFZzq/owGhFh5BmrXRkO6IHZA==",
+            "roles" : [ "superuser" ]
+          }
+
+  # login with valid credentials
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMjpwcmVfaGFzaGVkX3VzZXIyLXBhc3N3b3Jk"
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  # change password to PBKDF2 with 24 bytes salt and 128 bits key lengths
+  - do:
+      security.change_password:
+        username: "pre_hashed_user2"
+        body:  >
+          {
+            "password_hash" : "{PBKDF2}10000$1C7Dlwg/5awqxgi+f6czbBAi/kQxKiDA$3AhIGtGiwYbFBIAosoT3LA=="
+          }
+
+  # login with new credentials
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMjpwcmVfaGFzaGVkX3VzZXIyLXBhc3N3b3JkMg=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+---
+"Test changing users password with pre-hashed password":
+  - skip:
+      features: ["catch_unauthorized", "warnings"]
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+  # We need this so that we can get hold of the password hash of the user because, for bcrypt,
+  # the stored hash string starts with a "$" and it would otherwise be
+  # interpreted as a stashed value, if we tried to use it as the value of "password_hash".
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
+      get:
+        index: .security
+        id: user-pre_hashed_user1
+  - set: { _source.password: "pre_hashed_user1_hash" }
+
+  # change password to "new-test-password2"
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMTpuZXctdGVzdC1wYXNzd29yZA=="
+      security.change_password:
+        username: "pre_hashed_user1"
+        body: >
+          {
+            "password_hash" : "{PBKDF2}10000$7M5rzp0qLpIP3qecOmUl2TTbr4yQ/sTmBMkQ2EtFrYk=$kElwxM4tFXU2eElGaqgOWVg95uAVUgVrkl45Zpzr+ZU="
+          }
+
+  # login with new credentials
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMTpuZXctdGVzdC1wYXNzd29yZDI="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  # change the password to the original one
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMTpuZXctdGVzdC1wYXNzd29yZDI="
+      security.change_password:
+        username: "pre_hashed_user1"
+        body:  >
+          {
+            "password_hash" : "$pre_hashed_user1_hash"
+          }
+
+  # login with original credentials
+  - do:
+      headers:
+        Authorization: "Basic cHJlX2hhc2hlZF91c2VyMTpuZXctdGVzdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+---
+"Test creating users and changing passwords with clear text as hash":
+  - skip:
+      features: ["catch_unauthorized", "warnings"]
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      catch: /The provided password hash is not a hash or it could not be resolved to a supported hash algorithm.*/
+      security.put_user:
+        username: "clear_text_hash_user1"
+        body:  >
+          {
+            "password_hash": "som3-1ong-passw0rd",
+            "roles" : [ "superuser" ]
+          }
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOnMzY3IzdC1wYXNzd29yZA=="
+      catch: /The provided password hash is not a hash or it could not be resolved to a supported hash algorithm..*/
+      security.change_password:
+        username: "test_user"
+        body: >
+          {
+            "password_hash" : "som3-1ong-passw0rd"
+          }

@@ -1,84 +1,90 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.IngestInfo;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectStateRegistry;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
+import java.util.Optional;
+import java.util.Set;
 
 public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeAction<PutPipelineRequest> {
-
+    public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
-    private final OriginSettingClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
-    public PutPipelineTransportAction(ThreadPool threadPool, TransportService transportService,
-        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-        IngestService ingestService, NodeClient client) {
+    public PutPipelineTransportAction(
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IngestService ingestService
+    ) {
         super(
-            PutPipelineAction.NAME, transportService, ingestService.getClusterService(),
-            threadPool, actionFilters, PutPipelineRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME
+            TYPE.name(),
+            transportService,
+            ingestService.getClusterService(),
+            threadPool,
+            actionFilters,
+            PutPipelineRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        // This client is only used to perform an internal implementation detail,
-        // so uses an internal origin context rather than the user context
-        this.client = new OriginSettingClient(client, INGEST_ORIGIN);
         this.ingestService = ingestService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
-            throws Exception {
-        if (state.getNodes().getMinNodeVersion().before(Version.V_7_15_0)) {
-            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-            if (pipelineConfig.containsKey(Pipeline.META_KEY)) {
-                throw new IllegalStateException("pipelines with _meta field require minimum node version of " + Version.V_7_15_0);
-            }
-        }
-        NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-        nodesInfoRequest.clear()
-            .addMetric(NodesInfoRequest.Metric.INGEST.metricName());
-        client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
-            Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
-            for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                ingestInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(IngestInfo.class));
-            }
-            ingestService.putPipeline(ingestInfos, request, listener);
-        }, listener::onFailure));
+        throws Exception {
+        ingestService.putPipeline(projectResolver.getProjectId(), request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutPipelineRequest request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
+    @Override
+    public Optional<String> reservedStateHandlerName() {
+        return Optional.of(ReservedPipelineAction.NAME);
+    }
+
+    @Override
+    public Set<String> modifiedKeys(PutPipelineRequest request) {
+        return Set.of(request.getId());
+    }
+
+    @Override
+    protected void validateForReservedState(PutPipelineRequest request, ClusterState state) {
+        super.validateForReservedState(request, state);
+
+        validateForReservedState(
+            ProjectStateRegistry.get(state).reservedStateMetadata(projectResolver.getProjectId()).values(),
+            reservedStateHandlerName().get(),
+            modifiedKeys(request),
+            request::toString
+        );
+    }
 }

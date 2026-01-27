@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -52,13 +53,17 @@ public class ReaderContext implements Releasable {
     private final long startTimeInNano = System.nanoTime();
 
     private Map<String, Object> context;
+    private boolean isForcedExpired = false;
 
-    public ReaderContext(ShardSearchContextId id,
-                         IndexService indexService,
-                         IndexShard indexShard,
-                         Engine.SearcherSupplier searcherSupplier,
-                         long keepAliveInMillis,
-                         boolean singleSession) {
+    @SuppressWarnings("this-escape")
+    public ReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier searcherSupplier,
+        long keepAliveInMillis,
+        boolean singleSession
+    ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
@@ -109,7 +114,11 @@ public class ReaderContext implements Releasable {
     }
 
     private void tryUpdateKeepAlive(long keepAlive) {
-        this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
+        this.keepAlive.accumulateAndGet(keepAlive, Math::max);
+    }
+
+    public long keepAlive() {
+        return keepAlive.longValue();
     }
 
     /**
@@ -121,7 +130,7 @@ public class ReaderContext implements Releasable {
         refCounted.incRef();
         tryUpdateKeepAlive(keepAliveInMillis);
         return Releasables.releaseOnce(() -> {
-            this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+            this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
             refCounted.decRef();
         });
     }
@@ -130,8 +139,19 @@ public class ReaderContext implements Releasable {
         if (refCounted.refCount() > 1) {
             return false; // being used by markAsUsed
         }
+        if (isForcedExpired) {
+            return true;
+        }
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
+    }
+
+    public boolean isForcedExpired() {
+        return isForcedExpired;
+    }
+
+    public void forceExpired() {
+        isForcedExpired = true;
     }
 
     // BWC

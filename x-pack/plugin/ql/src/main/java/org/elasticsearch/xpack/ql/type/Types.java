@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -52,8 +53,15 @@ public abstract class Types {
             if ("constant_keyword".equals(typeName) || "wildcard".equals(typeName)) {
                 return KEYWORD;
             }
+            final Object metricsTypeParameter = content.get(TimeSeriesParams.TIME_SERIES_METRIC_PARAM);
+            final TimeSeriesParams.MetricType metricType;
+            if (metricsTypeParameter instanceof String str) {
+                metricType = TimeSeriesParams.MetricType.fromString(str);
+            } else {
+                metricType = (TimeSeriesParams.MetricType) metricsTypeParameter;
+            }
             try {
-                return typeRegistry.fromEs(typeName);
+                return typeRegistry.fromEs(typeName, metricType);
             } catch (IllegalArgumentException ex) {
                 return UNSUPPORTED;
             }
@@ -121,7 +129,7 @@ public abstract class Types {
         return value == null ? defaultValue : Integer.parseInt(value.toString());
     }
 
-    private static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
+    public static void propagateUnsupportedType(String inherited, String originalType, Map<String, EsField> properties) {
         if (properties != null && properties.isEmpty() == false) {
             for (Entry<String, EsField> entry : properties.entrySet()) {
                 EsField field = entry.getValue();

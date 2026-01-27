@@ -10,14 +10,14 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -30,7 +30,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/upgrade";
 
     private UpgradeJobModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -43,7 +43,8 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
 
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
-            a -> new UpgradeJobModelSnapshotAction.Request((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3]));
+            a -> new UpgradeJobModelSnapshotAction.Request((String) a[0], (String) a[1], (String) a[2], (Boolean) a[3])
+        );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_ID);
@@ -61,13 +62,16 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         private final boolean waitForCompletion;
 
         Request(String jobId, String snapshotId, String timeout, Boolean waitForCompletion) {
-            this(jobId,
+            this(
+                jobId,
                 snapshotId,
                 timeout == null ? null : TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()),
-                waitForCompletion != null && waitForCompletion);
+                waitForCompletion != null && waitForCompletion
+            );
         }
 
         public Request(String jobId, String snapshotId, TimeValue timeValue, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID);
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID);
             this.timeout = timeValue == null ? DEFAULT_TIMEOUT : timeValue;
@@ -117,10 +121,10 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(jobId, request.jobId) &&
-                Objects.equals(timeout, request.timeout) &&
-                Objects.equals(snapshotId, request.snapshotId) &&
-                waitForCompletion == request.waitForCompletion;
+            return Objects.equals(jobId, request.jobId)
+                && Objects.equals(timeout, request.timeout)
+                && Objects.equals(snapshotId, request.snapshotId)
+                && waitForCompletion == request.waitForCompletion;
         }
 
         @Override
@@ -147,7 +151,8 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
 
         private static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
             NAME,
-            a -> new UpgradeJobModelSnapshotAction.Response((boolean) a[0], (String) a[1]));
+            a -> new UpgradeJobModelSnapshotAction.Response((boolean) a[0], (String) a[1])
+        );
         static {
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), COMPLETED);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), NODE);
@@ -166,9 +171,16 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             this.completed = in.readBoolean();
             this.node = in.readOptionalString();
+        }
+
+        public boolean isCompleted() {
+            return completed;
+        }
+
+        public String getNode() {
+            return node;
         }
 
         @Override
@@ -193,8 +205,7 @@ public class UpgradeJobModelSnapshotAction extends ActionType<UpgradeJobModelSna
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return completed == response.completed &&
-                Objects.equals(node, response.node);
+            return completed == response.completed && Objects.equals(node, response.node);
         }
 
         @Override

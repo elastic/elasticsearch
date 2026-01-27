@@ -1,28 +1,31 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,12 +35,7 @@ import java.util.Objects;
  * result of the analysis.
  */
 public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
-    private static final String CUTOFF_FREQUENCY_DEPRECATION_MSG = "cutoff_freqency is not supported. " +
-        "The [match] query can skip block of documents efficiently if the total number of hits is not tracked";
-    public static final ParseField CUTOFF_FREQUENCY_FIELD =
-        new ParseField("cutoff_frequency")
-            .withAllDeprecated(CUTOFF_FREQUENCY_DEPRECATION_MSG)
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
+
     public static final ParseField ZERO_TERMS_QUERY_FIELD = new ParseField("zero_terms_query");
     public static final ParseField LENIENT_FIELD = new ParseField("lenient");
     public static final ParseField FUZZY_TRANSPOSITIONS_FIELD = new ParseField("fuzzy_transpositions");
@@ -68,7 +66,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private int prefixLength = FuzzyQuery.defaultPrefixLength;
 
-    private int  maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    private int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
     private boolean fuzzyTranspositions = FuzzyQuery.defaultTranspositions;
 
@@ -114,10 +112,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         minimumShouldMatch = in.readOptionalString();
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
-        // cutoff_frequency has been removed
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readOptionalFloat();
-        }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
     }
 
@@ -136,10 +130,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(minimumShouldMatch);
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
-        // cutoff_frequency has been removed
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalFloat(null);
-        }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
     }
 
@@ -198,7 +188,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * @throws IllegalArgumentException in case the prefix is negative
      */
     public MatchQueryBuilder prefixLength(int prefixLength) {
-        if (prefixLength < 0 ) {
+        if (prefixLength < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires prefix length to be non-negative.");
         }
         this.prefixLength = prefixLength;
@@ -216,7 +206,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
      * When using fuzzy or prefix type query, the number of term expansions to use.
      */
     public MatchQueryBuilder maxExpansions(int maxExpansions) {
-        if (maxExpansions <= 0 ) {
+        if (maxExpansions <= 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires maxExpansions to be positive.");
         }
         this.maxExpansions = maxExpansions;
@@ -307,7 +297,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this.zeroTermsQuery;
     }
 
-
     public MatchQueryBuilder autoGenerateSynonymsPhraseQuery(boolean enable) {
         this.autoGenerateSynonymsPhraseQuery = enable;
         return this;
@@ -327,15 +316,21 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.startObject(fieldName);
 
         builder.field(QUERY_FIELD.getPreferredName(), value);
-        builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        if (operator != DEFAULT_OPERATOR) {
+            builder.field(OPERATOR_FIELD.getPreferredName(), operator.toString());
+        }
         if (analyzer != null) {
             builder.field(ANALYZER_FIELD.getPreferredName(), analyzer);
         }
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        if (prefixLength != FuzzyQuery.defaultPrefixLength) {
+            builder.field(PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        }
+        if (maxExpansions != FuzzyQuery.defaultMaxExpansions) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
         if (minimumShouldMatch != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
@@ -343,13 +338,48 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             builder.field(FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
         // LUCENE 4 UPGRADE we need to document this & test this
-        builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
-        builder.field(LENIENT_FIELD.getPreferredName(), lenient);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
-        printBoostAndQueryName(builder);
+        if (fuzzyTranspositions != FuzzyQuery.defaultTranspositions) {
+            builder.field(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        }
+        if (lenient != MatchQueryParser.DEFAULT_LENIENCY) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
+        }
+        if (false == zeroTermsQuery.equals(MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY)) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        if (autoGenerateSynonymsPhraseQuery == false) {
+            builder.field(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), autoGenerateSynonymsPhraseQuery);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
+    }
+
+    @Override
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
+        if (fuzziness != null || lenient) {
+            // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions
+            return this;
+        }
+        // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
+        // and possibly shortcut
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
+        if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
+            TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
+            return termQueryBuilder.rewrite(context);
+        }
+        return this;
+    }
+
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
+        if (analyzer != null) {
+            return context.getIndexAnalyzers().get(analyzer);
+        }
+        MappedFieldType mft = context.getFieldType(fieldName);
+        if (mft != null) {
+            return mft.getTextSearchInfo().searchAnalyzer();
+        }
+        return null;
     }
 
     @Override
@@ -379,26 +409,38 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     @Override
     protected boolean doEquals(MatchQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(value, other.value) &&
-               Objects.equals(operator, other.operator) &&
-               Objects.equals(analyzer, other.analyzer) &&
-               Objects.equals(fuzziness, other.fuzziness) &&
-               Objects.equals(prefixLength, other.prefixLength) &&
-               Objects.equals(maxExpansions, other.maxExpansions) &&
-               Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-               Objects.equals(fuzzyRewrite, other.fuzzyRewrite) &&
-               Objects.equals(lenient, other.lenient) &&
-               Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions) &&
-               Objects.equals(zeroTermsQuery, other.zeroTermsQuery) &&
-               Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(operator, other.operator)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(fuzziness, other.fuzziness)
+            && Objects.equals(prefixLength, other.prefixLength)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(fuzzyRewrite, other.fuzzyRewrite)
+            && Objects.equals(lenient, other.lenient)
+            && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery)
+            && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, value, operator, analyzer,
-                fuzziness, prefixLength, maxExpansions, minimumShouldMatch,
-                fuzzyRewrite, lenient, fuzzyTranspositions, zeroTermsQuery, autoGenerateSynonymsPhraseQuery);
+        return Objects.hash(
+            fieldName,
+            value,
+            operator,
+            analyzer,
+            fuzziness,
+            prefixLength,
+            maxExpansions,
+            minimumShouldMatch,
+            fuzzyRewrite,
+            lenient,
+            fuzzyTranspositions,
+            zeroTermsQuery,
+            autoGenerateSynonymsPhraseQuery
+        );
     }
 
     @Override
@@ -463,23 +505,26 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                        "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                             queryName = parser.text();
                         } else if (GENERATE_SYNONYMS_PHRASE_QUERY.match(currentFieldName, parser.getDeprecationHandler())) {
                             autoGenerateSynonymsPhraseQuery = parser.booleanValue();
-                        } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
-                            CUTOFF_FREQUENCY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                            throw new ParsingException(parser.getTokenLocation(), CUTOFF_FREQUENCY_DEPRECATION_MSG);
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {
@@ -510,5 +555,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
         return matchQuery;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

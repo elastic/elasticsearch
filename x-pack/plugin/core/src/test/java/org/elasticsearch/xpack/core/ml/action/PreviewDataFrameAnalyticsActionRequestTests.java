@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
 public class PreviewDataFrameAnalyticsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
@@ -41,5 +40,10 @@ public class PreviewDataFrameAnalyticsActionRequestTests extends AbstractWireSer
     @Override
     protected Request createTestInstance() {
         return new Request(DataFrameAnalyticsConfigTests.createRandom(randomAlphaOfLength(10)));
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 }

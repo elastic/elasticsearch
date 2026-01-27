@@ -19,8 +19,7 @@ public class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksReques
 
     String jobId;
 
-    JobTaskRequest() {
-    }
+    JobTaskRequest() {}
 
     JobTaskRequest(StreamInput in) throws IOException {
         super(in);

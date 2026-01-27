@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -11,15 +12,16 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,13 +29,17 @@ import java.util.Objects;
 /**
  * A sort builder allowing to sort by score.
  */
-public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
+public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE),
+        DocValueFormat.RAW
+    );
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE, true), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE, true),
+        DocValueFormat.RAW
+    );
 
     /**
      * Build a ScoreSortBuilder default to descending sort order.
@@ -67,7 +73,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     /**
      * Creates a new {@link ScoreSortBuilder} from the query held by the {@link XContentParser} in
-     * {@link org.elasticsearch.common.xcontent.XContent} format.
+     * {@link org.elasticsearch.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
@@ -94,14 +100,25 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
-        throws IOException {
+    public String name() {
+        return NAME;
+    }
+
+    @Override
+    public BucketedSort buildBucketedSort(
+        SearchExecutionContext context,
+        BigArrays bigArrays,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
-            public boolean needsScores() { return true; }
+            public boolean needsScores() {
+                return true;
+            }
 
             @Override
-            public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
+            public Leaf forLeaf(LeafReaderContext ctx) {
                 return new BucketedSort.ForFloats.Leaf(ctx) {
                     private Scorable scorer;
                     private float score;
@@ -113,7 +130,6 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
                         /* We will never be called by documents that don't match the
                          * query and they'll all have a score, thus `true`. */
                         score = scorer.score();
@@ -152,7 +168,12 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) throws IOException {
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
+    public ScoreSortBuilder rewrite(QueryRewriteContext ctx) {
         return this;
     }
 }

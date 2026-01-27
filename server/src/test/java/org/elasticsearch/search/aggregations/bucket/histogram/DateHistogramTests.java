@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -39,20 +40,11 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             } else {
                 int branch = randomInt(3);
                 switch (branch) {
-                    case 0:
-                        factory.fixedInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
-                        break;
-                    case 1:
-                        factory.fixedInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
-                        break;
-                    case 2:
-                        factory.fixedInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
-                        break;
-                    case 3:
-                        factory.fixedInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
-                        break;
-                    default:
-                        throw new IllegalStateException("invalid branch: " + branch);
+                    case 0 -> factory.fixedInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
+                    case 1 -> factory.fixedInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
+                    case 2 -> factory.fixedInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
+                    case 3 -> factory.fixedInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
+                    default -> throw new IllegalStateException("invalid branch: " + branch);
                 }
             }
         }
@@ -88,26 +80,19 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
     private List<BucketOrder> randomOrder() {
         List<BucketOrder> orders = new ArrayList<>();
         switch (randomInt(4)) {
-            case 0:
-                orders.add(BucketOrder.key(randomBoolean()));
-                break;
-            case 1:
-                orders.add(BucketOrder.count(randomBoolean()));
-                break;
-            case 2:
-                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-                break;
-            case 3:
-                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
-                break;
-            case 4:
+            case 0 -> orders.add(BucketOrder.key(randomBoolean()));
+            case 1 -> orders.add(BucketOrder.count(randomBoolean()));
+            case 2 -> orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+            case 3 -> orders.add(
+                BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean())
+            );
+            case 4 -> {
                 int numOrders = randomIntBetween(1, 3);
                 for (int i = 0; i < numOrders; i++) {
                     orders.addAll(randomOrder());
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return orders;
     }

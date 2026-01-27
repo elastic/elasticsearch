@@ -1,27 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.compress;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Random;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -31,7 +34,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
 
     private void assertEquals(CompressedXContent s1, CompressedXContent s2) {
         Assert.assertEquals(s1, s2);
-        assertEquals(s1.uncompressed(), s2.uncompressed());
+        assertThat(s2.uncompressed(), equalBytes(s1.uncompressed()));
         assertEquals(s1.hashCode(), s2.hashCode());
     }
 
@@ -60,9 +63,9 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     }
 
     public void testDifferentCompressedRepresentation() throws Exception {
-        byte[] b = "---\nf:abcdefghijabcdefghij".getBytes("UTF-8");
+        byte[] b = "---\nf:abcdefghijabcdefghij".getBytes(StandardCharsets.UTF_8);
         BytesStreamOutput bout = new BytesStreamOutput();
-        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+        try (OutputStream out = compressor.threadLocalStreamOutput(bout)) {
             out.write(b);
             out.flush();
             out.write(b);
@@ -70,7 +73,7 @@ public class DeflateCompressedXContentTests extends ESTestCase {
         final BytesReference b1 = bout.bytes();
 
         bout = new BytesStreamOutput();
-        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+        try (OutputStream out = compressor.threadLocalStreamOutput(bout)) {
             out.write(b);
             out.write(b);
         }
@@ -97,13 +100,42 @@ public class DeflateCompressedXContentTests extends ESTestCase {
             builder.endObject();
             return builder;
         };
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentObject);
         assertEquals("{}", compressedXContent.string());
     }
 
     public void testToXContentFragment() throws IOException {
         ToXContentFragment toXContentFragment = (builder, params) -> builder.field("field", "value");
-        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+        CompressedXContent compressedXContent = new CompressedXContent(toXContentFragment);
         assertEquals("{\"field\":\"value\"}", compressedXContent.string());
+    }
+
+    public void testEquals() throws IOException {
+        final String[] randomJSON = generateRandomStringArray(1000, randomIntBetween(1, 512), false, true);
+        assertNotNull(randomJSON);
+        final BytesReference jsonDirect = BytesReference.bytes(
+            XContentFactory.jsonBuilder().startObject().stringListField("arr", Arrays.asList(randomJSON)).endObject()
+        );
+        final CompressedXContent one = new CompressedXContent(jsonDirect);
+        final CompressedXContent sameAsOne = new CompressedXContent(
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON))
+        );
+        assertFalse(Arrays.equals(one.compressed(), sameAsOne.compressed()));
+        assertEquals(one, sameAsOne);
+    }
+
+    public void testEqualsWhenUncompressed() throws IOException {
+        final String[] randomJSON1 = generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, false);
+        final String[] randomJSON2 = randomValueOtherThanMany(
+            arr -> Arrays.equals(arr, randomJSON1),
+            () -> generateRandomStringArray(randomIntBetween(1, 1000), randomIntBetween(1, 512), false, true)
+        );
+        final CompressedXContent one = new CompressedXContent(
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON1))
+        );
+        final CompressedXContent two = new CompressedXContent(
+            (builder, params) -> builder.stringListField("arr", Arrays.asList(randomJSON2))
+        );
+        assertNotEquals(one.uncompressed(), two.uncompressed());
     }
 }

@@ -16,8 +16,10 @@ public class SamlInvalidateSessionRequestTests extends ESTestCase {
     public void testCannotSetQueryStringTwice() {
         final SamlInvalidateSessionRequest samlInvalidateSessionRequest = new SamlInvalidateSessionRequest();
         samlInvalidateSessionRequest.setQueryString("query_string");
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> samlInvalidateSessionRequest.setQueryString("queryString"));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> samlInvalidateSessionRequest.setQueryString("queryString")
+        );
         assertThat(e.getMessage(), containsString("Must use either [query_string] or [queryString], not both at the same time"));
     }
 }

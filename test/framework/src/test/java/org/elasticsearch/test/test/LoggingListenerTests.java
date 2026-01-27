@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.test;
@@ -214,8 +215,10 @@ public class LoggingListenerTests extends ESTestCase {
 
         final Description suiteDescription = Description.createSuiteDescription(clazz);
 
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testRunStarted(suiteDescription));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> loggingListener.testRunStarted(suiteDescription)
+        );
         assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc]"));
     }
 
@@ -239,8 +242,7 @@ public class LoggingListenerTests extends ESTestCase {
         final TestIssueLogging testIssueLogging = method.getAnnotation(TestIssueLogging.class);
         final Annotation[] annotations = Stream.of(testLogging, testIssueLogging).filter(Objects::nonNull).toArray(Annotation[]::new);
         Description testDescription = Description.createTestDescription(clazz, "invalidMethod", annotations);
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testStarted(testDescription));
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> loggingListener.testStarted(testDescription));
         assertThat(e.getMessage(), equalTo("invalid test logging annotation [abc:INFO:WARN]"));
     }
 
@@ -249,8 +251,10 @@ public class LoggingListenerTests extends ESTestCase {
 
         final Description suiteDescription = Description.createSuiteDescription(DuplicateLoggerBetweenTestLoggingAndTestIssueLogging.class);
 
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> loggingListener.testRunStarted(suiteDescription));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> loggingListener.testRunStarted(suiteDescription)
+        );
         assertThat(e, hasToString(containsString("found intersection [abc] between TestLogging and TestIssueLogging")));
     }
 
@@ -327,7 +331,7 @@ public class LoggingListenerTests extends ESTestCase {
 
         @SuppressWarnings("unused")
         @TestLogging(value = "xyz:TRACE,foo:WARN", reason = "testing TestLogging method annotations")
-        @TestIssueLogging(value ="foo.bar:ERROR", issueUrl = "https://example.com")
+        @TestIssueLogging(value = "foo.bar:ERROR", issueUrl = "https://example.com")
         public void annotatedTestMethod() {
 
         }

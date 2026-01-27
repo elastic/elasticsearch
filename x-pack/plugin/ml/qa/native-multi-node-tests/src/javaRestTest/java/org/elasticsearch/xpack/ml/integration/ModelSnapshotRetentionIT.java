@@ -8,28 +8,25 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -49,10 +46,10 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
@@ -69,8 +66,13 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
     @Before
     public void addMlState() {
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
+        createStateIndexAndAliasIfNecessary(
+            client(),
+            ClusterState.EMPTY_STATE,
+            TestIndexNameExpressionResolver.newInstance(),
+            TEST_REQUEST_TIMEOUT,
+            future
+        );
         future.actionGet();
     }
 
@@ -146,9 +148,9 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
             // - Nothing older than modelSnapshotRetentionDays
             // - Everything newer than dailyModelSnapshotRetentionAfterDays
             // - The first snapshot of each day in between
-            if (timeMs >= now - MS_IN_DAY * modelSnapshotRetentionDays &&
-                (timeMs >= now - MS_IN_DAY * dailyModelSnapshotRetentionAfterDays ||
-                    (now - timeMs) % MS_IN_DAY < MS_IN_DAY / numSnapshotsPerDay)) {
+            if (timeMs >= now - MS_IN_DAY * modelSnapshotRetentionDays
+                && (timeMs >= now - MS_IN_DAY * dailyModelSnapshotRetentionAfterDays
+                    || (now - timeMs) % MS_IN_DAY < MS_IN_DAY / numSnapshotsPerDay)) {
                 expectedModelSnapshotDocIds.add(ModelSnapshot.documentId(jobId, snapshotId));
                 for (int j = 1; j <= numDocsPerSnapshot; ++j) {
                     expectedModelStateDocIds.add(ModelState.documentId(jobId, snapshotId, j));
@@ -166,7 +168,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         assertThat(getAvailableModelStateDocIds(), is(expectedModelStateDocIds));
     }
 
-    private List<String> getAvailableModelSnapshotDocIds(String jobId) {
+    private List<String> getAvailableModelSnapshotDocIds(String jobId) throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobResultsAliasedName(jobId));
         QueryBuilder query = QueryBuilders.boolQuery()
@@ -176,7 +178,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         return getDocIdsFromSearch(searchRequest);
     }
 
-    private List<String> getAvailableModelStateDocIds() {
+    private List<String> getAvailableModelStateDocIds() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(AnomalyDetectorsIndex.jobStateIndexPattern());
         searchRequest.source(new SearchSourceBuilder().size(10000));
@@ -184,15 +186,13 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         return getDocIdsFromSearch(searchRequest);
     }
 
-    private List<String> getDocIdsFromSearch(SearchRequest searchRequest) {
-
-        SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
-
+    private List<String> getDocIdsFromSearch(SearchRequest searchRequest) throws Exception {
         List<String> docIds = new ArrayList<>();
-        assertThat(searchResponse.getHits(), notNullValue());
-        for (SearchHit searchHit : searchResponse.getHits().getHits()) {
-            docIds.add(searchHit.getId());
-        }
+        assertResponse(client().execute(TransportSearchAction.TYPE, searchRequest), searchResponse -> {
+            for (SearchHit searchHit : searchResponse.getHits()) {
+                docIds.add(searchHit.getId());
+            }
+        });
         Collections.sort(docIds);
         return docIds;
     }
@@ -221,14 +221,14 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         }
     }
 
-    private void persistModelSnapshotDoc(String jobId, String snapshotId, Date timestamp, int numDocs,
-                                         boolean immediateRefresh) throws IOException {
+    private void persistModelSnapshotDoc(String jobId, String snapshotId, Date timestamp, int numDocs, boolean immediateRefresh)
+        throws IOException {
         ModelSnapshot.Builder modelSnapshotBuilder = new ModelSnapshot.Builder();
         modelSnapshotBuilder.setJobId(jobId).setSnapshotId(snapshotId).setTimestamp(timestamp).setSnapshotDocCount(numDocs);
 
-        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
-            .id(ModelSnapshot.documentId(jobId, snapshotId))
-            .setRequireAlias(true);
+        IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId)).id(
+            ModelSnapshot.documentId(jobId, snapshotId)
+        ).setRequireAlias(true);
         if (immediateRefresh) {
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         }
@@ -236,7 +236,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
         modelSnapshotBuilder.build().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         indexRequest.source(xContentBuilder);
 
-        IndexResponse indexResponse = client().execute(IndexAction.INSTANCE, indexRequest).actionGet();
+        DocWriteResponse indexResponse = client().execute(TransportIndexAction.TYPE, indexRequest).actionGet();
         assertThat(indexResponse.getResult(), is(DocWriteResponse.Result.CREATED));
     }
 
@@ -245,15 +245,16 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
 
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 1; i <= numDocs; ++i) {
-            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias())
-                .id(ModelState.documentId(jobId, snapshotId, i))
+            IndexRequest indexRequest = new IndexRequest(AnomalyDetectorsIndex.jobStateIndexWriteAlias()).id(
+                ModelState.documentId(jobId, snapshotId, i)
+            )
                 // The exact contents of the model state doesn't matter - we are not going to try and restore it
                 .source(Collections.singletonMap("compressed", Collections.singletonList("foo")))
                 .setRequireAlias(true);
             bulkRequest.add(indexRequest);
         }
 
-        BulkResponse bulkResponse = client().execute(BulkAction.INSTANCE, bulkRequest).actionGet();
+        BulkResponse bulkResponse = client().execute(TransportBulkAction.TYPE, bulkRequest).actionGet();
         assertFalse(bulkResponse.buildFailureMessage(), bulkResponse.hasFailures());
     }
 }

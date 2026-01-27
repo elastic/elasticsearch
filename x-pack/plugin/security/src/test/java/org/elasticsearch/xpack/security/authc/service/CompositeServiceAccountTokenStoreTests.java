@@ -13,7 +13,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountTokenStore.StoreAuthenticationResult;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -21,12 +23,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
 
@@ -55,25 +57,26 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         final TokenSource tokenSource = randomFrom(TokenSource.values());
 
         doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked") final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store1Success, tokenSource));
+            @SuppressWarnings("unchecked")
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store1Success));
             return null;
         }).when(store1).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store2Success, tokenSource));
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store2Success));
             return null;
         }).when(store2).authenticate(eq(token), any());
 
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            final ActionListener<StoreAuthenticationResult> listener =
-                (ActionListener<StoreAuthenticationResult>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new StoreAuthenticationResult(store3Success, tokenSource));
+            final ActionListener<StoreAuthenticationResult> listener = (ActionListener<StoreAuthenticationResult>) invocationOnMock
+                .getArguments()[1];
+            listener.onResponse(StoreAuthenticationResult.fromBooleanResult(tokenSource, store3Success));
             return null;
         }).when(store3).authenticate(eq(token), any());
 
@@ -84,12 +87,12 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             assertThat(future.get().getTokenSource(), is(tokenSource));
             if (store1Success) {
                 verify(store1).authenticate(eq(token), any());
-                verifyZeroInteractions(store2);
-                verifyZeroInteractions(store3);
+                verifyNoMoreInteractions(store2);
+                verifyNoMoreInteractions(store3);
             } else if (store2Success) {
                 verify(store1).authenticate(eq(token), any());
                 verify(store2).authenticate(eq(token), any());
-                verifyZeroInteractions(store3);
+                verifyNoMoreInteractions(store3);
             } else {
                 verify(store1).authenticate(eq(token), any());
                 verify(store2).authenticate(eq(token), any());

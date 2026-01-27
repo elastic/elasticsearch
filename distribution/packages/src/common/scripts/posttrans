@@ -1,3 +1,5 @@
+set -e
+
 # source the default env file
 if [ -f "@path.env@" ]; then
     . "@path.env@"

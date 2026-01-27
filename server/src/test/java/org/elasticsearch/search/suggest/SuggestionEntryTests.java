@@ -1,24 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -38,9 +42,53 @@ public class SuggestionEntryTests extends ESTestCase {
 
     private static final Map<Class<? extends Entry<?>>, Function<XContentParser, ? extends Entry<?>>> ENTRY_PARSERS = new HashMap<>();
     static {
-        ENTRY_PARSERS.put(TermSuggestion.Entry.class, TermSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, PhraseSuggestion.Entry::fromXContent);
-        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, CompletionSuggestion.Entry::fromXContent);
+        ENTRY_PARSERS.put(TermSuggestion.Entry.class, SuggestTests::parseTermSuggestionEntry);
+        ENTRY_PARSERS.put(PhraseSuggestion.Entry.class, SuggestionEntryTests::parsePhraseSuggestionEntry);
+        ENTRY_PARSERS.put(CompletionSuggestion.Entry.class, SuggestionEntryTests::parseCompletionSuggestionEntry);
+    }
+
+    private static final ObjectParser<PhraseSuggestion.Entry, Void> PHRASE_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "PhraseSuggestionEntryParser",
+        true,
+        PhraseSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(PHRASE_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        PHRASE_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> SuggestionOptionTests.parsePhraseSuggestionOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static PhraseSuggestion.Entry parsePhraseSuggestionEntry(XContentParser parser) {
+        return PHRASE_SUGGESTION_ENTRY_PARSER.apply(parser, null);
+    }
+
+    private static final ObjectParser<CompletionSuggestion.Entry, Void> COMPLETION_SUGGESTION_ENTRY_PARSER = new ObjectParser<>(
+        "CompletionSuggestionEntryParser",
+        true,
+        CompletionSuggestion.Entry::new
+    );
+    static {
+        SuggestTests.declareCommonEntryParserFields(COMPLETION_SUGGESTION_ENTRY_PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        COMPLETION_SUGGESTION_ENTRY_PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> CompletionSuggestionOptionTests.parseOption(p),
+            new ParseField(Entry.OPTIONS)
+        );
+    }
+
+    public static CompletionSuggestion.Entry parseCompletionSuggestionEntry(XContentParser parser) {
+        return COMPLETION_SUGGESTION_ENTRY_PARSER.apply(parser, null);
     }
 
     /**
@@ -94,10 +142,12 @@ public class SuggestionEntryTests extends ESTestCase {
                 // where we cannot add random stuff
                 // exclude "options" which contain SearchHits,
                 // on root level of SearchHit fields are interpreted as meta-fields and will be kept
-                Predicate<String> excludeFilter = (
-                        path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                                || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                                || path.contains("options"));
+                Predicate<String> excludeFilter = (path -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight")
+                    || path.contains("fields")
+                    || path.contains("_source")
+                    || path.contains("inner_hits")
+                    || path.contains("options"));
 
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
@@ -123,52 +173,66 @@ public class SuggestionEntryTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(new Text("someText"),
-                new Text("somethingHighlighted"),
-            1.3f, true);
+        PhraseSuggestion.Entry.Option phraseOption = new PhraseSuggestion.Entry.Option(
+            new Text("someText"),
+            new Text("somethingHighlighted"),
+            1.3f,
+            true
+        );
         PhraseSuggestion.Entry phraseEntry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         phraseEntry.addOption(phraseOption);
         BytesReference xContent = toXContent(phraseEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-                "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                    + "{\"text\":\"someText\","
-                    + "\"highlighted\":\"somethingHighlighted\","
-                    + "\"score\":1.3,"
-                    + "\"collate_match\":true}"
-                + "]}", xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [
+                {
+                  "text": "someText",
+                  "highlighted": "somethingHighlighted",
+                  "score": 1.3,
+                  "collate_match": true
+                }
+              ]
+            }"""), xContent.utf8ToString());
 
         TermSuggestion.Entry.Option termOption = new TermSuggestion.Entry.Option(new Text("termSuggestOption"), 42, 3.13f);
         TermSuggestion.Entry termEntry = new TermSuggestion.Entry(new Text("entryText"), 42, 313);
         termEntry.addOption(termOption);
         xContent = toXContent(termEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-                "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                    + "{\"text\":\"termSuggestOption\","
-                    + "\"score\":3.13,"
-                    + "\"freq\":42}"
-                + "]}", xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [ { "text": "termSuggestOption", "score": 3.13, "freq": 42 } ]
+            }"""), xContent.utf8ToString());
 
-        CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(-1, new Text("completionOption"),
-                        3.13f, Collections.singletonMap("key", Collections.singleton("value")));
+        CompletionSuggestion.Entry.Option completionOption = new CompletionSuggestion.Entry.Option(
+            -1,
+            new Text("completionOption"),
+            3.13f,
+            Collections.singletonMap("key", Collections.singleton("value"))
+        );
         CompletionSuggestion.Entry completionEntry = new CompletionSuggestion.Entry(new Text("entryText"), 42, 313);
         completionEntry.addOption(completionOption);
         xContent = toXContent(completionEntry, XContentType.JSON, randomBoolean());
-        assertEquals(
-                "{\"text\":\"entryText\","
-                + "\"offset\":42,"
-                + "\"length\":313,"
-                + "\"options\":["
-                    + "{\"text\":\"completionOption\","
-                    + "\"score\":3.13,"
-                    + "\"contexts\":{\"key\":[\"value\"]}"
-                    + "}"
-                + "]}", xContent.utf8ToString());
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "text": "entryText",
+              "offset": 42,
+              "length": 313,
+              "options": [
+                {
+                  "text": "completionOption",
+                  "score": 3.13,
+                  "contexts": {
+                    "key": [ "value" ]
+                  }
+                }
+              ]
+            }"""), xContent.utf8ToString());
     }
 
 }

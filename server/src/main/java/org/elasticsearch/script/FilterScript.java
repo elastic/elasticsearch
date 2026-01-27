@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.search.lookup.SearchLookup;
+
 import java.io.IOException;
 import java.util.Map;
-
-import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * A script implementation of a query filter.
@@ -25,7 +26,7 @@ public abstract class FilterScript extends DocBasedScript {
     private final Map<String, Object> params;
 
     public FilterScript(Map<String, Object> params, SearchLookup lookup, DocReader docReader) {
-        // searchLookup is taken in for compatibility with expressions.  See ExpressionScriptEngine.newFilterScript and
+        // searchLookup is taken in for compatibility with expressions. See ExpressionScriptEngine.newFilterScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         super(docReader);
         this.params = params;
@@ -51,7 +52,7 @@ public abstract class FilterScript extends DocBasedScript {
 
     /** A factory to construct stateful {@link FilterScript} factories for a specific index. */
     public interface Factory extends ScriptFactory {
-        // searchLookup is taken in for compatibility with expressions.  See ExpressionScriptEngine.newFilterScript and
+        // searchLookup is taken in for compatibility with expressions. See ExpressionScriptEngine.newFilterScript and
         // ExpressionScriptEngine.getDocValueSource for where it's used.
         LeafFactory newFactory(Map<String, Object> params, SearchLookup lookup);
     }

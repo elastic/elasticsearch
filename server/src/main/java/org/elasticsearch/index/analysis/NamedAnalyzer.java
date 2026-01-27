@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
@@ -110,11 +111,19 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
                         offendingFilters.add(tokenFilter.name());
                     }
                 }
-                throw new MapperException("analyzer [" + name + "] contains filters " + offendingFilters
-                        + " that are not allowed to run in " + mode.getReadableName() + " mode.");
+                throw new MapperException(
+                    "analyzer ["
+                        + name
+                        + "] contains filters "
+                        + offendingFilters
+                        + " that are not allowed to run in "
+                        + mode.getReadableName()
+                        + " mode."
+                );
             } else {
                 throw new MapperException(
-                        "analyzer [" + name + "] contains components that are not allowed to run in " + mode.getReadableName() + " mode.");
+                    "analyzer [" + name + "] contains components that are not allowed to run in " + mode.getReadableName() + " mode."
+                );
             }
         }
     }

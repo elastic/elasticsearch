@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -13,17 +14,17 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -48,8 +49,10 @@ public class SearchScrollRequestTests extends ESTestCase {
 
     public void testInternalScrollSearchRequestSerialization() throws IOException {
         SearchScrollRequest searchScrollRequest = createSearchScrollRequest();
-        InternalScrollSearchRequest internalScrollSearchRequest =
-            new InternalScrollSearchRequest(searchScrollRequest, new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong()));
+        InternalScrollSearchRequest internalScrollSearchRequest = new InternalScrollSearchRequest(
+            searchScrollRequest,
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong())
+        );
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             internalScrollSearchRequest.writeTo(output);
             try (StreamInput in = output.bytes().streamInput()) {
@@ -64,40 +67,38 @@ public class SearchScrollRequestTests extends ESTestCase {
     public void testFromXContent() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         if (randomBoolean()) {
-            //test that existing values get overridden
+            // test that existing values get overridden
             searchScrollRequest = createSearchScrollRequest();
         }
-        try (XContentParser parser = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("scroll_id", "SCROLL_ID")
-                .field("scroll", "1m")
-                .endObject())) {
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder().startObject().field("scroll_id", "SCROLL_ID").field("scroll", "1m").endObject()
+            )
+        ) {
             searchScrollRequest.fromXContent(parser);
         }
         assertEquals("SCROLL_ID", searchScrollRequest.scrollId());
-        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll().keepAlive());
+        assertEquals(TimeValue.parseTimeValue("1m", null, "scroll"), searchScrollRequest.scroll());
     }
 
     public void testFromXContentWithUnknownParamThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("scroll_id", "value_2")
-                .field("unknown", "keyword")
-                .endObject());
+        XContentParser invalidContent = createParser(
+            XContentFactory.jsonBuilder().startObject().field("scroll_id", "value_2").field("unknown", "keyword").endObject()
+        );
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> searchScrollRequest.fromXContent(invalidContent));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> searchScrollRequest.fromXContent(invalidContent));
         assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
     }
 
     public void testToXContent() throws IOException {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         searchScrollRequest.scrollId("SCROLL_ID");
-        searchScrollRequest.scroll("1m");
+        searchScrollRequest.scroll(TimeValue.timeValueMinutes(1));
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             searchScrollRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            assertEquals("{\"scroll_id\":\"SCROLL_ID\",\"scroll\":\"1m\"}", Strings.toString(builder));
+            assertEquals("""
+                {"scroll_id":"SCROLL_ID","scroll":"1m"}""", Strings.toString(builder));
         }
     }
 
@@ -137,7 +138,7 @@ public class SearchScrollRequestTests extends ESTestCase {
         if (randomBoolean()) {
             return copy.scrollId(original.scrollId() + "xyz");
         } else {
-            return copy.scroll(new TimeValue(original.scroll().keepAlive().getMillis() + 1));
+            return copy.scroll(new TimeValue(original.scroll().getMillis() + 1));
         }
     }
 }

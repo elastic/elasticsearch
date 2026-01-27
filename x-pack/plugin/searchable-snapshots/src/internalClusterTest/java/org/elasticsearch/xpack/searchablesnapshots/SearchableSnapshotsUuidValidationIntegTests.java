@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -57,7 +57,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
 
         @Override
         protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
-            if (RestoreSnapshotAction.NAME.equals(action)) {
+            if (TransportRestoreSnapshotAction.TYPE.name().equals(action)) {
                 executed.onResponse(null);
                 unblocked.actionGet();
             }
@@ -97,6 +97,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
         createFullSnapshot(fsRepoName, snapshotName);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotName,
@@ -112,7 +113,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
         final RestoreBlockingActionFilter restoreBlockingActionFilter = getBlockingActionFilter();
         restoreBlockingActionFilter.awaitExecution();
 
-        assertAcked(client().admin().cluster().prepareDeleteSnapshot(fsRepoName, snapshotName).get());
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, fsRepoName, snapshotName).get());
         createFullSnapshot(fsRepoName, snapshotName);
 
         assertFalse(responseFuture.isDone());
@@ -123,7 +124,7 @@ public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearc
             containsString("snapshot UUID mismatch")
         );
 
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        assertAcked(indicesAdmin().prepareDelete(indexName));
     }
 
     private static RestoreBlockingActionFilter getBlockingActionFilter() {

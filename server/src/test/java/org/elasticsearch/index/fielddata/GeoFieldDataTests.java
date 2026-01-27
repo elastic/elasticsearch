@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata;
 
@@ -12,7 +13,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
+import org.elasticsearch.index.fielddata.plain.LeafGeoPointFieldData;
 
 import java.util.List;
 
@@ -94,7 +95,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
 
         d = new Document();
         d.add(new StringField("_id", "2", Field.Store.NO));
-        //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
+        // d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
         writer.addDocument(d);
 
         d = new Document();
@@ -126,11 +127,11 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
     protected void fillExtendedMvSet() throws Exception {
         Document d;
         final int maxDocs = randomInt(10);
-        for (int i=0; i<maxDocs; ++i) {
+        for (int i = 0; i < maxDocs; ++i) {
             d = new Document();
-            d.add(new StringField("_id", i+"", Field.Store.NO));
+            d.add(new StringField("_id", i + "", Field.Store.NO));
             int maxVals = randomInt(5);
-            for (int v=0; v<maxVals; ++v) {
+            for (int v = 0; v < maxVals; ++v) {
                 d.add(randomGeoPointField(FIELD_NAME, Field.Store.NO));
             }
             writer.addDocument(d);
@@ -149,7 +150,8 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
+            assertNotNull(FieldData.unwrapSingleton(fieldValues));
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -165,7 +167,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -181,7 +183,8 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
+            assertNull(FieldData.unwrapSingleton(fieldValues));
             assertValues(fieldValues, 0);
             assertValues(fieldValues, 1);
             assertValues(fieldValues, 2);
@@ -197,7 +200,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
             LeafFieldData fieldData = indexFieldData.load(readerContext);
             assertThat(fieldData.ramBytesUsed(), greaterThanOrEqualTo(minRamBytesUsed()));
 
-            MultiGeoPointValues fieldValues = ((AbstractLeafGeoPointFieldData)fieldData).getGeoPointValues();
+            MultiGeoPointValues fieldValues = ((LeafGeoPointFieldData) fieldData).getPointValues();
 
             assertValues(fieldValues, 0);
             assertMissing(fieldValues, 1);

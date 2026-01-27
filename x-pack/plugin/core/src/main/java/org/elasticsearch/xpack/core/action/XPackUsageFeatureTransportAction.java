@@ -7,22 +7,43 @@
 package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public abstract class XPackUsageFeatureTransportAction extends TransportMasterNodeAction<XPackUsageRequest, XPackUsageFeatureResponse> {
+public abstract class XPackUsageFeatureTransportAction extends TransportLocalClusterStateAction<
+    XPackUsageRequest,
+    XPackUsageFeatureResponse> {
 
-    public XPackUsageFeatureTransportAction(String name, TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(name, transportService, clusterService, threadPool, actionFilters, XPackUsageRequest::new, indexNameExpressionResolver,
-                XPackUsageFeatureResponse::new, ThreadPool.Names.MANAGEMENT);
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA)
+    @SuppressWarnings("this-escape")
+    public XPackUsageFeatureTransportAction(
+        String name,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters
+    ) {
+        super(name, actionFilters, transportService.getTaskManager(), clusterService, threadPool.executor(ThreadPool.Names.MANAGEMENT));
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            XPackUsageRequest::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override

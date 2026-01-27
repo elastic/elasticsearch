@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -43,10 +46,18 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.bits = this.missingBucket ? new BitArray(100, bigArrays) : null;
-        this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newDoubleArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -128,11 +139,9 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
         } else if (value instanceof Number) {
             afterValue = ((Number) value).doubleValue();
         } else {
-            afterValue = format.parseDouble(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseDouble(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 
@@ -148,16 +157,41 @@ class DoubleValuesSource extends SingleDimensionValuesSource<Double> {
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedNumericDoubleValues dvs = docValuesFunc.apply(context);
+        final DoubleValues singleton = FieldData.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericDoubleValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    double previous = Double.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(DoubleValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.doubleValue();
+                    missingCurrentValue = false;
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);

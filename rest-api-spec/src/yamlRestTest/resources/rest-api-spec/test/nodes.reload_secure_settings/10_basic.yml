@@ -3,8 +3,8 @@ setup:
       features: [arbitrary_key]
 ---
 "node_reload_secure_settings test wrong password":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  "support for reloading password protected keystores was introduced in 7.7.0"
 
   - do:

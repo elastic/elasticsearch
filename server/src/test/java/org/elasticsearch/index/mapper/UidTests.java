@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -31,10 +32,7 @@ public class UidTests extends ESTestCase {
         }
 
         int idStart = loc + 1;
-        return new BytesRef[] {
-            new BytesRef(uid.bytes, uid.offset, loc - uid.offset),
-            new BytesRef(uid.bytes, idStart, limit - idStart)
-        };
+        return new BytesRef[] { new BytesRef(uid.bytes, uid.offset, loc - uid.offset), new BytesRef(uid.bytes, idStart, limit - idStart) };
     }
 
     public void testIsURLBase64WithoutPadding() {
@@ -93,8 +91,10 @@ public class UidTests extends ESTestCase {
                 slicedCopy.offset = randomIntBetween(1, slicedCopy.bytes.length - encoded.length);
                 slicedCopy.length = encoded.length;
                 System.arraycopy(encoded.bytes, encoded.offset, slicedCopy.bytes, slicedCopy.offset, encoded.length);
-                assertArrayEquals(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length),
-                    Arrays.copyOfRange(slicedCopy.bytes, slicedCopy.offset, slicedCopy.offset + slicedCopy.length));
+                assertArrayEquals(
+                    Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length),
+                    Arrays.copyOfRange(slicedCopy.bytes, slicedCopy.offset, slicedCopy.offset + slicedCopy.length)
+                );
                 encoded = slicedCopy;
             }
             return Uid.decodeId(encoded.bytes, encoded.offset, encoded.length);

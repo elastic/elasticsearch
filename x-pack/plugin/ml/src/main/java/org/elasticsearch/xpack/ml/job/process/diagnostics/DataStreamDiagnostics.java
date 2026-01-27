@@ -53,8 +53,13 @@ public class DataStreamDiagnostics {
                 double sparsityScore = logAverageBucketSize - logBucketSize;
 
                 if (sparsityScore > DATA_SPARSITY_THRESHOLD) {
-                    LOGGER.debug("Sparse bucket {}, this bucket: {} average: {}, sparsity score: {}", flushedBucketStartMs,
-                            flushedBucketCount, averageBucketSize, sparsityScore);
+                    LOGGER.debug(
+                        "Sparse bucket {}, this bucket: {} average: {}, sparsity score: {}",
+                        flushedBucketStartMs,
+                        flushedBucketCount,
+                        averageBucketSize,
+                        sparsityScore
+                    );
                     ++sparseBucketCount;
                     latestSparseBucketTime = flushedBucketStartMs;
                 }

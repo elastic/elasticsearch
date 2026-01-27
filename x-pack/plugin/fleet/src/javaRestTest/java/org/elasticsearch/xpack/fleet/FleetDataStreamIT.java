@@ -15,7 +15,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.List;
 
@@ -26,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-public class FleetDataStreamIT extends ESRestTestCase {
+public class FleetDataStreamIT extends AbstractFleetIT {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -46,6 +45,11 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
             .put(ThreadContext.PREFIX + ".X-elastic-product-origin", "fleet")
             .build();
+    }
+
+    @Override
+    protected boolean preserveSecurityIndicesUponCompletion() {
+        return true;
     }
 
     public void testAliasWithSystemDataStream() throws Exception {
@@ -111,9 +115,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
             .setWarningsHandler(
                 warnings -> List.of(
                     "this request accesses system indices: [.fleet-artifacts-7], but "
-                        + "in a future major version, direct access to system indices will be prevented by default",
-                    "this request accesses aliases with names reserved for system indices: [.fleet-artifacts], but in a future major "
-                        + "version, direct access to system indices and their aliases will not be allowed"
+                        + "in a future major version, direct access to system indices will be prevented by default"
                 ).equals(warnings) == false
             )
             .build();
@@ -207,12 +209,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // Create a system index - this one has an alias
         Request sysIdxRequest = new Request("PUT", ".fleet-artifacts");
         assertOK(adminClient().performRequest(sysIdxRequest));
-        assertThatAPIWildcardResolutionWorks(
-            singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
-                    + " indices will be prevented by default"
-            )
-        );
+        assertThatAPIWildcardResolutionWorks();
         assertThatAPIWildcardResolutionWorks(
             singletonList(
                 "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
@@ -227,21 +224,12 @@ public class FleetDataStreamIT extends ESRestTestCase {
         Request regularIdxRequest = new Request("PUT", regularIndex);
         regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
         assertOK(client().performRequest(regularIdxRequest));
-        assertThatAPIWildcardResolutionWorks(
-            singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
-                    + " indices will be prevented by default"
-            )
-        );
+        assertThatAPIWildcardResolutionWorks();
         assertThatAPIWildcardResolutionWorks(emptyList(), "r*");
     }
 
     private void assertThatAPIWildcardResolutionWorks() throws Exception {
         assertThatAPIWildcardResolutionWorks(emptyList(), null);
-    }
-
-    private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected) throws Exception {
-        assertThatAPIWildcardResolutionWorks(warningsExpected, null);
     }
 
     private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected, String indexPattern) throws Exception {

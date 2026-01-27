@@ -1,16 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.slice;
 
 import com.carrotsearch.hppc.BitMixer;
-import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
@@ -18,6 +20,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
@@ -39,7 +42,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
                 final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
@@ -64,7 +67,8 @@ public final class DocValuesSliceQuery extends SliceQuery {
                         return 10;
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhase);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

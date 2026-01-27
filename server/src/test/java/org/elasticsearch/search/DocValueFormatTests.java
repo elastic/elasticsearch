@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -17,26 +19,33 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class DocValueFormatTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         List<Entry> entries = new ArrayList<>();
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
-        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::readFrom));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::readFrom));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
@@ -79,7 +88,7 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
         assertTrue(dateFormat.formatSortValues);
 
-        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1),Resolution.NANOSECONDS);
+        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
         out.writeNamedWriteable(nanosDateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
@@ -129,10 +138,10 @@ public class DocValueFormatTests extends ESTestCase {
 
     public void testBinaryFormat() {
         assertEquals("", DocValueFormat.BINARY.format(new BytesRef()));
-        assertEquals("KmQ=", DocValueFormat.BINARY.format(new BytesRef(new byte[] {42, 100})));
+        assertEquals("KmQ=", DocValueFormat.BINARY.format(new BytesRef(new byte[] { 42, 100 })));
 
         assertEquals(new BytesRef(), DocValueFormat.BINARY.parseBytesRef(""));
-        assertEquals(new BytesRef(new byte[] {42, 100}), DocValueFormat.BINARY.parseBytesRef("KmQ="));
+        assertEquals(new BytesRef(new byte[] { 42, 100 }), DocValueFormat.BINARY.parseBytesRef("KmQ="));
     }
 
     public void testBooleanFormat() {
@@ -141,10 +150,11 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testIpFormat() {
-        assertEquals("192.168.1.7",
-                DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7")))));
-        assertEquals("::1",
-                DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
+        assertEquals(
+            "192.168.1.7",
+            DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))))
+        );
+        assertEquals("::1", DocValueFormat.IP.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1")))));
     }
 
     public void testDecimalFormat() {
@@ -165,8 +175,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
         assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
         assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
-        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13,95, 1)));
-        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13,-95, 1)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(95), 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(-95), 1)));
     }
 
     public void testRawParse() {
@@ -190,22 +200,23 @@ public class DocValueFormatTests extends ESTestCase {
     public void testBooleanParse() {
         assertEquals(0L, DocValueFormat.BOOLEAN.parseLong("false", randomBoolean(), null));
         assertEquals(1L, DocValueFormat.BOOLEAN.parseLong("true", randomBoolean(), null));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("", randomBoolean(), null));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.BOOLEAN.parseLong("", randomBoolean(), null)
+        );
         assertEquals("Cannot parse boolean [], expected either [true] or [false]", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("0", randomBoolean(), null));
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("0", randomBoolean(), null));
         assertEquals("Cannot parse boolean [0], expected either [true] or [false]", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
+        e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.BOOLEAN.parseLong("False", randomBoolean(), null));
         assertEquals("Cannot parse boolean [False], expected either [true] or [false]", e.getMessage());
     }
 
     public void testIPParse() {
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))),
-                DocValueFormat.IP.parseBytesRef("192.168.1.7"));
-        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
-                DocValueFormat.IP.parseBytesRef("::1"));
+        assertEquals(
+            new BytesRef(InetAddressPoint.encode(InetAddresses.forString("192.168.1.7"))),
+            DocValueFormat.IP.parseBytesRef("192.168.1.7")
+        );
+        assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))), DocValueFormat.IP.parseBytesRef("::1"));
     }
 
     public void testDecimalParse() {
@@ -228,6 +239,28 @@ public class DocValueFormatTests extends ESTestCase {
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
     }
 
+    public void testFormatSortFieldOutputForMissingValues() {
+        DateFormatter formatter = DateFormatter.forPattern(randomFrom(FormatNames.values()).getName());
+        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(
+            formatter,
+            ZoneOffset.ofHours(randomInt(6)),
+            randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
+        );
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
+
+        formatter = DateFormatter.forPattern(FormatNames.EPOCH_MILLIS.getName());
+        dateFormat = new DocValueFormat.DateTime(
+            formatter,
+            ZoneOffset.ofHours(randomInt(6)),
+            randomBoolean() ? Resolution.MILLISECONDS : Resolution.NANOSECONDS
+        );
+        dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
+        assertThat(dateFormat.formatSortValue(Long.MIN_VALUE), equalTo(null));
+        assertThat(dateFormat.formatSortValue(Long.MAX_VALUE), equalTo(null));
+    }
+
     public void testBadUtf8() {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -239,10 +272,7 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testBadIp() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> DocValueFormat.IP.format(new BytesRef("cat"))
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DocValueFormat.IP.format(new BytesRef("cat")));
         assertNotNull("wrapped exception should have a cause", e.getCause());
         assertThat(e.getMessage(), containsString("mapping"));
         assertThat(e.getMessage(), containsString("IP address"));
@@ -268,14 +298,12 @@ public class DocValueFormatTests extends ESTestCase {
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
+        long millis = randomLong();
         // Convert to seconds
         millis -= (millis % 1000);
-        assertEquals(
-            "failed formatting for tz " + zone,
-            millis,
-            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("failed formatting for tz " + zone, millis, formatter.parseLong(formatter.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     public void testParseEpochMillisTimezone() {
@@ -285,14 +313,11 @@ public class DocValueFormatTests extends ESTestCase {
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomNonNegativeLong();
-        assertEquals(
-            "failed formatting for tz " + zone,
-            millis,
-            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        long millis = randomLong();
+        assertEquals("failed formatting for tz " + zone, millis, formatter.parseLong(formatter.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
-
 
     public void testDateHMSTimezone() {
         DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(
@@ -308,16 +333,12 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000L;
         assertEquals("2021-06-01T17:18:38", utc.format(millis));
         assertEquals("2021-06-02T02:18:38", tokyo.format(millis));
-        assertEquals(
-            "couldn't parse UTC",
-            millis,
-            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
-        assertEquals(
-            "couldn't parse Tokyo",
-            millis,
-            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
+        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     public void testDateTimeWithTimezone() {
@@ -335,16 +356,12 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000L;
         assertEquals("20210601T171838Z", utc.format(millis));
         assertEquals("20210602T021838+09:00", tokyo.format(millis));
-        assertEquals(
-            "couldn't parse UTC",
-            millis,
-            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
-        assertEquals(
-            "couldn't parse Tokyo",
-            millis,
-            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
-        );
+        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
+        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        }));
     }
 
     /**
@@ -359,11 +376,9 @@ public class DocValueFormatTests extends ESTestCase {
         long expected = 1628719200000L;
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
-        long actualMillis = parsesZone.parseLong(
-            "2021-08-12T00:00:00.000000000+02:00",
-            false,
-            () -> { throw new UnsupportedOperationException("don't use now"); }
-        );
+        long actualMillis = parsesZone.parseLong("2021-08-12T00:00:00.000000000+02:00", false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        });
         assertEquals(expected, actualMillis);
     }
 
@@ -379,12 +394,35 @@ public class DocValueFormatTests extends ESTestCase {
         long expected = 1628719200000L;
         ZonedDateTime sample = ZonedDateTime.of(2021, 8, 12, 0, 0, 0, 0, ZoneId.ofOffset("", ZoneOffset.ofHours(2)));
         assertEquals("GUARD: wrong initial millis", expected, sample.toEpochSecond() * 1000);
-        //assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
-        long actualMillis = parsesZone.parseLong(
-            "2021-08-12T00:00:00.000000000CET",
-            false,
-            () -> { throw new UnsupportedOperationException("don't use now"); }
-        );
+        // assertEquals("GUARD: wrong initial string", "2021-08-12T00:00:00.000000000+02:00", parsesZone.format(expected));
+        long actualMillis = parsesZone.parseLong("2021-08-12T00:00:00.000000000CET", false, () -> {
+            throw new UnsupportedOperationException("don't use now");
+        });
         assertEquals(expected, actualMillis);
+    }
+
+    public void testParseTsid() throws IOException {
+        var routingFields = new RoutingPathFields(null);
+        routingFields.addString("string", randomAlphaOfLength(10));
+        routingFields.addLong("long", randomLong());
+        routingFields.addUnsignedLong("ulong", randomLong());
+        BytesRef expected = routingFields.buildHash().toBytesRef();
+        byte[] expectedBytes = new byte[expected.length];
+        System.arraycopy(expected.bytes, 0, expectedBytes, 0, expected.length);
+        BytesRef actual = DocValueFormat.TIME_SERIES_ID.parseBytesRef(expected);
+        assertEquals(expected, actual);
+        Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
+        Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expectedBytes);
+        assertEquals(tsidFormat, tsidBase64);
+    }
+
+    public void testFormatAndParseTsRoutingHash() throws IOException {
+        BytesRef tsRoutingHashInput = new BytesRef("cn4exQ");
+        DocValueFormat docValueFormat = TimeSeriesRoutingHashFieldMapper.INSTANCE.fieldType().docValueFormat(null, ZoneOffset.UTC);
+        Object formattedValue = docValueFormat.format(tsRoutingHashInput);
+        // the format method takes BytesRef as input and outputs a String
+        assertThat(formattedValue, instanceOf(String.class));
+        // the parse method will output the BytesRef input
+        assertThat(docValueFormat.parseBytesRef(formattedValue), is(tsRoutingHashInput));
     }
 }

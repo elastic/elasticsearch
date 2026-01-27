@@ -41,7 +41,7 @@ public abstract class Node<T extends Node<T>> {
 
     public Node(Source source, List<T> children) {
         this.source = (source != null ? source : Source.EMPTY);
-        if (children.contains(null)) {
+        if (containsNull(children)) {
             throw new QlIllegalArgumentException("Null children are not allowed");
         }
         this.children = children;
@@ -109,7 +109,7 @@ public abstract class Node<T extends Node<T>> {
     protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
-            if (prop != children && children.contains(prop) == false && typeToken.isInstance(prop)) {
+            if (prop != children && typeToken.isInstance(prop) && children.contains(prop) == false) {
                 rule.accept((E) prop);
             }
         }
@@ -202,29 +202,31 @@ public abstract class Node<T extends Node<T>> {
     protected <R extends Function<? super T, ? extends T>> T transformChildren(Function<T, ? extends T> traversalOperation) {
         boolean childrenChanged = false;
 
-        // stream() could be used but the code is just as complicated without any advantages
-        // further more, it would include bring in all the associated stream/collector object creation even though in
-        // most cases the immediate tree would be quite small (0,1,2 elements)
-        List<T> transformedChildren = new ArrayList<>(children().size());
+        // Avoid creating a new array of children if no change is needed.
+        // And when it happens, look at using replacement to minimize the amount of method invocations.
+        List<T> transformedChildren = null;
 
-        for (T child : children) {
+        for (int i = 0, s = children.size(); i < s; i++) {
+            T child = children.get(i);
             T next = traversalOperation.apply(child);
-            if (child.equals(next)) {
-                // use the initial value
-                next = child;
-            } else {
-                childrenChanged = true;
+            if (child.equals(next) == false) {
+                // lazy copy + replacement in place
+                if (childrenChanged == false) {
+                    childrenChanged = true;
+                    transformedChildren = new ArrayList<>(children);
+                }
+                transformedChildren.set(i, next);
             }
-            transformedChildren.add(next);
         }
 
         return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
-     public final T replaceChildrenSameSize(List<T> newChildren) {
+    public final T replaceChildrenSameSize(List<T> newChildren) {
         if (newChildren.size() != children.size()) {
             throw new QlIllegalArgumentException(
-                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]");
+                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]"
+            );
         }
         return replaceChildren(newChildren);
     }
@@ -330,8 +332,7 @@ public abstract class Node<T extends Node<T>> {
                     if (column < depth - 1) {
                         sb.append(" ");
                     }
-                }
-                else {
+                } else {
                     // if the child has no parent (elder on the previous level), it means its the last sibling
                     sb.append((column == depth - 1) ? "\\" : "  ");
                 }
@@ -342,6 +343,7 @@ public abstract class Node<T extends Node<T>> {
 
         sb.append(nodeString());
 
+        @SuppressWarnings("HiddenField")
         List<T> children = children();
         if (children.isEmpty() == false) {
             sb.append("\n");
@@ -365,6 +367,7 @@ public abstract class Node<T extends Node<T>> {
     public String propertiesToString(boolean skipIfChild) {
         StringBuilder sb = new StringBuilder();
 
+        @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
         int remainingProperties = TO_STRING_MAX_PROP;
@@ -387,7 +390,7 @@ public abstract class Node<T extends Node<T>> {
 
                 String stringValue = toString(prop);
 
-                //: Objects.toString(prop);
+                // : Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);
                     sb.append(stringValue.substring(0, cutoff));
@@ -405,13 +408,13 @@ public abstract class Node<T extends Node<T>> {
         return sb.toString();
     }
 
-    private String toString(Object obj) {
+    private static String toString(Object obj) {
         StringBuilder sb = new StringBuilder();
         toString(sb, obj);
         return sb.toString();
     }
 
-    private void toString(StringBuilder sb, Object obj) {
+    private static void toString(StringBuilder sb, Object obj) {
         if (obj instanceof Iterable) {
             sb.append("[");
             for (Iterator<?> it = ((Iterable<?>) obj).iterator(); it.hasNext();) {
@@ -427,5 +430,16 @@ public abstract class Node<T extends Node<T>> {
         } else {
             sb.append(Objects.toString(obj));
         }
+    }
+
+    private <U> boolean containsNull(List<U> us) {
+        // Use custom implementation because some implementations of `List.contains` (e.g. ImmutableCollections$AbstractImmutableList) throw
+        // a NPE if any of the elements is null.
+        for (U u : us) {
+            if (u == null) {
+                return true;
+            }
+        }
+        return false;
     }
 }

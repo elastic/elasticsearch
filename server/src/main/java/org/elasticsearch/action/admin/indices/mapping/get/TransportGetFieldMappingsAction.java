@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.mapping.get;
@@ -11,11 +12,12 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,10 +36,20 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     private final NodeClient client;
 
     @Inject
-    public TransportGetFieldMappingsAction(TransportService transportService, ClusterService clusterService,
-                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                           NodeClient client) {
-        super(GetFieldMappingsAction.NAME, transportService, actionFilters, GetFieldMappingsRequest::new);
+    public TransportGetFieldMappingsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
+    ) {
+        super(
+            GetFieldMappingsAction.NAME,
+            transportService,
+            actionFilters,
+            GetFieldMappingsRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
@@ -79,12 +91,11 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
         }
     }
 
-    private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
+    private static GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
         Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetadata>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
-            if (element instanceof GetFieldMappingsResponse) {
-                GetFieldMappingsResponse response = (GetFieldMappingsResponse) element;
+            if (element instanceof GetFieldMappingsResponse response) {
                 mergedResponses.putAll(response.mappings());
             }
         }

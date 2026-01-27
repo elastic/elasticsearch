@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.readonly;
 
@@ -15,30 +16,30 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.unmodifiableList;
-
 public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
+
+    public static final AddIndexBlockResponse EMPTY = new AddIndexBlockResponse(true, false, List.of());
 
     private final List<AddBlockResult> indices;
 
     AddIndexBlockResponse(StreamInput in) throws IOException {
         super(in, true);
-        indices = unmodifiableList(in.readList(AddBlockResult::new));
+        indices = in.readCollectionAsImmutableList(AddBlockResult::new);
     }
 
     public AddIndexBlockResponse(final boolean acknowledged, final boolean shardsAcknowledged, final List<AddBlockResult> indices) {
         super(acknowledged, shardsAcknowledged);
-        this.indices = unmodifiableList(Objects.requireNonNull(indices));
+        this.indices = List.copyOf(indices);
     }
 
     public List<AddBlockResult> getIndices() {
@@ -49,7 +50,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeShardsAcknowledged(out);
-        out.writeList(indices);
+        out.writeCollection(indices);
     }
 
     @Override
@@ -218,7 +219,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         public static class Failure extends DefaultShardOperationFailedException {
 
-            private @Nullable String nodeId;
+            private final @Nullable String nodeId;
 
             private Failure(StreamInput in) throws IOException {
                 super(in);

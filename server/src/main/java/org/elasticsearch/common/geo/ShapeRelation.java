@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -54,14 +55,12 @@ public enum ShapeRelation implements Writeable {
 
     /** Maps ShapeRelation to Lucene's LatLonShapeRelation */
     public QueryRelation getLuceneRelation() {
-        switch (this) {
-            case INTERSECTS: return QueryRelation.INTERSECTS;
-            case DISJOINT: return QueryRelation.DISJOINT;
-            case WITHIN: return QueryRelation.WITHIN;
-            case CONTAINS: return QueryRelation.CONTAINS;
-            default:
-                throw new IllegalArgumentException("ShapeRelation [" + this + "] not supported");
-        }
+        return switch (this) {
+            case INTERSECTS -> QueryRelation.INTERSECTS;
+            case DISJOINT -> QueryRelation.DISJOINT;
+            case WITHIN -> QueryRelation.WITHIN;
+            case CONTAINS -> QueryRelation.CONTAINS;
+        };
     }
 
     public String getRelationName() {

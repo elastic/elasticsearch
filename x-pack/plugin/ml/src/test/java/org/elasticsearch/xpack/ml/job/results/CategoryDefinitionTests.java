@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
 import java.io.IOException;
@@ -48,6 +48,11 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     @Override
     protected CategoryDefinition createTestInstance() {
         return createTestInstance(randomAlphaOfLength(10));
+    }
+
+    @Override
+    protected CategoryDefinition mutateInstance(CategoryDefinition instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -153,28 +158,30 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
      * For this class the strict parser is <em>only</em> used for parsing C++ output.
      */
     public void testStrictParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> CategoryDefinition.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CategoryDefinition.STRICT_PARSER.apply(parser, null)
+            );
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
     }
 
     public void testLenientParser() throws IOException {
-        String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
+        String json = """
+            {"job_id":"job_1", "foo":"bar"}
+            """;
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
             CategoryDefinition.LENIENT_PARSER.apply(parser, null);
         }
     }
 
     @Override
-    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            instance.setPreferredToCategories(new long[0]);
-            instance.setNumMatches(0L);
-        }
+    protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, TransportVersion version) {
         return instance;
     }
 }

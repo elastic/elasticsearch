@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.dissect;
@@ -35,7 +36,7 @@ final class DissectMatch {
 
     DissectMatch(String appendSeparator, int maxMatches, int maxResults, int appendCount, int referenceCount) {
         if (maxMatches <= 0 || maxResults <= 0) {
-            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");//should never happen
+            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");// should never happen
         }
         this.maxMatches = maxMatches;
         this.maxResults = maxResults;
@@ -60,22 +61,13 @@ final class DissectMatch {
             return;
         }
         switch (key.getModifier()) {
-            case NONE:
-                simpleResults.put(key.getName(), value);
-                break;
-            case APPEND:
-                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator)).addValue(value, implicitAppendOrder++);
-                break;
-            case APPEND_WITH_ORDER:
-                appendResults.computeIfAbsent(key.getName(),
-                    k -> new AppendResult(appendSeparator)).addValue(value, key.getAppendPosition());
-                break;
-            case FIELD_NAME:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
-                break;
-            case FIELD_VALUE:
-                referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
-                break;
+            case NONE -> simpleResults.put(key.getName(), value);
+            case APPEND -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, implicitAppendOrder++);
+            case APPEND_WITH_ORDER -> appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                .addValue(value, key.getAppendPosition());
+            case FIELD_NAME -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
+            case FIELD_VALUE -> referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setValue(value);
         }
     }
 
@@ -93,7 +85,7 @@ final class DissectMatch {
     }
 
     /**
-     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occured.
+     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occurred.
      *
      * @return the map of the results.
      */

@@ -6,12 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -26,11 +28,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
-import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createRandomValidQueryProvider;
+import static org.elasticsearch.xpack.core.ml.utils.QueryProviderTests.createTestQueryProvider;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<DatafeedConfig.Builder> {
 
@@ -44,15 +46,16 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         }
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
-            builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
+            builder.setQueryProvider(createTestQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
         }
         boolean addScriptFields = randomBoolean();
         if (addScriptFields) {
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)),
-                    randomBoolean()));
+                scriptFields.add(
+                    new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)), randomBoolean())
+                );
             }
             builder.setScriptFields(scriptFields);
         }
@@ -63,18 +66,17 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
             // Testing with a single agg is ok as we don't have special list writeable / xcontent logic
             AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
             aggHistogramInterval = randomNonNegativeLong();
-            aggHistogramInterval = aggHistogramInterval> bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
+            aggHistogramInterval = aggHistogramInterval > bucketSpanMillis ? bucketSpanMillis : aggHistogramInterval;
             aggHistogramInterval = aggHistogramInterval <= 0 ? 1 : aggHistogramInterval;
             MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-            AggregationBuilder topAgg = randomBoolean() ?
-                AggregationBuilders.dateHistogram("buckets")
+            AggregationBuilder topAgg = randomBoolean()
+                ? AggregationBuilders.dateHistogram("buckets")
                     .field("time")
-                    .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms")) :
-                AggregationBuilders.composite(
+                    .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
+                : AggregationBuilders.composite(
                     "buckets",
                     Collections.singletonList(
-                        new DateHistogramValuesSourceBuilder("time")
-                            .field("time")
+                        new DateHistogramValuesSourceBuilder("time").field("time")
                             .fixedInterval(new DateHistogramInterval(aggHistogramInterval + "ms"))
                     )
                 );
@@ -103,12 +105,15 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         if (randomBoolean()) {
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
-        builder.setIndicesOptions(IndicesOptions.fromParameters(
-            randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
-            Boolean.toString(randomBoolean()),
-            Boolean.toString(randomBoolean()),
-            Boolean.toString(randomBoolean()),
-            SearchRequest.DEFAULT_INDICES_OPTIONS));
+        builder.setIndicesOptions(
+            IndicesOptions.fromParameters(
+                randomFrom("open", "closed", "hidden"),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                Boolean.toString(randomBoolean()),
+                SearchRequest.DEFAULT_INDICES_OPTIONS
+            )
+        );
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();
             settings.put("type", "keyword");
@@ -130,6 +135,11 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     }
 
     @Override
+    protected DatafeedConfig.Builder mutateInstance(DatafeedConfig.Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedWriteableRegistry(searchModule.getNamedWriteables());
@@ -138,6 +148,19 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
     @Override
     protected Writeable.Reader<DatafeedConfig.Builder> instanceReader() {
         return DatafeedConfig.Builder::new;
+    }
+
+    public void testResolveCrossProjectIsDisabled() {
+        var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
+        datafeedBuilder = datafeedBuilder.setIndicesOptions(
+            IndicesOptions.builder(datafeedBuilder.getIndicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build()
+        );
+
+        var actualException = assertThrows(ElasticsearchStatusException.class, datafeedBuilder::build);
+        assertThat(actualException.getMessage(), equalTo("Cross-project search is not enabled for Datafeeds"));
+        assertThat(actualException.status(), equalTo(RestStatus.FORBIDDEN));
     }
 
 }

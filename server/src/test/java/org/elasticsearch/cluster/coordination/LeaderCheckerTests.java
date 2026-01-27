@@ -1,19 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -24,17 +29,18 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
+import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -48,22 +54,22 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class LeaderCheckerTests extends ESTestCase {
 
     public void testFollowerBehaviour() {
-        final DiscoveryNode leader1 = new DiscoveryNode("leader-1", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader2
-            = randomBoolean() ? leader1 : new DiscoveryNode("leader-2", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode leader1 = DiscoveryNodeUtils.create("leader-1");
+        final DiscoveryNode leader2 = randomBoolean() ? leader1 : DiscoveryNodeUtils.create("leader-2");
 
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
         Settings.Builder settingsBuilder = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId());
 
         final long leaderCheckIntervalMillis;
@@ -96,6 +102,8 @@ public class LeaderCheckerTests extends ESTestCase {
         final Settings settings = settingsBuilder.build();
         logger.info("--> using {}", settings);
 
+        final AtomicInteger timeoutCount = new AtomicInteger();
+
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final MockTransport mockTransport = new MockTransport() {
 
@@ -108,12 +116,20 @@ public class LeaderCheckerTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
 
                 final boolean mustSucceed = leaderCheckRetryCount - 1 <= consecutiveFailedRequestsCount;
-                final long responseDelay = randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000));
+                final long responseDelay = randomValueOtherThan(
+                    leaderCheckTimeoutMillis,
+                    () -> randomLongBetween(0, leaderCheckTimeoutMillis + (mustSucceed ? -1 : 60000))
+                );
                 final boolean successResponse = allResponsesFail.get() == false && (mustSucceed || randomBoolean());
 
-                if (responseDelay >= leaderCheckTimeoutMillis || successResponse == false) {
+                assert responseDelay != leaderCheckTimeoutMillis;
+                if (responseDelay > leaderCheckTimeoutMillis) {
+                    timeoutCount.incrementAndGet();
+                    consecutiveFailedRequestsCount += 1;
+                } else if (successResponse == false) {
                     consecutiveFailedRequestsCount += 1;
                 } else {
+                    timeoutCount.set(0);
                     consecutiveFailedRequestsCount = 0;
                 }
 
@@ -137,18 +153,41 @@ public class LeaderCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = mockTransport.createTransportService(settings,
-            deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
 
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
-            e -> {
-                assertThat(e.getMessage(), matchesRegex("node \\[.*\\] failed \\[[1-9][0-9]*\\] consecutive checks"));
-                assertTrue(leaderFailed.compareAndSet(false, true));
-            }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, (msg, e) -> {
+            assertThat(e, anyOf(instanceOf(RemoteTransportException.class), instanceOf(ReceiveTimeoutTransportException.class)));
+            if (e instanceof RemoteTransportException) {
+                assertThat(e.getCause().getMessage(), equalTo("simulated error"));
+            }
+            assertTrue(leaderFailed.compareAndSet(false, true));
+            assertThat(
+                msg.get(),
+                startsWith(
+                    "["
+                        + leaderCheckRetryCount
+                        + "] consecutive checks of the master node ["
+                        + leader2.descriptionWithoutAttributes()
+                        + "] were unsuccessful (["
+                        + (leaderCheckRetryCount - timeoutCount.get())
+                        + "] rejected, ["
+                        + timeoutCount.get()
+                        + "] timed out), restarting discovery; more details may be available in the master node logs "
+                        + "[last unsuccessful check: "
+                )
+            );
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
         logger.info("--> creating first checker");
         leaderChecker.updateLeader(leader1);
@@ -170,7 +209,9 @@ public class LeaderCheckerTests extends ESTestCase {
         leaderChecker.updateLeader(leader2);
         {
             checkCount.set(0);
-            final long maxCheckCount = randomLongBetween(2, 1000);
+            // run at least leaderCheckRetryCount iterations to ensure at least one success so that we reset the counters and clear out
+            // anything left over from the previous run
+            final long maxCheckCount = randomLongBetween(leaderCheckRetryCount, 1000);
             logger.info("--> checking again that no failure is detected in {} checks", maxCheckCount);
             while (checkCount.get() < maxCheckCount) {
                 deterministicTaskQueue.runAllRunnableTasks();
@@ -188,24 +229,29 @@ public class LeaderCheckerTests extends ESTestCase {
                 deterministicTaskQueue.runAllRunnableTasks();
             }
 
-            assertThat(deterministicTaskQueue.getCurrentTimeMillis() - failureTime,
-                lessThanOrEqualTo((leaderCheckIntervalMillis + leaderCheckTimeoutMillis) * leaderCheckRetryCount
-                    // needed because a successful check response might be in flight at the time of failure
-                    + leaderCheckTimeoutMillis
-                ));
+            assertThat(
+                deterministicTaskQueue.getCurrentTimeMillis() - failureTime,
+                lessThanOrEqualTo(
+                    (leaderCheckIntervalMillis + leaderCheckTimeoutMillis) * leaderCheckRetryCount
+                        // needed because a successful check response might be in flight at the time of failure
+                        + leaderCheckTimeoutMillis
+                )
+            );
         }
         leaderChecker.updateLeader(null);
     }
 
     enum Response {
-        SUCCESS, REMOTE_ERROR, DIRECT_ERROR
+        SUCCESS,
+        REMOTE_ERROR,
+        DIRECT_ERROR
     }
 
     public void testFollowerFailsImmediatelyOnDisconnection() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
 
-        final Response[] responseHolder = new Response[]{Response.SUCCESS};
+        final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
@@ -213,11 +259,10 @@ public class LeaderCheckerTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(
-                            Version.CURRENT,
-                            Build.CURRENT.hash(),
-                            node,
-                            ClusterName.DEFAULT));
+                    handleResponse(
+                        requestId,
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
+                    );
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
@@ -228,14 +273,9 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
-                                break;
-                            case DIRECT_ERROR:
-                                handleError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new ConnectTransportException(leader, "simulated error"));
+                            case DIRECT_ERROR -> handleError(requestId, new ConnectTransportException(leader, "simulated error"));
                         }
                     }
 
@@ -247,17 +287,26 @@ public class LeaderCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = mockTransport.createTransportService(settings,
-            deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
-            e -> {
-                assertThat(e.getMessage(), anyOf(endsWith("disconnected"), endsWith("disconnected during check")));
-                assertTrue(leaderFailed.compareAndSet(false, true));
-            }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
+        final String[] messageHolder = new String[1];
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, (msg, e) -> {
+            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+            assertThat(cause, instanceOf(ConnectTransportException.class));
+            assertThat(cause.getMessage(), anyOf(endsWith("simulated error"), endsWith("disconnected")));
+            messageHolder[0] = msg.get();
+            assertTrue(leaderFailed.compareAndSet(false, true));
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
         leaderChecker.updateLeader(leader);
         {
@@ -275,6 +324,13 @@ public class LeaderCheckerTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             assertTrue(leaderFailed.get());
+            assertThat(
+                messageHolder[0],
+                allOf(
+                    startsWith("master node [" + leader.descriptionWithoutAttributes() + "] disconnected, restarting discovery ["),
+                    endsWith(" simulated error]")
+                )
+            );
         }
         leaderChecker.updateLeader(null);
 
@@ -298,6 +354,13 @@ public class LeaderCheckerTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
 
             assertTrue(leaderFailed.get());
+            assertThat(
+                messageHolder[0],
+                allOf(
+                    startsWith("master node [" + leader.descriptionWithoutAttributes() + "] disconnected, restarting discovery ["),
+                    endsWith(" simulated error]")
+                )
+            );
         }
 
         deterministicTaskQueue.runAllTasks();
@@ -312,14 +375,19 @@ public class LeaderCheckerTests extends ESTestCase {
             transportService.disconnectFromNode(leader);
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue(leaderFailed.get());
+
+            assertThat(
+                messageHolder[0],
+                equalTo("master node [" + leader.descriptionWithoutAttributes() + "] disconnected, restarting discovery")
+            );
         }
     }
 
     public void testFollowerFailsImmediatelyOnHealthCheckFailure() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode leader = new DiscoveryNode("leader", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode leader = DiscoveryNodeUtils.create("leader");
 
-        final Response[] responseHolder = new Response[]{Response.SUCCESS};
+        final Response[] responseHolder = new Response[] { Response.SUCCESS };
 
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
@@ -327,11 +395,10 @@ public class LeaderCheckerTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(
-                            Version.CURRENT,
-                            Build.CURRENT.hash(),
-                            node,
-                            ClusterName.DEFAULT));
+                    handleResponse(
+                        requestId,
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
+                    );
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
@@ -342,12 +409,8 @@ public class LeaderCheckerTests extends ESTestCase {
                     @Override
                     public void run() {
                         switch (response) {
-                            case SUCCESS:
-                                handleResponse(requestId, Empty.INSTANCE);
-                                break;
-                            case REMOTE_ERROR:
-                                handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
-                                break;
+                            case SUCCESS -> handleResponse(requestId, Empty.INSTANCE);
+                            case REMOTE_ERROR -> handleRemoteError(requestId, new NodeHealthCheckFailureException("simulated error"));
                         }
                     }
 
@@ -359,17 +422,31 @@ public class LeaderCheckerTests extends ESTestCase {
             }
         };
 
-        final TransportService transportService = mockTransport.createTransportService(settings,
-            deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        final TransportService transportService = mockTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
 
         final AtomicBoolean leaderFailed = new AtomicBoolean();
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService,
-            e -> {
-                assertThat(e.getMessage(), endsWith("failed health checks"));
-                assertTrue(leaderFailed.compareAndSet(false, true));
-            }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
+        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, (msg, e) -> {
+            assertThat(ExceptionsHelper.unwrapCause(e).getMessage(), equalTo("simulated error"));
+            assertThat(
+                msg.get(),
+                equalTo(
+                    "master node ["
+                        + leader.descriptionWithoutAttributes()
+                        + "] reported itself as unhealthy [simulated error], restarting discovery; "
+                        + "more details may be available in the master node logs"
+                )
+            );
+            assertTrue(leaderFailed.compareAndSet(false, true));
+        }, () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info"));
 
         leaderChecker.updateLeader(leader);
 
@@ -392,56 +469,70 @@ public class LeaderCheckerTests extends ESTestCase {
     }
 
     public void testLeaderBehaviour() {
-        final DiscoveryNode localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
-        final DiscoveryNode otherNode = new DiscoveryNode("other-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
+        final DiscoveryNode otherNode = DiscoveryNodeUtils.create("other-node");
         final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), localNode.getId()).build();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final CapturingTransport capturingTransport = new CapturingTransport();
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
-        final TransportService transportService = capturingTransport.createTransportService(settings,
-            deterministicTaskQueue.getThreadPool(), NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddress -> localNode, null, emptySet());
+        final TransportService transportService = capturingTransport.createTransportService(
+            settings,
+            deterministicTaskQueue.getThreadPool(),
+            NOOP_TRANSPORT_INTERCEPTOR,
+            boundTransportAddress -> localNode,
+            null,
+            emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
+        final var executor = transportService.getThreadPool().generic();
 
-        final LeaderChecker leaderChecker = new LeaderChecker(settings, transportService, e -> fail("shouldn't be checking anything"),
-            () -> nodeHealthServiceStatus.get());
+        final LeaderChecker leaderChecker = new LeaderChecker(
+            settings,
+            transportService,
+            (msg, e) -> fail("shouldn't be checking anything"),
+            nodeHealthServiceStatus::get
+        );
 
-        final DiscoveryNodes discoveryNodes
-            = DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()).build();
+        final DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(localNode)
+            .localNodeId(localNode.getId())
+            .masterNodeId(localNode.getId())
+            .build();
 
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(NodeHealthCheckFailureException.class));
             NodeHealthCheckFailureException cause = (NodeHealthCheckFailureException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("rejecting leader check from [" + otherNode
-                + "] since node is unhealthy [unhealthy-info]"));
+            assertThat(cause.getMessage(), equalTo("unhealthy-info"));
         }
 
         nodeHealthServiceStatus.getAndSet(new StatusInfo(HEALTHY, "healthy-info"));
+
         {
             leaderChecker.setCurrentNodes(discoveryNodes);
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(), equalTo("rejecting leader check since [" + otherNode + "] has been removed from the cluster"));
+            assertThat(cause.getMessage(), equalTo("rejecting check since [" + otherNode + "] has been removed from the cluster"));
         }
 
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
@@ -452,25 +543,29 @@ public class LeaderCheckerTests extends ESTestCase {
         {
             leaderChecker.setCurrentNodes(DiscoveryNodes.builder(discoveryNodes).add(otherNode).masterNodeId(null).build());
 
-            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler();
+            final CapturingTransportResponseHandler handler = new CapturingTransportResponseHandler(executor);
             transportService.sendRequest(localNode, LEADER_CHECK_ACTION_NAME, new LeaderCheckRequest(otherNode), handler);
             deterministicTaskQueue.runAllTasks();
 
             assertFalse(handler.successfulResponseReceived);
             assertThat(handler.transportException.getRootCause(), instanceOf(CoordinationStateRejectedException.class));
             CoordinationStateRejectedException cause = (CoordinationStateRejectedException) handler.transportException.getRootCause();
-            assertThat(cause.getMessage(),
-                equalTo("rejecting leader check from [" + otherNode + "] sent to a node that is no longer the master"));
+            assertThat(cause.getMessage(), equalTo("no longer the elected master"));
         }
     }
 
-    private class CapturingTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
+    private static class CapturingTransportResponseHandler implements TransportResponseHandler<ActionResponse.Empty> {
 
         TransportException transportException;
         boolean successfulResponseReceived;
+        final Executor executor;
+
+        private CapturingTransportResponseHandler(Executor executor) {
+            this.executor = executor;
+        }
 
         @Override
-        public void handleResponse(TransportResponse.Empty response) {
+        public void handleResponse(ActionResponse.Empty response) {
             successfulResponseReceived = true;
         }
 
@@ -480,22 +575,23 @@ public class LeaderCheckerTests extends ESTestCase {
         }
 
         @Override
-        public String executor() {
-            return Names.GENERIC;
+        public Executor executor() {
+            return executor;
         }
 
         @Override
-        public TransportResponse.Empty read(StreamInput in) {
-            return TransportResponse.Empty.INSTANCE;
+        public ActionResponse.Empty read(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
         }
     }
 
     public void testLeaderCheckRequestEqualsHashcodeSerialization() {
-        LeaderCheckRequest request = new LeaderCheckRequest(
-            new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT));
-        //noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
-                (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
-            rq -> new LeaderCheckRequest(new DiscoveryNode(randomAlphaOfLength(10), buildNewFakeTransportAddress(), Version.CURRENT)));
+        LeaderCheckRequest request = new LeaderCheckRequest(DiscoveryNodeUtils.create(randomAlphaOfLength(10)));
+        // noinspection RedundantCast since it is needed for some IDEs (specifically Eclipse 4.8.0) to infer the right type
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
+            (CopyFunction<LeaderCheckRequest>) rq -> copyWriteable(rq, writableRegistry(), LeaderCheckRequest::new),
+            rq -> new LeaderCheckRequest(DiscoveryNodeUtils.create(randomAlphaOfLength(10)))
+        );
     }
 }

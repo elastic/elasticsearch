@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -23,11 +24,17 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
 
     private static Map<Class<? extends Error>, Integer> EXPECTED_STATUS = Map.of(
-            InternalError.class, 128,
-            OutOfMemoryError.class, 127,
-            StackOverflowError.class, 126,
-            UnknownError.class, 125,
-            IOError.class, 124);
+        InternalError.class,
+        128,
+        OutOfMemoryError.class,
+        127,
+        StackOverflowError.class,
+        126,
+        UnknownError.class,
+        125,
+        IOError.class,
+        124
+    );
 
     public void testUncaughtError() throws InterruptedException {
         final Error error = randomFrom(
@@ -36,7 +43,9 @@ public class ElasticsearchUncaughtExceptionHandlerTests extends ESTestCase {
             new StackOverflowError(),
             new UnknownError(),
             new IOError(new IOException("fatal")),
-            new Error() {});
+            new Error() {
+            }
+        );
         final Thread thread = new Thread(() -> { throw error; });
         final String name = randomAlphaOfLength(10);
         thread.setName(name);

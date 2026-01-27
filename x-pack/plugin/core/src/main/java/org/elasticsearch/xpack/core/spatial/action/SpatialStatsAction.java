@@ -16,9 +16,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.stats.EnumCounters;
 
 import java.io.IOException;
@@ -32,24 +32,23 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/spatial/stats";
 
     private SpatialStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
      * Items to track. Serialized by ordinals. Append only, don't remove or change order of items in this list.
      */
     public enum Item {
-        GEOLINE
+        GEOLINE,
+        GEOHEX,
+        CARTESIANCENTROID,
+        CARTESIANBOUNDS
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -77,14 +76,12 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {
@@ -98,19 +95,16 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
 
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(NodeResponse::new);
+            return in.readCollectionAsList(NodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<NodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
         }
 
         public EnumCounters<Item> getStats() {
-            List<EnumCounters<Item>> countersPerNode = getNodes()
-                .stream()
-                .map(SpatialStatsAction.NodeResponse::getStats)
-                .collect(Collectors.toList());
+            List<EnumCounters<Item>> countersPerNode = getNodes().stream().map(NodeResponse::getStats).collect(Collectors.toList());
             return EnumCounters.merge(Item.class, countersPerNode);
         }
 
@@ -173,8 +167,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return counters.equals(that.counters) &&
-                getNode().equals(that.getNode());
+            return counters.equals(that.counters) && getNode().equals(that.getNode());
         }
 
         @Override

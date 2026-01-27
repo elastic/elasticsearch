@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 
 /**
  * An index event listener is the primary extension point for plugins and build-in services
@@ -55,6 +57,13 @@ public interface IndexEventListener {
     default void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
 
     /**
+     * Called after the index shard has been marked closed. It could still be waiting for the async close of the engine.
+     * The ordering between this and the subsequent state notifications (closed, deleted, store closed) is
+     * not guaranteed.
+     */
+    default void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {}
+
+    /**
      * Called after the index shard has been closed.
      *
      * @param shardId The shard id
@@ -70,8 +79,33 @@ public interface IndexEventListener {
      * @param currentState the new shard state
      * @param reason the reason for the state change if there is one, null otherwise
      */
-    default void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState,
-                                            IndexShardState currentState, @Nullable String reason) {}
+    default void indexShardStateChanged(
+        IndexShard indexShard,
+        @Nullable IndexShardState previousState,
+        IndexShardState currentState,
+        @Nullable String reason
+    ) {}
+
+    /**
+     * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
+     * <ul>
+     *     <li>Indexing operations</li>
+     *     <li>Force merges</li>
+     *     <li>Pre-updates</li>
+     * </ul>
+     *
+     * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
+     * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
+     * The provided listener should be notified once the shard is prepared to proceed with the operation.
+     * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *
+     * @param indexShard     the shard where the mutable operation will be performed
+     * @param permitAcquired whether the operation has acquired an operation permit on the shard
+     * @param listener       the listener to be notified when the shard is ready to proceed
+     */
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, boolean permitAcquired, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called before the index gets created. Note that this is also called
@@ -113,8 +147,7 @@ public interface IndexEventListener {
      * @param routing the routing entry that caused the shard to be created.
      * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {
-    }
+    default void beforeIndexShardCreated(ShardRouting routing, Settings indexSettings) {}
 
     /**
      * Called before the index shard gets deleted from disk
@@ -123,8 +156,7 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called after the index shard has been deleted from disk.
@@ -134,15 +166,13 @@ public interface IndexEventListener {
      * @param shardId The shard id
      * @param indexSettings the shards index settings
      */
-    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
-    }
+    default void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {}
 
     /**
      * Called on the Master node only before the {@link IndexService} instances is created to simulate an index creation.
      * This happens right before the index and it's metadata is registered in the cluster state
      */
-    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
-    }
+    default void beforeIndexAddedToCluster(Index index, Settings indexSettings) {}
 
     /**
      * Called when the given shards store is created. The shard store is created before the shard is created.
@@ -166,7 +196,26 @@ public interface IndexEventListener {
      *
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
+     * @param listener      listener notified when this step completes
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
+    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
+
+    /**
+     * Called after the recover process is completed. The recovery state is DONE at this point. However, this is triggered prior to the
+     * index shard state transitions to either POST_RECOVERY to STARTED
+     *
+     * @param indexShard the shard that was recovered
+     * @param listener listener notified when this step completes
+     */
+    default void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    /**
+     * Called after the raw files have been restored from the repository but any other recovery processing has happened
+     * @param indexShard the shard that is recovering
+     */
+    default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
 }

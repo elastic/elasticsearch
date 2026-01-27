@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,10 +21,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.hamcrest.Matchers;
-import org.junit.After;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -40,13 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
-    @After
-    public void deleteAllDataStreams() {
-        assertAcked(
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).actionGet()
-        );
-    }
-
     public void testScaleUp() throws IOException, InterruptedException {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
@@ -55,19 +46,19 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         final String dsName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createDataStreamAndTemplate(dsName);
-        for (int i = 0; i < between(1, 5); ++i) {
+        final int rolloverCount = between(1, 5);
+        for (int i = 0; i < rolloverCount; ++i) {
             indexRandom(
                 true,
                 false,
                 IntStream.range(1, 100)
                     .mapToObj(
-                        unused -> client().prepareIndex(dsName)
-                            .setCreate(true)
+                        unused -> prepareIndex(dsName).setCreate(true)
                             .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );
-            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
+            assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
         }
         forceMerge();
         refresh();
@@ -75,10 +66,16 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         // just check it does not throw when not refreshed.
         capacity();
 
-        IndicesStatsResponse stats = client().admin().indices().prepareStats(dsName).clear().setStore(true).get();
-        long used = stats.getTotal().getStore().getSizeInBytes();
+        IndicesStatsResponse stats = indicesAdmin().prepareStats(dsName).clear().setStore(true).get();
+        long used = stats.getTotal().getStore().sizeInBytes();
         long maxShardSize = Arrays.stream(stats.getShards()).mapToLong(s -> s.getStats().getStore().sizeInBytes()).max().orElseThrow();
-        long enoughSpace = used + WATERMARK_BYTES + 1;
+        // As long as usage is above low watermark, we will trigger a proactive scale up, since the simulated shards have an in-sync
+        // set and therefore allocating these do not skip the low watermark check in the disk threshold decider.
+        // Fixing this simulation should be done as a separate effort, but we should still ensure that the low watermark is in effect
+        // at least when replicas are involved.
+        long enoughSpace = used + (randomBoolean()
+            ? LOW_WATERMARK_BYTES - 1
+            : randomLongBetween(HIGH_WATERMARK_BYTES, LOW_WATERMARK_BYTES - 1));
 
         setTotalSpace(dataNodeName, enoughSpace);
 
@@ -92,7 +89,10 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
 
         // with 0 window, we expect just current.
         putAutoscalingPolicy(
@@ -103,11 +103,16 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
+        assertThat(
+            response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
+            Matchers.equalTo(maxShardSize + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD + LOW_WATERMARK_BYTES)
+        );
     }
 
     private void putAutoscalingPolicy(String policyName, Settings settings) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>(Map.of("proactive_storage", settings))
@@ -117,20 +122,18 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private static void createDataStreamAndTemplate(String dataStreamName) throws IOException {
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
-                new ComposableIndexTemplate(
-                    Collections.singletonList(dataStreamName),
-                    new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null),
-                    null,
-                    null,
-                    null,
-                    null,
-                    new ComposableIndexTemplate.DataStreamTemplate(),
-                    null
-                )
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .indexPatterns(Collections.singletonList(dataStreamName))
+                    .template(new Template(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(), null, null))
+                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                    .build()
             )
         ).actionGet();
-        client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
+        client().execute(
+            CreateDataStreamAction.INSTANCE,
+            new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName)
+        ).actionGet();
     }
 }

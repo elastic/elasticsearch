@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
@@ -14,16 +15,14 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,7 +39,8 @@ public class RestNoopBulkAction extends BaseRestHandler {
             new Route(POST, "/_noop_bulk"),
             new Route(PUT, "/_noop_bulk"),
             new Route(POST, "/{index}/_noop_bulk"),
-            new Route(PUT, "/{index}/_noop_bulk"));
+            new Route(PUT, "/{index}/_noop_bulk")
+        );
     }
 
     @Override
@@ -50,11 +50,13 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        BulkRequest bulkRequest = Requests.bulkRequest();
+        BulkRequest bulkRequest = new BulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
         String defaultPipeline = request.param("pipeline");
         Boolean defaultRequireAlias = request.paramAsBoolean("require_alias", null);
+        Boolean defaultRequireDataStream = request.paramAsBoolean("require_data_stream", null);
+        Boolean defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", null);
 
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {
@@ -62,9 +64,19 @@ public class RestNoopBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
-        bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType(),
-            request.getRestApiVersion());
+        bulkRequest.add(
+            request.requiredContent(),
+            defaultIndex,
+            defaultRouting,
+            null,
+            defaultPipeline,
+            defaultRequireAlias,
+            defaultRequireDataStream,
+            defaultListExecutedPipelines,
+            true,
+            request.getXContentType(),
+            request.getRestApiVersion()
+        );
 
         // short circuit the call to the transport layer
         return channel -> {
@@ -74,11 +86,13 @@ public class RestNoopBulkAction extends BaseRestHandler {
     }
 
     private static class BulkRestBuilderListener extends RestBuilderListener<BulkRequest> {
-        private final BulkItemResponse ITEM_RESPONSE = BulkItemResponse.success(1, DocWriteRequest.OpType.UPDATE,
-            new UpdateResponse(new ShardId("mock", "", 1), "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED));
+        private final BulkItemResponse ITEM_RESPONSE = BulkItemResponse.success(
+            1,
+            DocWriteRequest.OpType.UPDATE,
+            new UpdateResponse(new ShardId("mock", "", 1), "1", 0L, 1L, 1L, DocWriteResponse.Result.CREATED)
+        );
 
         private final RestRequest request;
-
 
         BulkRestBuilderListener(RestChannel channel, RestRequest request) {
             super(channel);
@@ -96,7 +110,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             }
             builder.endArray();
             builder.endObject();
-            return new BytesRestResponse(OK, builder);
+            return new RestResponse(OK, builder);
         }
     }
 

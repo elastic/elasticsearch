@@ -9,21 +9,21 @@ package org.elasticsearch.xpack.monitoring.test;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.LocalStateMonitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
+import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.junit.After;
 import org.junit.Before;
 
@@ -32,7 +32,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -46,16 +45,16 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
-//                .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
-//                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
-                // Disable native ML autodetect_process as the c++ controller won't be available
-//                .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
-//                .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
-                // we do this by default in core, but for monitoring this isn't needed and only adds noise.
-                .put("indices.lifecycle.history_index_enabled", false)
-                .put("index.store.mock.check_index_on_close", false);
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(MonitoringService.INTERVAL.getKey(), MonitoringService.MIN_INTERVAL)
+            // .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
+            // .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
+            // Disable native ML autodetect_process as the c++ controller won't be available
+            // .put(MachineLearningField.AUTODETECT_PROCESS.getKey(), false)
+            // .put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false)
+            // we do this by default in core, but for monitoring this isn't needed and only adds noise.
+            .put("indices.lifecycle.history_index_enabled", false)
+            .put("index.store.mock.check_index_on_close", false);
 
         return builder.build();
     }
@@ -70,13 +69,19 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateMonitoring.class, MockClusterAlertScriptEngine.TestPlugin.class,
-                MockIngestPlugin.class, CommonAnalysisPlugin.class);
+        return Arrays.asList(
+            LocalStateMonitoring.class,
+            MockClusterAlertScriptEngine.TestPlugin.class,
+            MockIngestPlugin.class,
+            CommonAnalysisPlugin.class,
+            MapperExtrasPlugin.class,
+            Wildcard.class
+        );
     }
 
     @Override
     protected Set<String> excludeTemplates() {
-        return new HashSet<>(monitoringTemplateNames());
+        return new HashSet<>(Arrays.asList(MonitoringTemplateRegistry.TEMPLATE_NAMES));
     }
 
     @Before
@@ -92,11 +97,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     protected void startMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::start);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::unpause);
     }
 
     protected void stopMonitoringService() {
-        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::pause);
     }
 
     protected void wipeMonitoringIndices() throws Exception {
@@ -119,82 +124,33 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(ALL_MONITORING_INDICES));
     }
 
-    protected void ensureMonitoringIndicesYellow() {
-        ensureYellowAndNoInitializingShards(".monitoring-es-*");
-    }
-
-    protected List<Tuple<String, String>> monitoringTemplates() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(id -> new Tuple<>(MonitoringTemplateUtils.templateName(id), MonitoringTemplateUtils.loadTemplate(id)))
-                    .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringTemplateNames() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-                    .map(MonitoringTemplateUtils::templateName)
-                    .collect(Collectors.toList());
-    }
-
-    private Tuple<String, String> monitoringPipeline(final String pipelineId) {
-        final XContentType json = XContentType.JSON;
-
-        return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
-                Strings.toString(MonitoringTemplateUtils.loadPipeline(pipelineId, json)));
-    }
-
-    protected List<Tuple<String, String>> monitoringPipelines() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(this::monitoringPipeline)
-                .collect(Collectors.toList());
-    }
-
-    protected List<String> monitoringPipelineNames() {
-        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
-                .map(MonitoringTemplateUtils::pipelineName)
-                .collect(Collectors.toList());
-    }
-
     protected List<Tuple<String, String>> monitoringWatches() {
         final ClusterService clusterService = clusterService();
 
         return Arrays.stream(ClusterAlertsUtil.WATCH_IDS)
-                .map(id -> new Tuple<>(id, ClusterAlertsUtil.loadWatch(clusterService, id)))
-                .collect(Collectors.toList());
+            .map(id -> new Tuple<>(id, ClusterAlertsUtil.loadWatch(clusterService, id)))
+            .collect(Collectors.toList());
     }
 
     protected void assertTemplateInstalled(String name) {
         boolean found = false;
-        for (IndexTemplateMetadata template : client().admin().indices().prepareGetTemplates().get().getIndexTemplates()) {
+        for (IndexTemplateMetadata template : client().admin()
+            .indices()
+            .prepareGetTemplates(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getIndexTemplates()) {
             if (Regex.simpleMatch(name, template.getName())) {
-                found =  true;
+                found = true;
             }
         }
         assertTrue("failed to find a template matching [" + name + "]", found);
     }
 
-    protected void waitForMonitoringIndices() throws Exception {
-        awaitIndexExists(ALL_MONITORING_INDICES);
-        assertBusy(this::ensureMonitoringIndicesYellow);
-    }
-
-    protected void awaitIndexExists(final String index) throws Exception {
-        assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
-    }
-
-    private void assertIndicesExists(String... indices) {
-        logger.trace("checking if index exists [{}]", Strings.arrayToCommaDelimitedString(indices));
-        for (String index : indices) {
-            assertThat(indexExists(index), is(true));
-        }
-    }
-
     protected void enableMonitoringCollection() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().put(MonitoringService.ENABLED.getKey(), true)));
+        updateClusterSettings(Settings.builder().put(MonitoringService.ENABLED.getKey(), true));
     }
 
     protected void disableMonitoringCollection() {
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                    Settings.builder().putNull(MonitoringService.ENABLED.getKey())));
+        updateClusterSettings(Settings.builder().putNull(MonitoringService.ENABLED.getKey()));
     }
 }

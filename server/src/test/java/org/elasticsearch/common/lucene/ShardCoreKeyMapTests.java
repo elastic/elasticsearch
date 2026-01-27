@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene;
@@ -13,9 +14,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -29,8 +30,7 @@ import java.util.Set;
 public class ShardCoreKeyMapTests extends ESTestCase {
 
     public void testMissingShard() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             w.addDocument(new Document());
             try (IndexReader reader = w.getReader()) {
                 ShardCoreKeyMap map = new ShardCoreKeyMap();
@@ -48,8 +48,7 @@ public class ShardCoreKeyMapTests extends ESTestCase {
 
     public void testAddingAClosedReader() throws Exception {
         LeafReader reader;
-        try (Directory dir = newDirectory();
-                RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter writer = new RandomIndexWriter(random(), dir)) {
             writer.addDocument(new Document());
             try (DirectoryReader dirReader = ElasticsearchDirectoryReader.wrap(writer.getReader(), new ShardId("index1", "_na_", 1))) {
                 reader = dirReader.leaves().get(0).reader();

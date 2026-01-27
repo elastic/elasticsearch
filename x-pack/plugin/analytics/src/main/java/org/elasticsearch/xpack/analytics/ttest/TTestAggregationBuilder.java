@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -29,6 +26,10 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,8 +46,8 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
 
     static {
         MultiValuesSourceParseHelper.declareCommon(PARSER, true, ValueType.NUMERIC);
-        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false);
-        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false);
+        MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true, false, false);
+        MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true, false, false);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);
         PARSER.declareInt(TTestAggregationBuilder::tails, TAILS_FIELD);
     }
@@ -107,6 +108,11 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new TTestAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
@@ -171,5 +177,10 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

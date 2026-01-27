@@ -1,37 +1,40 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
+import java.util.stream.Stream;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasEntry;
@@ -44,7 +47,8 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
     @Override
-    protected void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException {
+    protected void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
 
@@ -52,13 +56,13 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         if (includes == null) {
             sourceIncludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceIncludes = includes.toArray(new String[includes.size()]);
+            sourceIncludes = includes.toArray(String[]::new);
         }
         String[] sourceExcludes;
         if (excludes == null) {
             sourceExcludes = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         } else {
-            sourceExcludes = excludes.toArray(new String[excludes.size()]);
+            sourceExcludes = excludes.toArray(String[]::new);
         }
 
         assertMap(
@@ -71,10 +75,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testExtractValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
 
-        Map<String, Object> map;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        Map<String, Object> map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("test.me", map), nullValue());
         assertThat(XContentMapValues.extractValue("something.else.2", map), nullValue());
@@ -83,9 +84,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         builder.startObject("path1").startObject("path2").field("test", "value").endObject().endObject();
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("path1.path2.test", map).toString(), equalTo("value"));
         assertThat(XContentMapValues.extractValue("path1.path2.test_me", map), nullValue());
         assertThat(XContentMapValues.extractValue("path1.non_path2.test", map), nullValue());
@@ -104,10 +103,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("path1").array("test", "value1", "value2").endObject();
         builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
 
         extValue = XContentMapValues.extractValue("path1.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -127,10 +123,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             builder.endObject();
         }
         builder.endObject();
-
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
 
         extValue = XContentMapValues.extractValue("path1.path2.test", map);
         assertThat(extValue, instanceOf(List.class));
@@ -142,19 +135,78 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         // fields with . in them
         builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value").endObject();
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
 
         builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject();
         builder.endObject();
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, Strings.toString(builder))) {
-            map = parser.map();
-        }
+        map = toSourceMap(Strings.toString(builder));
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
+
+        String source = """
+            {
+                "object" : [
+                    {
+                        "object2" : [
+                            {
+                                "foo" : [1,2,3],
+                                "bar" : "baz"
+                            },
+                            {
+                                "bar" : ["buzz", "bees"]
+                            }
+                         ],
+                        "geo_point_in_obj" : [
+                            {"lat" : 42.0, "lon" : 27.1},
+                            [2.1, 41.0]
+                        ]
+                    }
+                ]
+            }
+            """;
+
+        assertThat(
+            XContentMapValues.extractValue("object.geo_point_in_obj", toSourceMap(source)).toString(),
+            equalTo("[{lon=27.1, lat=42.0}, [2.1, 41.0]]")
+        );
+        assertThat(XContentMapValues.extractValue("object.object2.foo", toSourceMap(source)).toString(), equalTo("[1, 2, 3]"));
+        assertThat(XContentMapValues.extractValue("object.object2.bar", toSourceMap(source)).toString(), equalTo("[baz, buzz, bees]"));
+
+        // same with the root object not being an array
+        source = """
+            {
+                "object" : {
+                    "object2" : [
+                        {
+                            "foo" : [1,2,3],
+                            "bar" : "baz"
+                        },
+                        {
+                            "bar" : ["buzz", "bees"]
+                        }
+                     ],
+                    "geo_point_in_obj" : [
+                        {"lat" : 42.0, "lon" : 27.1},
+                        [2.1, 41.0]
+                    ]
+                }
+            }
+            """;
+
+        assertThat(
+            XContentMapValues.extractValue("object.geo_point_in_obj", toSourceMap(source)).toString(),
+            equalTo("[{lon=27.1, lat=42.0}, [2.1, 41.0]]")
+        );
+        assertThat(XContentMapValues.extractValue("object.object2.foo", toSourceMap(source)).toString(), equalTo("[1, 2, 3]"));
+        assertThat(XContentMapValues.extractValue("object.object2.bar", toSourceMap(source)).toString(), equalTo("[baz, buzz, bees]"));
+    }
+
+    private Map<String, Object> toSourceMap(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
+            return parser.map();
+        }
     }
 
     public void testExtractValueWithNullValue() throws Exception {
@@ -316,12 +368,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testNestedFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("array", Arrays.asList(1, new HashMap<String, Object>() {
-            {
-                put("nested", 2);
-                put("nested_2", 3);
-            }
-        }));
+        map.put("array", Arrays.asList(1, Map.of("nested", 2, "nested_2", 3)));
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "array.nested" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
 
@@ -336,12 +383,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
 
         map.clear();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
         filteredMap = XContentMapValues.filter(map, new String[] { "obj.field" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
@@ -359,18 +401,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testCompleteObjectFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
-        map.put("array", Arrays.asList(1, new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        }));
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("array", Arrays.asList(1, Map.of("field", "value", "field2", "value2")));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "obj" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
@@ -401,18 +433,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
-        map.put("obj", new HashMap<String, Object>() {
-            {
-                put("field", "value");
-                put("field2", "value2");
-            }
-        });
-        map.put("n_obj", new HashMap<String, Object>() {
-            {
-                put("n_field", "value");
-                put("n_field2", "value2");
-            }
-        });
+        map.put("obj", Map.of("field", "value", "field2", "value2"));
+        map.put("n_obj", Map.of("n_field", "value", "n_field2", "value2"));
 
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[] { "*.field2" }, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
@@ -546,6 +568,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(expected, filtered);
     }
 
+    /**
+     * Tests that we can extract paths containing non-ascii characters.
+     * See {@link AbstractFilteringTestCase#testFilterSupplementaryCharactersInPaths()}
+     * for a similar test but for XContent.
+     */
     public void testSupplementaryCharactersInPaths() {
         Map<String, Object> map = new HashMap<>();
         map.put("搜索", 2);
@@ -555,6 +582,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertEquals(Collections.singletonMap("指数", 3), XContentMapValues.filter(map, new String[0], new String[] { "搜索" }));
     }
 
+    /**
+     * Tests that we can extract paths which share a prefix with other paths.
+     * See {@link AbstractFilteringTestCase#testFilterSharedPrefixes()}
+     * for a similar test but for XContent.
+     */
     public void testSharedPrefixes() {
         Map<String, Object> map = new HashMap<>();
         map.put("foobar", 2);
@@ -633,6 +665,11 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         }
     }
 
+    /**
+     * Tests that we can extract paths which have another path as a prefix.
+     * See {@link AbstractFilteringTestCase#testFilterPrefix()}
+     * for a similar test but for XContent.
+     */
     public void testPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("photos", Arrays.asList(new String[] { "foo", "bar" }));
@@ -694,5 +731,327 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
                 Map.of("field", "nested5")
             )
         );
+    }
+
+    public void testInsertValueMapTraversal() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("test", "value").endObject();
+
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            XContentMapValues.insertValue("test", map, "value2");
+            assertThat(getMapValue(map, "test"), Matchers.equalTo("value2"));
+            XContentMapValues.insertValue("something.else", map, "something_else_value");
+            assertThat(getMapValue(map, "something\\.else"), Matchers.equalTo("something_else_value"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("path1").startObject("path2").field("test", "value").endObject().endObject();
+            builder.endObject();
+
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            XContentMapValues.insertValue("path1.path2.test", map, "value2");
+            assertThat(getMapValue(map, "path1.path2.test"), Matchers.equalTo("value2"));
+            XContentMapValues.insertValue("path1.path2.test_me", map, "test_me_value");
+            assertThat(getMapValue(map, "path1.path2.test_me"), Matchers.equalTo("test_me_value"));
+            XContentMapValues.insertValue("path1.non_path2.test", map, "test_value");
+            assertThat(getMapValue(map, "path1.non_path2\\.test"), Matchers.equalTo("test_value"));
+
+            XContentMapValues.insertValue("path1.path2", map, Map.of("path3", "bar"));
+            assertThat(getMapValue(map, "path1.path2"), Matchers.equalTo(Map.of("path3", "bar")));
+
+            XContentMapValues.insertValue("path1", map, "baz");
+            assertThat(getMapValue(map, "path1"), Matchers.equalTo("baz"));
+
+            XContentMapValues.insertValue("path3.path4", map, Map.of("test", "foo"));
+            assertThat(getMapValue(map, "path3\\.path4"), Matchers.equalTo(Map.of("test", "foo")));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            builder.startObject("path1").array("test", "value1", "value2").endObject();
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.test", map, List.of("value3", "value4", "value5"));
+            assertThat(getMapValue(map, "path1.test"), Matchers.equalTo(List.of("value3", "value4", "value5")));
+
+            XContentMapValues.insertValue("path2.test", map, List.of("value6", "value7", "value8"));
+            assertThat(getMapValue(map, "path2\\.test"), Matchers.equalTo(List.of("value6", "value7", "value8")));
+        }
+    }
+
+    public void testInsertValueListTraversal() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1");
+                {
+                    builder.startArray("path2");
+                    builder.startObject().field("test", "value1").endObject();
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            {
+                builder.startObject("path3");
+                {
+                    builder.startArray("path4");
+                    builder.startObject().field("test", "value1").endObject();
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.path2.test", map, "value2");
+            assertThat(getMapValue(map, "path1.path2.test"), Matchers.equalTo("value2"));
+            XContentMapValues.insertValue("path1.path2.test2", map, "value3");
+            assertThat(getMapValue(map, "path1.path2.test2"), Matchers.equalTo("value3"));
+            assertThat(getMapValue(map, "path1.path2"), Matchers.equalTo(List.of(Map.of("test", "value2", "test2", "value3"))));
+
+            XContentMapValues.insertValue("path3.path4.test", map, "value4");
+            assertThat(getMapValue(map, "path3.path4.test"), Matchers.equalTo("value4"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1");
+                {
+                    builder.startArray("path2");
+                    builder.startArray();
+                    builder.startObject().field("test", "value1").endObject();
+                    builder.endArray();
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.path2.test", map, "value2");
+            assertThat(getMapValue(map, "path1.path2.test"), Matchers.equalTo("value2"));
+            XContentMapValues.insertValue("path1.path2.test2", map, "value3");
+            assertThat(getMapValue(map, "path1.path2.test2"), Matchers.equalTo("value3"));
+            assertThat(getMapValue(map, "path1.path2"), Matchers.equalTo(List.of(List.of(Map.of("test", "value2", "test2", "value3")))));
+        }
+    }
+
+    public void testInsertValueFieldsWithDots() throws IOException {
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject().field("xxx.yyy", "value1").endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("xxx.yyy", map, "value2");
+            assertThat(getMapValue(map, "xxx\\.yyy"), Matchers.equalTo("value2"));
+
+            XContentMapValues.insertValue("xxx", map, "value3");
+            assertThat(getMapValue(map, "xxx"), Matchers.equalTo("value3"));
+        }
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1.path2");
+                {
+                    builder.startObject("path3.path4");
+                    builder.field("test", "value1");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+
+            XContentMapValues.insertValue("path1.path2.path3.path4.test", map, "value2");
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test"), Matchers.equalTo("value2"));
+
+            XContentMapValues.insertValue("path1.path2.path3.path4.test2", map, "value3");
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4.test2"), Matchers.equalTo("value3"));
+            assertThat(getMapValue(map, "path1\\.path2.path3\\.path4"), Matchers.equalTo(Map.of("test", "value2", "test2", "value3")));
+        }
+    }
+
+    public void testInsertValueAmbiguousPath() throws IOException {
+        // Mixed dotted object notation
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1.path2");
+                {
+                    builder.startObject("path3");
+                    builder.field("test1", "value1");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            {
+                builder.startObject("path1");
+                {
+                    builder.startObject("path2.path3");
+                    builder.field("test2", "value2");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test1", map, "value3")
+            );
+            assertThat(
+                ex.getMessage(),
+                Matchers.equalTo("Path [path1.path2.path3.test1] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+
+            ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test3", map, "value4")
+            );
+            assertThat(
+                ex.getMessage(),
+                Matchers.equalTo("Path [path1.path2.path3.test3] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+            assertThat(map, Matchers.equalTo(originalMap));
+
+            XContentMapValues.insertValue("path1.path2.path3.test3", map, "value4", false);
+            assertThat(getMapValue(map, "path1.path2\\.path3.test3"), Matchers.equalTo("value4"));
+        }
+
+        // traversal through lists
+        {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            {
+                builder.startObject("path1.path2");
+                {
+                    builder.startArray("path3");
+                    builder.startObject().field("test1", "value1").endObject();
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            {
+                builder.startObject("path1");
+                {
+                    builder.startArray("path2.path3");
+                    builder.startObject().field("test2", "value2").endObject();
+                    builder.endArray();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            Map<String, Object> map = toSourceMap(Strings.toString(builder));
+            final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
+
+            IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test1", map, "value3")
+            );
+            assertThat(
+                ex.getMessage(),
+                Matchers.equalTo("Path [path1.path2.path3.test1] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+
+            ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> XContentMapValues.insertValue("path1.path2.path3.test3", map, "value4")
+            );
+            assertThat(
+                ex.getMessage(),
+                Matchers.equalTo("Path [path1.path2.path3.test3] could be inserted in 2 distinct ways, it is ambiguous which one to use")
+            );
+            assertThat(map, Matchers.equalTo(originalMap));
+
+            XContentMapValues.insertValue("path1.path2.path3.test3", map, "value4", false);
+            assertThat(getMapValue(map, "path1.path2\\.path3.test3"), Matchers.equalTo("value4"));
+        }
+    }
+
+    public void testInsertValueCannotTraversePath() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        {
+            builder.startObject("path1");
+            {
+                builder.startArray("path2");
+                builder.startArray();
+                builder.startObject().field("test", "value1").endObject();
+                builder.endArray();
+                builder.endArray();
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        Map<String, Object> map = toSourceMap(Strings.toString(builder));
+        final Map<String, Object> originalMap = Collections.unmodifiableMap(toSourceMap(Strings.toString(builder)));
+
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> XContentMapValues.insertValue("path1.path2.test.test2", map, "value2")
+        );
+        assertThat(
+            ex.getMessage(),
+            Matchers.equalTo("Path [path1.path2.test] has value [value1] of type [String], which cannot be traversed into further")
+        );
+
+        assertThat(map, Matchers.equalTo(originalMap));
+    }
+
+    private static Object getMapValue(Map<String, Object> map, String key) {
+        // Split the path on unescaped "." chars and then unescape the escaped "." chars
+        final String[] pathElements = Arrays.stream(key.split("(?<!\\\\)\\.")).map(k -> k.replace("\\.", ".")).toArray(String[]::new);
+
+        Object value = null;
+        Object nextLayer = map;
+        for (int i = 0; i < pathElements.length; i++) {
+            if (nextLayer instanceof Map<?, ?> nextMap) {
+                value = nextMap.get(pathElements[i]);
+            } else if (nextLayer instanceof List<?> nextList) {
+                final String pathElement = pathElements[i];
+                List<?> values = nextList.stream().flatMap(v -> {
+                    Stream.Builder<Object> streamBuilder = Stream.builder();
+                    if (v instanceof List<?> innerList) {
+                        traverseList(innerList, streamBuilder);
+                    } else {
+                        streamBuilder.add(v);
+                    }
+                    return streamBuilder.build();
+                }).filter(v -> v instanceof Map<?, ?>).map(v -> ((Map<?, ?>) v).get(pathElement)).filter(Objects::nonNull).toList();
+
+                if (values.isEmpty()) {
+                    return null;
+                } else if (values.size() > 1) {
+                    throw new AssertionError("List " + nextList + " contains multiple values for [" + pathElement + "]");
+                } else {
+                    value = values.getFirst();
+                }
+            } else if (nextLayer == null) {
+                break;
+            } else {
+                throw new AssertionError(
+                    "Path ["
+                        + String.join(".", Arrays.copyOfRange(pathElements, 0, i))
+                        + "] has value ["
+                        + value
+                        + "] of type ["
+                        + value.getClass().getSimpleName()
+                        + "], which cannot be traversed into further"
+                );
+            }
+
+            nextLayer = value;
+        }
+
+        return value;
+    }
+
+    private static void traverseList(List<?> list, Stream.Builder<Object> streamBuilder) {
+        for (Object value : list) {
+            if (value instanceof List<?> innerList) {
+                traverseList(innerList, streamBuilder);
+            } else {
+                streamBuilder.add(value);
+            }
+        }
     }
 }

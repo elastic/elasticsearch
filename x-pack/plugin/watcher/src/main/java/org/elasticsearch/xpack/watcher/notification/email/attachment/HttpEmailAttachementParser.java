@@ -8,17 +8,18 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
-import org.elasticsearch.xpack.watcher.common.http.HttpClient;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 import org.elasticsearch.xpack.watcher.notification.email.Attachment;
 import org.elasticsearch.xpack.watcher.support.Variables;
 
@@ -34,11 +35,11 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     }
 
     public static final String TYPE = "http";
-    private final HttpClient httpClient;
+    private final WebhookService webhookService;
     private final TextTemplateEngine templateEngine;
 
-    public HttpEmailAttachementParser(HttpClient httpClient, TextTemplateEngine templateEngine) {
-        this.httpClient = httpClient;
+    public HttpEmailAttachementParser(WebhookService webhookService, TextTemplateEngine templateEngine) {
+        this.webhookService = webhookService;
         this.templateEngine = templateEngine;
     }
 
@@ -78,30 +79,45 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     }
 
     @Override
-    public Attachment toAttachment(WatchExecutionContext context, Payload payload,
-                                   HttpRequestAttachment attachment) throws IOException {
+    public Attachment toAttachment(WatchExecutionContext context, Payload payload, HttpRequestAttachment attachment) throws IOException {
         Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
-        HttpResponse response = httpClient.execute(httpRequest);
+        HttpResponse response = webhookService.modifyAndExecuteHttpRequest(httpRequest).v2();
         // check for status 200, only then append attachment
-        if (response.status() >= 200 && response.status() < 300) {
+        if (RestStatus.isSuccessful(response.status())) {
             if (response.hasContent()) {
                 String contentType = attachment.getContentType();
                 String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
-                        attachment.inline());
+                return new Attachment.Bytes(
+                    attachment.id(),
+                    BytesReference.toBytes(response.body()),
+                    attachmentContentType,
+                    attachment.inline()
+                );
             } else {
-                throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " +
-                        "method[{}], path[{}], status[{}]",
-                        context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                        httpRequest.path(), response.status());
+                throw new ElasticsearchException(
+                    "Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " + "method[{}], path[{}], status[{}]",
+                    context.watch().id(),
+                    attachment.id(),
+                    httpRequest.host(),
+                    httpRequest.port(),
+                    httpRequest.method(),
+                    httpRequest.path(),
+                    response.status()
+                );
             }
         } else {
-            throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " +
-                    "method[{}], path[{}], status[{}]",
-                    context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                    httpRequest.path(), response.status());
+            throw new ElasticsearchException(
+                "Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " + "method[{}], path[{}], status[{}]",
+                context.watch().id(),
+                attachment.id(),
+                httpRequest.host(),
+                httpRequest.port(),
+                httpRequest.method(),
+                httpRequest.path(),
+                response.status()
+            );
         }
     }
 }

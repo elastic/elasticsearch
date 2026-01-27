@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -18,13 +19,13 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.RemoveCorruptedShardDataCommand;
 import org.elasticsearch.index.shard.ShardPath;
@@ -46,15 +47,12 @@ import java.util.TreeSet;
 public class TruncateTranslogAction {
 
     protected static final Logger logger = LogManager.getLogger(TruncateTranslogAction.class);
-    private final NamedXContentRegistry namedXContentRegistry;
 
-    public TruncateTranslogAction(NamedXContentRegistry namedXContentRegistry) {
-        this.namedXContentRegistry = namedXContentRegistry;
-    }
-
-    public Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(ShardPath shardPath,
-                                                                                     ClusterState clusterState,
-                                                                                     Directory indexDirectory) throws IOException {
+    public static Tuple<RemoveCorruptedShardDataCommand.CleanStatus, String> getCleanStatus(
+        ShardPath shardPath,
+        ClusterState clusterState,
+        Directory indexDirectory
+    ) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
         final List<IndexCommit> commits;
@@ -92,7 +90,7 @@ public class TruncateTranslogAction {
         return Tuple.tuple(RemoveCorruptedShardDataCommand.CleanStatus.CORRUPTED, details);
     }
 
-    public void execute(Terminal terminal, ShardPath shardPath, Directory indexDirectory) throws IOException {
+    public static void execute(Terminal terminal, ShardPath shardPath, Directory indexDirectory) throws IOException {
         final Path indexPath = shardPath.resolveIndex();
         final Path translogPath = shardPath.resolveTranslog();
 
@@ -141,7 +139,7 @@ public class TruncateTranslogAction {
         writeEmptyCheckpoint(tempEmptyCheckpoint, translogLen, gen, globalCheckpoint);
 
         terminal.println("Removing existing translog files");
-        IOUtils.rm(translogFiles.toArray(new Path[]{}));
+        IOUtils.rm(translogFiles.toArray(new Path[] {}));
 
         terminal.println("Creating new empty checkpoint at [" + realEmptyCheckpoint + "]");
         Files.move(tempEmptyCheckpoint, realEmptyCheckpoint, StandardCopyOption.ATOMIC_MOVE);
@@ -152,21 +150,34 @@ public class TruncateTranslogAction {
         IOUtils.fsync(translogPath, true);
     }
 
-    private boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
+    private static boolean isTranslogClean(ShardPath shardPath, ClusterState clusterState, String translogUUID) throws IOException {
         // perform clean check of translog instead of corrupted marker file
         try {
             final Path translogPath = shardPath.resolveTranslog();
             final long translogGlobalCheckpoint = Translog.readGlobalCheckpoint(translogPath, translogUUID);
-            final IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardPath.getShardId().getIndex());
+            final IndexMetadata indexMetadata = clusterState.metadata().indexMetadata(shardPath.getShardId().getIndex());
             final IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-            final TranslogConfig translogConfig = new TranslogConfig(shardPath.getShardId(), translogPath,
-                indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+            final TranslogConfig translogConfig = new TranslogConfig(
+                shardPath.getShardId(),
+                translogPath,
+                indexSettings,
+                BigArrays.NON_RECYCLING_INSTANCE
+            );
             long primaryTerm = indexSettings.getIndexMetadata().primaryTerm(shardPath.getShardId().id());
             final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
-            try (Translog translog = new Translog(translogConfig, translogUUID,
-                translogDeletionPolicy, () -> translogGlobalCheckpoint, () -> primaryTerm, seqNo -> {});
-                 Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)) {
-                //noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
+            try (
+                Translog translog = new Translog(
+                    translogConfig,
+                    translogUUID,
+                    translogDeletionPolicy,
+                    () -> translogGlobalCheckpoint,
+                    () -> primaryTerm,
+                    seqNo -> {},
+                    TranslogOperationAsserter.DEFAULT
+                );
+                Translog.Snapshot snapshot = translog.newSnapshot(0, Long.MAX_VALUE)
+            ) {
+                // noinspection StatementWithEmptyBody we are just checking that we can iterate through the whole snapshot
                 while (snapshot.next() != null) {
                 }
             }
@@ -178,11 +189,21 @@ public class TruncateTranslogAction {
 
     /** Write a checkpoint file to the given location with the given generation */
     private static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration, long globalCheckpoint)
-            throws IOException {
-        Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(translogLength, translogGeneration,
-            globalCheckpoint, translogGeneration);
-        Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
-            StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
+        throws IOException {
+        Checkpoint emptyCheckpoint = Checkpoint.emptyTranslogCheckpoint(
+            translogLength,
+            translogGeneration,
+            globalCheckpoint,
+            translogGeneration
+        );
+        Checkpoint.write(
+            FileChannel::open,
+            filename,
+            emptyCheckpoint,
+            StandardOpenOption.WRITE,
+            StandardOpenOption.READ,
+            StandardOpenOption.CREATE_NEW
+        );
     }
 
     /**
@@ -191,21 +212,20 @@ public class TruncateTranslogAction {
     private static int writeEmptyTranslog(Path filename, String translogUUID) throws IOException {
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)) {
             TranslogHeader header = new TranslogHeader(translogUUID, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-            header.write(fc);
+            header.write(fc, true);
             return header.sizeInBytes();
         }
     }
 
     /** Show a warning about deleting files, asking for a confirmation if {@code batchMode} is false */
-    private String deletingFilesDetails(Path translogPath, Set<Path> files) {
+    private static String deletingFilesDetails(Path translogPath, Set<Path> files) {
         StringBuilder builder = new StringBuilder();
 
-        builder
-            .append("Documents inside of translog files will be lost.\n")
+        builder.append("Documents inside of translog files will be lost.\n")
             .append("  The following files will be DELETED at ")
             .append(translogPath)
             .append("\n\n");
-        for(Iterator<Path> it = files.iterator();it.hasNext();) {
+        for (Iterator<Path> it = files.iterator(); it.hasNext();) {
             builder.append("  --> ").append(it.next().getFileName());
             if (it.hasNext()) {
                 builder.append("\n");

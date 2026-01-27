@@ -43,7 +43,6 @@ public final class Location {
             return false;
         }
         Location other = (Location) obj;
-        return line == other.line
-            && charPositionInLine == other.charPositionInLine;
+        return line == other.line && charPositionInLine == other.charPositionInLine;
     }
 }

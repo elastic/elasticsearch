@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.test;
 
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
@@ -30,7 +30,7 @@ public final class SecuritySettingsSourceField {
             chars.put(username).put(':').put(passwd.getChars());
             charBytes = CharArrays.toUtf8Bytes(chars.array());
 
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
+            // TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
             String basicToken = Base64.getEncoder().encodeToString(charBytes);
             return "Basic " + basicToken;
         } finally {

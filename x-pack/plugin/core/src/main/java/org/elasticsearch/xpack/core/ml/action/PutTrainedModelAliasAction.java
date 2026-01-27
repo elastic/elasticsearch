@@ -29,13 +29,13 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
 
     // NOTE this is similar to our valid ID check. The difference here is that model_aliases cannot end in numbers
     // This is to protect our automatic model naming conventions from hitting weird model_alias conflicts
-    private static final Pattern VALID_MODEL_ALIAS_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z])?");
+    private static final Pattern VALID_MODEL_ALIAS_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-.]*[a-z])?");
 
     public static final PutTrainedModelAliasAction INSTANCE = new PutTrainedModelAliasAction();
     public static final String NAME = "cluster:admin/xpack/ml/inference/model_aliases/put";
 
     private PutTrainedModelAliasAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -48,6 +48,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
         private final boolean reassign;
 
         public Request(String modelAlias, String modelId, boolean reassign) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelAlias = ExceptionsHelper.requireNonNull(modelAlias, MODEL_ALIAS);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.reassign = reassign;
@@ -73,7 +74,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws  IOException {
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelAlias);
             out.writeString(modelId);
@@ -85,12 +86,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
             ActionRequestValidationException validationException = null;
             if (modelAlias.equals(modelId)) {
                 validationException = addValidationError(
-                    String.format(
-                        Locale.ROOT,
-                        "model_alias [%s] cannot equal model_id [%s]",
-                        modelAlias,
-                        modelId
-                    ),
+                    String.format(Locale.ROOT, "model_alias [%s] cannot equal model_id [%s]", modelAlias, modelId),
                     validationException
                 );
             }

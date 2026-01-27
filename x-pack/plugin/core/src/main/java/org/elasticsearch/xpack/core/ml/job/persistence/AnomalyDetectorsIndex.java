@@ -6,14 +6,23 @@
  */
 package org.elasticsearch.xpack.core.ml.job.persistence;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Methods for handling index naming related functions
@@ -21,12 +30,18 @@ import org.elasticsearch.xpack.core.template.TemplateUtils;
 public final class AnomalyDetectorsIndex {
 
     private static final String RESULTS_MAPPINGS_VERSION_VARIABLE = "xpack.ml.version";
-    private static final String RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/anomalydetection/";
+    private static final String RESOURCE_PATH = "/ml/anomalydetection/";
+    private static final String WRITE_ALIAS_PREFIX = ".write-";
+    public static final int RESULTS_INDEX_MAPPINGS_VERSION = 1;
 
     private AnomalyDetectorsIndex() {}
 
     public static String jobResultsIndexPrefix() {
         return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
+    }
+
+    public static String jobResultsIndexPattern() {
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + "*";
     }
 
     /**
@@ -39,14 +54,30 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
+     * Extract the job Id from the alias name.
+     * If not an results index alias null is returned
+     * @param jobResultsAliasedName The alias
+     * @return The job Id
+     */
+    public static Optional<String> jobIdFromAlias(String jobResultsAliasedName) {
+        if (jobResultsAliasedName.length() < AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length()) {
+            return Optional.empty();
+        }
+
+        var jobId = jobResultsAliasedName.substring(AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX.length());
+        if (jobId.startsWith(WRITE_ALIAS_PREFIX)) {
+            jobId = jobId.substring(WRITE_ALIAS_PREFIX.length());
+        }
+        return Optional.of(jobId);
+    }
+
+    /**
      * The name of the alias pointing to the write index for a job
      * @param jobId Job Id
      * @return The write alias
      */
     public static String resultsWriteAlias(String jobId) {
-        // ".write" rather than simply "write" to avoid the danger of clashing
-        // with the read alias of a job whose name begins with "write-"
-        return AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + ".write-" + jobId;
+        return AnomalyDetectorsIndexFields.RESULTS_INDEX_WRITE_PREFIX + jobId;
     }
 
     /**
@@ -69,10 +100,13 @@ public final class AnomalyDetectorsIndex {
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */
-    public static void createStateIndexAndAliasIfNecessary(Client client, ClusterState state,
-                                                           IndexNameExpressionResolver resolver,
-                                                           TimeValue masterNodeTimeout,
-                                                           final ActionListener<Boolean> finalListener) {
+    public static void createStateIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
         MlIndexAndAlias.createIndexAndAliasIfNecessary(
             client,
             state,
@@ -80,15 +114,63 @@ public final class AnomalyDetectorsIndex {
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
             masterNodeTimeout,
-            finalListener);
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
+            finalListener
+        );
+    }
+
+    public static void createStateIndexAndAliasIfNecessaryAndWaitForYellow(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        final ActionListener<Boolean> finalListener
+    ) {
+        final ActionListener<Boolean> stateIndexAndAliasCreated = finalListener.delegateFailureAndWrap((delegate, success) -> {
+            final ClusterHealthRequest request = new ClusterHealthRequest(
+                masterNodeTimeout,
+                AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+            ).waitForYellowStatus();
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                TransportClusterHealthAction.TYPE,
+                request,
+                delegate.delegateFailureAndWrap((l, r) -> l.onResponse(r.isTimedOut() == false))
+            );
+        });
+
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(
+            client,
+            state,
+            resolver,
+            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias(),
+            masterNodeTimeout,
+            // TODO: shard count default preserves the existing behaviour when the
+            // parameter was added but it may be that ActiveShardCount.ALL is a
+            // better option
+            ActiveShardCount.DEFAULT,
+            stateIndexAndAliasCreated
+        );
     }
 
     public static String wrappedResultsMapping() {
-        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
+        return String.format(Locale.ROOT, """
+            {
+            "_doc" : %s
+            }""", resultsMapping());
     }
 
     public static String resultsMapping() {
-        return TemplateUtils.loadTemplate(RESOURCE_PATH + "results_index_mappings.json",
-            Version.CURRENT.toString(), RESULTS_MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            RESOURCE_PATH + "results_index_mappings.json",
+            MlIndexAndAlias.BWC_MAPPINGS_VERSION, // Only needed for BWC with pre-8.10.0 nodes
+            RESULTS_MAPPINGS_VERSION_VARIABLE,
+            Map.of("xpack.ml.managed.index.version", Integer.toString(RESULTS_INDEX_MAPPINGS_VERSION))
+        );
     }
 }

@@ -7,12 +7,14 @@
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.ExecutingPolicy;
@@ -21,17 +23,18 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
-import static org.elasticsearch.xpack.enrich.action.EnrichStatsResponseTests.randomTaskInfo;
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,6 +94,9 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
             );
@@ -140,10 +146,45 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getId(), nullValue());
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release. See the deprecation documentation for the next major version."
+        );
     }
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {
         return new EnrichStatsCollector(clusterService, licenseState, client);
+    }
+
+    public static TaskInfo randomTaskInfo() {
+        String nodeId = randomAlphaOfLength(5);
+        TaskId taskId = new TaskId(nodeId, randomLong());
+        String type = randomAlphaOfLength(5);
+        String action = randomAlphaOfLength(5);
+        String description = randomAlphaOfLength(5);
+        long startTime = randomLong();
+        long runningTimeNanos = randomNonNegativeLong();
+        boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
+        TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new TaskInfo(
+            taskId,
+            type,
+            nodeId,
+            action,
+            description,
+            null,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 
 }

@@ -10,7 +10,6 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
@@ -20,6 +19,7 @@ import org.junit.After;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -36,9 +36,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
     public void testMissingFields() throws Exception {
         String sourceIndex = "test-outlier-detection-with-missing-fields";
 
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping("numeric", "type=double", "categorical", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(sourceIndex).setMapping("numeric", "type=double", "categorical", "type=keyword").get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
@@ -60,7 +58,7 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         // Add a doc with numeric being array which is also treated as missing
         {
             IndexRequest arrayIndexRequest = new IndexRequest(sourceIndex);
-            arrayIndexRequest.source("numeric", new double[]{1.0, 2.0}, "categorical", "foo");
+            arrayIndexRequest.source("numeric", new double[] { 1.0, 2.0 }, "categorical", "foo");
             bulkRequestBuilder.add(arrayIndexRequest);
         }
 
@@ -70,8 +68,13 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         }
 
         String id = "test_outlier_detection_with_missing_fields";
-        DataFrameAnalyticsConfig config = buildAnalytics(id, sourceIndex, sourceIndex + "-results", null,
-            new OutlierDetection.Builder().build());
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            id,
+            sourceIndex,
+            sourceIndex + "-results",
+            null,
+            new OutlierDetection.Builder().build()
+        );
         putAnalytics(config);
 
         assertIsStopped(id);
@@ -86,31 +89,32 @@ public class OutlierDetectionWithMissingFieldsIT extends MlNativeDataFrameAnalyt
         assertThat(stats.getDataCounts().getTestDocsCount(), equalTo(0L));
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(2L));
 
-        SearchResponse sourceData = client().prepareSearch(sourceIndex).get();
-        for (SearchHit hit : sourceData.getHits()) {
-            GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
-            assertThat(destDocGetResponse.isExists(), is(true));
-            Map<String, Object> sourceDoc = hit.getSourceAsMap();
-            Map<String, Object> destDoc = destDocGetResponse.getSource();
-            for (String field : sourceDoc.keySet()) {
-                assertThat(destDoc.containsKey(field), is(true));
-                assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
-            }
-            if (destDoc.containsKey("numeric") && destDoc.get("numeric") instanceof Double) {
-                assertThat(destDoc.containsKey("ml"), is(true));
-                @SuppressWarnings("unchecked")
-                Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
+        assertResponse(prepareSearch(sourceIndex), sourceData -> {
+            for (SearchHit hit : sourceData.getHits()) {
+                GetResponse destDocGetResponse = client().prepareGet().setIndex(config.getDest().getIndex()).setId(hit.getId()).get();
+                assertThat(destDocGetResponse.isExists(), is(true));
+                Map<String, Object> sourceDoc = hit.getSourceAsMap();
+                Map<String, Object> destDoc = destDocGetResponse.getSource();
+                for (String field : sourceDoc.keySet()) {
+                    assertThat(destDoc.containsKey(field), is(true));
+                    assertThat(destDoc.get(field), equalTo(sourceDoc.get(field)));
+                }
+                if (destDoc.containsKey("numeric") && destDoc.get("numeric") instanceof Double) {
+                    assertThat(destDoc.containsKey("ml"), is(true));
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> resultsObject = (Map<String, Object>) destDoc.get("ml");
 
-                assertThat(resultsObject.containsKey("outlier_score"), is(true));
-                double outlierScore = (double) resultsObject.get("outlier_score");
-                assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
-            } else {
-                assertThat(destDoc.containsKey("ml"), is(false));
+                    assertThat(resultsObject.containsKey("outlier_score"), is(true));
+                    double outlierScore = (double) resultsObject.get("outlier_score");
+                    assertThat(outlierScore, allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(1.0)));
+                } else {
+                    assertThat(destDoc.containsKey("ml"), is(false));
+                }
             }
-        }
+        });
 
         assertProgressComplete(id);
-        assertThat(searchStoredProgress(id).getHits().getTotalHits().value, equalTo(1L));
+        assertStoredProgressHits(id, 1);
     }
 
     @Override

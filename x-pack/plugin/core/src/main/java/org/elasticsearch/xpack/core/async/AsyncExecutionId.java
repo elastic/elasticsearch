@@ -10,6 +10,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -20,7 +22,10 @@ import java.util.Objects;
 /**
  * A class that contains all information related to a submitted async execution.
  */
-public final class AsyncExecutionId {
+public final class AsyncExecutionId implements Writeable {
+    public static final String ASYNC_EXECUTION_ID_HEADER = "X-Elasticsearch-Async-Id";
+    public static final String ASYNC_EXECUTION_IS_RUNNING_HEADER = "X-Elasticsearch-Async-Is-Running";
+
     private final String docId;
     private final TaskId taskId;
     private final String encoded;
@@ -61,8 +66,7 @@ public final class AsyncExecutionId {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AsyncExecutionId searchId = (AsyncExecutionId) o;
-        return docId.equals(searchId.docId) &&
-            taskId.equals(searchId.taskId);
+        return docId.equals(searchId.docId) && taskId.equals(searchId.taskId);
     }
 
     @Override
@@ -72,10 +76,7 @@ public final class AsyncExecutionId {
 
     @Override
     public String toString() {
-        return "AsyncExecutionId{" +
-            "docId='" + docId + '\'' +
-            ", taskId=" + taskId +
-            '}';
+        return "AsyncExecutionId{" + "docId='" + docId + '\'' + ", taskId=" + taskId + '}';
     }
 
     /**
@@ -115,5 +116,14 @@ public final class AsyncExecutionId {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         return new AsyncExecutionId(docId, new TaskId(taskId), id);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(getEncoded());
+    }
+
+    public static AsyncExecutionId readFrom(StreamInput input) throws IOException {
+        return decode(input.readString());
     }
 }

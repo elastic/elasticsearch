@@ -23,7 +23,7 @@
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         refresh: true
         body:
           text: The quick brown fox is brown.
@@ -31,7 +31,7 @@
   - do:
       termvectors:
         index: test
-        id:    1
+        id:    "1"
         payloads: true
   - match: {term_vectors.text.field_statistics.sum_doc_freq: 5}
   - match: {term_vectors.text.terms.brown.tokens.0.payload: PEFMUEhBTlVNPg==}

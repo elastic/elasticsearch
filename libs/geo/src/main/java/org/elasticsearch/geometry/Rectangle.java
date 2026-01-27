@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -58,6 +59,7 @@ public class Rectangle implements Geometry {
     public Rectangle(double minX, double maxX, double maxY, double minY) {
         this(minX, maxX, maxY, minY, Double.NaN, Double.NaN);
     }
+
     /**
      * Constructs a bounding box by first validating the provided latitude and longitude coordinates
      */
@@ -109,7 +111,6 @@ public class Rectangle implements Geometry {
         return minX;
     }
 
-
     public double getMinAlt() {
         return minZ;
     }
@@ -135,7 +136,6 @@ public class Rectangle implements Geometry {
     public String toString() {
         return WellKnownText.toWKT(this);
     }
-
 
     @Override
     public boolean equals(Object o) {

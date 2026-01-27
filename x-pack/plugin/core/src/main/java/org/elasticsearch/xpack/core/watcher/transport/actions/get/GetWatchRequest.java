@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.get;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,12 +18,11 @@ import java.io.IOException;
 /**
  * The request to get the watch by name (id)
  */
-public class GetWatchRequest extends ActionRequest {
+public class GetWatchRequest extends LegacyActionRequest {
 
     private String id;
 
-    public GetWatchRequest() {
-    }
+    public GetWatchRequest() {}
 
     /**
      * @param id name (id) of the watch to retrieve
@@ -60,7 +59,6 @@ public class GetWatchRequest extends ActionRequest {
         return validationException;
     }
 
-
     /**
      * @return The name of the watch to retrieve
      */
@@ -70,6 +68,6 @@ public class GetWatchRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return "get [" + id +"]";
+        return "get [" + id + "]";
     }
 }

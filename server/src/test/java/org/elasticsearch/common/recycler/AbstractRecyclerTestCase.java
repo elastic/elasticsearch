@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.recycler;
@@ -26,7 +27,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         @Override
         public byte[] newInstance() {
-            byte[] value = new byte[10];
+            byte[] value = new byte[pageSize()];
             // "fresh" is intentionally not 0 to ensure we covered this code path
             Arrays.fill(value, FRESH);
             return value;
@@ -41,6 +42,11 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         public void destroy(byte[] value) {
             // we cannot really free the internals of a byte[], so mark it for verification
             Arrays.fill(value, DEAD);
+        }
+
+        @Override
+        public int pageSize() {
+            return 10;
         }
 
     };
@@ -127,11 +133,11 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
 
         // now exhaust the recycler
         List<V<byte[]>> vals = new ArrayList<>(limit);
-        for (int i = 0; i < limit ; ++i) {
+        for (int i = 0; i < limit; ++i) {
             vals.add(r.obtain());
         }
         // Recycler size increases on release, not on obtain!
-        for (V<byte[]> v: vals) {
+        for (V<byte[]> v : vals) {
             v.close();
         }
 

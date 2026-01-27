@@ -1,47 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.iterable;
 
+import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.Assertions;
+
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class Iterables {
-
-    @SafeVarargs
-    @SuppressWarnings("varargs")
-    public static <T> Iterable<T> concat(Iterable<T>... inputs) {
-        Objects.requireNonNull(inputs);
-        return new ConcatenatedIterable<>(inputs);
-    }
-
-    static class ConcatenatedIterable<T> implements Iterable<T> {
-        private final Iterable<T>[] inputs;
-
-        ConcatenatedIterable(Iterable<T>[] inputs) {
-            this.inputs = Arrays.copyOf(inputs, inputs.length);
-        }
-
-        @Override
-        public Iterator<T> iterator() {
-            return Stream
-                    .of(inputs)
-                    .map(it -> StreamSupport.stream(it.spliterator(), false))
-                    .reduce(Stream::concat)
-                    .orElseGet(Stream::empty).iterator();
-        }
-    }
 
     /** Flattens the two level {@code Iterable} into a single {@code Iterable}.  Note that this pre-caches the values from the outer {@code
      *  Iterable}, but not the values from the inner one. */
@@ -63,9 +41,7 @@ public class Iterables {
 
         @Override
         public Iterator<T> iterator() {
-            return StreamSupport
-                    .stream(inputs.spliterator(), false)
-                    .flatMap(s -> StreamSupport.stream(s.spliterator(), false)).iterator();
+            return StreamSupport.stream(inputs.spliterator(), false).flatMap(s -> StreamSupport.stream(s.spliterator(), false)).iterator();
         }
     }
 
@@ -74,8 +50,7 @@ public class Iterables {
         if (position < 0) {
             throw new IllegalArgumentException("position >= 0");
         }
-        if (iterable instanceof List) {
-            List<T> list = (List<T>)iterable;
+        if (iterable instanceof List<T> list) {
             if (position >= list.size()) {
                 throw new IndexOutOfBoundsException(Integer.toString(position));
             }
@@ -107,6 +82,17 @@ public class Iterables {
     }
 
     public static long size(Iterable<?> iterable) {
-        return StreamSupport.stream(iterable.spliterator(), true).count();
+        return StreamSupport.stream(iterable.spliterator(), false).count();
+    }
+
+    /**
+     * Adds a wrapper around {@code iterable} which asserts that {@link Iterator#remove()} is not called on the iterator it returns.
+     */
+    public static <T> Iterable<T> assertReadOnly(Iterable<T> iterable) {
+        if (Assertions.ENABLED) {
+            return () -> Iterators.assertReadOnly(iterable.iterator());
+        } else {
+            return iterable;
+        }
     }
 }

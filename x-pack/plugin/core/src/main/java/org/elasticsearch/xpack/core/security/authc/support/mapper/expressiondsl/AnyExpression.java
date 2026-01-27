@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 /**
  * An expression that evaluates to <code>true</code> if at least one of its children
@@ -25,7 +25,8 @@ public final class AnyExpression implements RoleMapperExpression {
 
     private final List<RoleMapperExpression> elements;
 
-    AnyExpression(List<RoleMapperExpression> elements) {
+    // public to be used in tests
+    public AnyExpression(List<RoleMapperExpression> elements) {
         assert elements != null;
         this.elements = elements;
     }

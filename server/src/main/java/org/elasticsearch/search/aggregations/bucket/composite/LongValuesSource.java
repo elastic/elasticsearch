@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -12,11 +13,11 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -40,10 +42,10 @@ import java.util.function.ToLongFunction;
  */
 class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private final BigArrays bigArrays;
-    private final CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc;
+    private final CheckedFunction<LeafReaderContext, SortedNumericLongValues, IOException> docValuesFunc;
     private final LongUnaryOperator rounding;
 
-    private BitArray bits;
+    private final BitArray bits;
     private LongArray values;
     private long currentValue;
     private boolean missingCurrentValue;
@@ -51,7 +53,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     LongValuesSource(
         BigArrays bigArrays,
         MappedFieldType fieldType,
-        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        CheckedFunction<LeafReaderContext, SortedNumericLongValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,
@@ -59,12 +61,20 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -145,11 +155,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(
-                value.toString(),
-                false,
-                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
-            );
+            afterValue = format.parseLong(value.toString(), false, () -> {
+                throw new IllegalArgumentException("now() is not supported in [after] key");
+            });
         }
     }
 
@@ -163,17 +171,42 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        final SortedNumericDocValues dvs = docValuesFunc.apply(context);
+        final SortedNumericLongValues dvs = docValuesFunc.apply(context);
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(dvs);
+        return singleton != null ? getLeafCollector(singleton, next) : getLeafCollector(dvs, next);
+    }
+
+    private LeafBucketCollector getLeafCollector(SortedNumericLongValues dvs, LeafBucketCollector next) {
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (dvs.advanceExact(doc)) {
                     int num = dvs.docValueCount();
+                    long previous = Long.MAX_VALUE;
                     for (int i = 0; i < num; i++) {
                         currentValue = dvs.nextValue();
                         missingCurrentValue = false;
-                        next.collect(doc, bucket);
+                        if (i == 0 || previous != currentValue) {
+                            next.collect(doc, bucket);
+                            previous = currentValue;
+                        }
                     }
+                } else if (missingBucket) {
+                    missingCurrentValue = true;
+                    next.collect(doc, bucket);
+                }
+            }
+        };
+    }
+
+    private LeafBucketCollector getLeafCollector(LongValues dvs, LeafBucketCollector next) {
+        return new LeafBucketCollector() {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (dvs.advanceExact(doc)) {
+                    currentValue = dvs.longValue();
+                    missingCurrentValue = false;
+                    next.collect(doc, bucket);
                 } else if (missingBucket) {
                     missingCurrentValue = true;
                     next.collect(doc, bucket);
@@ -216,11 +249,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return true;
         } else if (query.getClass() == MatchAllDocsQuery.class) {
             return true;
-        } else if (query instanceof PointRangeQuery) {
-            PointRangeQuery pointQuery = (PointRangeQuery) query;
+        } else if (query instanceof PointRangeQuery pointQuery) {
             return fieldName.equals(pointQuery.getField());
-        } else if (query instanceof DocValuesFieldExistsQuery) {
-            DocValuesFieldExistsQuery existsQuery = (DocValuesFieldExistsQuery) query;
+        } else if (query instanceof FieldExistsQuery existsQuery) {
             return fieldName.equals(existsQuery.getField());
         } else {
             return false;
@@ -235,8 +266,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
         final byte[] lowerPoint;
         final byte[] upperPoint;
-        if (query instanceof PointRangeQuery) {
-            final PointRangeQuery rangeQuery = (PointRangeQuery) query;
+        if (query instanceof final PointRangeQuery rangeQuery) {
             lowerPoint = rangeQuery.getLowerPoint();
             upperPoint = rangeQuery.getUpperPoint();
         } else {
@@ -244,8 +274,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             upperPoint = null;
         }
 
-        if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        if (fieldType instanceof NumberFieldMapper.NumberFieldType ft) {
             final ToLongFunction<byte[]> toBucketFunction;
 
             switch (ft.typeName()) {

@@ -20,13 +20,13 @@ import java.util.Map;
  * Dedicated collection for mapping a key to a list of sequences
  * The list represents the sequence for each stage (based on its index) and is fixed in size
  */
-class KeyToSequences implements Accountable {
+public class KeyToSequences implements Accountable {
 
     /**
      * Utility class holding the sequencegroup/until tuple that also handles
      * lazy initialization.
      */
-    private static class SequenceEntry implements Accountable {
+    public static class SequenceEntry implements Accountable {
 
         private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceEntry.class);
 
@@ -113,8 +113,8 @@ class KeyToSequences implements Accountable {
      * Remove all matches except the latest occurring _before_ the given ordinal.
      */
     void trimToTail(Ordinal ordinal) {
-        for (Iterator<SequenceEntry> it = keyToSequences.values().iterator(); it.hasNext(); ) {
-            SequenceEntry seqs =  it.next();
+        for (Iterator<SequenceEntry> it = keyToSequences.values().iterator(); it.hasNext();) {
+            SequenceEntry seqs = it.next();
             // remember the last item found (will be ascending)
             // to trim unneeded until that occur before it
             Sequence firstTail = null;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -25,14 +26,14 @@ public class AliasFilterTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         final QueryBuilder filter = QueryBuilders.termQuery("field", "value");
         final String[] aliases = new String[] { "alias_0", "alias_1" };
-        final AliasFilter aliasFilter = new AliasFilter(filter, aliases);
+        final AliasFilter aliasFilter = AliasFilter.of(filter, aliases);
         final EqualsHashCodeTestUtils.CopyFunction<AliasFilter> aliasFilterCopyFunction = x -> {
             assertThat(x.getQueryBuilder(), instanceOf(TermQueryBuilder.class));
             final BytesStreamOutput out = new BytesStreamOutput();
             x.getQueryBuilder().writeTo(out);
             final QueryBuilder otherFilter = new TermQueryBuilder(out.bytes().streamInput());
             final String[] otherAliases = Arrays.copyOf(x.getAliases(), x.getAliases().length);
-            return new AliasFilter(otherFilter, otherAliases);
+            return AliasFilter.of(otherFilter, otherAliases);
         };
 
         final EqualsHashCodeTestUtils.MutateFunction<AliasFilter> aliasFilterMutationFunction = x -> {
@@ -42,7 +43,7 @@ public class AliasFilterTests extends ESTestCase {
             final QueryBuilder otherFilter = new TermQueryBuilder(out.bytes().streamInput());
             assertThat(x.getAliases().length, greaterThan(0));
             final String[] otherAliases = Arrays.copyOf(x.getAliases(), x.getAliases().length - 1);
-            return new AliasFilter(otherFilter, otherAliases);
+            return AliasFilter.of(otherFilter, otherAliases);
         };
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(aliasFilter, aliasFilterCopyFunction, aliasFilterMutationFunction);

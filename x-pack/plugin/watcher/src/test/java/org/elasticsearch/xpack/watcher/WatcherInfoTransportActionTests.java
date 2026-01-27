@@ -6,28 +6,30 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.watcher.WatcherFeatureSetUsage;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
@@ -40,36 +42,43 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class WatcherInfoTransportActionTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
+    private MockLicenseState licenseState;
     private Client client;
+    private ThreadPool threadPool;
+    private TransportService transportService;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
+        licenseState = mock(MockLicenseState.class);
         client = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         when(client.threadPool()).thenReturn(threadPool);
+        transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
     }
 
     public void testAvailable() {
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), Settings.EMPTY, licenseState);
+            transportService,
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState
+        );
         boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.WATCHER)).thenReturn(available);
+        when(licenseState.isAllowed(WatcherField.WATCHER_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
     }
 
@@ -84,18 +93,21 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             settings.put("xpack.watcher.enabled", enabled);
         }
         WatcherInfoTransportAction featureSet = new WatcherInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class), settings.build(), licenseState);
+            transportService,
+            mock(ActionFilters.class),
+            settings.build(),
+            licenseState
+        );
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testUsageStats() throws Exception {
         doAnswer(mock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<WatcherStatsResponse> listener =
-                    (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
+            ActionListener<WatcherStatsResponse> listener = (ActionListener<WatcherStatsResponse>) mock.getArguments()[2];
 
             List<WatcherStatsResponse.Node> nodes = new ArrayList<>();
-            DiscoveryNode first = new DiscoveryNode("first", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode first = DiscoveryNodeUtils.create("first");
             WatcherStatsResponse.Node firstNode = new WatcherStatsResponse.Node(first);
             Counters firstCounters = new Counters();
             firstCounters.inc("foo.foo", 1);
@@ -103,7 +115,7 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             firstNode.setStats(firstCounters);
             nodes.add(firstNode);
 
-            DiscoveryNode second = new DiscoveryNode("second", buildNewFakeTransportAddress(), Version.CURRENT);
+            DiscoveryNode second = DiscoveryNodeUtils.create("second");
             WatcherStatsResponse.Node secondNode = new WatcherStatsResponse.Node(second);
             Counters secondCounters = new Counters();
             secondCounters.inc("spam", 1);
@@ -111,8 +123,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
             secondNode.setStats(secondCounters);
             nodes.add(secondNode);
 
-            listener.onResponse(new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false),
-                    nodes, Collections.emptyList()));
+            listener.onResponse(
+                new WatcherStatsResponse(new ClusterName("whatever"), new WatcherMetadata(false), nodes, Collections.emptyList())
+            );
             return null;
         }).when(client).execute(eq(WatcherStatsAction.INSTANCE), any(), any());
         ClusterService clusterService = mock(ClusterService.class);
@@ -120,10 +133,17 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         when(mockNode.getId()).thenReturn("mocknode");
         when(clusterService.localNode()).thenReturn(mockNode);
 
-        var usageAction = new WatcherUsageTransportAction(mock(TransportService.class), clusterService, null,
-            mock(ActionFilters.class), null, Settings.EMPTY, licenseState, client);
+        var usageAction = new WatcherUsageTransportAction(
+            transportService,
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            Settings.EMPTY,
+            licenseState,
+            client
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         WatcherFeatureSetUsage watcherUsage = (WatcherFeatureSetUsage) future.get().getUsage();
         assertThat(watcherUsage.stats().keySet(), containsInAnyOrder("foo", "spam"));
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", watcherUsage.stats());
@@ -134,9 +154,9 @@ public class WatcherInfoTransportActionTests extends ESTestCase {
         assertThat(spam, is(1L));
         BytesStreamOutput out = new BytesStreamOutput();
         watcherUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new WatcherFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage serializedUsage = new WatcherFeatureSetUsage(out.bytes().streamInput());
 
-        for (XPackFeatureSet.Usage usage : Arrays.asList(watcherUsage, serializedUsage)) {
+        for (XPackFeatureUsage usage : Arrays.asList(watcherUsage, serializedUsage)) {
             XContentBuilder builder = jsonBuilder();
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
 

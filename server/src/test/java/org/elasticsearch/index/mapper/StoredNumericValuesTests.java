@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,9 +12,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Set;
 
@@ -35,30 +36,51 @@ public class StoredNumericValuesTests extends MapperServiceTestCase {
             b.startObject("field10").field("type", "boolean").field("store", true).endObject();
         }));
 
-        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", BytesReference
-                .bytes(XContentFactory.jsonBuilder()
-                        .startObject()
+        ParsedDocument doc = mapperService.documentMapper()
+            .parse(
+                new SourceToParse(
+                    "1",
+                    BytesReference.bytes(
+                        XContentFactory.jsonBuilder()
+                            .startObject()
                             .field("field1", 1)
                             .field("field2", 1)
                             .field("field3", 1)
                             .field("field4", 1.1)
-                            .startArray("field5").value(1).value(2).value(3).endArray()
+                            .startArray("field5")
+                            .value(1)
+                            .value(2)
+                            .value(3)
+                            .endArray()
                             .field("field6", 1.1)
                             .field("field7", "192.168.1.1")
                             .field("field8", "2001:db8::2:1")
                             .field("field9", "2016-04-05")
                             .field("field10", true)
-                        .endObject()),
-                XContentType.JSON));
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+            );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {
 
-            IndexSearcher searcher = new IndexSearcher(ir);
+            IndexSearcher searcher = newSearcher(ir);
 
-            Set<String> fieldNames = Sets.newHashSet("field1", "field2", "field3", "field4", "field5",
-                "field6", "field7", "field8", "field9", "field10");
+            Set<String> fieldNames = Sets.newHashSet(
+                "field1",
+                "field2",
+                "field3",
+                "field4",
+                "field5",
+                "field6",
+                "field7",
+                "field8",
+                "field9",
+                "field10"
+            );
             CustomFieldsVisitor fieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
-            searcher.doc(0, fieldsVisitor);
+            searcher.storedFields().document(0, fieldsVisitor);
 
             fieldsVisitor.postProcess(mapperService::fieldType);
             assertThat(fieldsVisitor.fields().size(), equalTo(10));

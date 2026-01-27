@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.logstash;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -32,28 +31,20 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.LOGSTASH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.LOGSTASH.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.LOGSTASH);
+        boolean available = Logstash.LOGSTASH_FEATURE.checkWithoutTracking(licenseState);
         LogstashFeatureSetUsage usage = new LogstashFeatureSetUsage(available);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

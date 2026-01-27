@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.search.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,8 +28,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * @see AsyncSearchResponse
  */
-public class SubmitAsyncSearchRequest extends ActionRequest {
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
+public class SubmitAsyncSearchRequest extends LegacyActionRequest {
+    public static final long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
@@ -80,6 +80,25 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
 
     public int getBatchReduceSize() {
         return request.getBatchedReduceSize();
+    }
+
+    /**
+     * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
+     * Defaults to <code>false</code>.
+     */
+    public boolean isCcsMinimizeRoundtrips() {
+        return request.isCcsMinimizeRoundtrips();
+    }
+
+    /**
+     * Sets whether network round-trips should be minimized when executing cross-cluster search requests.
+     * Defaults to <code>false</code>.
+     *
+     * <p>WARNING: The progress and partial responses of searches executed on remote clusters will not be
+     * available during the search if {@code ccsMinimizeRoundtrips} is enabled.</p>
+     */
+    public void setCcsMinimizeRoundtrips(boolean ccsMinimizeRoundtrips) {
+        request.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
     }
 
     /**
@@ -135,17 +154,16 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             validationException = addValidationError("suggest-only queries are not supported", validationException);
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
-            validationException =
-                addValidationError("[keep_alive] must be greater or equals than 1 second, got:" +
-                    keepAlive.toString(), validationException);
-        }
-        if (request.isCcsMinimizeRoundtrips()) {
-            validationException =
-                addValidationError("[ccs_minimize_roundtrips] is not supported on async search queries", validationException);
+            validationException = addValidationError(
+                "[keep_alive] must be greater or equals than 1 second, got:" + keepAlive.toString(),
+                validationException
+            );
         }
         if (request.getPreFilterShardSize() == null || request.getPreFilterShardSize() != 1) {
-            validationException =
-                addValidationError("[pre_filter_shard_size] cannot be changed for async search queries", validationException);
+            validationException = addValidationError(
+                "[pre_filter_shard_size] cannot be changed for async search queries",
+                validationException
+            );
         }
 
         return validationException;
@@ -157,10 +175,14 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             @Override
             public String getDescription() {
                 // generating description in a lazy way since source can be quite big
-                return "waitForCompletionTimeout[" + waitForCompletionTimeout +
-                    "], keepOnCompletion[" + keepOnCompletion +
-                    "] keepAlive[" + keepAlive +
-                    "], request=" + request.buildDescription();
+                return "waitForCompletionTimeout["
+                    + waitForCompletionTimeout
+                    + "], keepOnCompletion["
+                    + keepOnCompletion
+                    + "] keepAlive["
+                    + keepAlive
+                    + "], request="
+                    + request.buildDescription();
             }
         };
     }
@@ -174,10 +196,10 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
             return false;
         }
         SubmitAsyncSearchRequest request1 = (SubmitAsyncSearchRequest) o;
-        return keepOnCompletion == request1.keepOnCompletion &&
-            waitForCompletionTimeout.equals(request1.waitForCompletionTimeout) &&
-            keepAlive.equals(request1.keepAlive) &&
-            request.equals(request1.request);
+        return keepOnCompletion == request1.keepOnCompletion
+            && waitForCompletionTimeout.equals(request1.waitForCompletionTimeout)
+            && keepAlive.equals(request1.keepAlive)
+            && request.equals(request1.request);
     }
 
     @Override

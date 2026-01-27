@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geo;
 
-import org.apache.lucene.geo.GeoTestUtil;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -22,6 +23,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.GeometryPointCountVisitor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -49,8 +51,7 @@ public class GeometryTestUtils {
     public static Circle randomCircle(boolean hasAlt) {
         org.apache.lucene.geo.Circle luceneCircle = GeoTestUtil.nextCircle();
         if (hasAlt) {
-            return new Circle(luceneCircle.getLon(), luceneCircle.getLat(), ESTestCase.randomDouble(),
-                luceneCircle.getRadius());
+            return new Circle(luceneCircle.getLon(), luceneCircle.getLat(), ESTestCase.randomDouble(), luceneCircle.getRadius());
         } else {
             return new Circle(luceneCircle.getLon(), luceneCircle.getLat(), luceneCircle.getRadius());
         }
@@ -107,12 +108,11 @@ public class GeometryTestUtils {
         final int numPts = lucenePolygon.numPoints() - 1;
         for (int i = 0; i < numPts; i++) {
             // compute signed area
-            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) -
-                lucenePolygon.getPolyLat(i) * lucenePolygon.getPolyLon(i + 1);
+            windingSum += lucenePolygon.getPolyLon(i) * lucenePolygon.getPolyLat(i + 1) - lucenePolygon.getPolyLat(i) * lucenePolygon
+                .getPolyLon(i + 1);
         }
-       return Math.abs(windingSum / 2);
+        return Math.abs(windingSum / 2);
     }
-
 
     private static double[] randomAltRing(int size) {
         double[] alts = new double[size];
@@ -123,7 +123,7 @@ public class GeometryTestUtils {
         return alts;
     }
 
-    public static LinearRing linearRing(double[] lons, double[] lats,boolean generateAlts) {
+    public static LinearRing linearRing(double[] lons, double[] lats, boolean generateAlts) {
         if (generateAlts) {
             return new LinearRing(lons, lats, randomAltRing(lats.length));
         }
@@ -189,26 +189,32 @@ public class GeometryTestUtils {
     }
 
     public static Geometry randomGeometry(ShapeType type, boolean hasAlt) {
-       switch (type) {
-           case GEOMETRYCOLLECTION: return randomGeometryCollection(0, hasAlt);
-           case MULTILINESTRING: return randomMultiLine(hasAlt);
-           case ENVELOPE: return randomRectangle();
-           case LINESTRING: return randomLine(hasAlt);
-           case POLYGON: return randomPolygon(hasAlt);
-           case MULTIPOLYGON: return randomMultiPolygon(hasAlt);
-           case CIRCLE: return randomCircle(hasAlt);
-           case MULTIPOINT: return randomMultiPoint(hasAlt);
-           case POINT: return randomPoint(hasAlt);
-           default: throw new IllegalArgumentException("Ussuported shape type [" + type + "]");
-       }
+        return switch (type) {
+            case GEOMETRYCOLLECTION -> randomGeometryCollection(0, hasAlt);
+            case MULTILINESTRING -> randomMultiLine(hasAlt);
+            case ENVELOPE -> randomRectangle();
+            case LINESTRING -> randomLine(hasAlt);
+            case POLYGON -> randomPolygon(hasAlt);
+            case MULTIPOLYGON -> randomMultiPolygon(hasAlt);
+            case CIRCLE -> randomCircle(hasAlt);
+            case MULTIPOINT -> randomMultiPoint(hasAlt);
+            case POINT -> randomPoint(hasAlt);
+            default -> throw new IllegalArgumentException("Unsupported shape type [" + type + "]");
+        };
     }
 
     public static Geometry randomGeometry(boolean hasAlt) {
         return randomGeometry(0, hasAlt);
     }
 
+    public static Geometry randomGeometry(boolean hasAlt, int maxPoints) {
+        var pointCounter = new GeometryPointCountVisitor();
+        return randomValueOtherThanMany(g -> g.visit(pointCounter) > maxPoints, () -> randomGeometry(0, hasAlt));
+    }
+
     protected static Geometry randomGeometry(int level, boolean hasAlt) {
-        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+        @SuppressWarnings("unchecked")
+        Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
             GeometryTestUtils::randomCircle,
             GeometryTestUtils::randomLine,
             GeometryTestUtils::randomPoint,
@@ -223,7 +229,8 @@ public class GeometryTestUtils {
     }
 
     public static Geometry randomGeometryWithoutCircle(int level, boolean hasAlt) {
-        @SuppressWarnings("unchecked") Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
+        @SuppressWarnings("unchecked")
+        Function<Boolean, Geometry> geometry = ESTestCase.randomFrom(
             GeometryTestUtils::randomPoint,
             GeometryTestUtils::randomMultiPoint,
             GeometryTestUtils::randomLine,
@@ -231,8 +238,8 @@ public class GeometryTestUtils {
             GeometryTestUtils::randomPolygon,
             GeometryTestUtils::randomMultiPolygon,
             hasAlt ? GeometryTestUtils::randomPoint : (b) -> randomRectangle(),
-            level < 3 ? (b) ->
-                randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too deep
+            level < 3 ? (b) -> randomGeometryWithoutCircleCollection(level + 1, hasAlt) : GeometryTestUtils::randomPoint // don't build too
+                                                                                                                         // deep
         );
         return geometry.apply(hasAlt);
     }
@@ -309,8 +316,12 @@ public class GeometryTestUtils {
 
             @Override
             public MultiPoint visit(Rectangle rectangle) throws RuntimeException {
-                return new MultiPoint(Arrays.asList(new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
-                    new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())));
+                return new MultiPoint(
+                    Arrays.asList(
+                        new Point(rectangle.getMinX(), rectangle.getMinY(), rectangle.getMinZ()),
+                        new Point(rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMaxZ())
+                    )
+                );
             }
         });
     }

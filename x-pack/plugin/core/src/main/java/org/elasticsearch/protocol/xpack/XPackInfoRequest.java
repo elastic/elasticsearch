@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.license.License;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -20,10 +18,12 @@ import java.util.Locale;
 /**
  * Fetch information about X-Pack from the cluster.
  */
-public class XPackInfoRequest extends ActionRequest {
+public class XPackInfoRequest extends LegacyActionRequest {
 
     public enum Category {
-        BUILD, LICENSE, FEATURES;
+        BUILD,
+        LICENSE,
+        FEATURES;
 
         public static EnumSet<Category> toSet(String... categories) {
             EnumSet<Category> set = EnumSet.noneOf(Category.class);
@@ -44,8 +44,7 @@ public class XPackInfoRequest extends ActionRequest {
     private boolean verbose;
     private EnumSet<Category> categories = EnumSet.noneOf(Category.class);
 
-    public XPackInfoRequest() {
-    }
+    public XPackInfoRequest() {}
 
     public XPackInfoRequest(StreamInput in) throws IOException {
         super(in);
@@ -56,9 +55,6 @@ public class XPackInfoRequest extends ActionRequest {
             categories.add(Category.valueOf(in.readString()));
         }
         this.categories = categories;
-        if (hasLicenseVersionField(in.getVersion())) {
-            int ignoredLicenseVersion = in.readVInt();
-        }
     }
 
     public void setVerbose(boolean verbose) {
@@ -90,12 +86,5 @@ public class XPackInfoRequest extends ActionRequest {
         for (Category category : categories) {
             out.writeString(category.name());
         }
-        if (hasLicenseVersionField(out.getVersion())) {
-            out.writeVInt(License.VERSION_CURRENT);
-        }
-    }
-
-    private static boolean hasLicenseVersionField(Version streamVersion) {
-        return streamVersion.onOrAfter(Version.V_7_8_1) && streamVersion.before(Version.V_8_0_0);
     }
 }

@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.rest.action.search.SearchResponseMetrics;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -26,46 +28,79 @@ import java.util.function.BiFunction;
 
 final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSearchResult> {
 
-    private final SearchPhaseController searchPhaseController;
+    private final SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer;
+    private final SearchProgressListener progressListener;
+    private final Client client;
 
-    private final QueryPhaseResultConsumer queryPhaseResultConsumer;
-
-    SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                       final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                       final Map<String, AliasFilter> aliasFilter,
-                                       final Map<String, Float> concreteIndexBoosts,
-                                       final SearchPhaseController searchPhaseController, final Executor executor,
-                                       final QueryPhaseResultConsumer queryPhaseResultConsumer,
-                                       final SearchRequest request, final ActionListener<SearchResponse> listener,
-                                       final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                       final TransportSearchAction.SearchTimeProvider timeProvider,
-                                       final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
-        super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
-                executor, request, listener,
-                shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
-                request.getMaxConcurrentShardRequests(), clusters);
+    SearchDfsQueryThenFetchAsyncAction(
+        Logger logger,
+        NamedWriteableRegistry namedWriteableRegistry,
+        SearchTransportService searchTransportService,
+        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+        Map<String, AliasFilter> aliasFilter,
+        Map<String, Float> concreteIndexBoosts,
+        Executor executor,
+        SearchPhaseResults<SearchPhaseResult> queryPhaseResultConsumer,
+        SearchRequest request,
+        ActionListener<SearchResponse> listener,
+        List<SearchShardIterator> shardsIts,
+        TransportSearchAction.SearchTimeProvider timeProvider,
+        ClusterState clusterState,
+        SearchTask task,
+        SearchResponse.Clusters clusters,
+        Client client,
+        SearchResponseMetrics searchResponseMetrics,
+        Map<String, Object> searchRequestAttributes,
+        boolean pitRelocationEnabled
+    ) {
+        super(
+            "dfs",
+            logger,
+            namedWriteableRegistry,
+            searchTransportService,
+            nodeIdToConnection,
+            aliasFilter,
+            concreteIndexBoosts,
+            executor,
+            request,
+            listener,
+            shardsIts,
+            timeProvider,
+            clusterState,
+            task,
+            new ArraySearchPhaseResults<>(shardsIts.size()),
+            request.getMaxConcurrentShardRequests(),
+            clusters,
+            searchResponseMetrics,
+            searchRequestAttributes,
+            pitRelocationEnabled
+        );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
-        this.searchPhaseController = searchPhaseController;
-        SearchProgressListener progressListener = task.getProgressListener();
-        SearchSourceBuilder sourceBuilder = request.source();
-        progressListener.notifyListShards(SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, sourceBuilder == null || sourceBuilder.size() != 0);
+        addReleasable(queryPhaseResultConsumer);
+        this.progressListener = task.getProgressListener();
+        // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
+        if (progressListener != SearchProgressListener.NOOP) {
+            notifyListShards(progressListener, clusters, request, shardsIts);
+        }
+        this.client = client;
     }
 
     @Override
-    protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
-                                       final SearchActionListener<DfsSearchResult> listener) {
-        getSearchTransport().sendExecuteDfs(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex) , getTask(), listener);
+    protected void executePhaseOnShard(
+        final SearchShardIterator shardIt,
+        final Transport.Connection connection,
+        final SearchActionListener<DfsSearchResult> listener
+    ) {
+        getSearchTransport().sendExecuteDfs(connection, buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<DfsSearchResult> results, SearchPhaseContext context) {
-        final List<DfsSearchResult> dfsSearchResults = results.getAtomicArray().asList();
-        final AggregatedDfs aggregatedDfs = searchPhaseController.aggregateDfs(dfsSearchResults);
+    protected SearchPhase getNextPhase() {
+        return new DfsQueryPhase(queryPhaseResultConsumer, client, this);
+    }
 
-        return new DfsQueryPhase(dfsSearchResults, aggregatedDfs, queryPhaseResultConsumer,
-            (queryResults) -> new FetchSearchPhase(queryResults, searchPhaseController, aggregatedDfs, context),
-            context);
+    @Override
+    protected void onShardGroupFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        progressListener.notifyQueryFailure(shardIndex, shardTarget, exc);
     }
 }

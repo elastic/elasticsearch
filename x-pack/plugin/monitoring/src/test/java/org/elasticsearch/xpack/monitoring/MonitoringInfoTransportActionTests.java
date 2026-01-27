@@ -6,19 +6,21 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.MockUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
@@ -30,7 +32,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
@@ -43,19 +45,19 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
     private final Exporters exporters = mock(Exporters.class);
 
     public void testAvailable() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.available(), is(true));
     }
 
     public void testMonitoringEnabledByDefault() {
-        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(
-            mock(TransportService.class), mock(ActionFilters.class));
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        MonitoringInfoTransportAction featureSet = new MonitoringInfoTransportAction(transportService, mock(ActionFilters.class));
         assertThat(featureSet.enabled(), is(true));
     }
 
     public void testUsage() throws Exception {
-        final Version serializedVersion = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+        TransportVersion serializedVersion = TransportVersionUtils.randomCompatibleVersion();
         final boolean collectionEnabled = randomBoolean();
         int localCount = randomIntBetween(0, 5);
         List<Exporter> exporterList = new ArrayList<>();
@@ -89,19 +91,26 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
         when(exporters.getEnabledExporters()).thenReturn(exporterList);
         when(monitoring.isMonitoringActive()).thenReturn(collectionEnabled);
 
-        var usageAction = new MonitoringUsageTransportAction(mock(TransportService.class), null, null,
-            mock(ActionFilters.class), null, new MonitoringUsageServices(monitoring, exporters));
+        ThreadPool threadPool = mock(ThreadPool.class);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
+        var usageAction = new MonitoringUsageTransportAction(
+            transportService,
+            null,
+            threadPool,
+            mock(ActionFilters.class),
+            new MonitoringUsageServices(monitoring, exporters)
+        );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         MonitoringFeatureSetUsage monitoringUsage = (MonitoringFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
-        out.setVersion(serializedVersion);
+        out.setTransportVersion(serializedVersion);
         monitoringUsage.writeTo(out);
         StreamInput in = out.bytes().streamInput();
-        in.setVersion(serializedVersion);
-        XPackFeatureSet.Usage serializedUsage = new MonitoringFeatureSetUsage(in);
-        for (XPackFeatureSet.Usage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
-            ObjectPath  source;
+        in.setTransportVersion(serializedVersion);
+        XPackFeatureUsage serializedUsage = new MonitoringFeatureSetUsage(in);
+        for (XPackFeatureUsage usage : Arrays.asList(monitoringUsage, serializedUsage)) {
+            ObjectPath source;
             try (XContentBuilder builder = jsonBuilder()) {
                 usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 source = ObjectPath.createFromXContent(builder.contentType().xContent(), BytesReference.bytes(builder));

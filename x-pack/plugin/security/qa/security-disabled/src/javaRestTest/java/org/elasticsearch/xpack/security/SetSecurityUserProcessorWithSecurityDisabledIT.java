@@ -10,7 +10,11 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.ClassRule;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -21,17 +25,32 @@ import static org.hamcrest.Matchers.containsString;
  */
 public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCase {
 
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .nodes(2)
+        .distribution(DistributionType.DEFAULT)
+        .setting("xpack.ml.enabled", "false")
+        // We run with a trial license, but explicitly disable security.
+        // This means the security plugin is loaded and all feature are permitted, but they are not enabled
+        .setting("xpack.license.self_generated.type", "trial")
+        .setting("xpack.security.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     public void testDefineAndUseProcessor() throws Exception {
         final String pipeline = "pipeline-" + getTestName();
         final String index = "index-" + getTestName();
         {
             final Request putPipeline = new Request("PUT", "/_ingest/pipeline/" + pipeline);
-            putPipeline.setJsonEntity("{" +
-                " \"description\": \"Test pipeline (" + getTestName() + ")\"," +
-                " \"processors\":[{" +
-                "  \"set_security_user\":{ \"field\": \"user\" }" +
-                " }]" +
-                "}");
+            putPipeline.setJsonEntity(Strings.format("""
+                {
+                  "description": "Test pipeline (%s)",
+                  "processors": [ { "set_security_user": { "field": "user" } } ]
+                }""", getTestName()));
             final Response response = client().performRequest(putPipeline);
             assertOK(response);
         }
@@ -41,8 +60,10 @@ public class SetSecurityUserProcessorWithSecurityDisabledIT extends ESRestTestCa
             ingest.setJsonEntity("{\"field\":\"value\"}");
             final ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(ingest));
             final Response response = ex.getResponse();
-            assertThat(EntityUtils.toString(response.getEntity()),
-                containsString("Security (authentication) is not enabled on this cluster"));
+            assertThat(
+                EntityUtils.toString(response.getEntity()),
+                containsString("Security (authentication) is not enabled on this cluster")
+            );
         }
     }
 

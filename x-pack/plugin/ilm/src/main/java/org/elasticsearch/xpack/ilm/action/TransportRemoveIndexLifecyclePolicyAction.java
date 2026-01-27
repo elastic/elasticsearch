@@ -15,9 +15,12 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -31,12 +34,30 @@ import java.util.List;
 
 public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNodeAction<Request, Response> {
 
+    private final ProjectResolver projectResolver;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     @Inject
-    public TransportRemoveIndexLifecyclePolicyAction(TransportService transportService, ClusterService clusterService,
-                                                     ThreadPool threadPool, ActionFilters actionFilters,
-                                                     IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(RemoveIndexLifecyclePolicyAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            Request::new, indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
+    public TransportRemoveIndexLifecyclePolicyAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            RemoveIndexLifecyclePolicyAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
+            Response::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -46,27 +67,34 @@ public class TransportRemoveIndexLifecyclePolicyAction extends TransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        final Index[] indices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), true, request.indices());
-        clusterService.submitStateUpdateTask("remove-lifecycle-for-index",
-                new ClusterStateUpdateTask(request.masterNodeTimeout()) {
+        final var project = projectResolver.getProjectMetadata(state);
+        final Index[] indices = indexNameExpressionResolver.concreteIndices(project, request.indicesOptions(), true, request.indices());
+        submitUnbatchedTask("remove-lifecycle-for-index", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
-                    private final List<String> failedIndexes = new ArrayList<>();
+            private final List<String> failedIndexes = new ArrayList<>();
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        return IndexLifecycleTransition.removePolicyForIndexes(indices, currentState, failedIndexes);
-                    }
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                final var currentProjet = currentState.metadata().getProject(project.id());
+                final var updatedProject = IndexLifecycleTransition.removePolicyForIndexes(indices, currentProjet, failedIndexes);
+                return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
+            }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(new Response(failedIndexes));
-                    }
-                });
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                listener.onResponse(new Response(failedIndexes));
+            }
+        });
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
 }

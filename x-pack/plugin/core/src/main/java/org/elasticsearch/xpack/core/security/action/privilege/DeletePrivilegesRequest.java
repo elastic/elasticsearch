@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.privilege;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,8 +23,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to delete an application privilege.
  */
-public final class DeletePrivilegesRequest extends ActionRequest
-    implements ApplicationPrivilegesRequest, WriteRequest<DeletePrivilegesRequest> {
+public final class DeletePrivilegesRequest extends LegacyActionRequest
+    implements
+        ApplicationPrivilegesRequest,
+        WriteRequest<DeletePrivilegesRequest> {
 
     private String application;
     private String[] privileges;

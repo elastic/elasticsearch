@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ql.type;
 
+import org.elasticsearch.search.sort.ScriptSortBuilder;
+
 import java.util.Locale;
 import java.util.Objects;
 
@@ -62,6 +64,12 @@ public class DataType {
         return esType;
     }
 
+    public ScriptSortBuilder.ScriptSortType scriptSortType() {
+        return isNumeric() ? ScriptSortBuilder.ScriptSortType.NUMBER
+            : this == DataTypes.VERSION ? ScriptSortBuilder.ScriptSortType.VERSION
+            : ScriptSortBuilder.ScriptSortType.STRING;
+    }
+
     public boolean isInteger() {
         return isInteger;
     }
@@ -99,11 +107,11 @@ public class DataType {
 
         DataType other = (DataType) obj;
         return Objects.equals(typeName, other.typeName)
-                && Objects.equals(esType, other.esType)
-                && size == other.size
-                && isInteger == other.isInteger
-                && isRational == other.isRational
-                && docValues == other.docValues;
+            && Objects.equals(esType, other.esType)
+            && size == other.size
+            && isInteger == other.isInteger
+            && isRational == other.isRational
+            && docValues == other.docValues;
     }
 
     @Override

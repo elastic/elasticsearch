@@ -1,0 +1,228 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.upgrades;
+
+import com.carrotsearch.randomizedtesting.annotations.Name;
+
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
+import org.elasticsearch.index.query.DisMaxQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SpanNearQueryBuilder;
+import org.elasticsearch.index.query.SpanTermQueryBuilder;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.ClassRule;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+
+/**
+ * An integration test that tests whether percolator queries stored in older supported ES version can still be read by the
+ * current ES version. Percolator queries are stored in the binary format in a dedicated doc values field (see
+ * PercolatorFieldMapper#createQueryBuilderField(...) method). We don't attempt to assert anything on results here, simply executing
+ * a percolator query will force deserialization of the old query builder. This also verifies that our fallback compatibility
+ * functionality is working correctly, otherwise the search request will throw an exception.
+ */
+public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
+    private static final List<Object[]> CANDIDATES = new ArrayList<>();
+
+    protected static LocalClusterConfigProvider clusterConfig = c -> {};
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
+        .nodes(2)
+        .setting("xpack.security.enabled", "false")
+        .apply(() -> clusterConfig)
+        .build();
+
+    @Override
+    protected ElasticsearchCluster getUpgradeCluster() {
+        return cluster;
+    }
+
+    public QueryBuilderBWCIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+        super(upgradeStatus);
+    }
+
+    static {
+        addCandidate("""
+            "match": { "text_field": "value"}
+            """, new MatchQueryBuilder("text_field", "value"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "operator": "and"} }
+            """, new MatchQueryBuilder("text_field", "value").operator(Operator.AND));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "analyzer": "english"} }
+            """, new MatchQueryBuilder("text_field", "value").analyzer("english"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "minimum_should_match": 3} }
+            """, new MatchQueryBuilder("text_field", "value").minimumShouldMatch("3"));
+        addCandidate("""
+            "match": { "text_field": {"query": "value", "fuzziness": "auto"} }
+            """, new MatchQueryBuilder("text_field", "value").fuzziness(Fuzziness.AUTO));
+        addCandidate("""
+            "match_phrase": { "text_field": "value"}
+            """, new MatchPhraseQueryBuilder("text_field", "value"));
+        addCandidate("""
+            "match_phrase": { "text_field": {"query": "value", "slop": 3}}
+            """, new MatchPhraseQueryBuilder("text_field", "value").slop(3));
+        addCandidate("""
+            "range": { "long_field": {"gte": 1, "lte": 9}}
+            """, new RangeQueryBuilder("long_field").from(1).to(9));
+        addCandidate(
+            """
+                "bool": { "must_not": [{"match_none": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
+                "should": [{"match_all": {}}]}
+                """,
+            new BoolQueryBuilder().mustNot(new MatchNoneQueryBuilder())
+                .must(new MatchAllQueryBuilder())
+                .filter(new MatchAllQueryBuilder())
+                .should(new MatchAllQueryBuilder())
+        );
+        addCandidate(
+            """
+                "dis_max": {"queries": [{"match_all": {}},{"match_all": {}},{"match_all": {}}], "tie_breaker": 0.01}
+                """,
+            new DisMaxQueryBuilder().add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
+                .add(new MatchAllQueryBuilder())
+                .tieBreaker(0.01f)
+        );
+        addCandidate("""
+            "constant_score": {"filter": {"match_all": {}}, "boost": 0.1}
+            """, new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f));
+        addCandidate(
+            """
+                "function_score": {"query": {"match_all": {}},"functions": [{"random_score": {}, "filter": {"match_all": {}}, \
+                "weight": 0.2}]}
+                """,
+            new FunctionScoreQueryBuilder(
+                new MatchAllQueryBuilder(),
+                new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
+                    new FunctionScoreQueryBuilder.FilterFunctionBuilder(
+                        new MatchAllQueryBuilder(),
+                        new RandomScoreFunctionBuilder().setWeight(0.2f)
+                    ) }
+            )
+        );
+        addCandidate(
+            """
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}]}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 0).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
+            )
+        );
+        addCandidate(
+            """
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
+            )
+        );
+        addCandidate(
+            """
+                "span_near": {"clauses": [{ "span_term": { "text_field": "value1" }}, \
+                { "span_term": { "text_field": "value2" }}], "slop": 2, "in_order": false}
+                """,
+            new SpanNearQueryBuilder(new SpanTermQueryBuilder("text_field", "value1"), 2).addClause(
+                new SpanTermQueryBuilder("text_field", "value2")
+            ).inOrder(false)
+        );
+    }
+
+    private static void addCandidate(String querySource, QueryBuilder expectedQb) {
+        CANDIDATES.add(new Object[] { "{\"query\": {" + querySource + "}}", expectedQb });
+    }
+
+    public void testQueryBuilderBWC() throws Exception {
+        String index = "queries";
+        if (isRunningAgainstOldCluster()) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.endObject();
+            }
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("query");
+                    mappingsAndSettings.field("type", "percolator");
+                    mappingsAndSettings.endObject();
+                }
+                {
+                    mappingsAndSettings.startObject("text_field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                {
+                    mappingsAndSettings.startObject("long_field");
+                    mappingsAndSettings.field("type", "long");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            Request request = new Request("PUT", "/" + index);
+            request.setJsonEntity(Strings.toString(mappingsAndSettings));
+            Response rsp = client().performRequest(request);
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+
+            for (int i = 0; i < CANDIDATES.size(); i++) {
+                request = new Request("PUT", "/" + index + "/_doc/" + Integer.toString(i));
+                request.setJsonEntity((String) CANDIDATES.get(i)[0]);
+                rsp = client().performRequest(request);
+                assertEquals(201, rsp.getStatusLine().getStatusCode());
+            }
+        } else {
+            Request request = new Request("GET", "/" + index + "/_search");
+            request.setJsonEntity("""
+                {
+                  "query": {
+                    "percolate": {
+                      "field": "query",
+                      "document": {
+                        "foo": "bar"
+                      }
+                    }
+                  }
+                }""");
+            Response rsp = client().performRequest(request);
+            assertEquals(200, rsp.getStatusLine().getStatusCode());
+        }
+    }
+}

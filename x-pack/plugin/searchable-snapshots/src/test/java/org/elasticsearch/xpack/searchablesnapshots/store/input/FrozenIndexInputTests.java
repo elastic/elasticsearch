@@ -8,8 +8,11 @@
 package org.elasticsearch.xpack.searchablesnapshots.store.input;
 
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
@@ -17,20 +20,20 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.IOException;
@@ -38,8 +41,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import static org.elasticsearch.core.IOUtils.WINDOWS;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService.resolveSnapshotCache;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
+import static org.hamcrest.Matchers.not;
 
 public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
@@ -54,51 +61,62 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion.toString()),
-            new ByteSizeValue(fileData.length)
+            new StoreFileMetadata(fileName, fileData.length, checksum, IndexVersion.current().luceneVersion().toString()),
+            ByteSizeValue.ofBytes(fileData.length)
         );
 
         final ByteSizeValue rangeSize;
         if (rarely()) {
-            rangeSize = FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
+            rangeSize = SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.get(Settings.EMPTY);
         } else if (randomBoolean()) {
-            rangeSize = new ByteSizeValue(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
+            rangeSize = ByteSizeValue.ofBytes(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
         } else {
-            rangeSize = new ByteSizeValue(randomIntBetween(1, 16000) * SharedBytes.PAGE_SIZE);
+            rangeSize = ByteSizeValue.ofBytes(randomIntBetween(1, 16000) * SharedBytes.PAGE_SIZE);
         }
 
         final ByteSizeValue regionSize;
         if (rarely()) {
-            regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
+            regionSize = SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY);
         } else {
-            regionSize = new ByteSizeValue(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
+            regionSize = ByteSizeValue.ofBytes(randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE);
         }
 
         final ByteSizeValue cacheSize;
         if (rarely()) {
             cacheSize = regionSize;
         } else {
-            cacheSize = new ByteSizeValue(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
+            cacheSize = ByteSizeValue.ofBytes(randomLongBetween(1L, 10L) * regionSize.getBytes() + randomIntBetween(0, 100));
         }
 
         final Settings settings = Settings.builder()
-            .put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
-            .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
-            .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), rangeSize)
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            // don't test mmap on Windows since we don't have code to unmap the shared cache file which trips assertions after tests
+            .put(SharedBlobCacheService.SHARED_CACHE_MMAP.getKey(), WINDOWS == false && randomBoolean())
+            .put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), randomBoolean())
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        Files.createDirectories(environment.dataFile());
+        for (Path path : environment.dataDirs()) {
+            Files.createDirectories(path);
+        }
         SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
-        final Path shardDir = shardPath(SHARD_ID);
+        final Path shardDir = randomShardPath(SHARD_ID);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, SHARD_ID);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (
             NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, environment);
-            FrozenCacheService frozenCacheService = new FrozenCacheService(nodeEnvironment, settings, threadPool);
+            SharedBlobCacheService<CacheKey> sharedBlobCacheService = new SharedBlobCacheService<>(
+                nodeEnvironment,
+                settings,
+                threadPool,
+                threadPool.executor(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME),
+                BlobCacheMetrics.NOOP
+            );
             CacheService cacheService = randomCacheService();
             TestSearchableSnapshotDirectory directory = new TestSearchableSnapshotDirectory(
-                frozenCacheService,
+                sharedBlobCacheService,
                 cacheService,
                 fileInfo,
                 snapshotId,
@@ -108,7 +126,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             )
         ) {
             cacheService.start();
-            directory.loadSnapshot(createRecoveryState(true), ActionListener.wrap(() -> {}));
+            directory.loadSnapshot(createRecoveryState(true), () -> false, ActionListener.noop());
 
             // TODO does not test using the recovery range size
             final IndexInput indexInput = directory.openInput(fileName, randomIOContext());
@@ -118,6 +136,17 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
             final byte[] result = randomReadAndSlice(indexInput, fileData.length);
             assertArrayEquals(fileData, result);
+
+            // validate clone copies cache file object
+            indexInput.seek(randomLongBetween(0, fileData.length - 1));
+            final IndexInput indexInputClone = indexInput.clone();
+            if (indexInputClone instanceof FrozenIndexInput clone) {
+                assertThat(clone.cacheFile(), not(equalTo(((FrozenIndexInput) indexInput).cacheFile())));
+                assertThat(clone.getFilePointer(), equalTo(indexInput.getFilePointer()));
+            } else {
+                assertThat(indexInputClone, isA(ByteArrayIndexInput.class));
+            }
+
             indexInput.close();
         }
     }
@@ -125,7 +154,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
     private class TestSearchableSnapshotDirectory extends SearchableSnapshotDirectory {
 
         TestSearchableSnapshotDirectory(
-            FrozenCacheService service,
+            SharedBlobCacheService<CacheKey> service,
             CacheService cacheService,
             FileInfo fileInfo,
             SnapshotId snapshotId,
@@ -135,14 +164,14 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
         ) {
             super(
                 () -> TestUtils.singleBlobContainer(fileInfo.partName(0), fileData),
-                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", 0L, List.of(fileInfo), 0L, 0L, 0, 0L),
+                () -> new BlobStoreIndexShardSnapshot("_snapshot_id", List.of(fileInfo), 0L, 0L, 0, 0L),
                 new TestUtils.SimpleBlobStoreCacheService(),
                 "_repository",
                 snapshotId,
                 new IndexId(SHARD_ID.getIndex().getName(), SHARD_ID.getIndex().getUUID()),
                 SHARD_ID,
                 Settings.builder()
-                    .put(SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
+                    .put(SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING.getKey(), true)
                     .put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true)
                     .build(),
                 System::currentTimeMillis,

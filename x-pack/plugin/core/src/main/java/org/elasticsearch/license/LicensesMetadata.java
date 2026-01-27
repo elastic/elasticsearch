@@ -6,27 +6,27 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
-import org.elasticsearch.cluster.MergableCustomMetadata;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.License.OperationMode;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.Objects;
 
 /**
  * Contains metadata about registered licenses
  */
-public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> implements Metadata.Custom,
-        MergableCustomMetadata<LicensesMetadata> {
+public class LicensesMetadata extends AbstractNamedDiffable<Metadata.ClusterCustom> implements Metadata.ClusterCustom {
 
     public static final String TYPE = "licenses";
 
@@ -41,26 +41,26 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
      * ever existed in the cluster state
      */
     public static final License LICENSE_TOMBSTONE = License.builder()
-            .type(License.LicenseType.TRIAL)
-            .issuer("elasticsearch")
-            .uid("TOMBSTONE")
-            .issuedTo("")
-            .maxNodes(0)
-            .issueDate(0)
-            .expiryDate(0)
-            .build();
+        .type(License.LicenseType.TRIAL)
+        .issuer("elasticsearch")
+        .uid("TOMBSTONE")
+        .issuedTo("")
+        .maxNodes(0)
+        .issueDate(0)
+        .expiryDate(0)
+        .build();
 
-    private License license;
+    private final License license;
 
     // This field describes the version of x-pack for which this cluster has exercised a trial. If the field
     // is null, then no trial has been exercised. We keep the version to leave open the possibility that we
     // may eventually allow a cluster to exercise a trial every time they upgrade to a new major version.
     @Nullable
-    private Version trialVersion;
+    private TrialLicenseVersion trialLicenseVersion;
 
-    LicensesMetadata(License license, Version trialVersion) {
+    public LicensesMetadata(License license, TrialLicenseVersion trialLicenseVersion) {
         this.license = license;
-        this.trialVersion = trialVersion;
+        this.trialLicenseVersion = trialLicenseVersion;
     }
 
     public License getLicense() {
@@ -68,22 +68,19 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     }
 
     boolean isEligibleForTrial() {
-        if (trialVersion == null) {
+        if (trialLicenseVersion == null) {
             return true;
         }
-        return Version.CURRENT.major > trialVersion.major;
+        return trialLicenseVersion.ableToStartNewTrial();
     }
 
-    Version getMostRecentTrialVersion() {
-        return trialVersion;
+    TrialLicenseVersion getMostRecentTrialVersion() {
+        return trialLicenseVersion;
     }
 
     @Override
     public String toString() {
-        return "LicensesMetadata{" +
-                "license=" + license +
-                ", trialVersion=" + trialVersion +
-                '}';
+        return "LicensesMetadata{" + "license=" + license + ", trialVersion=" + trialLicenseVersion + '}';
     }
 
     @Override
@@ -93,14 +90,13 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
         LicensesMetadata that = (LicensesMetadata) o;
 
-        return Objects.equals(license, that.license)
-            && Objects.equals(trialVersion, that.trialVersion);
+        return Objects.equals(license, that.license) && Objects.equals(trialLicenseVersion, that.trialLicenseVersion);
     }
 
     @Override
     public int hashCode() {
         int result = license != null ? license.hashCode() : 0;
-        result = 31 * result + (trialVersion != null ? trialVersion.hashCode() : 0);
+        result = 31 * result + (trialLicenseVersion != null ? trialLicenseVersion.hashCode() : 0);
         return result;
     }
 
@@ -110,8 +106,8 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -121,7 +117,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
 
     public static LicensesMetadata fromXContent(XContentParser parser) throws IOException {
         License license = LICENSE_TOMBSTONE;
-        Version trialLicense = null;
+        TrialLicenseVersion trialLicense = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -136,7 +132,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
                         }
                     } else if (fieldName.equals(Fields.TRIAL_LICENSE)) {
                         parser.nextToken();
-                        trialLicense = Version.fromString(parser.text());
+                        trialLicense = TrialLicenseVersion.fromXContent(parser.text());
                     }
                 }
             }
@@ -145,18 +141,20 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (license == LICENSE_TOMBSTONE) {
-            builder.nullField(Fields.LICENSE);
-        } else {
-            builder.startObject(Fields.LICENSE);
-            license.toInnerXContent(builder, params);
-            builder.endObject();
-        }
-        if (trialVersion != null) {
-            builder.field(Fields.TRIAL_LICENSE, trialVersion.toString());
-        }
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return Iterators.single(((builder, params) -> {
+            if (license == LICENSE_TOMBSTONE) {
+                builder.nullField(Fields.LICENSE);
+            } else {
+                builder.startObject(Fields.LICENSE);
+                license.toInnerXContent(builder, params);
+                builder.endObject();
+            }
+            if (trialLicenseVersion != null) {
+                builder.field(Fields.TRIAL_LICENSE, trialLicenseVersion.toString());
+            }
+            return builder;
+        }));
     }
 
     @Override
@@ -167,11 +165,11 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
             streamOutput.writeBoolean(true); // has a license
             license.writeTo(streamOutput);
         }
-        if (trialVersion == null) {
+        if (trialLicenseVersion == null) {
             streamOutput.writeBoolean(false);
         } else {
             streamOutput.writeBoolean(true);
-            Version.writeVersion(trialVersion, streamOutput);
+            trialLicenseVersion.writeTo(streamOutput);
         }
     }
 
@@ -183,12 +181,12 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
         }
         boolean hasExercisedTrial = streamInput.readBoolean();
         if (hasExercisedTrial) {
-            this.trialVersion = Version.readVersion(streamInput);
+            this.trialLicenseVersion = new TrialLicenseVersion(streamInput);
         }
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
-        return readDiffFrom(Metadata.Custom.class, TYPE, streamInput);
+    public static NamedDiff<Metadata.ClusterCustom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(Metadata.ClusterCustom.class, TYPE, streamInput);
     }
 
     public static License extractLicense(LicensesMetadata licensesMetadata) {
@@ -201,17 +199,6 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom> imp
             }
         }
         return null;
-    }
-
-    @Override
-    public LicensesMetadata merge(LicensesMetadata other) {
-        if (other.license == null) {
-            return this;
-        } else if (license == null
-                || OperationMode.compare(other.license.operationMode(), license.operationMode()) > 0) {
-            return other;
-        }
-        return this;
     }
 
     private static final class Fields {

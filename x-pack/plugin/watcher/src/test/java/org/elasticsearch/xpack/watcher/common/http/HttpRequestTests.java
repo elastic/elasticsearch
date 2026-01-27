@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.watcher.common.http;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.cborBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.yamlBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -104,16 +106,10 @@ public class HttpRequestTests extends ESTestCase {
             builder.body(randomAlphaOfLength(200));
         }
         if (randomBoolean()) {
-            // micros and nanos don't round trip will full precision so exclude them from the test
-            String safeConnectionTimeout = randomValueOtherThanMany(s -> (s.endsWith("micros") || s.endsWith("nanos")),
-                    () -> randomTimeValue());
-            builder.connectionTimeout(TimeValue.parseTimeValue(safeConnectionTimeout, "my.setting"));
+            builder.connectionTimeout(randomTimeout());
         }
         if (randomBoolean()) {
-            // micros and nanos don't round trip will full precision so exclude them from the test
-            String safeReadTimeout = randomValueOtherThanMany(s -> (s.endsWith("micros") || s.endsWith("nanos")),
-                    () -> randomTimeValue());
-            builder.readTimeout(TimeValue.parseTimeValue(safeReadTimeout, "my.setting"));
+            builder.readTimeout(randomTimeout());
         }
         if (randomBoolean()) {
             builder.proxy(new HttpProxy(randomAlphaOfLength(10), randomIntBetween(1024, 65000)));
@@ -125,7 +121,6 @@ public class HttpRequestTests extends ESTestCase {
         try (XContentBuilder xContentBuilder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
             httpRequest.toXContent(xContentBuilder, WatcherParams.builder().hideSecrets(false).build());
 
-
             try (XContentParser parser = createParser(xContentBuilder)) {
                 assertNull(parser.currentToken());
                 parser.nextToken();
@@ -134,6 +129,11 @@ public class HttpRequestTests extends ESTestCase {
                 assertEquals(httpRequest, parsedRequest);
             }
         }
+    }
+
+    private static TimeValue randomTimeout() {
+        // micros and nanos don't round trip will full precision so exclude them from the test
+        return randomTimeValue(0, 1000, TimeUnit.DAYS, TimeUnit.HOURS, TimeUnit.MINUTES, TimeUnit.SECONDS, TimeUnit.MILLISECONDS);
     }
 
     public void testXContentRemovesAuthorization() throws Exception {

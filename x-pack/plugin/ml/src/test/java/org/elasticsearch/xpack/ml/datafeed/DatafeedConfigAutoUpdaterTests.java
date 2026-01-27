@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -38,9 +38,9 @@ import java.util.List;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -50,18 +50,18 @@ import static org.mockito.Mockito.when;
 public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
 
     private DatafeedConfigProvider provider;
-    private List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
-    private IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+    private final List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
+    private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
 
     @Before
     public void setup() {
         provider = mock(DatafeedConfigProvider.class);
         doAnswer(call -> {
             @SuppressWarnings("unchecked")
-            ActionListener<List<DatafeedConfig.Builder>> handler = (ActionListener<List<DatafeedConfig.Builder>>) call.getArguments()[2];
+            ActionListener<List<DatafeedConfig.Builder>> handler = (ActionListener<List<DatafeedConfig.Builder>>) call.getArguments()[3];
             handler.onResponse(datafeeds);
             return null;
-        }).when(provider).expandDatafeedConfigs(any(), anyBoolean(), any());
+        }).when(provider).expandDatafeedConfigs(any(), anyBoolean(), any(), any());
         doAnswer(call -> {
             @SuppressWarnings("unchecked")
             ActionListener<DatafeedConfig> handler = (ActionListener<DatafeedConfig>) call.getArguments()[4];
@@ -79,23 +79,29 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithRewrite2, true);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite1),
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite1),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite2),
+            any()
+        );
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite2),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(0)).updateDatefeedConfig(eq(datafeedWithoutRewrite),
+            any()
+        );
+        verify(provider, times(0)).updateDatefeedConfig(
+            eq(datafeedWithoutRewrite),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
+            any()
+        );
     }
 
     public void testWithUpdateFailures() {
@@ -114,26 +120,32 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         }).when(provider).updateDatefeedConfig(eq(datafeedWithRewriteFailure), any(), any(), any(), any());
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class, updater::runUpdate);
+        ElasticsearchException ex = expectThrows(ElasticsearchException.class, () -> updater.runUpdate(mock(ClusterState.class)));
         assertThat(ex.getMessage(), equalTo("some datafeeds failed being upgraded."));
         assertThat(ex.getSuppressed().length, equalTo(1));
         assertThat(ex.getSuppressed()[0].getMessage(), equalTo("Failed to update datafeed " + datafeedWithRewriteFailure));
 
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewrite1),
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewrite1),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(1)).updateDatefeedConfig(eq(datafeedWithRewriteFailure),
+            any()
+        );
+        verify(provider, times(1)).updateDatefeedConfig(
+            eq(datafeedWithRewriteFailure),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
-        verify(provider, times(0)).updateDatefeedConfig(eq(datafeedWithoutRewrite),
+            any()
+        );
+        verify(provider, times(0)).updateDatefeedConfig(
+            eq(datafeedWithoutRewrite),
             any(DatafeedUpdate.class),
             eq(Collections.emptyMap()),
             any(),
-            any());
+            any()
+        );
     }
 
     public void testWithNoUpdates() {
@@ -143,33 +155,35 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         withDatafeed(datafeedWithoutRewrite2, false);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        updater.runUpdate();
+        updater.runUpdate(mock(ClusterState.class));
 
-        verify(provider, times(0)).updateDatefeedConfig(any(),
-            any(DatafeedUpdate.class),
-            eq(Collections.emptyMap()),
-            any(),
-            any());
+        verify(provider, times(0)).updateDatefeedConfig(any(), any(DatafeedUpdate.class), eq(Collections.emptyMap()), any(), any());
     }
 
     public void testIsAbleToRun() {
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(MlConfigIndex.indexName());
-        indexMetadata.settings(Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        indexMetadata.settings(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
         );
         metadata.put(indexMetadata);
         Index index = new Index(MlConfigIndex.indexName(), "_uuid");
         ShardId shardId = new ShardId(index, 0);
-        ShardRouting shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        ShardRouting shardRouting = ShardRouting.newUnassigned(
+            shardId,
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+            ShardRouting.Role.DEFAULT
+        );
         shardRouting = shardRouting.initialize("node_id", null, 0L);
-        shardRouting = shardRouting.moveToStarted();
-        routingTable.add(IndexRoutingTable.builder(index)
-            .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+        shardRouting = shardRouting.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        routingTable.add(IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting)));
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         csBuilder.routingTable(routingTable.build());
@@ -179,18 +193,24 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         final ClusterState clusterState = csBuilder.build();
         assertThat(updater.isAbleToRun(clusterState), is(true));
 
-        metadata = new Metadata.Builder(clusterState.metadata());
+        metadata = Metadata.builder(clusterState.metadata());
         routingTable = new RoutingTable.Builder(clusterState.routingTable());
         if (randomBoolean()) {
             routingTable.remove(MlConfigIndex.indexName());
         } else {
             index = new Index(MlConfigIndex.indexName(), "_uuid");
             shardId = new ShardId(index, 0);
-            shardRouting = ShardRouting.newUnassigned(shardId, true, RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+            shardRouting = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""),
+                ShardRouting.Role.DEFAULT
+            );
             shardRouting = shardRouting.initialize("node_id", null, 0L);
-            routingTable.add(IndexRoutingTable.builder(index)
-                .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
+            routingTable.add(
+                IndexRoutingTable.builder(index).addIndexShard(IndexShardRoutingTable.builder(shardId).addShard(shardRouting))
+            );
         }
 
         csBuilder = ClusterState.builder(clusterState);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal;
 
@@ -12,6 +13,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputDirectory;
@@ -25,8 +27,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.inject.Inject;
 
 /**
  * Export Elasticsearch build resources to configurable paths
@@ -37,14 +41,16 @@ import java.util.Set;
  */
 public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
 
-    private final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
+    private static final Logger logger = Logging.getLogger(ExportElasticsearchBuildResourcesTask.class);
 
-    private final Set<String> resources = new HashSet<>();
+    // Maps resource path -> destination filename
+    private final Map<String, String> resources = new HashMap<>();
 
     private DirectoryProperty outputDir;
 
-    public ExportElasticsearchBuildResourcesTask() {
-        outputDir = getProject().getObjects().directoryProperty();
+    @Inject
+    public ExportElasticsearchBuildResourcesTask(ObjectFactory objects) {
+        outputDir = objects.directoryProperty();
     }
 
     @OutputDirectory
@@ -53,8 +59,8 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
     }
 
     @Input
-    public Set<String> getResources() {
-        return Collections.unmodifiableSet(resources);
+    public Map<String, String> getResources() {
+        return Collections.unmodifiableMap(resources);
     }
 
     @Classpath
@@ -68,13 +74,23 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
         this.outputDir.set(outputDir);
     }
 
+    /**
+     * Copy a resource to the output directory, keeping the original filename.
+     */
     public void copy(String resource) {
+        copy(resource, resource);
+    }
+
+    /**
+     * Copy a resource to the output directory with a different filename.
+     */
+    public void copy(String resource, String destName) {
         if (getState().getExecuted() || getState().getExecuting()) {
             throw new GradleException(
                 "buildResources can't be configured after the task ran. " + "Make sure task is not used after configuration time"
             );
         }
-        resources.add(resource);
+        resources.put(resource, destName);
     }
 
     @TaskAction
@@ -83,8 +99,10 @@ public class ExportElasticsearchBuildResourcesTask extends DefaultTask {
             setDidWork(false);
             throw new StopExecutionException();
         }
-        resources.stream().parallel().forEach(resourcePath -> {
-            Path destination = outputDir.get().file(resourcePath).getAsFile().toPath();
+        resources.entrySet().stream().parallel().forEach(entry -> {
+            String resourcePath = entry.getKey();
+            String destName = entry.getValue();
+            Path destination = outputDir.get().file(destName).getAsFile().toPath();
             try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
                 Files.createDirectories(destination.getParent());
                 if (is == null) {

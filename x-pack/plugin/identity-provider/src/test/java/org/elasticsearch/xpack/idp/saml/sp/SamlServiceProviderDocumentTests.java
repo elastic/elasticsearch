@@ -7,16 +7,16 @@
 
 package org.elasticsearch.xpack.idp.saml.sp;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -29,9 +29,9 @@ import java.security.cert.X509Certificate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -40,21 +40,28 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
+
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
         doc.setDocId(randomAlphaOfLength(16));
         final ValidationException validationException = doc.validate();
         assertThat(validationException, notNullValue());
         assertThat(validationException.validationErrors(), not(emptyIterable()));
-        assertThat(validationException.validationErrors(), Matchers.containsInAnyOrder(
-            "field [name] is required, but was [null]",
-            "field [entity_id] is required, but was [null]",
-            "field [acs] is required, but was [null]",
-            "field [created] is required, but was [null]",
-            "field [last_modified] is required, but was [null]",
-            "field [privileges.resource] is required, but was [null]",
-            "field [attributes.principal] is required, but was [null]"
-        ));
+        assertThat(
+            validationException.validationErrors(),
+            Matchers.containsInAnyOrder(
+                "field [name] is required, but was [null]",
+                "field [entity_id] is required, but was [null]",
+                "field [acs] is required, but was [null]",
+                "field [created] is required, but was [null]",
+                "field [last_modified] is required, but was [null]",
+                "field [privileges.resource] is required, but was [null]",
+                "field [attributes.principal] is required, but was [null]"
+            )
+        );
     }
 
     public void testValidationSucceedsWithMinimalFields() throws Exception {
@@ -87,11 +94,24 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         assertThat(assertSerializationRoundTrip(doc2), equalTo(doc1));
     }
 
+    public void testSerializationBeforeExtensionAttributes() throws Exception {
+        final SamlServiceProviderDocument original = createFullDocument();
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
+        final SamlServiceProviderDocument copy = copyWriteable(
+            original,
+            new NamedWriteableRegistry(List.of()),
+            SamlServiceProviderDocument::new,
+            version
+        );
+        assertThat(copy.attributeNames.extensions, empty());
+
+        copy.attributeNames.setExtensions(original.attributeNames.extensions);
+        assertThat(copy, equalTo(original));
+    }
+
     private SamlServiceProviderDocument createFullDocument() throws GeneralSecurityException, IOException {
         final List<X509Credential> credentials = readCredentials();
-        final List<X509Certificate> certificates = credentials.stream()
-            .map(X509Credential::getEntityCertificate)
-            .collect(Collectors.toUnmodifiableList());
+        final List<X509Certificate> certificates = credentials.stream().map(X509Credential::getEntityCertificate).toList();
         final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);
@@ -120,6 +140,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         doc1.attributeNames.setEmail("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setName("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
         doc1.attributeNames.setRoles("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8));
+        doc1.attributeNames.setExtensions(List.of("urn:" + randomAlphaOfLengthBetween(4, 8) + "." + randomAlphaOfLengthBetween(4, 8)));
         return doc1;
     }
 
@@ -140,8 +161,14 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         final boolean humanReadable = randomBoolean();
         final BytesReference bytes1 = XContentHelper.toXContent(obj1, xContentType, humanReadable);
-        try (XContentParser parser = XContentHelper.createParser(
-            NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes1, xContentType)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                bytes1,
+                xContentType
+            )
+        ) {
             final SamlServiceProviderDocument obj2 = SamlServiceProviderDocument.fromXContent(obj1.docId, parser);
             assertThat(obj2, equalTo(obj1));
 
@@ -153,9 +180,13 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     }
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
-        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final SamlServiceProviderDocument read = copyWriteable(doc, new NamedWriteableRegistry(List.of()),
-            SamlServiceProviderDocument::new, version);
+        final TransportVersion version = TransportVersionUtils.randomVersionSupporting(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
+        final SamlServiceProviderDocument read = copyWriteable(
+            doc,
+            new NamedWriteableRegistry(List.of()),
+            SamlServiceProviderDocument::new,
+            version
+        );
         MatcherAssert.assertThat("Serialized document with version [" + version + "] does not match original object", read, equalTo(doc));
         return read;
     }

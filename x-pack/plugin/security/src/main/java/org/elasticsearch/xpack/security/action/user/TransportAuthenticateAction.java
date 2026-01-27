@@ -10,7 +10,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -18,10 +19,10 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.operator.OperatorPrivilegesUtil;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
-
-import java.util.stream.Stream;
 
 public class TransportAuthenticateAction extends HandledTransportAction<AuthenticateRequest, AuthenticateResponse> {
 
@@ -29,9 +30,13 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     private final AnonymousUser anonymousUser;
 
     @Inject
-    public TransportAuthenticateAction(TransportService transportService, ActionFilters actionFilters, SecurityContext securityContext,
-                                       AnonymousUser anonymousUser) {
-        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new);
+    public TransportAuthenticateAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SecurityContext securityContext,
+        AnonymousUser anonymousUser
+    ) {
+        super(AuthenticateAction.NAME, transportService, actionFilters, AuthenticateRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.securityContext = securityContext;
         this.anonymousUser = anonymousUser;
     }
@@ -39,41 +44,26 @@ public class TransportAuthenticateAction extends HandledTransportAction<Authenti
     @Override
     protected void doExecute(Task task, AuthenticateRequest request, ActionListener<AuthenticateResponse> listener) {
         final Authentication authentication = securityContext.getAuthentication();
-        final User runAsUser = authentication == null ? null : authentication.getUser();
-        final User authUser = runAsUser == null ? null : runAsUser.authenticatedUser();
+        final User runAsUser, authUser;
+        if (authentication == null) {
+            runAsUser = authUser = null;
+        } else {
+            runAsUser = authentication.getEffectiveSubject().getUser();
+            authUser = authentication.getAuthenticatingSubject().getUser();
+        }
         if (authUser == null) {
             listener.onFailure(new ElasticsearchSecurityException("did not find an authenticated user"));
-        } else if (User.isInternal(authUser)) {
+        } else if (authUser instanceof InternalUser) {
             listener.onFailure(new IllegalArgumentException("user [" + authUser.principal() + "] is internal"));
-        } else if (User.isInternal(runAsUser)) {
+        } else if (runAsUser instanceof InternalUser) {
             listener.onFailure(new IllegalArgumentException("user [" + runAsUser.principal() + "] is internal"));
         } else {
-            final User user = authentication.getUser();
-            final boolean shouldAddAnonymousRoleNames = anonymousUser.enabled() && false == anonymousUser.equals(user)
-                && authentication.getAuthenticationType() != Authentication.AuthenticationType.API_KEY;
-            if (shouldAddAnonymousRoleNames) {
-                final String[] allRoleNames = Stream.concat(
-                    Stream.of(user.roles()), Stream.of(anonymousUser.roles())).toArray(String[]::new);
-                listener.onResponse(new AuthenticateResponse(
-                    new Authentication(
-                        new User(new User(
-                            user.principal(),
-                            allRoleNames,
-                            user.fullName(),
-                            user.email(),
-                            user.metadata(),
-                            user.enabled()
-                        ), user.authenticatedUser()),
-                        authentication.getAuthenticatedBy(),
-                        authentication.getLookedUpBy(),
-                        authentication.getVersion(),
-                        authentication.getAuthenticationType(),
-                        authentication.getMetadata()
-                    )
-                ));
-            } else {
-                listener.onResponse(new AuthenticateResponse(authentication));
-            }
+            listener.onResponse(
+                new AuthenticateResponse(
+                    authentication.maybeAddAnonymousRoles(anonymousUser),
+                    OperatorPrivilegesUtil.isOperator(securityContext.getThreadContext())
+                )
+            );
         }
     }
 }

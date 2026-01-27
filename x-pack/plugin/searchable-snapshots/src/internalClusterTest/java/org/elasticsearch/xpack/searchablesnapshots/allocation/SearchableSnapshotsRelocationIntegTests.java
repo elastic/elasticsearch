@@ -14,16 +14,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.hamcrest.Matchers;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -36,11 +32,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateSearchableSnapshots.class, MockRepository.Plugin.class);
-    }
-
     public void testRelocationWaitsForPreWarm() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String firstDataNode = internalCluster().startDataOnlyNode();
@@ -50,7 +41,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         createRepository(repoName, "mock");
         final String snapshotName = "test-snapshot";
         createSnapshot(repoName, snapshotName, List.of(index));
-        assertAcked(client().admin().indices().prepareDelete(index));
+        assertAcked(indicesAdmin().prepareDelete(index));
         final String restoredIndex = mountSnapshot(repoName, snapshotName, index, Settings.EMPTY);
         ensureGreen(restoredIndex);
         final String secondDataNode = internalCluster().startDataOnlyNode();
@@ -62,29 +53,18 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         final CountDownLatch latch = new CountDownLatch(1);
         for (int i = 0; i < preWarmThreads; i++) {
             executor.execute(() -> {
-                try {
-                    barrier.await();
-                    latch.await();
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(barrier);
+                safeAwait(latch);
             });
         }
         logger.info("--> waiting for prewarm threads to all become blocked");
         barrier.await();
 
         logger.info("--> force index [{}] to relocate to [{}]", index, secondDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(restoredIndex)
-                .setSettings(
-                    Settings.builder()
-                        .put(
-                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(),
-                            secondDataNode
-                        )
-                )
+        updateIndexSettings(
+            Settings.builder()
+                .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), secondDataNode),
+            restoredIndex
         );
         assertBusy(() -> {
             final List<RecoveryState> recoveryStates = getRelocations(restoredIndex);
@@ -95,10 +75,16 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         });
 
         assertBusy(() -> assertSame(RecoveryState.Stage.FINALIZE, getRelocations(restoredIndex).get(0).getStage()));
-        final Index restoredIdx = clusterAdmin().prepareState().get().getState().metadata().index(restoredIndex).getIndex();
+        final Index restoredIdx = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()
+            .getProject()
+            .index(restoredIndex)
+            .getIndex();
         final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, secondDataNode);
         assertEquals(1, indicesService.indexService(restoredIdx).getShard(0).outstandingCleanFilesConditions());
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final String primaryNodeId = state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId();
         final DiscoveryNode primaryNode = state.nodes().resolveNode(primaryNodeId);
         assertEquals(firstDataNode, primaryNode.getName());
@@ -107,9 +93,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
         latch.countDown();
 
         assertFalse(
-            client().admin()
-                .cluster()
-                .prepareHealth(restoredIndex)
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, restoredIndex)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -131,9 +115,7 @@ public class SearchableSnapshotsRelocationIntegTests extends BaseSearchableSnaps
     }
 
     private static Stream<RecoveryState> getRelocationsStream(String restoredIndex) {
-        return client().admin()
-            .indices()
-            .prepareRecoveries(restoredIndex)
+        return indicesAdmin().prepareRecoveries(restoredIndex)
             .setDetailed(true)
             .setActiveOnly(true)
             .get()

@@ -6,7 +6,7 @@
  - do:
       index:
           index:    test_1
-          id:       1
+          id:       "1"
           op_type:  create
           body:   { foo: bar }
 
@@ -14,14 +14,14 @@
       catch:      conflict
       index:
           index:    test_1
-          id:       1
+          id:       "1"
           op_type:  create
           body:   { foo: bar }
 
  - do:
       index:
           index:    test_1
-          id:       1
+          id:       "1"
           op_type:  index
           body:   { foo: bar }
 

@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbedding> {
 
@@ -22,6 +21,11 @@ public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbed
     @Override
     protected CustomWordEmbedding createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected CustomWordEmbedding mutateInstance(CustomWordEmbedding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static CustomWordEmbedding createRandom() {

@@ -1,5 +1,10 @@
-import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -10,16 +15,13 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
-  String baseName = "v${bwcVersion}"
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
-  testClusters {
-    "${baseName}-leader" {
+  def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
-    }
-    "${baseName}-follower" {
-      numberOfNodes = 3
-    }
+  }
+  def baseFollowerCluster = testClusters.register("${baseName}-follower") {
+    numberOfNodes = 3
   }
   testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
@@ -33,50 +35,47 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
 
   tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
-    useCluster testClusters."${baseName}-leader"
-    useCluster testClusters."${baseName}-follower"
+    useCluster baseLeaderCluster
+    useCluster baseFollowerCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-
+    def baseClusterName = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
+    def baseCluster = testClusters.named(baseClusterName)
     doFirst {
       if (name.endsWith("#clusterTest") == false) {
         println "Upgrade node $it"
-        testClusters."${baseName}-${kindExt}".nextNodeToNextVersion()
+        getRegistry().get().nextNodeToNextVersion(baseCluster)
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}-${kindExt}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}-${kindExt}".getName()}")
-      nonInputProperties.systemProperty('tests.leader_host', "${-> testClusters."${baseName}-leader".allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', "${-> testClusters."${baseName}-leader".allTransportPortURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_host', "${-> testClusters."${baseName}-follower".allHttpSocketURI.last()}")
-      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', "${-> testClusters."${baseName}-follower".allTransportPortURI.last()}")
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseCluster.name).map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.clustername', baseName)
+    nonInputProperties.systemProperty('tests.leader_host', getClusterInfo(baseLeaderCluster.name).map { c->c.allHttpSocketURI.last() })
+    nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', getClusterInfo(baseLeaderCluster.name).map { c -> c.allTransportPortURI.last() })
+    nonInputProperties.systemProperty('tests.follower_host', getClusterInfo(baseFollowerCluster.name).map { c->c.allHttpSocketURI.last() })
+    nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', getClusterInfo(baseFollowerCluster.name).map { c -> c.allTransportPortURI.last() })
   }
 
   ["follower", "leader"].each { kind ->
     tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
-      ext.kindExt = kind
     }
   }
 
@@ -95,5 +94,5 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  onlyIf { BuildParams.inFipsJvm == false}
+  buildParams.withFipsEnabledOnly(it)
 }

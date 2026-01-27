@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -11,10 +12,10 @@ package org.elasticsearch.node;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -33,21 +34,23 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
     private final Map<String, Long> clientOutgoingConnections;
     private final Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats;
 
-    public AdaptiveSelectionStats(Map<String, Long> clientConnections,
-                                  Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats) {
+    public AdaptiveSelectionStats(
+        Map<String, Long> clientConnections,
+        Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats
+    ) {
         this.clientOutgoingConnections = clientConnections;
         this.nodeComputedStats = nodeComputedStats;
     }
 
     public AdaptiveSelectionStats(StreamInput in) throws IOException {
-        this.clientOutgoingConnections = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.nodeComputedStats = in.readMap(StreamInput::readString, ResponseCollectorService.ComputedNodeStats::new);
+        this.clientOutgoingConnections = in.readMap(StreamInput::readLong);
+        this.nodeComputedStats = in.readMap(ResponseCollectorService.ComputedNodeStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(this.nodeComputedStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
+        out.writeMap(this.clientOutgoingConnections, StreamOutput::writeLong);
+        out.writeMap(this.nodeComputedStats, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -95,8 +98,8 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
      * Returns a map of node id to the ranking of the nodes based on the adaptive replica formula
      */
     public Map<String, Double> getRanks() {
-        return nodeComputedStats.entrySet().stream()
-                .collect(Collectors.toMap(Map.Entry::getKey,
-                                e -> e.getValue().rank(clientOutgoingConnections.getOrDefault(e.getKey(), 0L))));
+        return nodeComputedStats.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().rank(clientOutgoingConnections.getOrDefault(e.getKey(), 0L))));
     }
 }

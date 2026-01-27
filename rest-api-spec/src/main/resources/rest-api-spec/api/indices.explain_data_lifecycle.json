@@ -1,0 +1,43 @@
+{
+  "indices.explain_data_lifecycle": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-explain-data-lifecycle",
+      "description": "Get the status for a data stream lifecycle"
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/{index}/_lifecycle/explain",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "Comma-separated list of index names to explain"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "include_defaults": {
+        "type": "boolean",
+        "default": false,
+        "description": "indicates if the API should return the default values the system uses for the index's lifecycle"
+      },
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
+      }
+    }
+  }
+}

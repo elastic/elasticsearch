@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleFeatureSetUsage.ActionConfigStats;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
@@ -43,23 +42,34 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInj
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
-    public IndexLifecycleUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                              ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public IndexLifecycleUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
+    ) {
+        super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
-        Metadata metadata = state.metadata();
-        IndexLifecycleMetadata lifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
+    protected void localClusterStateOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
+        final var project = projectResolver.getProjectMetadata(state);
+        IndexLifecycleMetadata lifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.indices().forEach(entry -> {
-                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(entry.value.getSettings());
+            project.indices().values().forEach(value -> {
+                String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {
                     indicesManaged = 1;
@@ -77,11 +87,13 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                     }
                     String[] actionNames = actionStream.toArray(String[]::new);
                     phase.getActions().forEach((k, v) -> collectActionConfigurations(k, v, configurations));
-                    return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames,
-                        configurations.build()));
+                    return new Tuple<>(
+                        phase.getName(),
+                        new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames, configurations.build())
+                    );
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
-            }).collect(Collectors.toList());
+            }).toList();
             usage = new IndexLifecycleFeatureSetUsage(policyStats);
         } else {
             usage = new IndexLifecycleFeatureSetUsage();
@@ -89,32 +101,38 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 
-    private void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
+    private static void collectActionConfigurations(String actionName, LifecycleAction action, ActionConfigStats.Builder consumer) {
         switch (actionName) {
-            case AllocateAction.NAME:
+            case AllocateAction.NAME -> {
                 AllocateAction allocateAction = (AllocateAction) action;
                 consumer.setAllocateNumberOfReplicas(allocateAction.getNumberOfReplicas());
-                break;
-            case ForceMergeAction.NAME:
+            }
+            case ForceMergeAction.NAME -> {
                 ForceMergeAction forceMergeAction = (ForceMergeAction) action;
                 consumer.setForceMergeMaxNumberOfSegments(forceMergeAction.getMaxNumSegments());
-                break;
-            case RolloverAction.NAME:
-                RolloverAction rolloverAction = (RolloverAction) action;
-                consumer.setRolloverMaxAge(rolloverAction.getMaxAge());
-                consumer.setRolloverMaxDocs(rolloverAction.getMaxDocs());
-                consumer.setRolloverMaxPrimaryShardSize(rolloverAction.getMaxPrimaryShardSize());
-                consumer.setRolloverMaxSize(rolloverAction.getMaxSize());
-                break;
-            case SetPriorityAction.NAME:
+            }
+            case RolloverAction.NAME -> {
+                RolloverConditions rolloverConditions = ((RolloverAction) action).getConditions();
+                consumer.setRolloverMaxAge(rolloverConditions.getMaxAge());
+                consumer.setRolloverMaxDocs(rolloverConditions.getMaxDocs());
+                consumer.setRolloverMaxPrimaryShardDocs(rolloverConditions.getMaxPrimaryShardDocs());
+                consumer.setRolloverMaxPrimaryShardSize(rolloverConditions.getMaxPrimaryShardSize());
+                consumer.setRolloverMaxSize(rolloverConditions.getMaxSize());
+                consumer.setRolloverMinAge(rolloverConditions.getMinAge());
+                consumer.setRolloverMinDocs(rolloverConditions.getMinDocs());
+                consumer.setRolloverMinPrimaryShardDocs(rolloverConditions.getMinPrimaryShardDocs());
+                consumer.setRolloverMinPrimaryShardSize(rolloverConditions.getMinPrimaryShardSize());
+                consumer.setRolloverMinSize(rolloverConditions.getMinSize());
+            }
+            case SetPriorityAction.NAME -> {
                 SetPriorityAction setPriorityAction = (SetPriorityAction) action;
                 consumer.setPriority(setPriorityAction.getRecoveryPriority());
-                break;
-            case ShrinkAction.NAME:
+            }
+            case ShrinkAction.NAME -> {
                 ShrinkAction shrinkAction = (ShrinkAction) action;
                 consumer.setShrinkMaxPrimaryShardSize(shrinkAction.getMaxPrimaryShardSize());
                 consumer.setShrinkNumberOfShards(shrinkAction.getNumberOfShards());
-                break;
+            }
         }
     }
 }

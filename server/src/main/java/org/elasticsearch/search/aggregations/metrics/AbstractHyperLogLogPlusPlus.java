@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -43,9 +44,6 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     /** Get HyperLogLog algorithm */
     protected abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
 
-    /** Get the number of data structures */
-    public abstract long maxOrd();
-
     /** Collect a value in the given bucket */
     public abstract void collect(long bucketOrd, long hash);
 
@@ -81,12 +79,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucketOrd);
             while (iterator.next()) {
                 byte runLength = iterator.value();
-                Integer numOccurances = values.get(runLength);
-                if (numOccurances == null) {
-                    values.put(runLength, 1);
-                } else {
-                    values.put(runLength, numOccurances + 1);
-                }
+                values.merge(runLength, 1, Integer::sum);
             }
             return values;
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.search.nested;
 
@@ -40,8 +41,12 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode,
-                                                                                Object missingValue, Nested nested) {
+    protected IndexFieldData.XFieldComparatorSource createFieldComparator(
+        String fieldName,
+        MultiValueMode sortMode,
+        Object missingValue,
+        Nested nested
+    ) {
         IndexNumericFieldData fieldData = getForField(fieldName);
         return new DoubleValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
@@ -55,13 +60,20 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTestCas
     protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Query childFilter = Queries.not(parentFilter);
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127,
-            createNested(searcher, parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter),
-            new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator(
+            "field2",
+            sortMode,
+            -127,
+            createNested(searcher, parentFilter, childFilter)
+        );
+        Query query = new ToParentBlockJoinQuery(
+            new ConstantScoreQuery(childFilter),
+            new QueryBitSetProducer(parentFilter),
+            ScoreMode.None
+        );
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits.value, equalTo(7L));
+        assertThat(topDocs.totalHits.value(), equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(11));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(2));

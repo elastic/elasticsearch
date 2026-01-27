@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -17,7 +18,6 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.index.fielddata.AbstractSortedDocValues;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -31,8 +31,11 @@ public class SinglePackedOrdinals extends Ordinals {
         assert builder.getNumMultiValuesDocs() == 0;
         this.valueCount = (int) builder.getValueCount();
         // We don't reuse the builder as-is because it might have been built with a higher overhead ratio
-        final PackedInts.Mutable reader =
-            PackedInts.getMutable(builder.maxDoc(), PackedInts.bitsRequired(valueCount), acceptableOverheadRatio);
+        final PackedInts.Mutable reader = PackedInts.getMutable(
+            builder.maxDoc(),
+            PackedInts.bitsRequired(valueCount),
+            acceptableOverheadRatio
+        );
         PackedInts.copy(builder.getFirstOrdinals(), 0, reader, 0, builder.maxDoc(), 8 * 1024);
         this.reader = reader;
     }
@@ -83,7 +86,7 @@ public class SinglePackedOrdinals extends Ordinals {
         }
 
         @Override
-        public boolean advanceExact(int docID) throws IOException {
+        public boolean advanceExact(int docID) {
             currentDoc = docID;
             currentOrd = (int) (reader.get(docID) - 1);
             return currentOrd != -1;

@@ -1,30 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -45,27 +44,10 @@ public class CompletionStatsCacheTests extends ESTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion84PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene87Codec() {
-            @Override
-            public PostingsFormat getPostingsFormatForField(String field) {
-                return postingsFormat; // all fields are suggest fields
-            }
-        });
+        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
+        indexWriterConfig.setCodec(TestUtil.alwaysPostingsFormat(postingsFormat)); // all fields are suggest fields
 
-        final QueryCachingPolicy queryCachingPolicy = new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {
-            }
-
-            @Override
-            public boolean shouldCache(Query query) {
-                return false;
-            }
-        };
-
-        try (Directory directory = newDirectory();
-             IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
+        try (Directory directory = newDirectory(); IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
 
             final Document document = new Document();
             document.add(new SuggestField("suggest1", "val", 1));
@@ -81,7 +63,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
                 openCloseCounter.countOpened();
                 try {
                     final DirectoryReader directoryReader = DirectoryReader.open(indexWriter);
-                    return new Engine.Searcher("test", directoryReader, null, null, queryCachingPolicy, () -> {
+                    return new Engine.Searcher("test", directoryReader, null, null, TrivialQueryCachingPolicy.NEVER, () -> {
                         openCloseCounter.countClosed();
                         IOUtils.close(directoryReader);
                     });
@@ -215,11 +197,7 @@ public class CompletionStatsCacheTests extends ESTestCase {
         }
 
         void start() {
-            try {
-                cyclicBarrier.await();
-            } catch (InterruptedException | BrokenBarrierException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(cyclicBarrier);
         }
 
         CompletionStats getResult(int index) {

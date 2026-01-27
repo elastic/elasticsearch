@@ -1,28 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -31,6 +30,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,18 +53,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  *     retrieves all available information about the API for this specific context</li>
  * </ul>
  */
-public class PainlessContextAction extends ActionType<PainlessContextAction.Response> {
+public class PainlessContextAction {
 
-    public static final PainlessContextAction INSTANCE = new PainlessContextAction();
-    private static final String NAME = "cluster:admin/scripts/painless/context";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/context");
 
     private static final String SCRIPT_CONTEXT_NAME_PARAM = "context";
 
-    private PainlessContextAction() {
-        super(NAME, PainlessContextAction.Response::new);
-    }
+    private PainlessContextAction() {/* no instances */}
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private String scriptContextName;
 
@@ -110,12 +109,6 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             this.painlessContextInfo = painlessContextInfo;
         }
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            scriptContextNames = in.readStringList();
-            painlessContextInfo = in.readOptionalWriteable(PainlessContextInfo::new);
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(scriptContextNames);
@@ -142,7 +135,13 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>)Request::new);
+            super(
+                INSTANCE.name(),
+                transportService,
+                actionFilters,
+                (Writeable.Reader<Request>) Request::new,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
             this.painlessScriptEngine = painlessScriptEngine;
         }
 
@@ -152,15 +151,18 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             PainlessContextInfo painlessContextInfo;
 
             if (request.scriptContextName == null) {
-                scriptContextNames =
-                        painlessScriptEngine.getContextsToLookups().keySet().stream().map(v -> v.name).collect(Collectors.toList());
+                scriptContextNames = painlessScriptEngine.getContextsToLookups()
+                    .keySet()
+                    .stream()
+                    .map(v -> v.name)
+                    .collect(Collectors.toList());
                 painlessContextInfo = null;
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
 
-                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry :
-                        painlessScriptEngine.getContextsToLookups().entrySet()) {
+                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry : painlessScriptEngine.getContextsToLookups()
+                    .entrySet()) {
                     if (contextLookupEntry.getKey().name.equals(request.getScriptContextName())) {
                         scriptContext = contextLookupEntry.getKey();
                         painlessLookup = contextLookupEntry.getValue();

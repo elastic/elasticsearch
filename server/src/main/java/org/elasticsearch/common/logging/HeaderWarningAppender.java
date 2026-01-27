@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -29,8 +30,7 @@ public class HeaderWarningAppender extends AbstractAppender {
     public void append(LogEvent event) {
         final Message message = event.getMessage();
 
-        if (message instanceof ESLogMessage) {
-            final ESLogMessage esLogMessage = (ESLogMessage) message;
+        if (message instanceof final ESLogMessage esLogMessage) {
 
             String messagePattern = esLogMessage.getMessagePattern();
             Object[] arguments = esLogMessage.getArguments();
@@ -43,10 +43,7 @@ public class HeaderWarningAppender extends AbstractAppender {
     }
 
     @PluginFactory
-    public static HeaderWarningAppender createAppender(
-        @PluginAttribute("name") String name,
-        @PluginElement("filter") Filter filter
-    ) {
+    public static HeaderWarningAppender createAppender(@PluginAttribute("name") String name, @PluginElement("filter") Filter filter) {
         return new HeaderWarningAppender(name, filter);
     }
 }

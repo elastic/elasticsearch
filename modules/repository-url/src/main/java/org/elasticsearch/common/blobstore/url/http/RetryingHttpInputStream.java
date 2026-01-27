@@ -1,39 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.NoSuchFileException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.blobstore.url.http.URLHttpClient.MAX_ERROR_MESSAGE_BODY_SIZE;
+import static org.elasticsearch.core.Strings.format;
 
 class RetryingHttpInputStream extends InputStream {
     public static final int MAX_SUPPRESSED_EXCEPTIONS = 10;
     public static final long MAX_RANGE_VAL = Long.MAX_VALUE - 1;
 
-    private final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
+    private static final Logger logger = LogManager.getLogger(RetryingHttpInputStream.class);
 
     private final String blobName;
     private final URI blobURI;
@@ -112,8 +110,10 @@ class RetryingHttpInputStream extends InputStream {
     }
 
     @Override
-    public long skip(long n) {
-        throw new UnsupportedOperationException("RetryingHttpInputStream does not support seeking");
+    public long skip(long n) throws IOException {
+        // This could be optimized on a failure by re-opening stream directly to the preferred location. However, it is rarely called,
+        // so for now we will rely on the default implementation which just discards bytes by reading.
+        return super.skip(n);
     }
 
     @Override
@@ -147,13 +147,29 @@ class RetryingHttpInputStream extends InputStream {
 
     private void maybeThrow(IOException e) throws IOException {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
-            logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
-                blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+            logger.debug(
+                () -> format(
+                    "failed reading [%s] at offset [%s], retry [%s] of [%s], giving up",
+                    blobURI,
+                    start + totalBytesRead,
+                    retryCount,
+                    maxRetries
+                ),
+                e
+            );
             throw addSuppressedFailures(e);
         }
 
-        logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
-            blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+        logger.debug(
+            () -> format(
+                "failed reading [%s] at offset [%s], retry [%s] of [%s], retrying",
+                blobURI,
+                start + totalBytesRead,
+                retryCount,
+                maxRetries
+            ),
+            e
+        );
 
         retryCount += 1;
         accumulateFailure(e);
@@ -202,41 +218,36 @@ class RetryingHttpInputStream extends InputStream {
 
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
-                final Map<String, String> headers = new HashMap<>(1);
+            final Map<String, String> headers = Maps.newMapWithExpectedSize(1);
 
-                if (isRangeRead()) {
-                    headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
-                }
-
-                try {
-                    final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
-                    final int statusCode = response.getStatusCode();
-
-                    if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
-                        String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
-                        IOUtils.closeWhileHandlingException(response);
-                        throw new IOException(getErrorMessage("The server returned an invalid response:" +
-                            " Status code: [" + statusCode + "] - Body: " + body));
-                    }
-
-                    currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
-
-                    return response.getInputStream();
-                } catch (URLHttpClientException e) {
-                    if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                        throw new NoSuchFileException("blob object [" + blobName + "] not found");
-                    } else {
-                        throw e;
-                    }
-                }
-            });
-        } catch (PrivilegedActionException e) {
-            final Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
+            if (isRangeRead()) {
+                headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
             }
-            throw new IOException(getErrorMessage(), e);
+
+            try {
+                final URLHttpClient.HttpResponse response = httpClient.get(blobURI, headers);
+                final int statusCode = response.getStatusCode();
+
+                if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
+                    String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
+                    IOUtils.closeWhileHandlingException(response);
+                    throw new IOException(
+                        getErrorMessage("The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body)
+                    );
+                }
+
+                currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
+
+                return response.getInputStream();
+            } catch (URLHttpClientException e) {
+                if (e.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
+                    throw new NoSuchFileException("blob object [" + blobName + "] not found");
+                } else {
+                    throw e;
+                }
+            }
+        } catch (IOException e) {
+            throw e;
         } catch (Exception e) {
             throw new IOException(getErrorMessage(), e);
         }
@@ -258,9 +269,13 @@ class RetryingHttpInputStream extends InputStream {
 
                 assert upperBound >= lowerBound : "Incorrect Content-Range: lower bound > upper bound " + lowerBound + "-" + upperBound;
                 assert lowerBound == start + totalBytesRead : "Incorrect Content-Range: lower bound != specified lower bound";
-                assert upperBound == end || upperBound <= MAX_RANGE_VAL :
-                    "Incorrect Content-Range: the returned upper bound is incorrect, expected [" + end + "] " +
-                    "got [" + upperBound + "]";
+                assert upperBound == end || upperBound <= MAX_RANGE_VAL
+                    : "Incorrect Content-Range: the returned upper bound is incorrect, expected ["
+                        + end
+                        + "] "
+                        + "got ["
+                        + upperBound
+                        + "]";
 
                 return upperBound - lowerBound + 1;
             }
@@ -269,7 +284,7 @@ class RetryingHttpInputStream extends InputStream {
             return contentLength == null ? 0 : Long.parseLong(contentLength);
 
         } catch (Exception e) {
-            logger.debug(new ParameterizedMessage("Unable to parse response headers while reading [{}]", blobURI), e);
+            logger.debug(() -> "Unable to parse response headers while reading [" + blobURI + "]", e);
             return MAX_RANGE_VAL;
         }
     }

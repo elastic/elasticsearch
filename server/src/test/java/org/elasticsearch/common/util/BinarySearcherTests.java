@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -72,7 +73,7 @@ public class BinarySearcherTests extends ESTestCase {
 
         // Sanity check: confirm that ArrayUtils.binarySearch() returns the same index
         int arraysIndex = Arrays.binarySearch(array, searchFor);
-        if(arraysIndex < 0){
+        if (arraysIndex < 0) {
             // Arrays.binarySearch didn't find an exact match
             arraysIndex = -(arraysIndex + 1);
         }
@@ -115,10 +116,10 @@ public class BinarySearcherTests extends ESTestCase {
         int searchFor = randomInt();
         BinarySearcher searcher = new IntBinarySearcher(array, searchFor);
 
-        int searcherIndex = searcher.search(0, size-1);
+        int searcherIndex = searcher.search(0, size - 1);
         int arraysIndex = Arrays.binarySearch(array, searchFor);
 
-        if(arraysIndex < 0){
+        if (arraysIndex < 0) {
             // Arrays.binarySearch didn't find an exact match
             arraysIndex = -(arraysIndex + 1);
         }

@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.security.rest.action.service;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
@@ -21,6 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
 
     public RestGetServiceAccountAction(Settings settings, XPackLicenseState licenseState) {
@@ -46,7 +49,6 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
         final String namespace = request.param("namespace");
         final String serviceName = request.param("service");
         final GetServiceAccountRequest getServiceAccountRequest = new GetServiceAccountRequest(namespace, serviceName);
-        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest,
-            new RestToXContentListener<>(channel));
+        return channel -> client.execute(GetServiceAccountAction.INSTANCE, getServiceAccountRequest, new RestToXContentListener<>(channel));
     }
 }

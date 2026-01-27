@@ -1,17 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-
-import java.io.IOException;
 
 public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCase<ShardLongFieldRange> {
     @Override
@@ -25,16 +24,12 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
     }
 
     public static ShardLongFieldRange randomRange() {
-        switch (between(1, 3)) {
-            case 1:
-                return ShardLongFieldRange.UNKNOWN;
-            case 2:
-                return ShardLongFieldRange.EMPTY;
-            case 3:
-                return randomSpecificRange();
-            default:
-                throw new AssertionError("impossible");
-        }
+        return switch (between(1, 3)) {
+            case 1 -> ShardLongFieldRange.UNKNOWN;
+            case 2 -> ShardLongFieldRange.EMPTY;
+            case 3 -> randomSpecificRange();
+            default -> throw new AssertionError("impossible");
+        };
     }
 
     static ShardLongFieldRange randomSpecificRange() {
@@ -43,7 +38,7 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
     }
 
     @Override
-    protected ShardLongFieldRange mutateInstance(ShardLongFieldRange instance) throws IOException {
+    protected ShardLongFieldRange mutateInstance(ShardLongFieldRange instance) {
         if (instance == ShardLongFieldRange.UNKNOWN) {
             return randomBoolean() ? ShardLongFieldRange.EMPTY : randomSpecificRange();
         }
@@ -51,24 +46,23 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
             return randomBoolean() ? ShardLongFieldRange.UNKNOWN : randomSpecificRange();
         }
 
-        switch (between(1, 4)) {
-            case 1:
-                return ShardLongFieldRange.UNKNOWN;
-            case 2:
-                return ShardLongFieldRange.EMPTY;
-            case 3:
-                return instance.getMin() == Long.MAX_VALUE
-                        ? randomSpecificRange()
-                        : ShardLongFieldRange.of(randomValueOtherThan(instance.getMin(),
-                        () -> randomLongBetween(Long.MIN_VALUE, instance.getMax())), instance.getMax());
-            case 4:
-                return instance.getMax() == Long.MIN_VALUE
-                        ? randomSpecificRange()
-                        : ShardLongFieldRange.of(instance.getMin(), randomValueOtherThan(instance.getMax(),
-                        () -> randomLongBetween(instance.getMin(), Long.MAX_VALUE)));
-            default:
-                throw new AssertionError("impossible");
-        }
+        return switch (between(1, 4)) {
+            case 1 -> ShardLongFieldRange.UNKNOWN;
+            case 2 -> ShardLongFieldRange.EMPTY;
+            case 3 -> instance.getMin() == Long.MAX_VALUE
+                ? randomSpecificRange()
+                : ShardLongFieldRange.of(
+                    randomValueOtherThan(instance.getMin(), () -> randomLongBetween(Long.MIN_VALUE, instance.getMax())),
+                    instance.getMax()
+                );
+            case 4 -> instance.getMax() == Long.MIN_VALUE
+                ? randomSpecificRange()
+                : ShardLongFieldRange.of(
+                    instance.getMin(),
+                    randomValueOtherThan(instance.getMax(), () -> randomLongBetween(instance.getMin(), Long.MAX_VALUE))
+                );
+            default -> throw new AssertionError("impossible");
+        };
     }
 
     @Override

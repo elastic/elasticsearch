@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -13,6 +14,8 @@ import org.elasticsearch.common.util.ByteArray;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
@@ -38,6 +41,13 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         return ref;
     }
 
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        ByteArray byteArray = bigarrays.newByteArray(content.length);
+        byteArray.set(0, content, 0, content.length);
+        return BytesReference.fromByteArray(byteArray, content.length);
+    }
+
     public void testToBytesRefMaterializedPages() throws IOException {
         // we need a length != (n * pagesize) to avoid page sharing at boundaries
         int length = 0;
@@ -56,7 +66,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
     }
 
     public void testSinglePage() throws IOException {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
+        int[] sizes = { 0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5)) };
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
@@ -78,7 +88,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
     }
 
     public void testToBytes() throws IOException {
-        int[] sizes = {0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5))};
+        int[] sizes = { 0, randomInt(PAGE_SIZE), PAGE_SIZE, randomIntBetween(2, PAGE_SIZE * randomIntBetween(2, 5)) };
 
         for (int i = 0; i < sizes.length; i++) {
             BytesReference pbr = newBytesReference(sizes[i]);
@@ -113,10 +123,10 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         // get refs & compare
         BytesReference pbr = BytesReference.fromByteArray(ba1, length);
         BytesReference pbr2 = BytesReference.fromByteArray(ba2, length);
-        assertEquals(pbr, pbr2);
+        assertThat(pbr2, equalBytes(pbr));
         int offsetToFlip = randomIntBetween(0, length - 1);
         int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));
-        ba2.set(offsetToFlip, (byte)value);
+        ba2.set(offsetToFlip, (byte) value);
         assertNotEquals(pbr, pbr2);
     }
 

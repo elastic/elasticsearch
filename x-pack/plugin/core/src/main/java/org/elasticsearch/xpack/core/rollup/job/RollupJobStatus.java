@@ -6,18 +6,16 @@
  */
 package org.elasticsearch.xpack.core.rollup.job;
 
-
-import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 
 import java.io.IOException;
@@ -26,8 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class is essentially just a wrapper around the IndexerState and the
@@ -47,9 +45,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     private static final ParseField UPGRADED_DOC_ID = new ParseField("upgraded_doc_id"); // This can be removed in 9.0
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER =
-            new ConstructingObjectParser<>(NAME,
-                    args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1]));
+    public static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new RollupJobStatus((IndexerState) args[0], (HashMap<String, Object>) args[1])
+    );
 
     static {
         PARSER.declareString(constructorArg(), IndexerState::fromString, STATE);
@@ -74,14 +73,10 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
     public RollupJobStatus(StreamInput in) throws IOException {
         state = IndexerState.fromStream(in);
-        currentPosition = in.readBoolean() ? new TreeMap<>(in.readMap()) : null;
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            // 7.x nodes serialize `upgradedDocumentID` flag.  We don't need it anymore, but
-            // we need to pull it off the stream
-            // This can go away completely in 9.0
-            in.readBoolean();
-        }
+        currentPosition = in.readOptional(CURRENT_POSITION_READER);
     }
+
+    private static final Reader<TreeMap<String, Object>> CURRENT_POSITION_READER = in -> new TreeMap<>(in.readGenericMap());
 
     public IndexerState getIndexerState() {
         return state;
@@ -118,16 +113,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         state.writeTo(out);
-        out.writeBoolean(currentPosition != null);
-        if (currentPosition != null) {
-            out.writeMap(currentPosition);
-        }
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            // 7.x nodes expect a boolean `upgradedDocumentID` flag. We don't have it anymore,
-            // but we need to tell them we are upgraded in case there is a mixed cluster
-            // This can go away completely in 9.0
-            out.writeBoolean(true);
-        }
+        out.writeOptional(StreamOutput::writeGenericMap, currentPosition);
     }
 
     @Override
@@ -142,8 +128,7 @@ public class RollupJobStatus implements Task.Status, PersistentTaskState {
 
         RollupJobStatus that = (RollupJobStatus) other;
 
-        return Objects.equals(this.state, that.state)
-            && Objects.equals(this.currentPosition, that.currentPosition);
+        return Objects.equals(this.state, that.state) && Objects.equals(this.currentPosition, that.currentPosition);
     }
 
     @Override

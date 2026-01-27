@@ -11,10 +11,11 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.util.Objects;
 import java.util.Set;
@@ -42,30 +43,20 @@ public class EmptyStateIndexRemover implements MlDataRemover {
                 listener.onResponse(false);
                 return;
             }
-            getEmptyStateIndices(
-                ActionListener.wrap(
-                    emptyStateIndices -> {
-                        if (emptyStateIndices.isEmpty()) {
-                            listener.onResponse(true);
-                            return;
-                        }
-                        getCurrentStateIndices(
-                            ActionListener.wrap(
-                                currentStateIndices -> {
-                                    Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
-                                    if (stateIndicesToRemove.isEmpty()) {
-                                        listener.onResponse(true);
-                                        return;
-                                    }
-                                    executeDeleteEmptyStateIndices(stateIndicesToRemove, listener);
-                                },
-                                listener::onFailure
-                            )
-                        );
-                    },
-                    listener::onFailure
-                )
-            );
+            getEmptyStateIndices(listener.delegateFailureAndWrap((delegate, emptyStateIndices) -> {
+                if (emptyStateIndices.isEmpty()) {
+                    delegate.onResponse(true);
+                    return;
+                }
+                getCurrentStateIndices(delegate.delegateFailureAndWrap((l, currentStateIndices) -> {
+                    Set<String> stateIndicesToRemove = Sets.difference(emptyStateIndices, currentStateIndices);
+                    if (stateIndicesToRemove.isEmpty()) {
+                        l.onResponse(true);
+                        return;
+                    }
+                    executeDeleteEmptyStateIndices(stateIndicesToRemove, l);
+                }));
+            }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -74,43 +65,44 @@ public class EmptyStateIndexRemover implements MlDataRemover {
     private void getEmptyStateIndices(ActionListener<Set<String>> listener) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(AnomalyDetectorsIndex.jobStateIndexPattern());
         indicesStatsRequest.setParentTask(parentTaskId);
-        client.admin().indices().stats(
-            indicesStatsRequest,
-            ActionListener.wrap(
-                indicesStatsResponse -> {
-                    Set<String> emptyStateIndices =
-                        indicesStatsResponse.getIndices().values().stream()
-                            .filter(stats -> stats.getTotal().getDocs().getCount() == 0)
+        client.admin()
+            .indices()
+            .stats(
+                indicesStatsRequest,
+                listener.delegateFailureAndWrap(
+                    (l, indicesStatsResponse) -> l.onResponse(
+                        indicesStatsResponse.getIndices()
+                            .values()
+                            .stream()
+                            .filter(stats -> stats.getTotal().getDocs() == null || stats.getTotal().getDocs().getCount() == 0)
                             .map(IndexStats::getIndex)
-                            .collect(toSet());
-                    listener.onResponse(emptyStateIndices);
-                },
-                listener::onFailure
-            )
-        );
+                            .collect(toSet())
+                    )
+                )
+            );
     }
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-        getIndexRequest.setParentTask(parentTaskId);
-        client.admin().indices().getIndex(
-            getIndexRequest,
-            ActionListener.wrap(
-                getIndexResponse -> listener.onResponse(Set.of(getIndexResponse.getIndices())),
-                listener::onFailure
-            )
+        GetIndexRequest getIndexRequest = new GetIndexRequest(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT).indices(
+            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
         );
+        getIndexRequest.setParentTask(parentTaskId);
+        client.admin()
+            .indices()
+            .getIndex(
+                getIndexRequest,
+                listener.delegateFailureAndWrap((l, getIndexResponse) -> l.onResponse(Set.of(getIndexResponse.getIndices())))
+            );
     }
 
     private void executeDeleteEmptyStateIndices(Set<String> emptyStateIndices, ActionListener<Boolean> listener) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(emptyStateIndices.toArray(new String[0]));
         deleteIndexRequest.setParentTask(parentTaskId);
-        client.admin().indices().delete(
-            deleteIndexRequest,
-            ActionListener.wrap(
-                deleteResponse -> listener.onResponse(deleteResponse.isAcknowledged()),
-                listener::onFailure
-            )
-        );
+        client.admin()
+            .indices()
+            .delete(
+                deleteIndexRequest,
+                listener.delegateFailureAndWrap((l, deleteResponse) -> l.onResponse(deleteResponse.isAcknowledged()))
+            );
     }
 }

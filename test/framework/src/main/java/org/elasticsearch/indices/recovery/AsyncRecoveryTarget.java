@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -49,29 +50,68 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps,
-                                        long maxSeenAutoIdTimestampOnPrimary, long maxSeqNoOfDeletesOrUpdatesOnPrimary,
-                                        RetentionLeases retentionLeases, long mappingVersionOnPrimary, ActionListener<Long> listener) {
-        executor.execute(() -> target.indexTranslogOperations(operations, totalTranslogOps, maxSeenAutoIdTimestampOnPrimary,
-            maxSeqNoOfDeletesOrUpdatesOnPrimary, retentionLeases, mappingVersionOnPrimary, listener));
+    public void indexTranslogOperations(
+        List<Translog.Operation> operations,
+        int totalTranslogOps,
+        long maxSeenAutoIdTimestampOnPrimary,
+        long maxSeqNoOfDeletesOrUpdatesOnPrimary,
+        RetentionLeases retentionLeases,
+        long mappingVersionOnPrimary,
+        ActionListener<Long> listener
+    ) {
+        executor.execute(
+            () -> target.indexTranslogOperations(
+                operations,
+                totalTranslogOps,
+                maxSeenAutoIdTimestampOnPrimary,
+                maxSeqNoOfDeletesOrUpdatesOnPrimary,
+                retentionLeases,
+                mappingVersionOnPrimary,
+                listener
+            )
+        );
     }
 
     @Override
-    public void receiveFileInfo(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                                List<Long> phase1ExistingFileSizes, int totalTranslogOps, ActionListener<Void> listener) {
-        executor.execute(() -> target.receiveFileInfo(
-            phase1FileNames, phase1FileSizes, phase1ExistingFileNames, phase1ExistingFileSizes, totalTranslogOps, listener));
+    public void receiveFileInfo(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
+        executor.execute(
+            () -> target.receiveFileInfo(
+                phase1FileNames,
+                phase1FileSizes,
+                phase1ExistingFileNames,
+                phase1ExistingFileSizes,
+                totalTranslogOps,
+                listener
+            )
+        );
     }
 
     @Override
-    public void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata,
-                           ActionListener<Void> listener) {
+    public void cleanFiles(
+        int totalTranslogOps,
+        long globalCheckpoint,
+        Store.MetadataSnapshot sourceMetadata,
+        ActionListener<Void> listener
+    ) {
         executor.execute(() -> target.cleanFiles(totalTranslogOps, globalCheckpoint, sourceMetadata, listener));
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
-                               boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
+    public void writeFileChunk(
+        StoreFileMetadata fileMetadata,
+        long position,
+        ReleasableBytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    ) {
         final ReleasableBytesReference retained = content.retain();
         final ActionListener<Void> wrappedListener = ActionListener.runBefore(listener, retained::close);
         boolean success = false;
@@ -86,10 +126,12 @@ public class AsyncRecoveryTarget implements RecoveryTargetHandler {
     }
 
     @Override
-    public void restoreFileFromSnapshot(String repository,
-                                        IndexId indexId,
-                                        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
-                                        ActionListener<Void> listener) {
+    public void restoreFileFromSnapshot(
+        String repository,
+        IndexId indexId,
+        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+        ActionListener<Void> listener
+    ) {
         executor.execute(() -> target.restoreFileFromSnapshot(repository, indexId, snapshotFile, listener));
     }
 }

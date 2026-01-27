@@ -1,0 +1,18 @@
+pr: 136703
+summary: Disable cross-cluster functionality for `_fleet/_fleet_msearch`
+area: Search
+type: breaking
+issues: []
+breaking:
+  title: Disable cross-cluster functionality for `_fleet/_fleet_msearch`
+  area: Search
+  details: |-
+    This endpoint is largely used for local searches only and is not compatible with true cross-cluster searches where
+    arbitrary number of indices and remotes can be specified. Although it is meant to accept an index parameter that
+    denotes a single searchable target, such a limitation can be bypassed through various means.
+
+    Keeping in view this endpoint's stated intent and future scope, cross-cluster functionality is being explicitly disabled.
+  impact: |-
+    This endpoint will no longer accept remote indices. Should one be provided, a top-level error is returned with
+    an appropriate explanation.
+  notable: false

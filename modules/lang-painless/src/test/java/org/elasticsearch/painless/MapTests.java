@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -19,9 +20,9 @@ public class MapTests extends ScriptTestCase {
         assertEquals(2, exec(decl + "; return x[0];", true));
         assertEquals(1, exec(decl + "; return x['a'];", true));
         assertEquals(12, exec(decl + "; return x[123.1];", true));
-        assertEquals(val,    exec(decl + "; x[ 0] = params.val; return x[ 0];", singletonMap("val", val), true));
+        assertEquals(val, exec(decl + "; x[ 0] = params.val; return x[ 0];", singletonMap("val", val), true));
         assertEquals("slot", exec(decl + "; x[ 0] = params.val; return x[-5];", singletonMap("val", val), true));
-        assertEquals(val,    exec(decl + "; x[-5] = params.val; return x[-5];", singletonMap("val", val), true));
+        assertEquals(val, exec(decl + "; x[-5] = params.val; return x[-5];", singletonMap("val", val), true));
     }
 
     public void testMapInDefAccesses() {

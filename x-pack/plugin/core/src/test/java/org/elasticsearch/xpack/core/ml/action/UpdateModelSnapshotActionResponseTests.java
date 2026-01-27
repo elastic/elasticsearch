@@ -11,12 +11,16 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Response;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshotTests;
 
-public class UpdateModelSnapshotActionResponseTests
-        extends AbstractWireSerializingTestCase<UpdateModelSnapshotAction.Response> {
+public class UpdateModelSnapshotActionResponseTests extends AbstractWireSerializingTestCase<UpdateModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {
         return new Response(ModelSnapshotTests.createRandomized());
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -22,13 +24,12 @@ import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotActi
 import static org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request.SNAPSHOT_ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade")
-        );
+        return List.of(new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade"));
     }
 
     @Override
@@ -43,13 +44,18 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
         String snapshotId = restRequest.param(SNAPSHOT_ID.getPreferredName());
         TimeValue timeout = TimeValue.parseTimeValue(
             restRequest.param(UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName(), DEFAULT_TIMEOUT.getStringRep()),
-            UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName());
-        boolean waitForCompletion = restRequest.paramAsBoolean(UpgradeJobModelSnapshotAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
-            false);
-        UpgradeJobModelSnapshotAction.Request request = new UpgradeJobModelSnapshotAction.Request(jobId,
+            UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName()
+        );
+        boolean waitForCompletion = restRequest.paramAsBoolean(
+            UpgradeJobModelSnapshotAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
+            false
+        );
+        UpgradeJobModelSnapshotAction.Request request = new UpgradeJobModelSnapshotAction.Request(
+            jobId,
             snapshotId,
             timeout,
-            waitForCompletion);
+            waitForCompletion
+        );
         return channel -> client.execute(UpgradeJobModelSnapshotAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -11,10 +12,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -48,20 +49,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
         @Override
         public Object getKey() {
             return getKeyAsString();
-        }
-
-        // this method is needed for scripted numeric aggs
-        @Override
-        public Number getKeyAsNumber() {
-            /*
-             * If the term is a long greater than 2^52 then parsing as a double would lose accuracy. Therefore, we first parse as a long and
-             * if this fails then we attempt to parse the term as a double.
-             */
-            try {
-                return Long.parseLong(termBytes.utf8ToString());
-            } catch (final NumberFormatException ignored) {
-                return Double.parseDouble(termBytes.utf8ToString());
-            }
         }
 
         @Override
@@ -131,11 +118,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
         SetBackedScalingCuckooFilter filterFilter
     ) {
         return new StringRareTerms(name, order, metadata, format, buckets, maxDocCount, filterFilter);
-    }
-
-    @Override
-    protected StringRareTerms.Bucket[] createBucketsArray(int size) {
-        return new StringRareTerms.Bucket[size];
     }
 
     @Override

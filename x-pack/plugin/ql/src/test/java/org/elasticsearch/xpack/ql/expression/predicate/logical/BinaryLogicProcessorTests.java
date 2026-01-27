@@ -21,14 +21,20 @@ public class BinaryLogicProcessorTests extends AbstractWireSerializingTestCase<B
 
     public static BinaryLogicProcessor randomProcessor() {
         return new BinaryLogicProcessor(
-                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
-                new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
-                randomFrom(BinaryLogicProcessor.BinaryLogicOperation.values()));
+            new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
+            new ConstantProcessor(randomFrom(Boolean.FALSE, Boolean.TRUE, null)),
+            randomFrom(BinaryLogicProcessor.BinaryLogicOperation.values())
+        );
     }
 
     @Override
     protected BinaryLogicProcessor createTestInstance() {
         return randomProcessor();
+    }
+
+    @Override
+    protected BinaryLogicProcessor mutateInstance(BinaryLogicProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

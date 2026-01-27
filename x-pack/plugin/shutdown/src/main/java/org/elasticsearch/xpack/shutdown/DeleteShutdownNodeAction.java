@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -23,23 +24,26 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/shutdown/delete";
 
     public DeleteShutdownNodeAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String nodeId;
 
-        public Request(String nodeId) {
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String nodeId) {
+            super(masterNodeTimeout, ackTimeout);
             this.nodeId = nodeId;
         }
 
         public Request(StreamInput in) throws IOException {
+            super(in);
             this.nodeId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
             out.writeString(this.nodeId);
         }
 

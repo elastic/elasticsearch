@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -23,7 +24,7 @@ import java.util.Locale;
  * @deprecated this class is kept in order to allow working log configuration from 7.x
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
-@ConverterKeys({"node_and_cluster_id"})
+@ConverterKeys({ "node_and_cluster_id" })
 @Deprecated
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
@@ -53,7 +54,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private String formatIds(String nodeId, String clusterUUID) {
+    private static String formatIds(String nodeId, String clusterUUID) {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

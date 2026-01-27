@@ -1,32 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
-import java.io.File;
-import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.util.List;
-import java.util.stream.Collectors;
-
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.tools.ant.taskdefs.condition.Os;
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.Assert;
+import org.junit.Test;
 
-public class FilePermissionsTaskTests extends GradleUnitTestCase {
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.List;
+import java.util.stream.Collectors;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
+
+public class FilePermissionsTaskTests {
+
+    @Test
     public void testCheckPermissionsWhenAnExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -45,8 +50,9 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         file.delete();
     }
 
+    @Test
     public void testCheckPermissionsWhenNoFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -55,12 +61,13 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
     }
 
+    @Test
     public void testCheckPermissionsWhenNoExecutableFileExists() throws Exception {
-        RandomizedTest.assumeFalse("Functionality is Unix specific", Os.isFamily(Os.FAMILY_WINDOWS));
+        assumeFalse("Functionality is Unix specific", OS.current() == OS.WINDOWS);
 
         Project project = createProject();
 
@@ -73,7 +80,7 @@ public class FilePermissionsTaskTests extends GradleUnitTestCase {
         filePermissionsTask.checkInvalidPermissions();
 
         File outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
-        List<String> result = Files.readAllLines(outputMarker.toPath(), Charset.forName("UTF-8"));
+        List<String> result = Files.readAllLines(outputMarker.toPath(), StandardCharsets.UTF_8);
         assertEquals("done", result.get(0));
 
         file.delete();

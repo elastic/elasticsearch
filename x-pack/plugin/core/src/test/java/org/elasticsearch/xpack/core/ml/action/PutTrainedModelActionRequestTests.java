@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction.Request;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
@@ -21,11 +21,17 @@ public class PutTrainedModelActionRequestTests extends AbstractWireSerializingTe
     protected Request createTestInstance() {
         String modelId = randomAlphaOfLength(10);
         return new Request(
-            TrainedModelConfigTests.createTestInstance(modelId)
-                .setParsedDefinition(TrainedModelDefinitionTests.createRandomBuilder())
+            TrainedModelConfigTests.createTestInstance(modelId, false)
+                .setParsedDefinition(TrainedModelDefinitionTests.createSmallRandomBuilder())
                 .build(),
+            randomBoolean(),
             randomBoolean()
         );
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

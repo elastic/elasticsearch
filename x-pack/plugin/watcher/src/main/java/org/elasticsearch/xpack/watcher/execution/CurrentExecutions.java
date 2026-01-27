@@ -43,8 +43,11 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         try {
             if (seal.get() != null) {
                 // We shouldn't get here, because, ExecutionService#started should have been set to false
-                throw illegalState("could not register execution [{}]. current executions are sealed and forbid registrations of " +
-                        "additional executions.", id);
+                throw illegalState(
+                    "could not register execution [{}]. current executions are sealed and forbid registrations of "
+                        + "additional executions.",
+                    id
+                );
             }
             return currentExecutions.putIfAbsent(id, execution) != null;
         } finally {
@@ -89,7 +92,7 @@ public final class CurrentExecutions implements Iterable<ExecutionService.WatchE
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } finally {
-            //fully stop Watcher after all executions are finished
+            // fully stop Watcher after all executions are finished
             stoppedListener.run();
             lock.unlock();
         }

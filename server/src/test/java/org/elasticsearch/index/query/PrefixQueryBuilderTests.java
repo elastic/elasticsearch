@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -15,7 +16,10 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -41,29 +45,30 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     protected Map<String, PrefixQueryBuilder> getAlternateVersions() {
         Map<String, PrefixQueryBuilder> alternateVersions = new HashMap<>();
         PrefixQueryBuilder prefixQuery = randomPrefixQuery();
-        String contentString = "{\n" +
-                "    \"prefix\" : {\n" +
-                "        \"" + prefixQuery.fieldName() + "\" : \"" + prefixQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+        String contentString = Strings.format("""
+            {
+                "prefix" : {
+                    "%s" : "%s"
+                }
+            }""", prefixQuery.fieldName(), prefixQuery.value());
         alternateVersions.put(contentString, prefixQuery);
         return alternateVersions;
     }
 
     private static PrefixQueryBuilder randomPrefixQuery() {
-        String fieldName = randomFrom(TEXT_FIELD_NAME,
-            TEXT_ALIAS_FIELD_NAME,
-            randomAlphaOfLengthBetween(1, 10));
+        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, randomAlphaOfLengthBetween(1, 10));
         String value = randomAlphaOfLengthBetween(1, 10);
         return new PrefixQueryBuilder(fieldName, value);
     }
 
     @Override
     protected void doAssertLuceneQuery(PrefixQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class),
-            instanceOf(AutomatonQuery.class)));
-        if (context.getFieldType(queryBuilder.fieldName()) != null
-            && queryBuilder.caseInsensitive() == false) { // The field is mapped and case sensitive
+        assertThat(
+            query,
+            Matchers.anyOf(instanceOf(PrefixQuery.class), instanceOf(MatchNoDocsQuery.class), instanceOf(AutomatonQuery.class))
+        );
+        if (context.getFieldType(queryBuilder.fieldName()) != null && queryBuilder.caseInsensitive() == false) { // The field is mapped and
+                                                                                                                 // case sensitive
             PrefixQuery prefixQuery = (PrefixQuery) query;
 
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
@@ -92,11 +97,17 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\",\n"
-                + "     \"case_insensitive\" : true,\n"
-                + " \"boost\" : 2.0"
-                + "} }}";
+        String json = """
+            {
+              "prefix": {
+                "user": {
+                  "value": "ki",
+                  "case_insensitive": true,
+                  "boost": 2.0
+                }
+              }
+            }
+            """;
 
         PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -109,50 +120,53 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
     public void testNumeric() throws Exception {
         PrefixQueryBuilder query = prefixQuery(INT_FIELD_NAME, "12*");
         SearchExecutionContext context = createSearchExecutionContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
-        assertEquals("Can only use prefix queries on keyword, text and wildcard fields - not on [mapped_int] which is of type [integer]",
-                e.getMessage());
+        QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
+        assertEquals(
+            "Can only use prefix queries on keyword, text and wildcard fields - not on [mapped_int] which is of type [integer]",
+            e.getMessage()
+        );
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json =
-                "{\n" +
-                "    \"prefix\": {\n" +
-                "      \"user1\": {\n" +
-                "        \"value\": \"ki\"\n" +
-                "      },\n" +
-                "      \"user2\": {\n" +
-                "        \"value\": \"ki\"\n" +
-                "      }\n" +
-                "    }\n" +
-                "}";
+        String json = """
+            {
+                "prefix": {
+                  "user1": {
+                    "value": "ki"
+                  },
+                  "user2": {
+                    "value": "ki"
+                  }
+                }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
 
-        String shortJson =
-                "{\n" +
-                "    \"prefix\": {\n" +
-                "      \"user1\": \"ki\",\n" +
-                "      \"user2\": \"ki\"\n" +
-                "    }\n" +
-                "}";
+        String shortJson = """
+            {
+                "prefix": {
+                  "user1": "ki",
+                  "user2": "ki"
+                }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[prefix] query doesn't support multiple fields, found [user1] and [user2]", e.getMessage());
     }
 
     public void testRewriteIndexQueryToMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryToNotMatchNone() throws Exception {
         PrefixQueryBuilder query = prefixQuery("_index", getIndex().getName());
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     @Override
@@ -160,8 +174,40 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         PrefixQueryBuilder queryBuilder = new PrefixQueryBuilder("unmapped_field", "foo");
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
+
+    public void testCoordinatorTierRewriteToMatchAll() throws IOException {
+        QueryBuilder query = new PrefixQueryBuilder("_tier", "data_fro");
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testCoordinatorTierRewriteToMatchNone() throws IOException {
+        QueryBuilder query = QueryBuilders.boolQuery().mustNot(new PrefixQueryBuilder("_tier", "data_fro"));
+        final String timestampFieldName = "@timestamp";
+        long minTimestamp = 1685714000000L;
+        long maxTimestamp = 1685715000000L;
+        final CoordinatorRewriteContext coordinatorRewriteContext = createCoordinatorRewriteContext(
+            new DateFieldMapper.DateFieldType(timestampFieldName),
+            minTimestamp,
+            maxTimestamp,
+            "data_frozen"
+        );
+
+        QueryBuilder rewritten = query.rewrite(coordinatorRewriteContext);
+        assertThat(rewritten, CoreMatchers.instanceOf(MatchNoneQueryBuilder.class));
+    }
+
 }

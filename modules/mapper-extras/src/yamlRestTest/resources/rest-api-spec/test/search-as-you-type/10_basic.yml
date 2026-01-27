@@ -1,14 +1,12 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason: "added in 7.2.0"
 
   - do:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               a_field:
@@ -19,7 +17,7 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           a_field: "quick brown fox jump lazy dog"
 
@@ -27,7 +25,7 @@ setup:
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         body:
           a_field: "xylophone xylophone xylophone"
 
@@ -39,7 +37,7 @@ setup:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
 
   - is_true: found
   - match: { _source.a_field: "quick brown fox jump lazy dog" }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -146,8 +147,7 @@ public class NotEqualMessageBuilder {
             return;
         }
         if (Objects.equals(expected, actual)) {
-            if (expected instanceof String) {
-                String expectedString = (String) expected;
+            if (expected instanceof String expectedString) {
                 if (expectedString.length() > 50) {
                     expectedString = expectedString.substring(0, 50) + "...";
                 }
@@ -157,8 +157,18 @@ public class NotEqualMessageBuilder {
             field(field, "same [" + expected + "]");
             return;
         }
-        field(field, "expected " + expected.getClass().getSimpleName() + " [" + expected + "] but was "
-                + actual.getClass().getSimpleName() + " [" + actual + "]");
+        field(
+            field,
+            "expected "
+                + expected.getClass().getSimpleName()
+                + " ["
+                + expected
+                + "] but was "
+                + actual.getClass().getSimpleName()
+                + " ["
+                + actual
+                + "]"
+        );
     }
 
     private void indent() {

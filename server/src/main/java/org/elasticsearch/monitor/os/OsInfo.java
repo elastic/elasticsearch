@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -20,20 +22,21 @@ public class OsInfo implements ReportingService.Info {
 
     private final long refreshInterval;
     private final int availableProcessors;
-    private final int allocatedProcessors;
+    private final Processors allocatedProcessors;
     private final String name;
     private final String prettyName;
     private final String arch;
     private final String version;
 
     public OsInfo(
-            final long refreshInterval,
-            final int availableProcessors,
-            final int allocatedProcessors,
-            final String name,
-            final String prettyName,
-            final String arch,
-            final String version) {
+        final long refreshInterval,
+        final int availableProcessors,
+        final Processors allocatedProcessors,
+        final String name,
+        final String prettyName,
+        final String arch,
+        final String version
+    ) {
         this.refreshInterval = refreshInterval;
         this.availableProcessors = availableProcessors;
         this.allocatedProcessors = allocatedProcessors;
@@ -46,7 +49,7 @@ public class OsInfo implements ReportingService.Info {
     public OsInfo(StreamInput in) throws IOException {
         this.refreshInterval = in.readLong();
         this.availableProcessors = in.readInt();
-        this.allocatedProcessors = in.readInt();
+        this.allocatedProcessors = Processors.readFrom(in);
         this.name = in.readOptionalString();
         this.prettyName = in.readOptionalString();
         this.arch = in.readOptionalString();
@@ -57,7 +60,7 @@ public class OsInfo implements ReportingService.Info {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
         out.writeInt(availableProcessors);
-        out.writeInt(allocatedProcessors);
+        allocatedProcessors.writeTo(out);
         out.writeOptionalString(name);
         out.writeOptionalString(prettyName);
         out.writeOptionalString(arch);
@@ -73,7 +76,11 @@ public class OsInfo implements ReportingService.Info {
     }
 
     public int getAllocatedProcessors() {
-        return this.allocatedProcessors;
+        return allocatedProcessors.roundUp();
+    }
+
+    public double getFractionalAllocatedProcessors() {
+        return allocatedProcessors.count();
     }
 
     public String getName() {
@@ -121,7 +128,7 @@ public class OsInfo implements ReportingService.Info {
             builder.field(Fields.VERSION, version);
         }
         builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
-        builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
+        builder.field(Fields.ALLOCATED_PROCESSORS, getAllocatedProcessors());
         builder.endObject();
         return builder;
     }

@@ -44,13 +44,11 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
     private final long now = System.currentTimeMillis();
     private static final long DAY = Duration.ofDays(1).toMillis();
     private final String jobId = "bulk-failure-retry-job";
-    private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job";
+    private final String resultsIndex = ".ml-anomalies-custom-bulk-failure-retry-job-000001";
 
     @Before
     public void putPastDataIntoIndex() {
-        client().admin().indices().prepareCreate(index)
-            .setMapping("time", "type=date", "value", "type=long")
-            .get();
+        client().admin().indices().prepareCreate(index).setMapping("time", "type=date", "value", "type=long").get();
         long twoDaysAgo = now - DAY * 2;
         long threeDaysAgo = now - DAY * 3;
         writeData(logger, index, 250, threeDaysAgo, twoDaysAgo);
@@ -58,16 +56,14 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
 
     @After
     public void cleanUpTest() {
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+        updateClusterSettings(
+            Settings.builder()
                 .putNull("xpack.ml.persist_results_max_retries")
                 .putNull("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister")
                 .putNull("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output")
                 .putNull("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService")
-                .build()).get();
+        );
         cleanUp();
     }
 
@@ -78,9 +74,10 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         blockingCall(
             listener -> client().admin().indices().prepareUpdateSettings(resultsIndex).setSettings(settings).execute(listener),
             acknowledgedResponseHolder,
-            exceptionHolder);
+            exceptionHolder
+        );
         if (exceptionHolder.get() != null) {
-            fail("FAILED TO MARK ["+ resultsIndex + "] as read-write again" + exceptionHolder.get());
+            fail("FAILED TO MARK [" + resultsIndex + "] as read-write again" + exceptionHolder.get());
         }
     }
 
@@ -91,9 +88,10 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         blockingCall(
             listener -> client().admin().indices().prepareUpdateSettings(resultsIndex).setSettings(settings).execute(listener),
             acknowledgedResponseHolder,
-            exceptionHolder);
+            exceptionHolder
+        );
         if (exceptionHolder.get() != null) {
-            fail("FAILED TO MARK ["+ resultsIndex + "] as read-ONLY: " + exceptionHolder.get());
+            fail("FAILED TO MARK [" + resultsIndex + "] as read-ONLY: " + exceptionHolder.get());
         }
     }
 
@@ -101,8 +99,11 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         Job.Builder job = createJob(jobId, TimeValue.timeValueMinutes(5), "count", null);
         job.setResultsIndexName(jobId);
 
-        DatafeedConfig.Builder datafeedConfigBuilder =
-            createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
+            job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList(index)
+        );
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
         putJob(job);
         openJob(job.getId());
@@ -115,16 +116,14 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         Bucket initialLatestBucket = getLatestFinalizedBucket(jobId);
         assertThat(initialLatestBucket.getEpoch(), greaterThan(0L));
 
-        client().admin()
-            .cluster()
-            .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder()
+        updateClusterSettings(
+            Settings.builder()
                 .put("logger.org.elasticsearch.xpack.ml.datafeed.DatafeedJob", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService", "TRACE")
                 .put("logger.org.elasticsearch.xpack.ml.job.process.autodetect.output", "TRACE")
                 .put("xpack.ml.persist_results_max_retries", "15")
-                .build()).get();
+        );
 
         setAnomaliesReadOnlyBlock();
 
@@ -151,8 +150,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 
         Detector.Builder d = new Detector.Builder(function, field);
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()))
-            .setBucketSpan(bucketSpan)
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build())).setBucketSpan(bucketSpan)
             .setSummaryCountFieldName(summaryCountField);
 
         return new Job.Builder().setId(id).setAnalysisConfig(analysisConfig).setDataDescription(dataDescription);
@@ -168,9 +166,7 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
             indexRequest.source("time", timestamp, "value", i);
             bulkRequestBuilder.add(indexRequest);
         }
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             int failures = 0;
             for (BulkItemResponse itemResponse : bulkResponse) {
@@ -193,20 +189,16 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         return getBuckets(getBucketsRequest).get(0);
     }
 
-    private <T> void blockingCall(Consumer<ActionListener<T>> function,
-                                  AtomicReference<T> response,
-                                  AtomicReference<Exception> error) throws InterruptedException {
+    private <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
+        throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-            r -> {
-                response.set(r);
-                latch.countDown();
-            },
-            e -> {
-                error.set(e);
-                latch.countDown();
-            }
-        );
+        ActionListener<T> listener = ActionListener.wrap(r -> {
+            response.set(r);
+            latch.countDown();
+        }, e -> {
+            error.set(e);
+            latch.countDown();
+        });
 
         function.accept(listener);
         latch.await();

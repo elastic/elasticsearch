@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
@@ -22,27 +23,16 @@ import org.elasticsearch.index.store.Store;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 final class LocalShardSnapshot implements Closeable {
     private final IndexShard shard;
     private final Store store;
     private final Engine.IndexCommitRef indexCommit;
-    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     LocalShardSnapshot(IndexShard shard) {
         this.shard = shard;
-        store = shard.store();
-        store.incRef();
-        boolean success = false;
-        try {
-            indexCommit = shard.acquireLastIndexCommit(true);
-            success = true;
-        } finally {
-            if (success == false) {
-                store.decRef();
-            }
-        }
+        this.store = shard.store();
+        this.indexCommit = shard.acquireLastIndexCommit(true);
     }
 
     Index getIndex() {
@@ -95,9 +85,9 @@ final class LocalShardSnapshot implements Closeable {
 
             @Override
             public Lock obtainLock(String name) throws IOException {
-                    /* we do explicitly a no-lock instance since we hold an index commit from a SnapshotDeletionPolicy so we
-                     * can we certain that nobody messes with the files on disk. We also hold a ref on the store which means
-                     * no external source will delete files either.*/
+                /* we do explicitly a no-lock instance since we hold an index commit from a SnapshotDeletionPolicy so we
+                 * can we certain that nobody messes with the files on disk. We also hold a ref on the store which means
+                 * no external source will delete files either.*/
                 return NoLockFactory.INSTANCE.obtainLock(in, name);
             }
 
@@ -110,13 +100,7 @@ final class LocalShardSnapshot implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (closed.compareAndSet(false, true)) {
-            try {
-                indexCommit.close();
-            } finally {
-                store.decRef();
-            }
-        }
+        indexCommit.close();
     }
 
     IndexMetadata getIndexMetadata() {

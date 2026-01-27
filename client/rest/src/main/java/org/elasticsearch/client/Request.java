@@ -67,7 +67,7 @@ public final class Request {
     /**
      * Add a query string parameter.
      * @param name the name of the url parameter. Must not be null.
-     * @param value the value of the url url parameter. If {@code null} then
+     * @param value the value of the url parameter. If {@code null} then
      *      the parameter is sent as {@code name} rather than {@code name=value}
      * @throws IllegalArgumentException if a parameter with that name has
      *      already been set
@@ -81,7 +81,7 @@ public final class Request {
         }
     }
 
-    public void addParameters(Map<String, String> paramSource){
+    public void addParameters(Map<String, String> paramSource) {
         paramSource.forEach(this::addParameter);
     }
 
@@ -174,10 +174,10 @@ public final class Request {
 
         Request other = (Request) obj;
         return method.equals(other.method)
-                && endpoint.equals(other.endpoint)
-                && parameters.equals(other.parameters)
-                && Objects.equals(entity, other.entity)
-                && options.equals(other.options);
+            && endpoint.equals(other.endpoint)
+            && parameters.equals(other.parameters)
+            && Objects.equals(entity, other.entity)
+            && options.equals(other.options);
     }
 
     @Override

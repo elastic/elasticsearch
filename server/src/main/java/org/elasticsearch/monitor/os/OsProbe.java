@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.monitor.os;
@@ -11,8 +12,9 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -20,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -29,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -60,12 +62,17 @@ public class OsProbe {
 
     private static final OperatingSystemMXBean osMxBean = ManagementFactory.getOperatingSystemMXBean();
 
+    // This property is specified without units because it also needs to be parsed by the launcher
+    // code, which does not have access to all the utility classes of the Elasticsearch server.
+    private static final String memoryOverrideProperty = System.getProperty("es.total_memory_bytes");
+
     private static final Method getFreePhysicalMemorySize;
     private static final Method getTotalPhysicalMemorySize;
     private static final Method getFreeSwapSpaceSize;
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
     private static final Method getSystemCpuLoad;
+    private static final Method getAvailableProcessors;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -74,6 +81,7 @@ public class OsProbe {
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
         getSystemCpuLoad = getMethod("getSystemCpuLoad");
+        getAvailableProcessors = getMethod("getAvailableProcessors");
     }
 
     /**
@@ -120,6 +128,35 @@ public class OsProbe {
         } catch (Exception e) {
             logger.warn("exception retrieving total physical memory", e);
             return 0;
+        }
+    }
+
+    /**
+     * Returns the adjusted total amount of physical memory in bytes.
+     * Total memory may be overridden when some other process is running
+     * that is known to consume a non-negligible amount of memory. This
+     * is read from the "es.total_memory_bytes" system property. When
+     * there is no override this method returns the same value as
+     * {@link #getTotalPhysicalMemorySize}.
+     */
+    public long getAdjustedTotalMemorySize() {
+        return Optional.ofNullable(getTotalMemoryOverride(memoryOverrideProperty)).orElse(getTotalPhysicalMemorySize());
+    }
+
+    static Long getTotalMemoryOverride(String memoryOverrideProperty) {
+        if (memoryOverrideProperty == null) {
+            return null;
+        }
+        try {
+            long memoryOverride = Long.parseLong(memoryOverrideProperty);
+            if (memoryOverride < 0) {
+                throw new IllegalArgumentException(
+                    "Negative memory size specified in [es.total_memory_bytes]: [" + memoryOverrideProperty + "]"
+                );
+            }
+            return memoryOverride;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid value for [es.total_memory_bytes]: [" + memoryOverrideProperty + "]", e);
         }
     }
 
@@ -220,8 +257,26 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
+    }
+
+    public static int getAvailableProcessors() {
+        if (getAvailableProcessors == null) {
+            logger.warn("getAvailableProcessors is not available");
+            return 0;
+        }
+        try {
+            int availableProcessors = (int) getAvailableProcessors.invoke(osMxBean);
+            if (availableProcessors <= 0) {
+                logger.debug("OS reported a non-positive number of available processors [{}]", availableProcessors);
+                return 0;
+            }
+            return availableProcessors;
+        } catch (Exception e) {
+            logger.warn("exception retrieving available processors", e);
+            return 0;
+        }
     }
 
     /**
@@ -231,7 +286,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
@@ -307,8 +362,8 @@ public class OsProbe {
      * @return the total CPU time in nanoseconds
      * @throws IOException if an I/O exception occurs reading {@code cpuacct.usage} for the control group
      */
-    private long getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
-        return Long.parseLong(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
+    private BigInteger getCgroupCpuAcctUsageNanos(final String controlGroup) throws IOException {
+        return new BigInteger(readSysFsCgroupCpuAcctCpuAcctUsage(controlGroup));
     }
 
     /**
@@ -401,27 +456,22 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     private OsStats.Cgroup.CpuStat getCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
+        final var SENTINEL_VALUE = BigInteger.valueOf(-1);
         final List<String> lines = readSysFsCgroupCpuAcctCpuStat(controlGroup);
-        long numberOfPeriods = -1;
-        long numberOfTimesThrottled = -1;
-        long timeThrottledNanos = -1;
+        var numberOfPeriods = SENTINEL_VALUE;
+        var numberOfTimesThrottled = SENTINEL_VALUE;
+        var timeThrottledNanos = SENTINEL_VALUE;
         for (final String line : lines) {
             final String[] fields = line.split("\\s+");
             switch (fields[0]) {
-                case "nr_periods":
-                    numberOfPeriods = Long.parseLong(fields[1]);
-                    break;
-                case "nr_throttled":
-                    numberOfTimesThrottled = Long.parseLong(fields[1]);
-                    break;
-                case "throttled_time":
-                    timeThrottledNanos = Long.parseLong(fields[1]);
-                    break;
+                case "nr_periods" -> numberOfPeriods = new BigInteger(fields[1]);
+                case "nr_throttled" -> numberOfTimesThrottled = new BigInteger(fields[1]);
+                case "throttled_time" -> timeThrottledNanos = new BigInteger(fields[1]);
             }
         }
-        assert numberOfPeriods != -1;
-        assert numberOfTimesThrottled != -1;
-        assert timeThrottledNanos != -1;
+        assert numberOfPeriods.equals(SENTINEL_VALUE) == false;
+        assert numberOfTimesThrottled.equals(SENTINEL_VALUE) == false;
+        assert timeThrottledNanos.equals(SENTINEL_VALUE) == false;
         return new OsStats.Cgroup.CpuStat(numberOfPeriods, numberOfTimesThrottled, timeThrottledNanos);
     }
 
@@ -437,6 +487,18 @@ public class OsProbe {
      * nr_throttled} is the number of times tasks in the given control group have been throttled, and {@code throttled_time} is the total
      * time in nanoseconds for which tasks in the given control group have been throttled.
      *
+     * If the burst feature of the scheduler is enabled, the statistics contain an additional two fields of the form
+     * <blockquote><pre>
+     * nr_bursts \d+
+     * burst_time
+     * </pre></blockquote>
+     *
+     * When schedstat_enabled is enabled, an additional statistics information {@code wait_sum} will also be available
+     * <blockquote><pre>
+     * wait_sum \d+
+     * </pre></blockquote>
+     * {@code wait_sum} represent the conflict between task groups, which is simply sum the wait time of group's cfs_rq
+     *  These three additional fields are currently ignored.
      * @param controlGroup the control group to which the Elasticsearch process belongs for the {@code cpu} subsystem
      * @return the lines from {@code cpu.stat}
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
@@ -444,7 +506,7 @@ public class OsProbe {
     @SuppressForbidden(reason = "access /sys/fs/cgroup/cpu")
     List<String> readSysFsCgroupCpuAcctCpuStat(final String controlGroup) throws IOException {
         final List<String> lines = Files.readAllLines(PathUtils.get("/sys/fs/cgroup/cpu", controlGroup, "cpu.stat"));
-        assert lines != null && lines.size() == 3;
+        assert lines != null && (lines.size() >= 3);
         return lines;
     }
 
@@ -595,28 +657,30 @@ public class OsProbe {
      * @throws IOException if an I/O exception occurs reading {@code cpu.stat} for the control group
      */
     @SuppressForbidden(reason = "Uses PathUtils.get to generate meaningful assertion messages")
-    private Map<String, Long> getCgroupV2CpuStats(String controlGroup) throws IOException {
+    private Map<String, BigInteger> getCgroupV2CpuStats(String controlGroup) throws IOException {
         final List<String> lines = readCgroupV2CpuStats(controlGroup);
-        final Map<String, Long> stats = new HashMap<>();
+        final Map<String, BigInteger> stats = new HashMap<>();
+        final BigInteger SENTINEL_VALUE = BigInteger.valueOf(-1);
 
         for (String line : lines) {
             String[] parts = line.split("\\s+");
             assert parts.length == 2 : "Corrupt cpu.stat line: [" + line + "]";
-            stats.put(parts[0], Long.parseLong(parts[1]));
+            stats.put(parts[0], new BigInteger(parts[1]));
         }
 
         final List<String> expectedKeys = List.of("system_usec", "usage_usec", "user_usec");
         expectedKeys.forEach(key -> {
             assert stats.containsKey(key) : "[" + key + "] missing from " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat");
-            assert stats.get(key) != -1 : stats.get(key);
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0 : stats.get(key).toString();
         });
 
         final List<String> optionalKeys = List.of("nr_periods", "nr_throttled", "throttled_usec");
         optionalKeys.forEach(key -> {
             if (stats.containsKey(key) == false) {
-                stats.put(key, 0L);
+                stats.put(key, BigInteger.ZERO);
             }
-            assert stats.get(key) != -1L : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
+            assert stats.get(key).compareTo(SENTINEL_VALUE) != 0
+                : "[" + key + "] in " + PathUtils.get("/sys/fs/cgroup", controlGroup, "cpu.stat") + " is -1";
         });
 
         return stats;
@@ -642,7 +706,7 @@ public class OsProbe {
             assert controllerMap.isEmpty() == false;
 
             final String cpuAcctControlGroup;
-            final long cgroupCpuAcctUsageNanos;
+            final BigInteger cgroupCpuAcctUsageNanos;
             final long cgroupCpuAcctCpuCfsPeriodMicros;
             final long cgroupCpuAcctCpuCfsQuotaMicros;
             final String cpuControlGroup;
@@ -656,9 +720,11 @@ public class OsProbe {
                 cpuControlGroup = cpuAcctControlGroup = memoryControlGroup = controllerMap.get("");
 
                 // `cpuacct` was merged with `cpu` in v2
-                final Map<String, Long> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
+                final Map<String, BigInteger> cpuStatsMap = getCgroupV2CpuStats(cpuControlGroup);
 
-                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec");
+                final BigInteger THOUSAND = BigInteger.valueOf(1000);
+
+                cgroupCpuAcctUsageNanos = cpuStatsMap.get("usage_usec").multiply(THOUSAND); // convert from micros to nanos
 
                 long[] cpuLimits = getCgroupV2CpuLimit(cpuControlGroup);
                 cgroupCpuAcctCpuCfsQuotaMicros = cpuLimits[0];
@@ -667,7 +733,7 @@ public class OsProbe {
                 cpuStat = new OsStats.Cgroup.CpuStat(
                     cpuStatsMap.get("nr_periods"),
                     cpuStatsMap.get("nr_throttled"),
-                    cpuStatsMap.get("throttled_usec")
+                    cpuStatsMap.get("throttled_usec").multiply(THOUSAND)
                 );
 
                 cgroupMemoryLimitInBytes = getCgroupV2MemoryLimitInBytes(memoryControlGroup);
@@ -727,13 +793,13 @@ public class OsProbe {
 
     }
 
-    private final Logger logger = LogManager.getLogger(getClass());
+    private static final Logger logger = LogManager.getLogger(OsProbe.class);
 
-    OsInfo osInfo(long refreshInterval, int allocatedProcessors) throws IOException {
+    OsInfo osInfo(long refreshInterval, Processors processors) throws IOException {
         return new OsInfo(
             refreshInterval,
             Runtime.getRuntime().availableProcessors(),
-            allocatedProcessors,
+            processors,
             Constants.OS_NAME,
             getPrettyName(),
             Constants.OS_ARCH,
@@ -750,9 +816,7 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines = etcOsReleaseLines.stream()
-                .filter(line -> line.startsWith("PRETTY_NAME"))
-                .collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).toList();
             assert prettyNameLines.size() <= 1 : prettyNameLines;
             final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
                 ? Optional.of(prettyNameLines.get(0))
@@ -825,7 +889,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).toList();
         assert memTotalLines.size() <= 1 : memTotalLines;
         if (memTotalLines.size() == 1) {
             final String memTotalLine = memTotalLines.get(0);
@@ -858,8 +922,8 @@ public class OsProbe {
     }
 
     public OsStats osStats() {
-        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage());
-        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getFreePhysicalMemorySize());
+        final OsStats.Cpu cpu = new OsStats.Cpu(getSystemCpuPercent(), getSystemLoadAverage(), getAvailableProcessors());
+        final OsStats.Mem mem = new OsStats.Mem(getTotalPhysicalMemorySize(), getAdjustedTotalMemorySize(), getFreePhysicalMemorySize());
         final OsStats.Swap swap = new OsStats.Swap(getTotalSwapSpaceSize(), getFreeSwapSpaceSize());
         final OsStats.Cgroup cgroup = getCgroup(Constants.LINUX);
         return new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
@@ -869,10 +933,12 @@ public class OsProbe {
      * Returns a given method of the OperatingSystemMXBean, or null if the method is not found or unavailable.
      */
     private static Method getMethod(String methodName) {
+        String className = "com.sun.management.OperatingSystemMXBean";
         try {
-            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
+            return Class.forName(className).getMethod(methodName);
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

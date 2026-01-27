@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -37,7 +38,9 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
     public enum Parser {
         DATE_TIME(DataTypes.DATETIME, ZonedDateTime::from, LocalDateTime::from),
         TIME(SqlDataTypes.TIME, OffsetTime::from, LocalTime::from),
-        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> {throw new DateTimeException("InvalidDate");});
+        DATE(SqlDataTypes.DATE, LocalDate::from, (TemporalAccessor ta) -> {
+            throw new DateTimeException("InvalidDate");
+        });
 
         private final BiFunction<String, String, TemporalAccessor> parser;
 
@@ -45,8 +48,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 
         Parser(DataType parseType, TemporalQuery<?>... queries) {
             this.parseType = parseType.typeName();
-            this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT)
-                    .parseBest(timestampStr, queries);
+            this.parser = (timestampStr, pattern) -> DateTimeFormatter.ofPattern(pattern, Locale.ROOT).parseBest(timestampStr, queries);
         }
 
         public Object parse(Object timestamp, Object pattern, ZoneId zoneId) {
@@ -71,7 +73,7 @@ public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
                 if (msg.contains("Unable to convert parsed text using any of the specified queries")) {
                     msg = format(null, "Unable to convert parsed text into [{}]", this.parseType);
                 }
-                throw new SqlIllegalArgumentException(
+                throw new InvalidArgumentException(
                     "Invalid {} string [{}] or pattern [{}] is received; {}",
                     this.parseType,
                     timestamp,

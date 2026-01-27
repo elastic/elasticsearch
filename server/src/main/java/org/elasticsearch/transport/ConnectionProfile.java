@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
@@ -34,29 +35,31 @@ public final class ConnectionProfile {
         Objects.requireNonNull(fallbackProfile);
         if (profile == null) {
             return fallbackProfile;
-        } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
-            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null
+        } else if (profile.getConnectTimeout() != null
+            && profile.getHandshakeTimeout() != null
+            && profile.getPingInterval() != null
+            && profile.getCompressionEnabled() != null
             && profile.getCompressionScheme() != null) {
-            return profile;
-        } else {
-            ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
-            if (profile.getConnectTimeout() == null) {
-                builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
+                return profile;
+            } else {
+                ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
+                if (profile.getConnectTimeout() == null) {
+                    builder.setConnectTimeout(fallbackProfile.getConnectTimeout());
+                }
+                if (profile.getHandshakeTimeout() == null) {
+                    builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
+                }
+                if (profile.getPingInterval() == null) {
+                    builder.setPingInterval(fallbackProfile.getPingInterval());
+                }
+                if (profile.getCompressionEnabled() == null) {
+                    builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
+                }
+                if (profile.getCompressionScheme() == null) {
+                    builder.setCompressionScheme(fallbackProfile.getCompressionScheme());
+                }
+                return builder.build();
             }
-            if (profile.getHandshakeTimeout() == null) {
-                builder.setHandshakeTimeout(fallbackProfile.getHandshakeTimeout());
-            }
-            if (profile.getPingInterval() == null) {
-                builder.setPingInterval(fallbackProfile.getPingInterval());
-            }
-            if (profile.getCompressionEnabled() == null) {
-                builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
-            }
-            if (profile.getCompressionScheme() == null) {
-                builder.setCompressionScheme(fallbackProfile.getCompressionScheme());
-            }
-            return builder.build();
-        }
     }
 
     /**
@@ -83,7 +86,9 @@ public final class ConnectionProfile {
         builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
         // if we are not a data-node we don't need any dedicated channels for recovery
         builder.addConnections(
-            DiscoveryNode.canContainData(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
+            DiscoveryNode.canContainData(settings) ? connectionsPerNodeRecovery : 0,
+            TransportRequestOptions.Type.RECOVERY
+        );
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);
         return builder.build();
     }
@@ -92,10 +97,14 @@ public final class ConnectionProfile {
      * Builds a connection profile that is dedicated to a single channel type. Allows passing connection and
      * handshake timeouts and compression settings.
      */
-    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
-                                                              @Nullable TimeValue handshakeTimeout, @Nullable TimeValue pingInterval,
-                                                              @Nullable Compression.Enabled compressionEnabled,
-                                                              @Nullable Compression.Scheme compressionScheme) {
+    public static ConnectionProfile buildSingleChannelProfile(
+        TransportRequestOptions.Type channelType,
+        @Nullable TimeValue connectTimeout,
+        @Nullable TimeValue handshakeTimeout,
+        @Nullable TimeValue pingInterval,
+        @Nullable Compression.Enabled compressionEnabled,
+        @Nullable Compression.Scheme compressionScheme
+    ) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
@@ -126,10 +135,18 @@ public final class ConnectionProfile {
     private final TimeValue pingInterval;
     private final Compression.Enabled compressionEnabled;
     private final Compression.Scheme compressionScheme;
+    private final String transportProfile;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, TimeValue pingInterval, Compression.Enabled compressionEnabled,
-                              Compression.Scheme compressionScheme) {
+    private ConnectionProfile(
+        List<ConnectionTypeHandle> handles,
+        int numConnections,
+        TimeValue connectTimeout,
+        TimeValue handshakeTimeout,
+        TimeValue pingInterval,
+        Compression.Enabled compressionEnabled,
+        Compression.Scheme compressionScheme,
+        String transportProfile
+    ) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
@@ -137,6 +154,7 @@ public final class ConnectionProfile {
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
         this.compressionScheme = compressionScheme;
+        this.transportProfile = Objects.requireNonNull(transportProfile, "transport profile name must not be null");
     }
 
     /**
@@ -151,10 +169,10 @@ public final class ConnectionProfile {
         private Compression.Enabled compressionEnabled;
         private Compression.Scheme compressionScheme;
         private TimeValue pingInterval;
+        private String transportProfile = TransportSettings.DEFAULT_PROFILE;
 
         /** create an empty builder */
-        public Builder() {
-        }
+        public Builder() {}
 
         /** copy constructor, using another profile as a base */
         public Builder(ConnectionProfile source) {
@@ -166,7 +184,9 @@ public final class ConnectionProfile {
             compressionEnabled = source.getCompressionEnabled();
             compressionScheme = source.getCompressionScheme();
             pingInterval = source.getPingInterval();
+            transportProfile = source.getTransportProfile();
         }
+
         /**
          * Sets a connect timeout for this connection profile
          */
@@ -233,6 +253,11 @@ public final class ConnectionProfile {
             return this;
         }
 
+        public Builder setTransportProfile(String transportProfile) {
+            this.transportProfile = transportProfile;
+            return this;
+        }
+
         /**
          * Creates a new {@link ConnectionProfile} based on the added connections.
          * @throws IllegalStateException if any of the {@link org.elasticsearch.transport.TransportRequestOptions.Type} enum is missing
@@ -243,8 +268,16 @@ public final class ConnectionProfile {
             if (types.isEmpty() == false) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
-            return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
-                pingInterval, compressionEnabled, compressionScheme);
+            return new ConnectionProfile(
+                Collections.unmodifiableList(handles),
+                numConnections,
+                connectTimeout,
+                handshakeTimeout,
+                pingInterval,
+                compressionEnabled,
+                compressionScheme,
+                transportProfile
+            );
         }
 
     }
@@ -293,6 +326,10 @@ public final class ConnectionProfile {
         return numConnections;
     }
 
+    public String getTransportProfile() {
+        return transportProfile;
+    }
+
     /**
      * Returns the number of connections per type for this profile. This might return a count that is shared with other types such
      * that the sum of all connections per type might be higher than {@link #getNumConnections()}. For instance if
@@ -306,7 +343,7 @@ public final class ConnectionProfile {
                 return handle.length;
             }
         }
-        throw new AssertionError("no handle found for type: "  + type);
+        throw new AssertionError("no handle found for type: " + type);
     }
 
     /**

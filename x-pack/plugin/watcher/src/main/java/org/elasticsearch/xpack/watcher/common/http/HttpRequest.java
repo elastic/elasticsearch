@@ -7,30 +7,31 @@
 package org.elasticsearch.xpack.watcher.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.support.WatcherUtils;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherXContentParser;
+import org.elasticsearch.xpack.watcher.notification.WebhookService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,19 +47,35 @@ public class HttpRequest implements ToXContentObject {
     final int port;
     final Scheme scheme;
     final HttpMethod method;
-    @Nullable final String path;
+    @Nullable
+    final String path;
     final Map<String, String> params;
     final Map<String, String> headers;
-    @Nullable final BasicAuth auth;
-    @Nullable final String body;
-    @Nullable final TimeValue connectionTimeout;
-    @Nullable final TimeValue readTimeout;
-    @Nullable final HttpProxy proxy;
+    @Nullable
+    final BasicAuth auth;
+    @Nullable
+    final String body;
+    @Nullable
+    final TimeValue connectionTimeout;
+    @Nullable
+    final TimeValue readTimeout;
+    @Nullable
+    final HttpProxy proxy;
 
-    public HttpRequest(String host, int port, @Nullable Scheme scheme, @Nullable HttpMethod method, @Nullable String path,
-                       @Nullable Map<String, String> params, @Nullable Map<String, String> headers,
-                       @Nullable BasicAuth auth, @Nullable String body, @Nullable TimeValue connectionTimeout,
-                       @Nullable TimeValue readTimeout, @Nullable HttpProxy proxy) {
+    public HttpRequest(
+        String host,
+        int port,
+        @Nullable Scheme scheme,
+        @Nullable HttpMethod method,
+        @Nullable String path,
+        @Nullable Map<String, String> params,
+        @Nullable Map<String, String> headers,
+        @Nullable BasicAuth auth,
+        @Nullable String body,
+        @Nullable TimeValue connectionTimeout,
+        @Nullable TimeValue readTimeout,
+        @Nullable HttpProxy proxy
+    ) {
         this.host = host;
         this.port = port;
         this.scheme = scheme != null ? scheme : Scheme.HTTP;
@@ -126,19 +143,11 @@ public class HttpRequest implements ToXContentObject {
     }
 
     public static String encodeUrl(String text) {
-        try {
-            return URLEncoder.encode(text, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("failed to URL encode text [" + text + "]", e);
-        }
+        return URLEncoder.encode(text, StandardCharsets.UTF_8);
     }
 
     public static String decodeUrl(String text) {
-        try {
-            return URLDecoder.decode(text, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("failed to URL decode text [" + text + "]", e);
-        }
+        return URLDecoder.decode(text, StandardCharsets.UTF_8);
     }
 
     @Override
@@ -158,24 +167,28 @@ public class HttpRequest implements ToXContentObject {
             if (WatcherParams.hideSecrets(toXContentParams)) {
                 builder.field(Field.HEADERS.getPreferredName(), sanitizeHeaders(headers));
             } else {
-                builder.field(Field.HEADERS.getPreferredName(), headers);
+                builder.field(Field.HEADERS.getPreferredName(), sanitizeInternalHeaders(headers));
             }
         }
         if (auth != null) {
-            builder.startObject(Field.AUTH.getPreferredName())
-                        .field(BasicAuth.TYPE, auth, toXContentParams)
-                    .endObject();
+            builder.startObject(Field.AUTH.getPreferredName()).field(BasicAuth.TYPE, auth, toXContentParams).endObject();
         }
         if (body != null) {
             builder.field(Field.BODY.getPreferredName(), body);
         }
         if (connectionTimeout != null) {
-            builder.humanReadableField(HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
-                    HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(), connectionTimeout);
+            builder.humanReadableField(
+                HttpRequest.Field.CONNECTION_TIMEOUT.getPreferredName(),
+                HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.getPreferredName(),
+                connectionTimeout
+            );
         }
         if (readTimeout != null) {
-            builder.humanReadableField(HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
-                    HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(), readTimeout);
+            builder.humanReadableField(
+                HttpRequest.Field.READ_TIMEOUT.getPreferredName(),
+                HttpRequest.Field.READ_TIMEOUT_HUMAN.getPreferredName(),
+                readTimeout
+            );
         }
         if (proxy != null) {
             proxy.toXContent(builder, toXContentParams);
@@ -183,13 +196,36 @@ public class HttpRequest implements ToXContentObject {
         return builder.endObject();
     }
 
-    private Map<String, String> sanitizeHeaders(Map<String, String> headers) {
-        if (headers.containsKey("Authorization") == false) {
+    /**
+     * Sanitize both internal (see {@link #sanitizeInternalHeaders(Map)} and
+     * user-added sensitive headers that should not be shown.
+     */
+    private static Map<String, String> sanitizeHeaders(Map<String, String> headers) {
+        String authorizationHeader = headers.containsKey("Authorization") ? "Authorization" : null;
+        if (authorizationHeader == null) {
+            authorizationHeader = headers.containsKey("authorization") ? "authorization" : null;
+        }
+        if (authorizationHeader == null) {
             return headers;
         }
         Map<String, String> sanitizedHeaders = new HashMap<>(headers);
-        sanitizedHeaders.put("Authorization", WatcherXContentParser.REDACTED_PASSWORD);
-        return sanitizedHeaders;
+        sanitizedHeaders.put(authorizationHeader, WatcherXContentParser.REDACTED_PASSWORD);
+        return sanitizeInternalHeaders(sanitizedHeaders);
+    }
+
+    /**
+     * Sanitize headers that the user may not have added, but were automatically
+     * added by Elasticsearch.
+     */
+    private static Map<String, String> sanitizeInternalHeaders(Map<String, String> headers) {
+        // Redact the additional webhook password, if present.
+        if (headers.containsKey(WebhookService.TOKEN_HEADER_NAME)) {
+            Map<String, String> sanitizedHeaders = new HashMap<>(headers);
+            sanitizedHeaders.put(WebhookService.TOKEN_HEADER_NAME, WatcherXContentParser.REDACTED_PASSWORD);
+            return sanitizedHeaders;
+        } else {
+            return headers;
+        }
     }
 
     @Override
@@ -229,9 +265,12 @@ public class HttpRequest implements ToXContentObject {
         sb.append("port=[").append(port).append("], ");
         sb.append("path=[").append(path).append("], ");
         if (headers.isEmpty() == false) {
-            sb.append(sanitizeHeaders(headers).entrySet().stream()
-                .map(header -> header.getKey() + ": " + header.getValue())
-                .collect(Collectors.joining(", ", "headers=[", "], ")));
+            sb.append(
+                sanitizeHeaders(headers).entrySet()
+                    .stream()
+                    .map(header -> header.getKey() + ": " + header.getValue())
+                    .collect(Collectors.joining(", ", "headers=[", "], "))
+            );
         }
         if (auth != null) {
             sb.append("auth=[").append(BasicAuth.TYPE).append("], ");
@@ -247,6 +286,13 @@ public class HttpRequest implements ToXContentObject {
 
     public static Builder builder(String host, int port) {
         return new Builder(host, port);
+    }
+
+    /**
+     * Create a new builder modeled on this HttpRequest
+     */
+    public Builder copy() {
+        return new Builder(this);
     }
 
     static Builder builder() {
@@ -274,11 +320,15 @@ public class HttpRequest implements ToXContentObject {
                 } else if (HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
                     // Users and 2.x specify the timeout this way
                     try {
-                        builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
-                                HttpRequest.Field.CONNECTION_TIMEOUT.toString()));
+                        builder.connectionTimeout(
+                            WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.CONNECTION_TIMEOUT.toString())
+                        );
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
-                                pe, currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. invalid time value for [{}] field",
+                            pe,
+                            currentFieldName
+                        );
                     }
                 } else if (HttpRequest.Field.READ_TIMEOUT.match(currentFieldName, parser.getDeprecationHandler())) {
                     builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
@@ -287,11 +337,14 @@ public class HttpRequest implements ToXContentObject {
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
                     } catch (ElasticsearchParseException pe) {
-                        throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
-                                pe, currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request template. invalid time value for [{}] field",
+                            pe,
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    @SuppressWarnings({"unchecked", "rawtypes"})
+                    @SuppressWarnings({ "unchecked", "rawtypes" })
                     final Map<String, String> headers = (Map) WatcherUtils.flattenModel(parser.map());
                     if (Field.HEADERS.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.setHeaders(headers);
@@ -300,8 +353,10 @@ public class HttpRequest implements ToXContentObject {
                     } else if (Field.BODY.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.body(parser.text());
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request. unexpected object field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request. unexpected object field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (Field.SCHEME.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -317,15 +372,19 @@ public class HttpRequest implements ToXContentObject {
                     } else if (Field.URL.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.fromUrl(parser.text());
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request. unexpected string field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request. unexpected string field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (Field.PORT.match(currentFieldName, parser.getDeprecationHandler())) {
                         builder.port = parser.intValue();
                     } else {
-                        throw new ElasticsearchParseException("could not parse http request. unexpected numeric field [{}]",
-                                currentFieldName);
+                        throw new ElasticsearchParseException(
+                            "could not parse http request. unexpected numeric field [{}]",
+                            currentFieldName
+                        );
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse http request. unexpected token [{}]", token);
@@ -333,13 +392,17 @@ public class HttpRequest implements ToXContentObject {
             }
 
             if (builder.host == null) {
-                throw new ElasticsearchParseException("could not parse http request. missing required [{}] field",
-                        Field.HOST.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse http request. missing required [{}] field",
+                    Field.HOST.getPreferredName()
+                );
             }
 
             if (builder.port < 0) {
-                throw new ElasticsearchParseException("could not parse http request. missing required [{}] field",
-                        Field.PORT.getPreferredName());
+                throw new ElasticsearchParseException(
+                    "could not parse http request. missing required [{}] field",
+                    Field.PORT.getPreferredName()
+                );
             }
 
             return builder.build();
@@ -366,8 +429,22 @@ public class HttpRequest implements ToXContentObject {
             this.port = port;
         }
 
-        private Builder() {
+        private Builder(HttpRequest original) {
+            this.host = original.host;
+            this.port = original.port;
+            this.scheme = original.scheme;
+            this.method = original.method;
+            this.path = original.path;
+            this.params = new HashMap<>(original.params);
+            this.headers = new HashMap<>(original.headers);
+            this.auth = original.auth;
+            this.body = original.body;
+            this.connectionTimeout = original.connectionTimeout;
+            this.readTimeout = original.readTimeout;
+            this.proxy = original.proxy;
         }
+
+        private Builder() {}
 
         public Builder scheme(Scheme scheme) {
             this.scheme = scheme;
@@ -446,8 +523,20 @@ public class HttpRequest implements ToXContentObject {
         }
 
         public HttpRequest build() {
-            HttpRequest request = new HttpRequest(host, port, scheme, method, path, unmodifiableMap(params),
-                    unmodifiableMap(headers), auth, body, connectionTimeout, readTimeout, proxy);
+            HttpRequest request = new HttpRequest(
+                host,
+                port,
+                scheme,
+                method,
+                path,
+                unmodifiableMap(params),
+                unmodifiableMap(headers),
+                auth,
+                body,
+                connectionTimeout,
+                readTimeout,
+                proxy
+            );
             params = null;
             headers = null;
             return request;
@@ -508,12 +597,18 @@ public class HttpRequest implements ToXContentObject {
      * @return               A bytearrayinputstream that contains the serialized request
      * @throws IOException   if an IOException is triggered in the underlying toXContent method
      */
-    public static InputStream filterToXContent(HttpRequest request, XContentType xContentType, Params params,
-                                               String excludeField) throws IOException {
-        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
-                 Collections.emptySet(), Collections.singleton(excludeField),
-                 xContentType.toParsedMediaType())) {
+    public static InputStream filterToXContent(HttpRequest request, XContentType xContentType, Params params, String excludeField)
+        throws IOException {
+        try (
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            XContentBuilder filteredBuilder = new XContentBuilder(
+                xContentType.xContent(),
+                bos,
+                Collections.emptySet(),
+                Collections.singleton(excludeField),
+                xContentType.toParsedMediaType()
+            )
+        ) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

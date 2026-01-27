@@ -7,51 +7,41 @@
 
 package org.elasticsearch.xpack.transform;
 
-import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler;
 
 import java.util.Objects;
 
 /**
  * Holder for all transform services that need to get injected via guice.
- *
+ * <p>
  * Needed because interfaces can not be injected.
  * Note: Guice will be removed in the long run.
  */
-public final class TransformServices {
-
-    private final TransformConfigManager configManager;
-    private final TransformCheckpointService checkpointService;
-    private final TransformAuditor auditor;
-    private final SchedulerEngine schedulerEngine;
-
+public record TransformServices(
+    TransformConfigManager configManager,
+    TransformCheckpointService checkpointService,
+    TransformAuditor auditor,
+    TransformScheduler scheduler,
+    TransformNode transformNode,
+    CrossProjectModeDecider crossProjectModeDecider
+) {
     public TransformServices(
-        TransformConfigManager transformConfigManager,
+        TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
-        TransformAuditor transformAuditor,
-        SchedulerEngine schedulerEngine
+        TransformAuditor auditor,
+        TransformScheduler scheduler,
+        TransformNode transformNode,
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
-        this.configManager = Objects.requireNonNull(transformConfigManager);
+        this.configManager = Objects.requireNonNull(configManager);
         this.checkpointService = Objects.requireNonNull(checkpointService);
-        this.auditor = Objects.requireNonNull(transformAuditor);
-        this.schedulerEngine = Objects.requireNonNull(schedulerEngine);
-    }
-
-    public TransformConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    public TransformCheckpointService getCheckpointService() {
-        return checkpointService;
-    }
-
-    public TransformAuditor getAuditor() {
-        return auditor;
-    }
-
-    public SchedulerEngine getSchedulerEngine() {
-        return schedulerEngine;
+        this.auditor = Objects.requireNonNull(auditor);
+        this.scheduler = Objects.requireNonNull(scheduler);
+        this.transformNode = Objects.requireNonNull(transformNode);
+        this.crossProjectModeDecider = Objects.requireNonNull(crossProjectModeDecider);
     }
 }

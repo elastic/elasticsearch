@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Unlike index-backed service account tokens, file-backed tokens are local to the node.
@@ -32,9 +31,11 @@ import java.util.stream.Collectors;
  */
 public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse<GetServiceAccountCredentialsNodesResponse.Node> {
 
-    public GetServiceAccountCredentialsNodesResponse(ClusterName clusterName,
-                                                     List<GetServiceAccountCredentialsNodesResponse.Node> nodes,
-                                                     List<FailedNodeException> failures) {
+    public GetServiceAccountCredentialsNodesResponse(
+        ClusterName clusterName,
+        List<GetServiceAccountCredentialsNodesResponse.Node> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
     }
 
@@ -44,17 +45,17 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
 
     @Override
     protected List<GetServiceAccountCredentialsNodesResponse.Node> readNodesFrom(StreamInput in) throws IOException {
-        return in.readList(GetServiceAccountCredentialsNodesResponse.Node::new);
+        return in.readCollectionAsList(GetServiceAccountCredentialsNodesResponse.Node::new);
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<GetServiceAccountCredentialsNodesResponse.Node> nodes) throws IOException {
-        out.writeList(nodes);
+        out.writeCollection(nodes);
     }
 
     public List<TokenInfo> getFileTokenInfos() {
         final Map<String, Set<String>> fileTokenDistribution = new HashMap<>();
-        for (GetServiceAccountCredentialsNodesResponse.Node node: getNodes()) {
+        for (GetServiceAccountCredentialsNodesResponse.Node node : getNodes()) {
             if (node.fileTokenNames == null) {
                 continue;
             }
@@ -63,9 +64,10 @@ public class GetServiceAccountCredentialsNodesResponse extends BaseNodesResponse
                 distribution.add(node.getNode().getName());
             });
         }
-        return fileTokenDistribution.entrySet().stream()
-            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().collect(Collectors.toUnmodifiableList())))
-            .collect(Collectors.toUnmodifiableList());
+        return fileTokenDistribution.entrySet()
+            .stream()
+            .map(entry -> TokenInfo.fileToken(entry.getKey(), entry.getValue().stream().sorted().toList()))
+            .toList();
     }
 
     public static class Node extends BaseNodeResponse {

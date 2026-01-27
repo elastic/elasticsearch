@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,27 +14,25 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
-import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
@@ -43,14 +42,12 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static final boolean ADJUST_PURE_NEGATIVE_DEFAULT = true;
 
-    private static final ParseField MUST_NOT = new ParseField("must_not")
-        .withDeprecation("mustNot");
+    private static final ParseField MUST_NOT = new ParseField("must_not").withDeprecation("mustNot");
     private static final ParseField FILTER = new ParseField("filter");
     private static final ParseField SHOULD = new ParseField("should");
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
-    private static int maxNestedDepth = 20;
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -67,8 +64,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     /**
      * Build an empty bool query.
      */
-    public BoolQueryBuilder() {
-    }
+    public BoolQueryBuilder() {}
 
     /**
      * Read from a stream.
@@ -81,17 +77,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         filterClauses.addAll(readQueries(in));
         adjustPureNegative = in.readBoolean();
         minimumShouldMatch = in.readOptionalString();
-    }
-
-    /**
-     * Set the maximum nested depth of bool queries.
-     * Default value is 20.
-     */
-    public static void setMaxNestedDepth(int maxNestedDepth) {
-        if (maxNestedDepth < 1) {
-            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
-        }
-        BoolQueryBuilder.maxNestedDepth = maxNestedDepth;
     }
 
     @Override
@@ -252,9 +237,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         doXArrayContent(FILTER, filterClauses, builder, params);
         doXArrayContent(MUST_NOT, mustNotClauses, builder, params);
         doXArrayContent(SHOULD, shouldClauses, builder, params);
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
-        } else if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
+        if (adjustPureNegative != ADJUST_PURE_NEGATIVE_DEFAULT) {
             builder.field(ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         }
         if (minimumShouldMatch != null) {
@@ -265,7 +248,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     private static void doXArrayContent(ParseField field, List<QueryBuilder> clauses, XContentBuilder builder, Params params)
-            throws IOException {
+        throws IOException {
         if (clauses.isEmpty()) {
             return;
         }
@@ -276,30 +259,37 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    private static final ObjectParser<BoolQueryBuilder, Integer> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
+    private static final ObjectParser<BoolQueryBuilder, Void> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
     static {
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p, c),
-            MUST);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::should), (p, c) -> parseInnerQueryBuilder(p, c),
-            SHOULD);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p, c),
-            MUST_NOT);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p, c),
-            FILTER);
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p), MUST);
+        PARSER.declareObjectArrayOrNull(
+            (builder, clauses) -> clauses.forEach(builder::should),
+            (p, c) -> parseInnerQueryBuilder(p),
+            SHOULD
+        );
+        PARSER.declareObjectArrayOrNull(
+            (builder, clauses) -> clauses.forEach(builder::mustNot),
+            (p, c) -> parseInnerQueryBuilder(p),
+            MUST_NOT
+        );
+        PARSER.declareObjectArrayOrNull(
+            (builder, clauses) -> clauses.forEach(builder::filter),
+            (p, c) -> parseInnerQueryBuilder(p),
+            FILTER
+        );
         PARSER.declareBoolean(BoolQueryBuilder::adjustPureNegative, ADJUST_PURE_NEGATIVE);
-        PARSER.declareField(BoolQueryBuilder::minimumShouldMatch, (p, c) -> p.textOrNull(),
-            MINIMUM_SHOULD_MATCH, ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            BoolQueryBuilder::minimumShouldMatch,
+            (p, c) -> p.textOrNull(),
+            MINIMUM_SHOULD_MATCH,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareString(BoolQueryBuilder::queryName, NAME_FIELD);
         PARSER.declareFloat(BoolQueryBuilder::boost, BOOST_FIELD);
     }
 
-    public static BoolQueryBuilder fromXContent(XContentParser parser, Integer nestedDepth) throws IOException, ParsingException {
-        nestedDepth++;
-        if (nestedDepth > maxNestedDepth) {
-            throw new IllegalArgumentException("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
-                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]");
-        }
-        return PARSER.parse(parser, nestedDepth);
+    public static BoolQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
+        return PARSER.parse(parser, null);
     }
 
     @Override
@@ -311,40 +301,64 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
         addBooleanClauses(context, booleanQueryBuilder, mustClauses, BooleanClause.Occur.MUST);
-        addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
-        addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+        try {
+            // disable tracking of the @timestamp range for must_not and should clauses
+            context.setTrackTimeRangeFilterFrom(false);
+            addBooleanClauses(context, booleanQueryBuilder, mustNotClauses, BooleanClause.Occur.MUST_NOT);
+            addBooleanClauses(context, booleanQueryBuilder, shouldClauses, BooleanClause.Occur.SHOULD);
+        } finally {
+            context.setTrackTimeRangeFilterFrom(true);
+        }
         addBooleanClauses(context, booleanQueryBuilder, filterClauses, BooleanClause.Occur.FILTER);
         BooleanQuery booleanQuery = booleanQueryBuilder.build();
         if (booleanQuery.clauses().isEmpty()) {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
         return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
-    private static void addBooleanClauses(SearchExecutionContext context, BooleanQuery.Builder booleanQueryBuilder,
-                                          List<QueryBuilder> clauses, Occur occurs) throws IOException {
+    private void addBooleanClauses(
+        SearchExecutionContext context,
+        BooleanQuery.Builder booleanQueryBuilder,
+        List<QueryBuilder> clauses,
+        Occur occurs
+    ) throws IOException {
         for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {
+                autoPrefilteringScope.push(collectPrefilters(query));
+                Query luceneQuery = query.toQuery(context);
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
+    }
+
+    private List<QueryBuilder> collectPrefilters(QueryBuilder excluded) {
+        List<QueryBuilder> prefilters = new ArrayList<>();
+        mustClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        filterClauses.stream().filter(q -> q != excluded).forEach(prefilters::add);
+        mustNotClauses.stream().filter(q -> q != excluded).map(BoolQueryBuilder::invertQuery).forEach(prefilters::add);
+        return prefilters;
+    }
+
+    private static QueryBuilder invertQuery(QueryBuilder queryBuilder) {
+        return QueryBuilders.boolQuery().mustNot(queryBuilder);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(adjustPureNegative,
-                minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses);
+        return Objects.hash(adjustPureNegative, minimumShouldMatch, mustClauses, shouldClauses, mustNotClauses, filterClauses);
     }
 
     @Override
     protected boolean doEquals(BoolQueryBuilder other) {
-        return Objects.equals(adjustPureNegative, other.adjustPureNegative) &&
-                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(mustClauses, other.mustClauses) &&
-                Objects.equals(shouldClauses, other.shouldClauses) &&
-                Objects.equals(mustNotClauses, other.mustNotClauses) &&
-                Objects.equals(filterClauses, other.filterClauses);
+        return Objects.equals(adjustPureNegative, other.adjustPureNegative)
+            && Objects.equals(minimumShouldMatch, other.minimumShouldMatch)
+            && Objects.equals(mustClauses, other.mustClauses)
+            && Objects.equals(shouldClauses, other.shouldClauses)
+            && Objects.equals(mustNotClauses, other.mustNotClauses)
+            && Objects.equals(filterClauses, other.filterClauses);
     }
 
     @Override
@@ -356,20 +370,37 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             return new MatchAllQueryBuilder().boost(boost()).queryName(queryName());
         }
         changed |= rewriteClauses(queryRewriteContext, mustClauses, newBuilder::must);
-        changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
+
+        try {
+            // disable tracking of the @timestamp range for must_not clauses
+            queryRewriteContext.setTrackTimeRangeFilterFrom(false);
+            changed |= rewriteClauses(queryRewriteContext, mustNotClauses, newBuilder::mustNot);
+        } finally {
+            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+        }
         changed |= rewriteClauses(queryRewriteContext, filterClauses, newBuilder::filter);
-        changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+        try {
+            // disable tracking of the @timestamp range for should clauses
+            queryRewriteContext.setTrackTimeRangeFilterFrom(false);
+            changed |= rewriteClauses(queryRewriteContext, shouldClauses, newBuilder::should);
+        } finally {
+            queryRewriteContext.setTrackTimeRangeFilterFrom(true);
+        }
+
         // early termination when must clause is empty and optional clauses is returning MatchNoneQueryBuilder
-        if(mustClauses.size() == 0 && filterClauses.size() == 0 && shouldClauses.size() > 0
+        if (mustClauses.size() == 0
+            && filterClauses.size() == 0
+            && shouldClauses.size() > 0
+            && mustNotClauses.size() == 0
             && newBuilder.shouldClauses.stream().allMatch(b -> b instanceof MatchNoneQueryBuilder)) {
-                return new MatchNoneQueryBuilder();
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
-        Optional<QueryBuilder> any = Stream.concat(newBuilder.mustClauses.stream(), newBuilder.filterClauses.stream())
-            .filter(b -> b instanceof MatchNoneQueryBuilder).findAny();
-        if (any.isPresent()) {
-            return any.get();
+        if (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
+            || newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
+            || newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder)) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 
         if (changed) {
@@ -393,8 +424,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
     }
 
-    private static boolean rewriteClauses(QueryRewriteContext queryRewriteContext, List<QueryBuilder> builders,
-                                          Consumer<QueryBuilder> consumer) throws IOException {
+    private static boolean rewriteClauses(
+        QueryRewriteContext queryRewriteContext,
+        List<QueryBuilder> builders,
+        Consumer<QueryBuilder> consumer
+    ) throws IOException {
         boolean changed = false;
         for (QueryBuilder builder : builders) {
             QueryBuilder result = builder.rewrite(queryRewriteContext);
@@ -404,5 +438,34 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             consumer.accept(result);
         }
         return changed;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    /**
+     * Create a new builder with the same clauses but modification of
+     * the builder won't modify the original. Modifications of any
+     * of the copy's clauses will modify the original. Don't so that.
+     */
+    public BoolQueryBuilder shallowCopy() {
+        BoolQueryBuilder copy = new BoolQueryBuilder();
+        copy.adjustPureNegative = adjustPureNegative;
+        copy.minimumShouldMatch = minimumShouldMatch;
+        for (QueryBuilder q : mustClauses) {
+            copy.must(q);
+        }
+        for (QueryBuilder q : mustNotClauses) {
+            copy.mustNot(q);
+        }
+        for (QueryBuilder q : filterClauses) {
+            copy.filter(q);
+        }
+        for (QueryBuilder q : shouldClauses) {
+            copy.should(q);
+        }
+        return copy;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -22,8 +23,32 @@ import java.util.Objects;
  */
 public class Explicit<T> {
 
+    public static final Explicit<Boolean> EXPLICIT_TRUE = new Explicit<>(true, true);
+    public static final Explicit<Boolean> EXPLICIT_FALSE = new Explicit<>(false, true);
+    public static final Explicit<Boolean> IMPLICIT_TRUE = new Explicit<>(true, false);
+    public static final Explicit<Boolean> IMPLICIT_FALSE = new Explicit<>(false, false);
+
     private final T value;
     private final boolean explicit;
+
+    public static Explicit<Boolean> explicitBoolean(boolean value) {
+        return value ? EXPLICIT_TRUE : EXPLICIT_FALSE;
+    }
+
+    /**
+     * Create an explicitly set value
+     */
+    public static <T> Explicit<T> of(T value) {
+        return new Explicit<>(value, true);
+    }
+
+    /**
+     * Create an implicitly set value
+     */
+    public static <T> Explicit<T> implicit(T value) {
+        return new Explicit<>(value, false);
+    }
+
     /**
      * Create a value with an indication if this was an explicit choice
      * @param value a setting value
@@ -51,8 +76,7 @@ public class Explicit<T> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Explicit<?> explicit1 = (Explicit<?>) o;
-        return explicit == explicit1.explicit &&
-            Objects.equals(value, explicit1.value);
+        return explicit == explicit1.explicit && Objects.equals(value, explicit1.value);
     }
 
     @Override

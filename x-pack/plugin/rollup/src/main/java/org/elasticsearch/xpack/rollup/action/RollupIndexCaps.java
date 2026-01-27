@@ -11,16 +11,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupCapsAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class RollupIndexCaps implements Writeable, ToXContentFragment {
     private static ParseField ROLLUP_JOBS = new ParseField("rollup_jobs");
@@ -60,7 +60,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
                     ... job config, parsable by RollupJobConfig.PARSER ...
                   }
                 },
-                "rollup-version": "7.0.0"
+                "rollup-version": ""
               }
             }
          */
@@ -135,7 +135,7 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
 
     RollupIndexCaps(StreamInput in) throws IOException {
         this.rollupIndexName = in.readString();
-        this.jobCaps = in.readList(RollupJobCaps::new);
+        this.jobCaps = in.readCollectionAsList(RollupJobCaps::new);
     }
 
     protected List<RollupJobCaps> getJobCaps() {
@@ -178,13 +178,13 @@ public class RollupIndexCaps implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(rollupIndexName);
-        out.writeList(jobCaps);
+        out.writeCollection(jobCaps);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(rollupIndexName);
-        builder.field(ROLLUP_JOBS.getPreferredName(), jobCaps);
+        builder.xContentList(ROLLUP_JOBS.getPreferredName(), jobCaps);
         builder.endObject();
         return builder;
     }

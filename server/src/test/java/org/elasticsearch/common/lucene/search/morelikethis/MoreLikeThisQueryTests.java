@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.morelikethis;
@@ -42,9 +43,9 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
-        MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);
+        MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[] { "text" }, Lucene.STANDARD_ANALYZER);
         mltQuery.setLikeText("lucene");
         mltQuery.setMinTermFrequency(1);
         mltQuery.setMinDocFreq(1);
@@ -56,12 +57,16 @@ public class MoreLikeThisQueryTests extends ESTestCase {
     }
 
     public void testValidateMaxQueryTerms() {
-        IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
-            () ->  new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(0));
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MoreLikeThisQuery("lucene", new String[] { "text" }, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(0)
+        );
         assertThat(e1.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
 
-        IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-            () -> new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(-3));
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MoreLikeThisQuery("lucene", new String[] { "text" }, Lucene.STANDARD_ANALYZER).setMaxQueryTerms(-3)
+        );
         assertThat(e2.getMessage(), containsString("requires 'maxQueryTerms' to be greater than 0"));
     }
 

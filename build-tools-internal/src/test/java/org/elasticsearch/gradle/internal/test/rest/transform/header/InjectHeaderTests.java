@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform.header;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.elasticsearch.gradle.internal.test.rest.transform.headers.InjectHeaders;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -25,9 +26,9 @@ public class InjectHeaderTests extends InjectFeatureTests {
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
-        "application/vnd.elasticsearch+json;compatible-with=7",
+        "application/vnd.elasticsearch+json;compatible-with=8",
         "Accept",
-        "application/vnd.elasticsearch+json;compatible-with=7"
+        "application/vnd.elasticsearch+json;compatible-with=8"
     );
 
     /**
@@ -60,7 +61,6 @@ public class InjectHeaderTests extends InjectFeatureTests {
         validateBodyHasHeaders(transformedTests, headers);
     }
 
-
     @Test
     public void testNotInjectingHeaders() throws Exception {
         String testName = "/rest/transform/header/with_operation_to_skip_adding_headers.yml";
@@ -68,8 +68,9 @@ public class InjectHeaderTests extends InjectFeatureTests {
         validateSetupExist(tests);
         validateBodyHasHeaders(tests, Map.of("foo", "bar"));
 
-        List<RestTestTransform<?>> transformations =
-            Collections.singletonList(new InjectHeaders(headers, Set.of(InjectHeaderTests::applyCondition)));
+        List<RestTestTransform<?>> transformations = Collections.singletonList(
+            new InjectHeaders(headers, Set.of(InjectHeaderTests::applyCondition))
+        );
         List<ObjectNode> transformedTests = transformTests(tests, transformations);
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);

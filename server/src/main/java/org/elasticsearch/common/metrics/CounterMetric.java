@@ -1,18 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.metrics;
 
-import org.elasticsearch.Assertions;
+import org.elasticsearch.core.Assertions;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
-
 
 /**
  * A {@link CounterMetric} is used to track the number of completed and outstanding items, for example, the number of executed refreshes,
@@ -23,7 +23,7 @@ public final class CounterMetric {
     private final LongAdder counter = new LongAdder();
     private final AtomicLong assertingCounter = Assertions.ENABLED ? new AtomicLong() : null;
 
-    private boolean assertNonNegative(long n) {
+    private static boolean assertNonNegative(long n) {
         assert n >= 0 : "CounterMetric value must always be non-negative; got: " + n;
         return true;
     }

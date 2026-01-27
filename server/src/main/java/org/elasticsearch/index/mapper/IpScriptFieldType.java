@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -19,11 +20,13 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.IpScriptFieldExistsQuery;
@@ -38,38 +41,49 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT) {
-            @Override
-            AbstractScriptFieldType<?> createFieldType(String name,
-                                                       IpFieldScript.Factory factory,
-                                                       Script script,
-                                                       Map<String, String> meta) {
-                return new IpScriptFieldType(name, factory, getScript(), meta());
-            }
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
+        @Override
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            IpFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return new IpScriptFieldType(name, factory, getScript(), meta(), onScriptError);
+        }
 
-            @Override
-            IpFieldScript.Factory getParseFromSourceFactory() {
-                return IpFieldScript.PARSE_FROM_SOURCE;
-            }
+        @Override
+        protected IpFieldScript.Factory getParseFromSourceFactory() {
+            return IpFieldScript.PARSE_FROM_SOURCE;
+        }
 
-            @Override
-            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
-                return IpFieldScript.leafAdapter(parentScriptFactory);
-            }
-        });
+        @Override
+        protected IpFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
+            return IpFieldScript.leafAdapter(parentScriptFactory);
+        }
+    });
 
     IpScriptFieldType(
         String name,
         IpFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta,
+            scriptFactory.isParsedFromSource()
+        );
     }
 
     @Override
@@ -93,13 +107,13 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public IpScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new IpScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public IpScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new IpScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), IpDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -113,7 +127,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
             lowerTerm,
             upperTerm,
@@ -131,7 +145,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         if (value instanceof InetAddress) {
             return inetAddressQuery((InetAddress) value, context);
         }
@@ -149,7 +163,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
         for (Object value : values) {
@@ -188,12 +202,27 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         byte upper[] = addr.getAddress();
         for (int i = prefixLength; i < 8 * lower.length; i++) {
             int m = 1 << (7 - (i & 7));
-            lower[i >> 3] &= ~m;
-            upper[i >> 3] |= m;
+            lower[i >> 3] &= (byte) ~m;
+            upper[i >> 3] |= (byte) m;
         }
         // Force the terms into IPv6
         BytesRef lowerBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(lower)));
         BytesRef upperBytes = new BytesRef(InetAddressPoint.encode(InetAddressPoint.decode(upper)));
         return new IpScriptFieldRangeQuery(script, leafFactory(context), name(), lowerBytes, upperBytes);
     }
+
+    @Override
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            () -> new IpFallbackSyntheticSourceReader(null)
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new IpScriptBlockDocValuesReader.IpScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
 }

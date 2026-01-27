@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery;
 
@@ -47,7 +48,10 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
 
     public void testScansPortsByDefault() {
         final AssertingHostsResolver hostsResolver = new AssertingHostsResolver(
-            "[::1]:9300", "[::1]:9301", "127.0.0.1:9300", "127.0.0.1:9301"
+            "[::1]:9300",
+            "[::1]:9301",
+            "127.0.0.1:9300",
+            "127.0.0.1:9301"
         );
         final TransportService transportService = mock(TransportService.class);
         when(transportService.getDefaultSeedAddresses()).thenReturn(
@@ -59,9 +63,10 @@ public class SettingsBasedSeedHostsProviderTests extends ESTestCase {
 
     public void testGetsHostsFromSetting() {
         final AssertingHostsResolver hostsResolver = new AssertingHostsResolver("bar", "foo");
-        new SettingsBasedSeedHostsProvider(Settings.builder()
-            .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar")
-            .build(), null).getSeedAddresses(hostsResolver);
+        new SettingsBasedSeedHostsProvider(
+            Settings.builder().putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), "foo", "bar").build(),
+            null
+        ).getSeedAddresses(hostsResolver);
         assertTrue(hostsResolver.getResolvedHosts());
     }
 }

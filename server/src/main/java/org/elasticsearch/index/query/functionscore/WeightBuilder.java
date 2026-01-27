@@ -1,18 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query.functionscore;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -25,8 +27,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     /**
      * Standard constructor.
      */
-    public WeightBuilder() {
-    }
+    public WeightBuilder() {}
 
     /**
      * Read from a stream.
@@ -36,8 +37,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void doWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getName() {
@@ -45,8 +45,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
-    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-    }
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {}
 
     @Override
     protected boolean doEquals(WeightBuilder functionBuilder) {
@@ -59,8 +58,13 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
+    @Override
     protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
-        //nothing to do here, weight will be applied by the parent class, no score function
+        // nothing to do here, weight will be applied by the parent class, no score function
         return null;
     }
 }

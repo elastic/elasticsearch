@@ -7,15 +7,19 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.license.License;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
+import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.SingleValueInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -28,8 +32,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
-import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
-import org.elasticsearch.xpack.core.ml.action.InternalInferModelAction;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.junit.Before;
 
@@ -52,14 +55,23 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        trainedModelProvider = new TrainedModelProvider(client(), xContentRegistry());
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            return Void.TYPE;
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
+        trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }
 
@@ -69,25 +81,31 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
-        TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
-            .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
-                .setTrainedModel(buildClassification(true)))
-            .setVersion(Version.CURRENT)
+        TrainedModelConfig config1 = buildTrainedModelConfigBuilder(modelId2).setInput(
+            new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical"))
+        )
+            .setParsedDefinition(
+                new TrainedModelDefinition.Builder().setPreProcessors(
+                    Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                ).setTrainedModel(buildClassification(true))
+            )
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .build();
-        TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
-            .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
-                .setTrainedModel(buildRegression()))
-            .setVersion(Version.CURRENT)
+        TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1).setInput(
+            new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical"))
+        )
+            .setParsedDefinition(
+                new TrainedModelDefinition.Builder().setPreProcessors(
+                    Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                ).setTrainedModel(buildRegression())
+            )
+            .setVersion(MlConfigVersion.CURRENT)
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .setCreateTime(Instant.now())
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
@@ -100,95 +118,154 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
-
         List<Map<String, Object>> toInfer = new ArrayList<>();
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 1.0);
-                put("bar", 0.5);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "dog");
-            }});
-        }});
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 0.9);
-                put("bar", 1.5);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "cat");
-            }});
-        }});
+        toInfer.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 1.0);
+                        put("bar", 0.5);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "dog");
+                    }
+                });
+            }
+        });
+        toInfer.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 0.9);
+                        put("bar", 1.5);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "cat");
+                    }
+                });
+            }
+        });
 
         List<Map<String, Object>> toInfer2 = new ArrayList<>();
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 0.0);
-                put("bar", 0.01);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "dog");
-            }});
-        }});
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 1.0);
-                put("bar", 0.0);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "cat");
-            }});
-        }});
+        toInfer2.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 0.0);
+                        put("bar", 0.01);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "dog");
+                    }
+                });
+            }
+        });
+        toInfer2.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 1.0);
+                        put("bar", 0.0);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "cat");
+                    }
+                });
+            }
+        });
 
         // Test regression
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId1,
+        InferModelAction.Request request = InferModelAction.Request.forIngestDocs(
+            modelId1,
             toInfer,
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true);
-        InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
-            contains(1.3, 1.25));
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(
+            response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults) i).value()).collect(Collectors.toList()),
+            contains(1.3, 1.25)
+        );
 
-        request = new InternalInferModelAction.Request(modelId1, toInfer2, RegressionConfigUpdate.EMPTY_PARAMS, true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults)i).value()).collect(Collectors.toList()),
-            contains(1.65, 1.55));
-
+        request = InferModelAction.Request.forIngestDocs(
+            modelId1,
+            toInfer2,
+            RegressionConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(
+            response.getInferenceResults().stream().map(i -> ((SingleValueInferenceResults) i).value()).collect(Collectors.toList()),
+            contains(1.65, 1.55)
+        );
 
         // Test classification
-        request = new InternalInferModelAction.Request(modelId2, toInfer, ClassificationConfigUpdate.EMPTY_PARAMS, true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults()
+        request = InferModelAction.Request.forIngestDocs(
+            modelId2,
+            toInfer,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(
+            response.getInferenceResults()
                 .stream()
-                .map(i -> ((SingleValueInferenceResults)i).valueAsString())
+                .map(i -> ((SingleValueInferenceResults) i).valueAsString())
                 .collect(Collectors.toList()),
-            contains("no", "yes"));
+            contains("no", "yes")
+        );
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null, null), true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+        request = InferModelAction.Request.forIngestDocs(
+            modelId2,
+            toInfer,
+            new ClassificationConfigUpdate(2, null, null, null, null),
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
-        ClassificationInferenceResults classificationInferenceResults =
-            (ClassificationInferenceResults)response.getInferenceResults().get(0);
+        ClassificationInferenceResults classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults()
+            .get(0);
 
         assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("no"));
         assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("yes"));
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
-            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
+        assertThat(
+            classificationInferenceResults.getTopClasses().get(0).getProbability(),
+            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability())
+        );
 
-        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(1);
+        classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults().get(1);
         assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
         assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("no"));
         // they should always be in order of Most probable to least
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
-            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
+        assertThat(
+            classificationInferenceResults.getTopClasses().get(0).getProbability(),
+            greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability())
+        );
 
         // Test that top classes restrict the number returned
-        request = new InternalInferModelAction.Request(modelId2, toInfer2, new ClassificationConfigUpdate(1, null, null, null, null), true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+        request = InferModelAction.Request.forIngestDocs(
+            modelId2,
+            toInfer2,
+            new ClassificationConfigUpdate(1, null, null, null, null),
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
-        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
+        classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
         assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
     }
@@ -198,16 +275,19 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
-        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
-            .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
-                .setTrainedModel(buildMultiClassClassification()))
-            .setVersion(Version.CURRENT)
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).setInput(
+            new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical"))
+        )
+            .setParsedDefinition(
+                new TrainedModelDefinition.Builder().setPreProcessors(
+                    Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                ).setTrainedModel(buildMultiClassClassification())
+            )
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -216,95 +296,137 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
-
         List<Map<String, Object>> toInfer = new ArrayList<>();
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 1.0);
-                put("bar", 0.5);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "dog");
-            }});
-        }});
-        toInfer.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 0.9);
-                put("bar", 1.5);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "cat");
-            }});
-        }});
+        toInfer.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 1.0);
+                        put("bar", 0.5);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "dog");
+                    }
+                });
+            }
+        });
+        toInfer.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 0.9);
+                        put("bar", 1.5);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "cat");
+                    }
+                });
+            }
+        });
 
         List<Map<String, Object>> toInfer2 = new ArrayList<>();
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 0.0);
-                put("bar", 0.01);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "dog");
-            }});
-        }});
-        toInfer2.add(new HashMap<>() {{
-            put("field", new HashMap<>(){{
-                put("foo", 1.0);
-                put("bar", 0.0);
-            }});
-            put("other", new HashMap<>(){{
-                put("categorical", "cat");
-            }});
-        }});
+        toInfer2.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 0.0);
+                        put("bar", 0.01);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "dog");
+                    }
+                });
+            }
+        });
+        toInfer2.add(new HashMap<>() {
+            {
+                put("field", new HashMap<>() {
+                    {
+                        put("foo", 1.0);
+                        put("bar", 0.0);
+                    }
+                });
+                put("other", new HashMap<>() {
+                    {
+                        put("categorical", "cat");
+                    }
+                });
+            }
+        });
 
         // Test regression
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(modelId,
+        InferModelAction.Request request = InferModelAction.Request.forIngestDocs(
+            modelId,
             toInfer,
             ClassificationConfigUpdate.EMPTY_PARAMS,
-            true);
-        InternalInferModelAction.Response response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults()
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        InferModelAction.Response response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(
+            response.getInferenceResults()
                 .stream()
-                .map(i -> ((SingleValueInferenceResults)i).valueAsString())
+                .map(i -> ((SingleValueInferenceResults) i).valueAsString())
                 .collect(Collectors.toList()),
-            contains("option_0", "option_2"));
+            contains("option_0", "option_2")
+        );
 
-        request = new InternalInferModelAction.Request(modelId, toInfer2, ClassificationConfigUpdate.EMPTY_PARAMS, true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
-        assertThat(response.getInferenceResults()
+        request = InferModelAction.Request.forIngestDocs(
+            modelId,
+            toInfer2,
+            ClassificationConfigUpdate.EMPTY_PARAMS,
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
+        assertThat(
+            response.getInferenceResults()
                 .stream()
-                .map(i -> ((SingleValueInferenceResults)i).valueAsString())
+                .map(i -> ((SingleValueInferenceResults) i).valueAsString())
                 .collect(Collectors.toList()),
-            contains("option_2", "option_0"));
-
+            contains("option_2", "option_0")
+        );
 
         // Get top classes
-        request = new InternalInferModelAction.Request(modelId, toInfer, new ClassificationConfigUpdate(3, null, null, null, null), true);
-        response = client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+        request = InferModelAction.Request.forIngestDocs(
+            modelId,
+            toInfer,
+            new ClassificationConfigUpdate(3, null, null, null, null),
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
+        response = client().execute(InferModelAction.INSTANCE, request).actionGet();
 
-        ClassificationInferenceResults classificationInferenceResults =
-            (ClassificationInferenceResults)response.getInferenceResults().get(0);
+        ClassificationInferenceResults classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults()
+            .get(0);
 
         assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("option_0"));
         assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("option_2"));
         assertThat(classificationInferenceResults.getTopClasses().get(2).getClassification(), equalTo("option_1"));
 
-        classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(1);
+        classificationInferenceResults = (ClassificationInferenceResults) response.getInferenceResults().get(1);
         assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("option_2"));
         assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("option_0"));
         assertThat(classificationInferenceResults.getTopClasses().get(2).getClassification(), equalTo("option_1"));
     }
 
-
     public void testInferMissingModel() {
         String model = "test-infer-missing-model";
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(
+        InferModelAction.Request request = InferModelAction.Request.forIngestDocs(
             model,
             Collections.emptyList(),
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true);
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         try {
-            client().execute(InternalInferModelAction.INSTANCE, request).actionGet();
+            client().execute(InferModelAction.INSTANCE, request).actionGet();
         } catch (ElasticsearchException ex) {
             assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
@@ -315,14 +437,17 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
-        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("field1", "field2")))
-            .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding, false)))
-                .setTrainedModel(buildRegression()))
-            .setVersion(Version.CURRENT)
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).setInput(
+            new TrainedModelInput(Arrays.asList("field1", "field2"))
+        )
+            .setParsedDefinition(
+                new TrainedModelDefinition.Builder().setPreProcessors(
+                    Arrays.asList(new OneHotEncoding("categorical", oneHotEncoding, false))
+                ).setTrainedModel(buildRegression())
+            )
+            .setVersion(MlConfigVersion.CURRENT)
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .setCreateTime(Instant.now())
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
@@ -332,24 +457,28 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         assertThat(putConfigHolder.get(), is(true));
         assertThat(exceptionHolder.get(), is(nullValue()));
 
-
         List<Map<String, Object>> toInferMissingField = new ArrayList<>();
-        toInferMissingField.add(new HashMap<>() {{
-            put("foo", 1.0);
-            put("bar", 0.5);
-        }});
+        toInferMissingField.add(new HashMap<>() {
+            {
+                put("foo", 1.0);
+                put("bar", 0.5);
+            }
+        });
 
-        InternalInferModelAction.Request request = new InternalInferModelAction.Request(
+        InferModelAction.Request request = InferModelAction.Request.forIngestDocs(
             modelId,
             toInferMissingField,
             RegressionConfigUpdate.EMPTY_PARAMS,
-            true);
+            true,
+            InferModelAction.Request.DEFAULT_TIMEOUT_FOR_INGEST
+        );
         try {
-            InferenceResults result =
-                client().execute(InternalInferModelAction.INSTANCE, request).actionGet().getInferenceResults().get(0);
+            InferenceResults result = client().execute(InferModelAction.INSTANCE, request).actionGet().getInferenceResults().get(0);
             assertThat(result, is(instanceOf(WarningInferenceResults.class)));
-            assertThat(((WarningInferenceResults)result).getWarning(),
-                equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId)));
+            assertThat(
+                ((WarningInferenceResults) result).getWarning(),
+                equalTo(Messages.getMessage(Messages.INFERENCE_WARNING_ALL_FIELDS_MISSING, modelId))
+            );
         } catch (ElasticsearchException ex) {
             fail("Should not have thrown. Ex: " + ex.getMessage());
         }
@@ -369,36 +498,21 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
         Tree tree1 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(0.5))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(0.5))
             .addNode(TreeNode.builder(1).setLeafValue(Arrays.asList(1.0, 0.0, 2.0)))
-            .addNode(TreeNode.builder(2)
-                .setThreshold(0.8)
-                .setSplitFeature(1)
-                .setLeftChild(3)
-                .setRightChild(4))
+            .addNode(TreeNode.builder(2).setThreshold(0.8).setSplitFeature(1).setLeftChild(3).setRightChild(4))
             .addNode(TreeNode.builder(3).setLeafValue(Arrays.asList(0.0, 1.0, 0.0)))
-            .addNode(TreeNode.builder(4).setLeafValue(Arrays.asList(0.0, 0.0, 1.0))).build();
+            .addNode(TreeNode.builder(4).setLeafValue(Arrays.asList(0.0, 0.0, 1.0)))
+            .build();
         Tree tree2 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(3)
-                .setThreshold(1.0))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(3).setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(Arrays.asList(2.0, 0.0, 0.0)))
             .addNode(TreeNode.builder(2).setLeafValue(Arrays.asList(0.0, 2.0, 0.0)))
             .build();
         Tree tree3 = Tree.builder()
             .setFeatureNames(featureNames)
-            .setRoot(TreeNode.builder(0)
-                .setLeftChild(1)
-                .setRightChild(2)
-                .setSplitFeature(0)
-                .setThreshold(1.0))
+            .setRoot(TreeNode.builder(0).setLeftChild(1).setRightChild(2).setSplitFeature(0).setThreshold(1.0))
             .addNode(TreeNode.builder(1).setLeafValue(Arrays.asList(0.0, 0.0, 1.0)))
             .addNode(TreeNode.builder(2).setLeafValue(Arrays.asList(0.0, 1.0, 0.0)))
             .build();
@@ -407,7 +521,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setTargetType(TargetType.CLASSIFICATION)
             .setFeatureNames(featureNames)
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
-            .setOutputAggregator(new WeightedMode(new double[]{0.7, 0.5, 1.0}, 3))
+            .setOutputAggregator(new WeightedMode(new double[] { 0.7, 0.5, 1.0 }, 3))
             .build();
     }
 

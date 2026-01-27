@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -31,9 +32,19 @@ public final class RecoveryResponse extends TransportResponse {
     final int phase2Operations;
     final long phase2Time;
 
-    RecoveryResponse(List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames,
-                     List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize,
-                     long phase1Time, long phase1ThrottlingWaitTime, long startTime, int phase2Operations, long phase2Time) {
+    RecoveryResponse(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        long phase1TotalSize,
+        long phase1ExistingTotalSize,
+        long phase1Time,
+        long phase1ThrottlingWaitTime,
+        long startTime,
+        int phase2Operations,
+        long phase2Time
+    ) {
         this.phase1FileNames = phase1FileNames;
         this.phase1FileSizes = phase1FileSizes;
         this.phase1ExistingFileNames = phase1ExistingFileNames;
@@ -48,11 +59,10 @@ public final class RecoveryResponse extends TransportResponse {
     }
 
     RecoveryResponse(StreamInput in) throws IOException {
-        super(in);
-        phase1FileNames = in.readStringList();
-        phase1FileSizes = in.readList(StreamInput::readVLong);
-        phase1ExistingFileNames = in.readStringList();
-        phase1ExistingFileSizes = in.readList(StreamInput::readVLong);
+        phase1FileNames = in.readStringCollectionAsList();
+        phase1FileSizes = in.readCollectionAsList(StreamInput::readVLong);
+        phase1ExistingFileNames = in.readStringCollectionAsList();
+        phase1ExistingFileSizes = in.readCollectionAsList(StreamInput::readVLong);
         phase1TotalSize = in.readVLong();
         phase1ExistingTotalSize = in.readVLong();
         phase1Time = in.readVLong();

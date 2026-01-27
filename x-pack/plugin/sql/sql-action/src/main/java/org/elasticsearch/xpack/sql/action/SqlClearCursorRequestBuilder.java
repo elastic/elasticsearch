@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
-public class SqlClearCursorRequestBuilder extends
-        ActionRequestBuilder<SqlClearCursorRequest, SqlClearCursorResponse> {
+public class SqlClearCursorRequestBuilder extends ActionRequestBuilder<SqlClearCursorRequest, SqlClearCursorResponse> {
 
-    public SqlClearCursorRequestBuilder(ElasticsearchClient client, SqlClearCursorAction action) {
-        super(client, action, new SqlClearCursorRequest());
+    public SqlClearCursorRequestBuilder(ElasticsearchClient client) {
+        super(client, SqlClearCursorAction.INSTANCE, new SqlClearCursorRequest());
     }
 
     public SqlClearCursorRequestBuilder cursor(String cursor) {

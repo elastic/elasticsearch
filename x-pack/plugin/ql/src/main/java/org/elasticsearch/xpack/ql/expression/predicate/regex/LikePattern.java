@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ql.expression.predicate.regex;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
@@ -50,9 +49,8 @@ public class LikePattern extends AbstractStringPattern {
     }
 
     @Override
-    Automaton createAutomaton() {
-        Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+    public Automaton createAutomaton() {
+        return WildcardQuery.toAutomaton(new Term(null, wildcard), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override
@@ -90,7 +88,6 @@ public class LikePattern extends AbstractStringPattern {
         }
 
         LikePattern other = (LikePattern) obj;
-        return Objects.equals(pattern, other.pattern)
-                && escape == other.escape;
+        return Objects.equals(pattern, other.pattern) && escape == other.escape;
     }
 }

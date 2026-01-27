@@ -4,20 +4,22 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.common.SparseFileTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -33,7 +35,7 @@ import java.util.SortedSet;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class CacheFile {
 
@@ -53,11 +55,13 @@ public class CacheFile {
         void onCacheFileDelete(CacheFile cacheFile);
     }
 
-    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
+    private static final StandardOpenOption[] CREATE_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
-        StandardOpenOption.CREATE,
+        StandardOpenOption.CREATE_NEW,
         StandardOpenOption.SPARSE };
+
+    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] { StandardOpenOption.READ, StandardOpenOption.WRITE };
 
     /**
      * Reference counter that counts the number of eviction listeners referencing this cache file plus the number of open file channels
@@ -100,8 +104,8 @@ public class CacheFile {
 
         private final FileChannel fileChannel;
 
-        FileChannelReference() throws IOException {
-            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
+        FileChannelReference(StandardOpenOption[] options) throws IOException {
+            this.fileChannel = FileChannel.open(file, options);
             refCounter.incRef();
         }
 
@@ -111,7 +115,7 @@ public class CacheFile {
                 fileChannel.close();
             } catch (IOException e) {
                 // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-                logger.warn(() -> new ParameterizedMessage("Failed to close [{}]", file), e);
+                logger.warn(() -> "Failed to close [" + file + "]", e);
             } finally {
                 decrementRefCount();
             }
@@ -124,19 +128,26 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
+    /**
+     * {@code true} if the physical cache file exists on disk
+     */
+    private volatile boolean fileExists;
+
     public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener, false);
     }
 
     public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<ByteRange> ranges, ModificationListener listener) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener, true);
     }
 
-    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener, boolean fileExists) {
         this.cacheKey = Objects.requireNonNull(cacheKey);
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
         this.listener = Objects.requireNonNull(listener);
+        assert fileExists == Files.exists(file) : file + " exists? " + fileExists;
+        this.fileExists = fileExists;
         assert invariant();
     }
 
@@ -160,7 +171,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<ByteRange> getCompletedRanges() {
+    public SortedSet<ByteRange> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 
@@ -171,8 +182,8 @@ public class CacheFile {
         return tracker.getInitialLength();
     }
 
-    public void acquire(final EvictionListener listener) throws IOException {
-        assert listener != null;
+    public void acquire(final EvictionListener evictionListener) throws IOException {
+        assert evictionListener != null;
 
         ensureOpen();
         boolean success = false;
@@ -182,10 +193,11 @@ public class CacheFile {
                     ensureOpen();
                     if (listeners.isEmpty()) {
                         assert channelRef == null;
-                        channelRef = new FileChannelReference();
+                        channelRef = new FileChannelReference(fileExists ? OPEN_OPTIONS : CREATE_OPTIONS);
+                        fileExists = true;
                     }
-                    final boolean added = listeners.add(listener);
-                    assert added : "listener already exists " + listener;
+                    final boolean added = listeners.add(evictionListener);
+                    assert added : "listener already exists " + evictionListener;
                 }
                 success = true;
             } finally {
@@ -200,14 +212,14 @@ public class CacheFile {
         assert invariant();
     }
 
-    public void release(final EvictionListener listener) {
-        assert listener != null;
+    public void release(final EvictionListener evictionListener) {
+        assert evictionListener != null;
 
         boolean success = false;
         try {
             synchronized (listeners) {
-                final boolean removed = listeners.remove(Objects.requireNonNull(listener));
-                assert removed : "listener does not exist " + listener;
+                final boolean removed = listeners.remove(Objects.requireNonNull(evictionListener));
+                assert removed : "listener does not exist " + evictionListener;
                 if (removed == false) {
                     throw new IllegalStateException("Cannot remove an unknown listener");
                 }
@@ -241,15 +253,15 @@ public class CacheFile {
 
     private boolean assertRefCounted(boolean isReleased) {
         final boolean isEvicted = evicted.get();
-        final boolean fileExists = Files.exists(file);
-        assert isReleased == false || (isEvicted && fileExists == false)
+        final boolean fileDoesExist = Files.exists(file);
+        assert isReleased == false || (isEvicted && fileDoesExist == false)
             : "fully released cache file should be deleted from disk but got ["
                 + "released="
                 + isReleased
                 + ", evicted="
                 + isEvicted
                 + ", file exists="
-                + fileExists
+                + fileDoesExist
                 + ']';
         return true;
     }
@@ -264,7 +276,7 @@ public class CacheFile {
                 evictionListeners = new HashSet<>(listeners);
             }
             decrementRefCount();
-            evictionListeners.forEach(listener -> listener.onEviction(this));
+            evictionListeners.forEach(eachListener -> eachListener.onEviction(this));
         }
         assert invariant();
     }
@@ -322,7 +334,7 @@ public class CacheFile {
 
     @FunctionalInterface
     public interface RangeMissingHandler {
-        void fillCacheRange(FileChannel channel, long from, long to, Consumer<Long> progressUpdater) throws IOException;
+        void fillCacheRange(FileChannel channel, long from, long to, LongConsumer progressUpdater) throws IOException;
     }
 
     /**
@@ -340,7 +352,7 @@ public class CacheFile {
         final RangeMissingHandler writer,
         final Executor executor
     ) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -392,7 +404,7 @@ public class CacheFile {
      */
     @Nullable
     public Future<Integer> readIfAvailableOrPending(final ByteRange rangeToRead, final RangeAvailableHandler reader) {
-        final PlainActionFuture<Integer> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Integer> future = new PlainActionFuture<>();
         Releasable decrementRef = null;
         try {
             final FileChannelReference reference = acquireFileChannelReference();
@@ -425,12 +437,12 @@ public class CacheFile {
         FileChannelReference reference,
         Releasable releasable
     ) {
-        return ActionListener.runAfter(ActionListener.wrap(success -> {
+        return ActionListener.runAfter(future.delegateFailureAndWrap((l, success) -> {
             final int read = reader.onRangeAvailable(reference.fileChannel);
             assert read == rangeToRead.length()
                 : "partial read [" + read + "] does not match the range to read [" + rangeToRead.end() + '-' + rangeToRead.start() + ']';
-            future.onResponse(read);
-        }, future::onFailure), releasable::close);
+            l.onResponse(read);
+        }), releasable::close);
     }
 
     /**
@@ -520,7 +532,7 @@ public class CacheFile {
             Files.deleteIfExists(file);
         } catch (IOException e) {
             // nothing to do but log failures here since closeInternal could be called from anywhere and must not throw
-            logger.warn(() -> new ParameterizedMessage("Failed to delete [{}]", file), e);
+            logger.warn(() -> "Failed to delete [" + file + "]", e);
         } finally {
             listener.onCacheFileDelete(CacheFile.this);
         }

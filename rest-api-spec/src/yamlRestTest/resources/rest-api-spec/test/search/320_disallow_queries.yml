@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
@@ -34,20 +34,20 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: null
 
 ---
 "Test disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Check for initial setting = null -> false
@@ -61,11 +61,11 @@ teardown:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.allow_expensive_queries: "false"}}
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
 
   ### Prefix
   - do:

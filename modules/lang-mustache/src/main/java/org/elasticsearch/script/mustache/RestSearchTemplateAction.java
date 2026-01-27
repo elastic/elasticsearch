@@ -1,40 +1,49 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSearchTemplateAction extends BaseRestHandler {
 
     public static final String TYPED_KEYS_PARAM = "typed_keys";
-    private static final Set<String> RESPONSE_PARAMS;
 
-    static {
-        final Set<String> responseParams = new HashSet<>(Arrays.asList(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM));
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
+    private static final Set<String> RESPONSE_PARAMS = Set.of(TYPED_KEYS_PARAM, RestSearchAction.TOTAL_HITS_AS_INT_PARAM);
+
+    private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestSearchTemplateAction(Predicate<NodeFeature> clusterSupportsFeature, Settings settings) {
+        this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     @Override
@@ -43,13 +52,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_search/template"),
             new Route(POST, "/_search/template"),
             new Route(GET, "/{index}/_search/template"),
-            new Route(POST, "/{index}/_search/template"),
-            Route.builder(GET, "/{index}/{type}/_search/template")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_search/template")
-                .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            new Route(POST, "/{index}/_search/template")
+        );
     }
 
     @Override
@@ -59,19 +63,44 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
-            searchRequest, request, null, client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size));
+            searchRequest,
+            request,
+            null,
+            clusterSupportsFeature,
+            size -> searchRequest.source().size(size),
+            null,
+            Optional.of(crossProjectEnabled)
+        );
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
         }
-        searchTemplateRequest.setRequest(searchRequest);
 
-        return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
+        if (searchTemplateRequest.getProjectRouting() != null) {
+            if (crossProjectEnabled) {
+                searchRequest.setProjectRouting(searchTemplateRequest.getProjectRouting());
+            } else {
+                throw new IllegalArgumentException("Unknown key for a VALUE_STRING in [project_routing]");
+            }
+        }
+
+        searchTemplateRequest.setRequest(searchRequest);
+        // This param is parsed within the search request
+        if (searchRequest.source().explain() != null) {
+            searchTemplateRequest.setExplain(searchRequest.source().explain());
+        }
+        return channel -> client.execute(
+            MustachePlugin.SEARCH_TEMPLATE_ACTION,
+            searchTemplateRequest,
+            new RestToXContentListener<>(channel, SearchTemplateResponse::status)
+        );
     }
 
     @Override

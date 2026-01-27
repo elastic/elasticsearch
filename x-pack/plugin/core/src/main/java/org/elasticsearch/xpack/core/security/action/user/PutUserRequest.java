@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,7 +26,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request object to put a native user.
  */
-public class PutUserRequest extends ActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
+public class PutUserRequest extends LegacyActionRequest implements UserRequest, WriteRequest<PutUserRequest> {
 
     private String username;
     private String[] roles;
@@ -44,13 +44,12 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
         roles = in.readStringArray();
         fullName = in.readOptionalString();
         email = in.readOptionalString();
-        metadata = in.readBoolean() ? in.readMap() : null;
+        metadata = in.readBoolean() ? in.readGenericMap() : null;
         refreshPolicy = RefreshPolicy.readFrom(in);
         enabled = in.readBoolean();
     }
 
-    public PutUserRequest() {
-    }
+    public PutUserRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -157,14 +156,14 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
         refreshPolicy.writeTo(out);
         out.writeBoolean(enabled);
     }
 
     private static char[] readCharArrayFromStream(StreamInput in) throws IOException {
-        BytesReference charBytesRef = in.readBytesReference();
+        BytesReference charBytesRef = in.readSlicedBytesReference();
         if (charBytesRef == BytesArray.EMPTY) {
             return null;
         } else {
@@ -184,15 +183,26 @@ public class PutUserRequest extends ActionRequest implements UserRequest, WriteR
 
     @Override
     public String toString() {
-        return "PutUserRequest{" +
-            "username='" + username + '\'' +
-            ", roles=" + Arrays.toString(roles) +
-            ", fullName='" + fullName + '\'' +
-            ", email='" + email + '\'' +
-            ", metadata=" + metadata +
-            ", passwordHash=" + (passwordHash == null ? "<null>" : "<not-null>") +
-            ", enabled=" + enabled +
-            ", refreshPolicy=" + refreshPolicy +
-            '}';
+        return "PutUserRequest{"
+            + "username='"
+            + username
+            + '\''
+            + ", roles="
+            + Arrays.toString(roles)
+            + ", fullName='"
+            + fullName
+            + '\''
+            + ", email='"
+            + email
+            + '\''
+            + ", metadata="
+            + metadata
+            + ", passwordHash="
+            + (passwordHash == null ? "<null>" : "<not-null>")
+            + ", enabled="
+            + enabled
+            + ", refreshPolicy="
+            + refreshPolicy
+            + '}';
     }
 }

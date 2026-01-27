@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -35,7 +37,7 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final String TYPE = "csv";
 
-    //visible for testing
+    // visible for testing
     final String field;
     final String[] headers;
     final boolean trim;
@@ -44,8 +46,17 @@ public final class CsvProcessor extends AbstractProcessor {
     final boolean ignoreMissing;
     final Object emptyValue;
 
-    CsvProcessor(String tag, String description, String field, String[] headers, boolean trim, char separator, char quote,
-                 boolean ignoreMissing, Object emptyValue) {
+    CsvProcessor(
+        String tag,
+        String description,
+        String field,
+        String[] headers,
+        boolean trim,
+        char separator,
+        char quote,
+        boolean ignoreMissing,
+        Object emptyValue
+    ) {
         super(tag, description);
         this.field = field;
         this.headers = headers;
@@ -79,8 +90,13 @@ public final class CsvProcessor extends AbstractProcessor {
 
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
-        public CsvProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                   String description, Map<String, Object> config) {
+        public CsvProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String quote = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "quote", "\"");
             if (quote.length() != 1) {
@@ -92,7 +108,7 @@ public final class CsvProcessor extends AbstractProcessor {
             }
             boolean trim = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trim", false);
             Object emptyValue = null;
-            if(config.containsKey("empty_value")){
+            if (config.containsKey("empty_value")) {
                 emptyValue = ConfigurationUtils.readObject(TYPE, processorTag, config, "empty_value");
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
@@ -100,8 +116,17 @@ public final class CsvProcessor extends AbstractProcessor {
             if (targetFields.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "target_fields", "target fields list can't be empty");
             }
-            return new CsvProcessor(processorTag, description, field, targetFields.toArray(String[]::new), trim, separator.charAt(0),
-                quote.charAt(0), ignoreMissing, emptyValue);
+            return new CsvProcessor(
+                processorTag,
+                description,
+                field,
+                targetFields.toArray(String[]::new),
+                trim,
+                separator.charAt(0),
+                quote.charAt(0),
+                ignoreMissing,
+                emptyValue
+            );
         }
     }
 }

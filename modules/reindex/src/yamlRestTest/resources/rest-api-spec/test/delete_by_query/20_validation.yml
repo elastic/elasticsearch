@@ -19,7 +19,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /conflicts may only be .* but was \[cat\]/
@@ -32,14 +32,14 @@
 
 ---
 "invalid max_docs fails":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] parameter cannot be negative, found \[-4\]/
@@ -52,14 +52,14 @@
 
 ---
 "max_docs shoule be greater than slices":
-  - skip:
-      version: " - 7.2.99"
+  - requires:
+      cluster_features: ["gte_v7.3.0"]
       reason: "max_docs introduced in 7.3.0"
 
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /\[max_docs\] should be >= \[slices\]/
@@ -76,7 +76,7 @@
   - do:
       index:
         index:   test
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       catch: /Failed to parse int parameter \[scroll_size\] with value \[asdf\]/
@@ -161,3 +161,15 @@
         body:
           query:
             match_all: {}
+---
+"Remote indices are not allowed in delete-by-query":
+  - do:
+      catch: bad_request
+      delete_by_query:
+        index: "remote:test"
+        body:
+          query:
+            match_all: {}
+  - match: { status: 400 }
+  - match: { error.type: "action_request_validation_exception" }
+  - match: { error.reason: "Validation Failed: 1: Cross-cluster calls are not supported in this context but remote indices were requested: [remote:test];" }

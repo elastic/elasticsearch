@@ -1,35 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SslConfigurationLoaderTests extends ESTestCase {
+public final class SslConfigurationLoaderTests extends ESTestCase {
 
     private final Path certRoot = getDataPath("/certs/ca1/ca.crt").getParent().getParent();
 
@@ -74,25 +75,25 @@ public class SslConfigurationLoaderTests extends ESTestCase {
             .putList("test.ssl.supported_protocols", protocols)
             .build();
         final SslConfiguration configuration = loader.load(certRoot);
-        assertThat(configuration.getClientAuth(), is(clientAuth));
-        assertThat(configuration.getVerificationMode(), is(verificationMode));
+        assertThat(configuration.clientAuth(), is(clientAuth));
+        assertThat(configuration.verificationMode(), is(verificationMode));
         assertThat(configuration.getCipherSuites(), equalTo(Arrays.asList(ciphers)));
-        assertThat(configuration.getSupportedProtocols(), equalTo(Arrays.asList(protocols)));
+        assertThat(configuration.supportedProtocols(), equalTo(Arrays.asList(protocols)));
         if (verificationMode == SslVerificationMode.NONE) {
-            final SslTrustConfig trustConfig = configuration.getTrustConfig();
+            final SslTrustConfig trustConfig = configuration.trustConfig();
             assertThat(trustConfig, instanceOf(TrustEverythingConfig.class));
         }
     }
 
     public void testLoadTrustFromPemCAs() {
-        settings = Settings.builder()
-            .putList("test.ssl.certificate_authorities", "ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt")
-            .build();
+        settings = Settings.builder().putList("test.ssl.certificate_authorities", "ca1/ca.crt", "ca2/ca.crt", "ca3/ca.crt").build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        final SslTrustConfig trustConfig = configuration.trustConfig();
         assertThat(trustConfig, instanceOf(PemTrustConfig.class));
-        assertThat(trustConfig.getDependentFiles(),
-            containsInAnyOrder(getDataPath("/certs/ca1/ca.crt"), getDataPath("/certs/ca2/ca.crt"), getDataPath("/certs/ca3/ca.crt")));
+        assertThat(
+            trustConfig.getDependentFiles(),
+            containsInAnyOrder(getDataPath("/certs/ca1/ca.crt"), getDataPath("/certs/ca2/ca.crt"), getDataPath("/certs/ca3/ca.crt"))
+        );
         assertThat(trustConfig.createTrustManager(), notNullValue());
     }
 
@@ -113,7 +114,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         }
         settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        final SslTrustConfig trustConfig = configuration.trustConfig();
         assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
         assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.p12")));
         assertThat(trustConfig.createTrustManager(), notNullValue());
@@ -136,7 +137,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         }
         settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslTrustConfig trustConfig = configuration.getTrustConfig();
+        final SslTrustConfig trustConfig = configuration.trustConfig();
         assertThat(trustConfig, instanceOf(StoreTrustConfig.class));
         assertThat(trustConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/ca-all/ca.jks")));
         assertThat(trustConfig.createTrustManager(), notNullValue());
@@ -158,17 +159,21 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         }
         settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        final SslKeyConfig keyConfig = configuration.keyConfig();
         assertThat(keyConfig, instanceOf(PemKeyConfig.class));
-        assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(
-            getDataPath("/certs/" + certName + "/" + certName + ".crt"), getDataPath("/certs/" + certName + "/" + certName + ".key")));
+        assertThat(
+            keyConfig.getDependentFiles(),
+            containsInAnyOrder(
+                getDataPath("/certs/" + certName + "/" + certName + ".crt"),
+                getDataPath("/certs/" + certName + "/" + certName + ".key")
+            )
+        );
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
     public void testLoadKeysFromPKCS12() {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Settings.Builder builder = Settings.builder()
-            .put("test.ssl.keystore.path", "cert-all/certs.p12");
+        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.p12");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "p12-pass");
         } else {
@@ -183,7 +188,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         }
         settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        final SslKeyConfig keyConfig = configuration.keyConfig();
         assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
         assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.p12")));
         assertThat(keyConfig.createKeyManager(), notNullValue());
@@ -191,8 +196,7 @@ public class SslConfigurationLoaderTests extends ESTestCase {
 
     public void testLoadKeysFromJKS() {
         assumeFalse("Can't use JKS/PKCS12 keystores in a FIPS JVM", inFipsJvm());
-        final Settings.Builder builder = Settings.builder()
-            .put("test.ssl.keystore.path", "cert-all/certs.jks");
+        final Settings.Builder builder = Settings.builder().put("test.ssl.keystore.path", "cert-all/certs.jks");
         if (randomBoolean()) {
             builder.put("test.ssl.keystore.password", "jks-pass");
         } else {
@@ -212,23 +216,31 @@ public class SslConfigurationLoaderTests extends ESTestCase {
         }
         settings = builder.build();
         final SslConfiguration configuration = loader.load(certRoot);
-        final SslKeyConfig keyConfig = configuration.getKeyConfig();
+        final SslKeyConfig keyConfig = configuration.keyConfig();
         assertThat(keyConfig, instanceOf(StoreKeyConfig.class));
         assertThat(keyConfig.getDependentFiles(), containsInAnyOrder(getDataPath("/certs/cert-all/certs.jks")));
         assertThat(keyConfig.createKeyManager(), notNullValue());
     }
 
     public void testChaCha20InCiphersOnJdk12Plus() {
-        assumeTrue("Test is only valid on JDK 12+ JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) > -1);
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_CHACHA20_POLY1305_SHA256"));
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256"));
         assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"));
     }
 
-    public void testChaCha20NotInCiphersOnPreJdk12() {
-        assumeTrue("Test is only valid on pre JDK 12 JVM", JavaVersion.current().compareTo(JavaVersion.parse("12")) < 0);
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_CHACHA20_POLY1305_SHA256")));
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256")));
-        assertThat(SslConfigurationLoader.DEFAULT_CIPHERS, not(hasItem("TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256")));
+    public void testErrorMessageForUnpairedKeyAndCertificateSettings() {
+        final boolean withKey = randomBoolean();
+        if (withKey) {
+            settings = Settings.builder().put("test.ssl.key", "certs/cert1.key").build();
+        } else {
+            settings = Settings.builder().put("test.ssl.certificate", "certs/cert1.cert").build();
+        }
+
+        final SslConfigException e = expectThrows(SslConfigException.class, () -> loader.load(certRoot));
+        if (withKey) {
+            assertThat(e.getMessage(), containsString("cannot specify [test.ssl.key] without also setting [test.ssl.certificate]"));
+        } else {
+            assertThat(e.getMessage(), containsString("cannot specify [test.ssl.certificate] without also setting [test.ssl.key]"));
+        }
     }
 }

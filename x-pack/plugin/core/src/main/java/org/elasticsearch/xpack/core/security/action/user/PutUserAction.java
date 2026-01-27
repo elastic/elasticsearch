@@ -17,6 +17,6 @@ public class PutUserAction extends ActionType<PutUserResponse> {
     public static final String NAME = "cluster:admin/xpack/security/user/put";
 
     protected PutUserAction() {
-        super(NAME, PutUserResponse::new);
+        super(NAME);
     }
 }

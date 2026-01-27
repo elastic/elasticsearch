@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -23,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class AsyncIOProcessorTests extends ESTestCase {
@@ -55,32 +55,19 @@ public class AsyncIOProcessorTests extends ESTestCase {
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
-        Thread[] thread = new Thread[randomIntBetween(3, 10)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < count; i++) {
-                            semaphore.acquire();
-                            processor.put(new Object(), (ex) -> semaphore.release());
-                        }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
-                    }
+        final int threads = randomIntBetween(3, 10);
+        startInParallel(threads, t -> {
+            for (int i = 0; i < count; i++) {
+                try {
+                    semaphore.acquire();
+                    processor.put(new Object(), (ex) -> semaphore.release());
+                } catch (Exception ex) {
+                    throw new RuntimeException(ex);
                 }
-            };
-            thread[i].start();
-        }
-
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
-        assertEquals(count * thread.length, received.get());
+            }
+        });
+        safeAcquire(10, semaphore);
+        assertEquals(count * threads, received.get());
     }
 
     public void testRandomFail() throws InterruptedException {
@@ -103,37 +90,24 @@ public class AsyncIOProcessorTests extends ESTestCase {
         };
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
         final int count = randomIntBetween(1000, 20000);
-        Thread[] thread = new Thread[randomIntBetween(3, 10)];
-        CountDownLatch latch = new CountDownLatch(thread.length);
-        for (int i = 0; i < thread.length; i++) {
-            thread[i] = new Thread() {
-                @Override
-                public void run() {
-                    try {
-                        latch.countDown();
-                        latch.await();
-                        for (int i = 0; i < count; i++) {
-                            semaphore.acquire();
-                            processor.put(new Object(), (ex) -> {
-                                if (ex != null) {
-                                    actualFailed.incrementAndGet();
-                                }
-                                semaphore.release();
-                            });
+        final int threads = randomIntBetween(3, 10);
+        startInParallel(threads, t -> {
+            try {
+                for (int i = 0; i < count; i++) {
+                    semaphore.acquire();
+                    processor.put(new Object(), (ex) -> {
+                        if (ex != null) {
+                            actualFailed.incrementAndGet();
                         }
-                    } catch (Exception ex) {
-                        throw new RuntimeException(ex);
-                    }
+                        semaphore.release();
+                    });
                 }
-            };
-            thread[i].start();
-        }
-
-        for (int i = 0; i < thread.length; i++) {
-            thread[i].join();
-        }
-        assertTrue(semaphore.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
-        assertEquals(count * thread.length, received.get());
+            } catch (Exception ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        safeAcquire(Integer.MAX_VALUE, semaphore);
+        assertEquals(count * threads, received.get());
         assertEquals(actualFailed.get(), failed.get());
     }
 
@@ -162,8 +136,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
     public void testNullArguments() {
         AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(1, 2024), threadContext) {
             @Override
-            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
-            }
+            protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {}
         };
 
         expectThrows(NullPointerException.class, () -> processor.put(null, (e) -> {}));
@@ -178,8 +151,11 @@ public class AsyncIOProcessorTests extends ESTestCase {
         AtomicInteger notified = new AtomicInteger(0);
 
         CountDownLatch writeDelay = new CountDownLatch(1);
-        AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(logger, scaledRandomIntBetween(threadCount - 1, 2024),
-            threadContext) {
+        AsyncIOProcessor<Object> processor = new AsyncIOProcessor<Object>(
+            logger,
+            scaledRandomIntBetween(threadCount - 1, 2024),
+            threadContext
+        ) {
             @Override
             protected void write(List<Tuple<Object, Consumer<Exception>>> candidates) throws IOException {
                 try {
@@ -193,7 +169,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
 
         // first thread blocks, the rest should be non blocking.
         CountDownLatch nonBlockingDone = new CountDownLatch(randomIntBetween(0, threadCount - 1));
-        List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(getTestName() + "_" + i) {
+        List<Thread> threads = IntStream.range(0, threadCount).<Thread>mapToObj(i -> new Thread(getTestName() + "_" + i) {
             private final String response = randomAlphaOfLength(10);
             {
                 setDaemon(true);
@@ -208,7 +184,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
                 });
                 nonBlockingDone.countDown();
             }
-        }).collect(Collectors.toList());
+        }).toList();
         threads.forEach(Thread::start);
         assertTrue(nonBlockingDone.await(10, TimeUnit.SECONDS));
         writeDelay.countDown();
@@ -225,7 +201,7 @@ public class AsyncIOProcessorTests extends ESTestCase {
         threads.forEach(t -> assertFalse(t.isAlive()));
     }
 
-    public void testSlowConsumer() {
+    public void testSlowConsumer() throws InterruptedException {
         AtomicInteger received = new AtomicInteger(0);
         AtomicInteger notified = new AtomicInteger(0);
 
@@ -239,39 +215,23 @@ public class AsyncIOProcessorTests extends ESTestCase {
         int threadCount = randomIntBetween(2, 10);
         CyclicBarrier barrier = new CyclicBarrier(threadCount);
         Semaphore serializePutSemaphore = new Semaphore(1);
-        List<Thread> threads = IntStream.range(0, threadCount).mapToObj(i -> new Thread(getTestName() + "_" + i) {
-            {
-                setDaemon(true);
-            }
-
-            @Override
-            public void run() {
-                try {
-                    assertTrue(serializePutSemaphore.tryAcquire(10, TimeUnit.SECONDS));
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-                processor.put(new Object(), (e) -> {
-                    serializePutSemaphore.release();
-                    try {
-                        barrier.await(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | BrokenBarrierException | TimeoutException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                    notified.incrementAndGet();
-                });
-            }
-        }).collect(Collectors.toList());
-        threads.forEach(Thread::start);
-        threads.forEach(t -> {
+        runInParallel(threadCount, t -> {
             try {
-                t.join(20000);
+                assertTrue(serializePutSemaphore.tryAcquire(10, TimeUnit.SECONDS));
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            processor.put(new Object(), (e) -> {
+                serializePutSemaphore.release();
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException ex) {
+                    throw new RuntimeException(ex);
+                }
+                notified.incrementAndGet();
+            });
         });
         assertEquals(threadCount, notified.get());
         assertEquals(threadCount, received.get());
-        threads.forEach(t -> assertFalse(t.isAlive()));
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -51,31 +52,24 @@ public class SearchSortValuesAndFormatsTests extends AbstractWireSerializingTest
         Object[] sortValues = instance.getRawSortValues();
         Object[] newValues = Arrays.copyOf(sortValues, sortValues.length + 1);
         DocValueFormat[] newFormats = Arrays.copyOf(instance.getSortValueFormats(), sortValues.length + 1);
-        newValues[sortValues.length] =  randomSortValue();
+        newValues[sortValues.length] = randomSortValue();
         newFormats[sortValues.length] = DocValueFormat.RAW;
         return new SearchSortValuesAndFormats(newValues, newFormats);
     }
 
     private static Object randomSortValue() {
-        switch(randomIntBetween(0, 5)) {
-            case 0:
-                return null;
-            case 1:
-                return new BytesRef(randomAlphaOfLengthBetween(3, 10));
-            case 2:
-                return randomInt();
-            case 3:
-                return randomLong();
-            case 4:
-                return randomFloat();
-            case 5:
-                return randomDouble();
-            default:
-                throw new UnsupportedOperationException();
-        }
+        return switch (randomIntBetween(0, 5)) {
+            case 0 -> null;
+            case 1 -> new BytesRef(randomAlphaOfLengthBetween(3, 10));
+            case 2 -> randomInt();
+            case 3 -> randomLong();
+            case 4 -> randomFloat();
+            case 5 -> randomDouble();
+            default -> throw new UnsupportedOperationException();
+        };
     }
 
-    public static SearchSortValuesAndFormats randomInstance()  {
+    public static SearchSortValuesAndFormats randomInstance() {
         int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];
         DocValueFormat[] sortValueFormats = new DocValueFormat[size];

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -16,28 +17,23 @@ import java.util.Locale;
 public class LocaleUtilsTests extends ESTestCase {
 
     public void testIllegalLang() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("yz"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("yz"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown language: yz"));
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("yz-CA"));
+        e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("yz-CA"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown language: yz"));
     }
 
     public void testIllegalCountry() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-YZ"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-YZ"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown country: YZ"));
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-YZ-foobar"));
+        e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-YZ-foobar"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown country: YZ"));
     }
 
     public void testIllegalNumberOfParts() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-US-foo-bar"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-US-foo-bar"));
         assertThat(e.getMessage(), Matchers.containsString("Locales can have at most 3 parts but got 4"));
     }
 

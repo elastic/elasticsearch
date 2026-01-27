@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.CheckNullProcessor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
 public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<CheckNullProcessor> {
@@ -27,6 +26,11 @@ public class CheckNullProcessorTests extends AbstractWireSerializingTestCase<Che
     @Override
     protected CheckNullProcessor createTestInstance() {
         return randomProcessor();
+    }
+
+    @Override
+    protected CheckNullProcessor mutateInstance(CheckNullProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

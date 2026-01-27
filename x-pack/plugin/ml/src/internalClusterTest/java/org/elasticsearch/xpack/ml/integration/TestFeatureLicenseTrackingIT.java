@@ -7,13 +7,7 @@
 
 package org.elasticsearch.xpack.ml.integration;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ingest.DeletePipelineAction;
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
-import org.elasticsearch.action.ingest.PutPipelineAction;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.license.GetFeatureUsageRequest;
 import org.elasticsearch.license.GetFeatureUsageResponse;
 import org.elasticsearch.license.TransportGetFeatureUsageAction;
@@ -31,6 +25,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
+import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.After;
 
 import java.time.ZonedDateTime;
@@ -41,7 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.MachineLearning.ML_FEATURE_FAMILY;
+import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.ML_FEATURE_FAMILY;
 import static org.elasticsearch.xpack.ml.inference.loadingservice.LocalModelTests.buildClassification;
 import static org.elasticsearch.xpack.ml.integration.ModelInferenceActionIT.buildTrainedModelConfigBuilder;
 import static org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase.createScheduledJob;
@@ -55,21 +51,18 @@ import static org.hamcrest.Matchers.nullValue;
 public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
 
     private final Set<String> createdPipelines = new HashSet<>();
+
     @After
-    public void cleanup() {
-        for (String pipeline : createdPipelines) {
-            try {
-                client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipeline)).actionGet();
-            } catch (Exception ex) {
-                logger.warn(() -> new ParameterizedMessage("error cleaning up pipeline [{}]", pipeline), ex);
-            }
-        }
+    public void cleanup() throws Exception {
+        IngestPipelineTestUtils.deletePipelinesIgnoringExceptions(client(), createdPipelines);
+        // Some of the tests have async side effects. We need to wait for these to complete before continuing
+        // the cleanup, otherwise unexpected indices may get created during the cleanup process.
+        BaseMlIntegTestCase.waitForPendingTasks(client());
     }
 
     public void testFeatureTrackingAnomalyJob() throws Exception {
         putAndStartJob("job-feature-usage");
-        GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo()
-            .stream()
+        GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo().stream()
             .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
             .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
             .findAny()
@@ -79,8 +72,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         // While the job is opened, the lastUsage moves forward to "now". Verify it does that
         ZonedDateTime lastUsage = mlFeatureUsage.getLastUsedTime();
         assertBusy(() -> {
-            ZonedDateTime recentUsage = getFeatureUsageInfo()
-                .stream()
+            ZonedDateTime recentUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
@@ -92,8 +84,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
 
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request("job-feature-usage")).actionGet();
 
-        mlFeatureUsage = getFeatureUsageInfo()
-            .stream()
+        mlFeatureUsage = getFeatureUsageInfo().stream()
             .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
             .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
             .findAny()
@@ -105,8 +96,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         ZonedDateTime lastUsageAfterClose = mlFeatureUsage.getLastUsedTime();
 
         assertBusy(() -> {
-            ZonedDateTime recentUsage =getFeatureUsageInfo()
-                .stream()
+            ZonedDateTime recentUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_ANOMALY_JOBS_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
@@ -122,12 +112,15 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         Map<String, String> oneHotEncoding = new HashMap<>();
         oneHotEncoding.put("cat", "animal_cat");
         oneHotEncoding.put("dog", "animal_dog");
-        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId)
-            .setInput(new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical")))
+        TrainedModelConfig config = buildTrainedModelConfigBuilder(modelId).setInput(
+            new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical"))
+        )
             .setInferenceConfig(new ClassificationConfig(3))
-            .setParsedDefinition(new TrainedModelDefinition.Builder()
-                .setPreProcessors(Arrays.asList(new OneHotEncoding("other.categorical", oneHotEncoding, false)))
-                .setTrainedModel(buildClassification(true)))
+            .setParsedDefinition(
+                new TrainedModelDefinition.Builder().setPreProcessors(
+                    List.of(new OneHotEncoding("other.categorical", oneHotEncoding, false))
+                ).setTrainedModel(buildClassification(true))
+            )
             .build();
         client().execute(PutTrainedModelAction.INSTANCE, new PutTrainedModelAction.Request(config, false)).actionGet();
 
@@ -137,8 +130,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
 
         // wait for the feature to start being used
         assertBusy(() -> {
-            GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo()
-                .stream()
+            GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_MODEL_INFERENCE_FEATURE.getName()))
                 .findAny()
@@ -147,8 +139,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             assertThat(mlFeatureUsage.getContext(), containsString(modelId));
         });
 
-        GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo()
-            .stream()
+        GetFeatureUsageResponse.FeatureUsageInfo mlFeatureUsage = getFeatureUsageInfo().stream()
             .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
             .filter(f -> f.getName().equals(MachineLearning.ML_MODEL_INFERENCE_FEATURE.getName()))
             .findAny()
@@ -157,8 +148,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         // While the model is referenced, the lastUsage moves forward to "now". Verify it does that
         ZonedDateTime lastUsage = mlFeatureUsage.getLastUsedTime();
         assertBusy(() -> {
-            ZonedDateTime recentUsage = getFeatureUsageInfo()
-                .stream()
+            ZonedDateTime recentUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_MODEL_INFERENCE_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
@@ -168,21 +158,19 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
             assertThat(lastUsage.toInstant(), lessThan(recentUsage.toInstant()));
         });
 
-        client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest(pipelineId)).actionGet();
+        deletePipeline(pipelineId);
         createdPipelines.remove(pipelineId);
 
         // Make sure that feature usage keeps the last usage once the model is removed
         assertBusy(() -> {
-            ZonedDateTime recentUsage = getFeatureUsageInfo()
-                .stream()
+            ZonedDateTime recentUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_MODEL_INFERENCE_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
                 .findAny()
                 .orElse(null);
             assertThat(recentUsage, is(not(nullValue())));
-            ZonedDateTime secondRecentUsage = getFeatureUsageInfo()
-                .stream()
+            ZonedDateTime secondRecentUsage = getFeatureUsageInfo().stream()
                 .filter(f -> f.getFamily().equals(ML_FEATURE_FAMILY))
                 .filter(f -> f.getName().equals(MachineLearning.ML_MODEL_INFERENCE_FEATURE.getName()))
                 .map(GetFeatureUsageResponse.FeatureUsageInfo::getLastUsedTime)
@@ -194,10 +182,7 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
     }
 
     private List<GetFeatureUsageResponse.FeatureUsageInfo> getFeatureUsageInfo() {
-        return client()
-            .execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest())
-            .actionGet()
-            .getFeatures();
+        return client().execute(TransportGetFeatureUsageAction.TYPE, new GetFeatureUsageRequest()).actionGet().getFeatures();
     }
 
     private void putAndStartJob(String jobId) throws Exception {
@@ -213,27 +198,19 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         return response.getResponse().results();
     }
 
-    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) throws Exception {
-        client().execute(
-            PutPipelineAction.INSTANCE,
-            new PutPipelineRequest(
-                pipelineId,
-                new BytesArray(
-                    "{\n" +
-                        "    \"processors\": [\n" +
-                        "      {\n" +
-                        "        \"inference\": {\n" +
-                        "          \"inference_config\": {\"classification\":{}},\n" +
-                        "          \"model_id\": \"" + modelId + "\",\n" +
-                        "          \"field_map\": {}\n" +
-                        "        }\n" +
-                        "      }\n" +
-                        "    ]\n" +
-                        "  }"
-                ),
-                XContentType.JSON
-            )
-        ).actionGet();
+    private void putTrainedModelIngestPipeline(String pipelineId, String modelId) {
+        putJsonPipeline(pipelineId, format("""
+            {
+                "processors": [
+                  {
+                    "inference": {
+                      "inference_config": {"classification":{}},
+                      "model_id": "%s",
+                      "field_map": {}
+                    }
+                  }
+                ]
+              }""", modelId));
     }
 
 }

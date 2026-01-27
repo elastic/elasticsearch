@@ -6,10 +6,11 @@
  */
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,19 +27,18 @@ public class IdpBaseRestHandlerTests extends ESTestCase {
     }
 
     public void testIdpNotAvailableOnOtherLicenses() {
-        License.OperationMode mode =
-            randomValueOtherThanMany(m -> m == License.OperationMode.ENTERPRISE || m == License.OperationMode.TRIAL,
-                () -> randomFrom(License.OperationMode.values()));
+        License.OperationMode mode = randomValueOtherThanMany(
+            m -> m == License.OperationMode.ENTERPRISE || m == License.OperationMode.TRIAL,
+            () -> randomFrom(License.OperationMode.values())
+        );
         final IdpBaseRestHandler handler = buildHandler(mode);
         assertThat(handler.isIdpFeatureAllowed(), equalTo(false));
     }
 
     private IdpBaseRestHandler buildHandler(License.OperationMode licenseMode) {
-        final Settings settings = Settings.builder()
-            .put("xpack.idp.enabled", true)
-            .build();
+        final Settings settings = Settings.builder().put("xpack.idp.enabled", true).build();
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
-        licenseState.update(licenseMode, true, null);
+        licenseState.update(new XPackLicenseStatus(licenseMode, true, null));
         return new IdpBaseRestHandler(licenseState) {
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {

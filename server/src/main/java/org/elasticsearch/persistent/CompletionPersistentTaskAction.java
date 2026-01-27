@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
@@ -11,18 +12,18 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,26 +37,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * ActionType that is used by executor node to indicate that the persistent action finished or failed on the node and needs to be
  * removed from the cluster state in case of successful completion or restarted on some other node in case of failure.
  */
-public class CompletionPersistentTaskAction extends ActionType<PersistentTaskResponse> {
+public class CompletionPersistentTaskAction {
 
-    public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
-    public static final String NAME = "cluster:admin/persistent/completion";
+    public static final ActionType<PersistentTaskResponse> INSTANCE = new ActionType<>("cluster:admin/persistent/completion");
 
-    private CompletionPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
-    }
+    private CompletionPersistentTaskAction() {/* no instances */}
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String taskId;
-
-        private Exception exception;
-
-        private long allocationId = -1;
-
-        private String localAbortReason;
-
-        public Request() {}
+        private final String taskId;
+        private final Exception exception;
+        private final long allocationId;
+        private final String localAbortReason;
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -65,7 +58,8 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             localAbortReason = in.readOptionalString();
         }
 
-        public Request(String taskId, long allocationId, Exception exception, String localAbortReason) {
+        public Request(TimeValue masterNodeTimeout, String taskId, long allocationId, Exception exception, String localAbortReason) {
+            super(masterNodeTimeout);
             this.taskId = taskId;
             this.exception = exception;
             this.allocationId = allocationId;
@@ -101,10 +95,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId) &&
-                    allocationId == request.allocationId &&
-                    Objects.equals(exception, request.exception) &&
-                    Objects.equals(localAbortReason, request.localAbortReason);
+            return Objects.equals(taskId, request.taskId)
+                && allocationId == request.allocationId
+                && Objects.equals(exception, request.exception)
+                && Objects.equals(localAbortReason, request.localAbortReason);
         }
 
         @Override
@@ -113,26 +107,32 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CompletionPersistentTaskAction.Request,
-            PersistentTaskResponse, CompletionPersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
+        private final ProjectResolver projectResolver;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            ProjectResolver projectResolver
+        ) {
+            super(
+                INSTANCE.name(),
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                PersistentTaskResponse::new,
+                threadPool.executor(ThreadPool.Names.GENERIC)
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
+            this.projectResolver = projectResolver;
         }
 
         @Override
@@ -142,19 +142,36 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
+            // Try resolve the project-id which may be null if the request is for a cluster-scope task.
+            // A non-null project-id does not guarantee the task is project-scope. This will be determined
+            // later by checking the taskName associated with the task-id.
+            final ProjectId projectIdHint = PersistentTasksClusterService.resolveProjectIdHint(projectResolver);
+
             if (request.localAbortReason != null) {
                 assert request.exception == null
                     : "request has both exception " + request.exception + " and local abort reason " + request.localAbortReason;
-                persistentTasksClusterService.unassignPersistentTask(request.taskId, request.allocationId, request.localAbortReason,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.unassignPersistentTask(
+                    projectIdHint,
+                    request.taskId,
+                    request.allocationId,
+                    request.localAbortReason,
+                    listener.map(PersistentTaskResponse::new)
+                );
             } else {
-                persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.completePersistentTask(
+                    projectIdHint,
+                    request.taskId,
+                    request.allocationId,
+                    request.exception,
+                    listener.map(PersistentTaskResponse::new)
+                );
             }
         }
     }
 }
-
-

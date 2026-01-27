@@ -6,30 +6,48 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.Build;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Time;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
+import java.util.Collections;
+import java.util.GregorianCalendar;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsDateNanos;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsUnsignedLong;
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.supportsVersionType;
 
 final class JdbcTestUtils {
 
     private JdbcTestUtils() {}
 
+    private static final Map<Class<?>, EsType> CLASS_TO_ES_TYPE;
+
     static final ZoneId UTC = ZoneId.of("Z");
     static final String JDBC_TIMEZONE = "timezone";
     private static final String DRIVER_VERSION_PROPERTY_NAME = "jdbc.driver.version";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    static final String UNSIGNED_LONG_TYPE_NAME = "UNSIGNED_LONG";
+
+    // Build's version is always a SemVer in JDBC tests
+    public static final SqlVersion CURRENT = SqlVersion.fromString(Build.current().version());
 
     /*
      * The version of the driver that the QA (bwc-)tests run against.
@@ -45,12 +63,41 @@ final class JdbcTestUtils {
      *     }
      * </code>
      */
-    static final Version JDBC_DRIVER_VERSION;
+    static final SqlVersion JDBC_DRIVER_VERSION;
 
     static {
-        // master's version is x.0.0-SNAPSHOT, tho Version#fromString() won't accept that back for recent versions
-        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "").replace("-SNAPSHOT", "");
-        JDBC_DRIVER_VERSION = Version.fromString(jdbcDriverVersion); // takes empty and null strings, resolves them to CURRENT
+        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "");
+        JDBC_DRIVER_VERSION = jdbcDriverVersion.isEmpty() ? CURRENT : SqlVersion.fromString(jdbcDriverVersion);
+
+        // Note: keep in sync with org.elasticsearch.xpack.sql.jdbc.TypeUtils#CLASS_TO_TYPE
+        Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
+        aMap.put(Boolean.class, EsType.BOOLEAN);
+        aMap.put(Byte.class, EsType.BYTE);
+        aMap.put(Short.class, EsType.SHORT);
+        aMap.put(Integer.class, EsType.INTEGER);
+        aMap.put(Long.class, EsType.LONG);
+        if (isUnsignedLongSupported()) {
+            aMap.put(BigInteger.class, EsType.UNSIGNED_LONG);
+        }
+        aMap.put(Float.class, EsType.FLOAT);
+        aMap.put(Double.class, EsType.DOUBLE);
+        aMap.put(String.class, EsType.KEYWORD);
+        aMap.put(byte[].class, EsType.BINARY);
+        aMap.put(Timestamp.class, EsType.DATETIME);
+
+        // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
+        // according to B-4 table from the jdbc4.2 spec
+        aMap.put(Calendar.class, EsType.DATETIME);
+        aMap.put(GregorianCalendar.class, EsType.DATETIME);
+        aMap.put(java.util.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Date.class, EsType.DATETIME);
+        aMap.put(java.sql.Time.class, EsType.TIME);
+        aMap.put(LocalDateTime.class, EsType.DATETIME);
+        CLASS_TO_ES_TYPE = Collections.unmodifiableMap(aMap);
+    }
+
+    static EsType of(Class<?> clazz) {
+        return CLASS_TO_ES_TYPE.get(clazz);
     }
 
     static String of(long millis, String zoneId) {
@@ -106,6 +153,14 @@ final class JdbcTestUtils {
     }
 
     static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_7_12_0);
+        return supportsDateNanos(JDBC_DRIVER_VERSION);
+    }
+
+    public static boolean isUnsignedLongSupported() {
+        return supportsUnsignedLong(JDBC_DRIVER_VERSION);
+    }
+
+    public static boolean isVersionFieldTypeSupported() {
+        return supportsVersionType(JDBC_DRIVER_VERSION);
     }
 }

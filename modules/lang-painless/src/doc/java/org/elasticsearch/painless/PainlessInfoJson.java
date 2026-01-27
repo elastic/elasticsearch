@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.action.PainlessContextClassBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextClassInfo;
 import org.elasticsearch.painless.action.PainlessContextConstructorInfo;
@@ -18,6 +16,9 @@ import org.elasticsearch.painless.action.PainlessContextFieldInfo;
 import org.elasticsearch.painless.action.PainlessContextInfo;
 import org.elasticsearch.painless.action.PainlessContextInstanceBindingInfo;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,10 +35,10 @@ public class PainlessInfoJson {
         private final List<PainlessContextInstanceBindingInfo> instanceBindings;
 
         public Context(
-                PainlessContextInfo info,
-                Set<PainlessContextClassInfo> commonClassInfos,
-                Map<String, String> javaNamesToDisplayNames,
-                JavadocExtractor extractor
+            PainlessContextInfo info,
+            Set<PainlessContextClassInfo> commonClassInfos,
+            Map<String, String> javaNamesToDisplayNames,
+            JavadocExtractor extractor
         ) throws IOException {
             this.name = info.getName();
             List<PainlessContextClassInfo> classInfos = ContextGeneratorCommon.excludeCommonClassInfos(commonClassInfos, info.getClasses());
@@ -50,9 +51,9 @@ public class PainlessInfoJson {
         }
 
         public Context(
-                PainlessContextInfo info,
-                Set<PainlessContextClassInfo> commonClassInfos,
-                Map<String, String> javaNamesToDisplayNames
+            PainlessContextInfo info,
+            Set<PainlessContextClassInfo> commonClassInfos,
+            Map<String, String> javaNamesToDisplayNames
         ) {
             this.name = info.getName();
             List<PainlessContextClassInfo> classInfos = ContextGeneratorCommon.excludeCommonClassInfos(commonClassInfos, info.getClasses());
@@ -91,13 +92,13 @@ public class PainlessInfoJson {
         private final List<Field> fields;
 
         private Class(
-                String name,
-                boolean imported,
-                List<Constructor> constructors,
-                List<Method> staticMethods,
-                List<Method> methods,
-                List<Field> staticFields,
-                List<Field> fields
+            String name,
+            boolean imported,
+            List<Constructor> constructors,
+            List<Method> staticMethods,
+            List<Method> methods,
+            List<Field> staticFields,
+            List<Field> fields
         ) {
             this.name = name;
             this.imported = imported;
@@ -133,7 +134,8 @@ public class PainlessInfoJson {
         public static List<Class> fromInfos(List<PainlessContextClassInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             List<Class> classes = new ArrayList<>(infos.size());
             for (PainlessContextClassInfo info : infos) {
-                classes.add(new Class(
+                classes.add(
+                    new Class(
                         javaNamesToDisplayNames.get(info.getName()),
                         info.isImported(),
                         Constructor.fromInfos(info.getConstructors(), javaNamesToDisplayNames),
@@ -141,7 +143,8 @@ public class PainlessInfoJson {
                         Method.fromInfos(info.getMethods(), javaNamesToDisplayNames),
                         Field.fromInfos(info.getStaticFields(), javaNamesToDisplayNames),
                         Field.fromInfos(info.getFields(), javaNamesToDisplayNames)
-                ));
+                    )
+                );
             }
             return classes;
         }
@@ -164,7 +167,7 @@ public class PainlessInfoJson {
 
     private static List<String> toDisplayParameterTypes(List<String> rawParameterTypes, Map<String, String> javaNamesToDisplayNames) {
         List<String> displayParameterTypes = new ArrayList<>(rawParameterTypes.size());
-        for (String rawParameterType: rawParameterTypes) {
+        for (String rawParameterType : rawParameterTypes) {
             displayParameterTypes.add(ContextGeneratorCommon.getType(javaNamesToDisplayNames, rawParameterType));
         }
         return displayParameterTypes;
@@ -181,12 +184,12 @@ public class PainlessInfoJson {
         public static final ParseField JAVADOC = new ParseField("javadoc");
 
         private Method(
-                String declaring,
-                String name,
-                String rtn,
-                JavadocExtractor.ParsedJavadoc javadoc,
-                List<String> parameters,
-                List<String> parameterNames
+            String declaring,
+            String name,
+            String rtn,
+            JavadocExtractor.ParsedJavadoc javadoc,
+            List<String> parameters,
+            List<String> parameterNames
         ) {
             this.declaring = declaring;
             this.name = name;
@@ -198,7 +201,7 @@ public class PainlessInfoJson {
 
         public static List<Method> fromInfos(List<PainlessContextMethodInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             List<Method> methods = new ArrayList<>(infos.size());
-            for (PainlessContextMethodInfo info: infos) {
+            for (PainlessContextMethodInfo info : infos) {
                 String returnType = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getRtn());
                 List<String> parameterTypes = toDisplayParameterTypes(info.getParameters(), javaNamesToDisplayNames);
                 methods.add(new Method(info.getDeclaring(), info.getName(), returnType, null, parameterTypes, null));
@@ -207,14 +210,14 @@ public class PainlessInfoJson {
         }
 
         public static List<Method> fromInfos(
-                List<PainlessContextMethodInfo> infos,
-                Map<String, String> javaNamesToDisplayNames,
-                JavadocExtractor.ParsedJavaClass parsed,
-                JavadocExtractor extractor,
-                String className
+            List<PainlessContextMethodInfo> infos,
+            Map<String, String> javaNamesToDisplayNames,
+            JavadocExtractor.ParsedJavaClass parsed,
+            JavadocExtractor extractor,
+            String className
         ) throws IOException {
             List<Method> methods = new ArrayList<>(infos.size());
-            for (PainlessContextMethodInfo info: infos) {
+            for (PainlessContextMethodInfo info : infos) {
                 JavadocExtractor.ParsedJavadoc javadoc = null;
                 List<String> parameterNames = null;
 
@@ -230,18 +233,20 @@ public class PainlessInfoJson {
                     }
                 }
                 if (parsedMethod != null) {
-                    javadoc = parsedMethod.javadoc;
-                    parameterNames = parsedMethod.parameterNames;
+                    javadoc = parsedMethod.javadoc();
+                    parameterNames = parsedMethod.parameterNames();
                 }
 
-                methods.add(new Method(
+                methods.add(
+                    new Method(
                         info.getDeclaring(),
                         name,
                         ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getRtn()),
                         javadoc,
                         parameterTypes,
                         parameterNames
-                ));
+                    )
+                );
             }
             return methods;
         }
@@ -275,10 +280,10 @@ public class PainlessInfoJson {
         public static final ParseField PARAMETER_NAMES = new ParseField("parameter_names");
 
         private Constructor(
-                String declaring,
-                List<String> parameters,
-                List<String> parameterNames,
-                JavadocExtractor.ParsedJavadoc javadoc
+            String declaring,
+            List<String> parameters,
+            List<String> parameterNames,
+            JavadocExtractor.ParsedJavadoc javadoc
         ) {
             this.declaring = declaring;
             this.parameters = parameters;
@@ -288,7 +293,7 @@ public class PainlessInfoJson {
 
         public static List<Constructor> fromInfos(List<PainlessContextConstructorInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             List<Constructor> constructors = new ArrayList<>(infos.size());
-            for (PainlessContextConstructorInfo info: infos) {
+            for (PainlessContextConstructorInfo info : infos) {
                 List<String> parameterTypes = toDisplayParameterTypes(info.getParameters(), javaNamesToDisplayNames);
                 constructors.add(new Constructor(info.getDeclaring(), parameterTypes, null, null));
             }
@@ -296,14 +301,14 @@ public class PainlessInfoJson {
         }
 
         private static List<Constructor> fromInfos(
-                List<PainlessContextConstructorInfo> infos,
-                Map<String, String> javaNamesToDisplayNames,
-                JavadocExtractor.ParsedJavaClass parsed,
-                JavadocExtractor extractor,
-                String className
+            List<PainlessContextConstructorInfo> infos,
+            Map<String, String> javaNamesToDisplayNames,
+            JavadocExtractor.ParsedJavaClass parsed,
+            JavadocExtractor extractor,
+            String className
         ) throws IOException {
             List<Constructor> constructors = new ArrayList<>(infos.size());
-            for (PainlessContextConstructorInfo info: infos) {
+            for (PainlessContextConstructorInfo info : infos) {
                 List<String> parameterTypes = toDisplayParameterTypes(info.getParameters(), javaNamesToDisplayNames);
                 List<String> parameterNames = null;
                 JavadocExtractor.ParsedJavadoc javadoc = null;
@@ -313,8 +318,8 @@ public class PainlessInfoJson {
                     parsedMethod = extractor.parseClass(info.getDeclaring()).getConstructor(parameterTypes);
                 }
                 if (parsedMethod != null) {
-                    parameterNames = parsedMethod.parameterNames;
-                    javadoc = parsedMethod.javadoc;
+                    parameterNames = parsedMethod.parameterNames();
+                    javadoc = parsedMethod.javadoc();
                 }
 
                 constructors.add(new Constructor(info.getDeclaring(), parameterTypes, parameterNames, javadoc));
@@ -356,7 +361,7 @@ public class PainlessInfoJson {
 
         public static List<Field> fromInfos(List<PainlessContextFieldInfo> infos, Map<String, String> javaNamesToDisplayNames) {
             List<Field> fields = new ArrayList<>(infos.size());
-            for (PainlessContextFieldInfo info: infos) {
+            for (PainlessContextFieldInfo info : infos) {
                 String type = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getType());
                 fields.add(new Field(info.getDeclaring(), info.getName(), type, null));
             }
@@ -364,12 +369,12 @@ public class PainlessInfoJson {
         }
 
         public static List<Field> fromInfos(
-                List<PainlessContextFieldInfo> infos,
-                Map<String, String> javaNamesToDisplayNames,
-                JavadocExtractor.ParsedJavaClass pj
+            List<PainlessContextFieldInfo> infos,
+            Map<String, String> javaNamesToDisplayNames,
+            JavadocExtractor.ParsedJavaClass pj
         ) {
             List<Field> fields = new ArrayList<>(infos.size());
-            for (PainlessContextFieldInfo info: infos) {
+            for (PainlessContextFieldInfo info : infos) {
                 String name = info.getName();
                 String type = ContextGeneratorCommon.getType(javaNamesToDisplayNames, info.getType());
                 fields.add(new Field(info.getDeclaring(), name, type, pj.getField(name)));

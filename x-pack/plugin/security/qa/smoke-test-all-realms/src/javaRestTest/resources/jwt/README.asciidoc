@@ -1,0 +1,32 @@
+===
+Request Headers
+===
+ES-Client-Authentication: client-shared-secret-string
+Authorization: eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhdWQ4Iiwic3ViIjoic2VjdXJpdHlfdGVzdF91c2VyIiwicm9sZXMiOiJbc2VjdXJpdHlfdGVzdF9yb2xlXSIsImlzcyI6ImlzczgiLCJleHAiOjQwNzA5MDg4MDAsImlhdCI6OTQ2Njg0ODAwfQ.YbMbSEY8j3BdE_M71np-5Q9DFHGcjZcu7D4Kk1Ji0wE
+
+===
+elasticsearch.yml settings
+===
+xpack.security.authc.realms.jwt.jwt8.order: 8
+xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
+xpack.security.authc.realms.jwt.jwt8.allowed_signature_algorithms: [HS256]
+xpack.security.authc.realms.jwt.jwt8.allowed_audiences: [aud8]
+xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
+xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SharedSecret
+
+===
+PKC JWKSet contents
+===
+Not found.
+
+===
+elasticsearch-keystore secure settings
+===
+xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
+xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string
+
+
+===
+Header: {"alg":"HS256"}
+Claims: {"aud":"aud8","sub":"security_test_user","roles":"[security_test_role]","iss":"iss8","exp":4070908800,"iat":946684800}
+===

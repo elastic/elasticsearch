@@ -23,9 +23,16 @@ public class PutDatafeedActionResponseTests extends AbstractWireSerializingTestC
     @Override
     protected Response createTestInstance() {
         DatafeedConfig.Builder datafeedConfig = new DatafeedConfig.Builder(
-                DatafeedConfigTests.randomValidDatafeedId(), randomAlphaOfLength(10));
+            DatafeedConfigTests.randomValidDatafeedId(),
+            randomAlphaOfLength(10)
+        );
         datafeedConfig.setIndices(Arrays.asList(randomAlphaOfLength(10)));
         return new Response(datafeedConfig.build());
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

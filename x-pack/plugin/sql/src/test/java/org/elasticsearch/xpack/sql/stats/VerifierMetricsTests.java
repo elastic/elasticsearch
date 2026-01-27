@@ -12,15 +12,14 @@ import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.GROUPBY;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.HAVING;
@@ -33,8 +32,14 @@ import static org.elasticsearch.xpack.sql.stats.Metrics.FPREFIX;
 public class VerifierMetricsTests extends ESTestCase {
 
     private SqlParser parser = new SqlParser();
-    private String[] commands = {"SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                 "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"};
+    private String[] commands = {
+        "SHOW FUNCTIONS",
+        "SHOW COLUMNS FROM library",
+        "SHOW SCHEMAS",
+        "SHOW TABLES",
+        "SYS COLUMNS LIKE '%name'",
+        "SYS TABLES",
+        "SYS TYPES" };
 
     public void testWhereQuery() {
         Counters c = sql("SELECT emp_no FROM test WHERE languages > 2");
@@ -92,8 +97,17 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testCommand() {
-        Counters c = sql(randomFrom("SHOW FUNCTIONS", "SHOW COLUMNS FROM library", "SHOW SCHEMAS",
-                                    "SHOW TABLES", "SYS COLUMNS LIKE '%name'", "SYS TABLES", "SYS TYPES"));
+        Counters c = sql(
+            randomFrom(
+                "SHOW FUNCTIONS",
+                "SHOW COLUMNS FROM library",
+                "SHOW SCHEMAS",
+                "SHOW TABLES",
+                "SYS COLUMNS LIKE '%name'",
+                "SYS TABLES",
+                "SYS TYPES"
+            )
+        );
         assertEquals(0, where(c));
         assertEquals(0, limit(c));
         assertEquals(0, groupby(c));
@@ -148,8 +162,9 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testWhereLimitGroupByHavingOrderByQuery() {
-        Counters c = sql("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3"
-                      + " ORDER BY languages LIMIT 5");
+        Counters c = sql(
+            "SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3" + " ORDER BY languages LIMIT 5"
+        );
         assertEquals(1L, where(c));
         assertEquals(1L, limit(c));
         assertEquals(1L, groupby(c));
@@ -163,8 +178,10 @@ public class VerifierMetricsTests extends ESTestCase {
         Metrics metrics = new Metrics();
         Verifier verifier = new Verifier(metrics);
         sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages LIMIT 5", verifier);
-        sqlWithVerifier("SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 "
-                      + "ORDER BY languages LIMIT 5", verifier);
+        sqlWithVerifier(
+            "SELECT languages FROM test WHERE languages > 2 GROUP BY languages HAVING MAX(languages) > 3 " + "ORDER BY languages LIMIT 5",
+            verifier
+        );
         Counters c = metrics.stats();
 
         assertEquals(2L, where(c));
@@ -240,7 +257,7 @@ public class VerifierMetricsTests extends ESTestCase {
             verifier = new Verifier(metrics);
         }
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), IndexResolution.valid(test), verifier);
+        Analyzer analyzer = analyzer(IndexResolution.valid(test), verifier);
         analyzer.analyze(parser.createStatement(sql), true);
 
         return metrics == null ? null : metrics.stats();

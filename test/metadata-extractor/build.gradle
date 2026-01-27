@@ -1,0 +1,8 @@
+plugins {
+  id 'elasticsearch.java'
+}
+
+dependencies {
+  implementation project(':server')
+  testImplementation project(':test:framework')
+}

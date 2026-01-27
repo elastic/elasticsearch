@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.role.PutRoleRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,20 +29,19 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest endpoint to add a Role to the security index
  */
-public class RestPutRoleAction extends SecurityBaseRestHandler {
+@ServerlessScope(Scope.PUBLIC)
+public class RestPutRoleAction extends NativeRoleBaseRestHandler {
 
-    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState) {
+    private final PutRoleRequestBuilderFactory builderFactory;
+
+    public RestPutRoleAction(Settings settings, XPackLicenseState licenseState, PutRoleRequestBuilderFactory builderFactory) {
         super(settings, licenseState);
+        this.builderFactory = builderFactory;
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_security/role/{name}")
-                .replaces(POST, "/_xpack/security/role/{name}", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_security/role/{name}")
-                .replaces(PUT, "/_xpack/security/role/{name}", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_security/role/{name}"), new Route(PUT, "/_security/role/{name}"));
     }
 
     @Override
@@ -52,13 +51,13 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
 
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        PutRoleRequestBuilder requestBuilder = new PutRoleRequestBuilder(client)
+        final PutRoleRequestBuilder requestBuilder = builderFactory.create(client)
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PutRoleResponse putRoleResponse, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
+                return new RestResponse(RestStatus.OK, builder.startObject().field("role", putRoleResponse).endObject());
             }
         });
     }

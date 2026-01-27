@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.action.GetRecordsAction.Response;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
+import org.elasticsearch.xpack.core.ml.action.GetRecordsAction.Response;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 
 import java.util.ArrayList;
@@ -29,6 +29,11 @@ public class GetRecordsActionResponseTests extends AbstractWireSerializingTestCa
         }
         QueryPage<AnomalyRecord> snapshots = new QueryPage<>(hits, listSize, AnomalyRecord.RESULTS_FIELD);
         return new Response(snapshots);
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

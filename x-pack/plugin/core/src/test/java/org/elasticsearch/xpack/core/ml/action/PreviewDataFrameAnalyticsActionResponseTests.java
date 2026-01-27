@@ -21,10 +21,13 @@ public class PreviewDataFrameAnalyticsActionResponseTests extends AbstractWireSe
     @Override
     protected Response createTestInstance() {
         return new Response(
-            Stream.generate(() -> randomHashMap("foo", "bar", "baz"))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList())
+            Stream.generate(() -> randomHashMap("foo", "bar", "baz")).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
         );
+    }
+
+    @Override
+    protected Response mutateInstance(Response instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     private static Map<String, Object> randomHashMap(String... keys) {

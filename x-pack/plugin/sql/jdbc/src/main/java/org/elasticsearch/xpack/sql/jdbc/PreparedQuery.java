@@ -70,9 +70,9 @@ class PreparedQuery {
      * Returns the parameters if the SQL statement is parametrized
      */
     List<SqlTypedParamValue> params() {
-        return Arrays.stream(this.params).map(
-                paramInfo -> new SqlTypedParamValue(paramInfo.type.name(), paramInfo.value)
-        ).collect(Collectors.toList());
+        return Arrays.stream(this.params)
+            .map(paramInfo -> new SqlTypedParamValue(paramInfo.type.name(), paramInfo.value))
+            .collect(Collectors.toList());
     }
 
     @Override

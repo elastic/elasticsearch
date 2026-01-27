@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -30,7 +32,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , new ParseField("source", "inline")),
+    INLINE(0, new ParseField("source", "inline")),
 
     /**
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
@@ -39,7 +41,7 @@ public enum ScriptType implements Writeable {
      * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("id", "stored"));
+    STORED(1, new ParseField("id", "stored"));
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
@@ -54,14 +56,22 @@ public enum ScriptType implements Writeable {
         } else if (INLINE.id == id) {
             return INLINE;
         } else {
-            throw new IllegalStateException("Error reading ScriptType id [" + id + "] from stream, expected one of [" +
-                STORED.id + " [" + STORED.parseField.getPreferredName() + "], " +
-                INLINE.id + " [" + INLINE.parseField.getPreferredName() + "]]");
+            throw new IllegalStateException(
+                Strings.format(
+                    "Error reading ScriptType id [%s] from stream, expected one of [%s [%s], %s [%s]]",
+                    id,
+                    STORED.id,
+                    STORED.parseField.getPreferredName(),
+                    INLINE.id,
+                    INLINE.parseField.getPreferredName()
+                )
+            );
         }
     }
 
     private final int id;
     private final ParseField parseField;
+    private final String name;
 
     /**
      * Standard constructor.
@@ -71,6 +81,7 @@ public enum ScriptType implements Writeable {
     ScriptType(int id, ParseField parseField) {
         this.id = id;
         this.parseField = parseField;
+        this.name = name().toLowerCase(Locale.ROOT); // pre-allocate the lowercased name string
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -88,7 +99,7 @@ public enum ScriptType implements Writeable {
      * @return The unique name for this {@link ScriptType} based on the {@link ParseField}.
      */
     public String getName() {
-        return name().toLowerCase(Locale.ROOT);
+        return name;
     }
 
     /**

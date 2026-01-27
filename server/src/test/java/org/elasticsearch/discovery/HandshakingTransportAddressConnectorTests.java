@@ -1,30 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,12 +42,13 @@ import org.junit.Before;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -66,7 +69,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
     @Before
     public void startServices() {
-        localNode = new DiscoveryNode("local-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        localNode = DiscoveryNodeUtils.create("local-node");
         final Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(CLUSTER_NAME_SETTING.getKey(), "local-cluster")
@@ -91,18 +94,23 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     if (fullConnectionFailure != null && node.getAddress().equals(remoteNode.getAddress())) {
                         handleError(requestId, fullConnectionFailure);
                     } else {
-                        handleResponse(requestId, new HandshakeResponse(
-                                Version.CURRENT,
-                                Build.CURRENT.hash(),
-                                remoteNode,
-                                new ClusterName(remoteClusterName)));
+                        handleResponse(
+                            requestId,
+                            new HandshakeResponse(Version.CURRENT, Build.current().hash(), remoteNode, new ClusterName(remoteClusterName))
+                        );
                     }
                 }
             }
         };
 
-        transportService = mockTransport.createTransportService(settings, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, address -> localNode, null, emptySet());
+        transportService = mockTransport.createTransportService(
+            settings,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            address -> localNode,
+            null,
+            emptySet()
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -120,31 +128,27 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
         final CountDownLatch completionLatch = new CountDownLatch(1);
         final SetOnce<DiscoveryNode> receivedNode = new SetOnce<>();
 
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = DiscoveryNodeUtils.create("remote-node");
         remoteClusterName = "local-cluster";
         discoveryAddress = getDiscoveryAddress();
 
-        handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, new ActionListener<ProbeConnectionResult>() {
-            @Override
-            public void onResponse(ProbeConnectionResult connectResult) {
+        handshakingTransportAddressConnector.connectToRemoteMasterNode(
+            discoveryAddress,
+            ActionTestUtils.assertNoFailureListener(connectResult -> {
                 receivedNode.set(connectResult.getDiscoveryNode());
                 completionLatch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError(e);
-            }
-        });
+            })
+        );
 
         assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
         assertEquals(remoteNode, receivedNode.get());
     }
 
-    @TestLogging(reason="ensure logging happens", value="org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
+    @TestLogging(reason = "ensure logging happens", value = "org.elasticsearch.discovery.HandshakingTransportAddressConnector:INFO")
     public void testLogsFullConnectionFailureAfterSuccessfulHandshake() throws Exception {
 
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var remoteNodeAddress = buildNewFakeTransportAddress();
+        remoteNode = DiscoveryNodeUtils.create("remote-node", remoteNodeAddress);
         remoteClusterName = "local-cluster";
         discoveryAddress = buildNewFakeTransportAddress();
 
@@ -152,35 +156,48 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.WARN,
-                "*completed handshake with [*] but followup connection failed*"));
-        Logger targetLogger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
-        Loggers.addAppender(targetLogger, mockAppender);
+        try (var mockLog = MockLog.capture(HandshakingTransportAddressConnector.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message",
+                    HandshakingTransportAddressConnector.class.getCanonicalName(),
+                    Level.WARN,
+                    Strings.format(
+                        """
+                            Successfully discovered master-eligible node [%s] at address [%s] but could not connect to it at its publish \
+                            address of [%s]. Each node in a cluster must be accessible at its publish address by all other nodes in the \
+                            cluster. See %s for more information.""",
+                        remoteNode.descriptionWithoutAttributes(),
+                        discoveryAddress,
+                        remoteNodeAddress,
+                        ReferenceDocs.NETWORK_BINDING_AND_PUBLISHING
+                    )
+                )
+            );
 
-        try {
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-            failureListener.assertFailure();
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(targetLogger, mockAppender);
-            mockAppender.stop();
+            assertThat(failureListener.getFailureMessage(), containsString("simulated"));
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testDoesNotConnectToNonMasterNode() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        remoteNode = DiscoveryNodeUtils.builder("remote-node").roles(emptySet()).build();
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(
+            failureListener.getFailureMessage(),
+            allOf(
+                containsString("successfully discovered master-ineligible node"),
+                containsString(remoteNode.descriptionWithoutAttributes()),
+                containsString("to suppress this message"),
+                containsString("remove address [" + discoveryAddress + "] from your discovery configuration"),
+                containsString("ensure that traffic to this address is routed only to master-eligible nodes")
+            )
+        );
     }
 
     public void testDoesNotConnectToLocalNode() throws Exception {
@@ -190,17 +207,20 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(failureListener.getFailureMessage(), containsString("successfully discovered local node"));
     }
 
     public void testDoesNotConnectToDifferentCluster() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = DiscoveryNodeUtils.create("remote-node");
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "another-cluster";
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(
+            failureListener.getFailureMessage(),
+            containsString("remote cluster name [another-cluster] does not match local cluster name [local-cluster]")
+        );
     }
 
     public void testTimeoutDefaults() {
@@ -209,14 +229,14 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
     }
 
     public void testHandshakeTimesOut() throws InterruptedException {
-        remoteNode = new DiscoveryNode("remote-node", buildNewFakeTransportAddress(), Version.CURRENT);
+        remoteNode = DiscoveryNodeUtils.create("remote-node");
         discoveryAddress = getDiscoveryAddress();
         remoteClusterName = "local-cluster";
         dropHandshake = true;
 
         FailureListener failureListener = new FailureListener();
         handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
-        failureListener.assertFailure();
+        assertThat(failureListener.getFailureMessage(), containsString("timed out"));
     }
 
     private TransportAddress getDiscoveryAddress() {
@@ -225,6 +245,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
     private static class FailureListener implements ActionListener<ProbeConnectionResult> {
         final CountDownLatch completionLatch = new CountDownLatch(1);
+        String message;
 
         @Override
         public void onResponse(ProbeConnectionResult connectResult) {
@@ -233,11 +254,13 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         @Override
         public void onFailure(Exception e) {
+            message = e.getMessage();
             completionLatch.countDown();
         }
 
-        void assertFailure() throws InterruptedException {
-            assertTrue(completionLatch.await(15, TimeUnit.SECONDS));
+        String getFailureMessage() throws InterruptedException {
+            assertTrue("timed out waiting for listener to complete", completionLatch.await(15, TimeUnit.SECONDS));
+            return message;
         }
     }
 }

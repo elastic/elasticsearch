@@ -9,13 +9,12 @@ package org.elasticsearch.xpack.core.watcher.transport.actions.service;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 
-
 public class WatcherServiceAction extends ActionType<AcknowledgedResponse> {
 
     public static final WatcherServiceAction INSTANCE = new WatcherServiceAction();
     public static final String NAME = "cluster:admin/xpack/watcher/service";
 
     private WatcherServiceAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 }

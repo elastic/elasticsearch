@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.translog;
 
@@ -45,7 +46,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
         return totalOperations;
     }
 
-    int skippedOperations(){
+    int skippedOperations() {
         return skippedOperations;
     }
 
@@ -62,6 +63,7 @@ final class TranslogSnapshot extends BaseTranslogReader {
             }
             skippedOperations++;
         }
+        reuse = null; // release buffer, it may be large and is no longer needed
         return null;
     }
 
@@ -84,12 +86,30 @@ final class TranslogSnapshot extends BaseTranslogReader {
     protected void readBytes(ByteBuffer buffer, long position) throws IOException {
         try {
             if (position >= length) {
-                throw new EOFException("read requested past EOF. pos [" + position + "] end: [" + length + "], generation: [" +
-                    getGeneration() + "], path: [" + path + "]");
+                throw new EOFException(
+                    "read requested past EOF. pos ["
+                        + position
+                        + "] end: ["
+                        + length
+                        + "], generation: ["
+                        + getGeneration()
+                        + "], path: ["
+                        + path
+                        + "]"
+                );
             }
             if (position < getFirstOperationOffset()) {
-                throw new IOException("read requested before position of first ops. pos [" + position + "] first op on: [" +
-                    getFirstOperationOffset() + "], generation: [" + getGeneration() + "], path: [" + path + "]");
+                throw new IOException(
+                    "read requested before position of first ops. pos ["
+                        + position
+                        + "] first op on: ["
+                        + getFirstOperationOffset()
+                        + "], generation: ["
+                        + getGeneration()
+                        + "], path: ["
+                        + path
+                        + "]"
+                );
             }
             Channels.readFromFileChannelWithEofException(channel, position, buffer);
         } catch (EOFException e) {
@@ -99,13 +119,19 @@ final class TranslogSnapshot extends BaseTranslogReader {
 
     @Override
     public String toString() {
-        return "TranslogSnapshot{" +
-                "readOperations=" + readOperations +
-                ", position=" + position +
-                ", estimateTotalOperations=" + totalOperations +
-                ", length=" + length +
-                ", generation=" + generation +
-                ", reusableBuffer=" + reusableBuffer +
-                '}';
+        return "TranslogSnapshot{"
+            + "readOperations="
+            + readOperations
+            + ", position="
+            + position
+            + ", estimateTotalOperations="
+            + totalOperations
+            + ", length="
+            + length
+            + ", generation="
+            + generation
+            + ", reusableBuffer="
+            + reusableBuffer
+            + '}';
     }
 }

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.ml.calendars;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
+public class CalendarTests extends AbstractXContentSerializingTestCase<Calendar> {
 
     public static Calendar testInstance() {
         return testInstance(JobTests.randomValidJobId());
@@ -45,6 +45,11 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
     }
 
     @Override
+    protected Calendar mutateInstance(Calendar instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Writeable.Reader<Calendar> instanceReader() {
         return Calendar::new;
     }
@@ -66,8 +71,7 @@ public class CalendarTests extends AbstractSerializingTestCase<Calendar> {
     public void testStrictParser() throws IOException {
         String json = "{\"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> Calendar.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Calendar.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }

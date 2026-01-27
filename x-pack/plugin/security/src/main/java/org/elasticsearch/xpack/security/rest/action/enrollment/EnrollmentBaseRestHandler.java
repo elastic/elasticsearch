@@ -25,14 +25,14 @@ public abstract class EnrollmentBaseRestHandler extends SecurityBaseRestHandler 
     }
 
     @Override
-    protected Exception checkFeatureAvailable(RestRequest request) {
-        Exception failedFeature = super.checkFeatureAvailable(request);
-        if (failedFeature != null) {
-            return failedFeature;
-        } else if (XPackSettings.ENROLLMENT_ENABLED.get(settings) == false) {
-            return new ElasticsearchSecurityException("Enrollment mode is not enabled. Set [" + XPackSettings.ENROLLMENT_ENABLED.getKey() +
-                "] to true, in order to use this API.",
-                RestStatus.FORBIDDEN);
+    protected Exception innerCheckFeatureAvailable(RestRequest request) {
+        if (XPackSettings.ENROLLMENT_ENABLED.get(settings) == false) {
+            return new ElasticsearchSecurityException(
+                "Enrollment mode is not enabled. Set ["
+                    + XPackSettings.ENROLLMENT_ENABLED.getKey()
+                    + "] to true, in order to use this API.",
+                RestStatus.FORBIDDEN
+            );
         } else {
             return null;
         }

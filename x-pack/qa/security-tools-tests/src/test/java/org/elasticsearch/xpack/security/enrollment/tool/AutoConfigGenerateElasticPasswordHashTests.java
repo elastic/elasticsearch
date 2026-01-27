@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -28,10 +31,9 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
-import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH;
+import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
@@ -82,10 +84,11 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
         }
     }
 
-    @Override protected Command newCommand() {
+    @Override
+    protected Command newCommand() {
         return new AutoConfigGenerateElasticPasswordHash() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
         };
@@ -94,19 +97,18 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
     public void testSuccessfullyGenerateAndStoreHash() throws Exception {
         execute();
         assertThat(terminal.getOutput(), hasLength(20));
-        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configDir());
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
-        assertThat(keyStoreWrapper.getSettingNames(),
-            containsInAnyOrder(AUTOCONFIG_BOOOTSTRAP_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
+        assertThat(keyStoreWrapper.getSettingNames(), containsInAnyOrder(AUTOCONFIG_ELASTIC_PASSWORD_HASH.getKey(), "keystore.seed"));
     }
 
     public void testExistingKeystoreWithWrongPassword() throws Exception {
-        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configFile());
+        KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.load(env.configDir());
         assertNotNull(keyStoreWrapper);
         keyStoreWrapper.decrypt(new char[0]);
         // set a random password so that we fail to decrypt it in GenerateElasticPasswordHash#execute
-        keyStoreWrapper.save(env.configFile(), randomAlphaOfLength(16).toCharArray());
+        keyStoreWrapper.save(env.configDir(), randomAlphaOfLength(16).toCharArray());
         UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e.getMessage(), equalTo("Failed to generate a password for the elastic user"));
         assertThat(terminal.getOutput(), is(emptyString()));

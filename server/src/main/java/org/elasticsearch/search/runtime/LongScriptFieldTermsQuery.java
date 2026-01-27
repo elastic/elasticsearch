@@ -1,29 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
-    private final LongSet terms;
+    private final Set<Long> terms;
 
     public LongScriptFieldTermsQuery(
         Script script,
         Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
-        LongSet terms
+        Set<Long> terms
     ) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
@@ -61,7 +62,7 @@ public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
         return terms.equals(other.terms);
     }
 
-    LongSet terms() {
+    Set<Long> terms() {
         return terms;
     }
 }

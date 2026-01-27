@@ -6,12 +6,11 @@
  */
 package org.elasticsearch.xpack.core.indexing;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,12 +41,22 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     private long startSearchTime;
     private long startProcessingTime;
 
-    public IndexerJobStats() {
-    }
+    public IndexerJobStats() {}
 
-    public IndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                           long indexTime, long searchTime, long processingTime, long indexTotal, long searchTotal,
-                           long processingTotal, long indexFailures, long searchFailures) {
+    public IndexerJobStats(
+        long numPages,
+        long numInputDocuments,
+        long numOuputDocuments,
+        long numInvocations,
+        long indexTime,
+        long searchTime,
+        long processingTime,
+        long indexTotal,
+        long searchTotal,
+        long processingTotal,
+        long indexFailures,
+        long searchFailures
+    ) {
         this.numPages = numPages;
         this.numInputDocuments = numInputDocuments;
         this.numOuputDocuments = numOuputDocuments;
@@ -73,11 +82,8 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         this.searchTotal = in.readVLong();
         this.indexFailures = in.readVLong();
         this.searchFailures = in.readVLong();
-
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.processingTime = in.readVLong();
-            this.processingTotal = in.readVLong();
-        }
+        this.processingTime = in.readVLong();
+        this.processingTotal = in.readVLong();
     }
 
     public long getNumPages() {
@@ -129,22 +135,22 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
     }
 
     public void incrementNumPages(long n) {
-        assert(n >= 0);
+        assert (n >= 0);
         numPages += n;
     }
 
     public void incrementNumDocuments(long n) {
-        assert(n >= 0);
+        assert (n >= 0);
         numInputDocuments += n;
     }
 
     public void incrementNumInvocations(long n) {
-        assert(n >= 0);
+        assert (n >= 0);
         numInvocations += n;
     }
 
     public void incrementNumOutputDocuments(long n) {
-        assert(n >= 0);
+        assert (n >= 0);
         numOuputDocuments += n;
     }
 
@@ -195,10 +201,8 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
         out.writeVLong(searchTotal);
         out.writeVLong(indexFailures);
         out.writeVLong(searchFailures);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVLong(processingTime);
-            out.writeVLong(processingTotal);
-        }
+        out.writeVLong(processingTime);
+        out.writeVLong(processingTotal);
     }
 
     @Override
@@ -229,7 +233,19 @@ public abstract class IndexerJobStats implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-            indexTime, searchTime, processingTime, indexFailures, searchFailures, indexTotal, searchTotal, processingTotal);
+        return Objects.hash(
+            numPages,
+            numInputDocuments,
+            numOuputDocuments,
+            numInvocations,
+            indexTime,
+            searchTime,
+            processingTime,
+            indexFailures,
+            searchFailures,
+            indexTotal,
+            searchTotal,
+            processingTotal
+        );
     }
 }

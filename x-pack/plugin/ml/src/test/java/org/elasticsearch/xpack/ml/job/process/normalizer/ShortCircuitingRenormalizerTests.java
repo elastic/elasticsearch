@@ -18,12 +18,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
 
 public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
@@ -48,12 +47,12 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
             // Blast through many sets of quantiles in quick succession, faster than the normalizer can process them
             for (int i = 1; i < TEST_SIZE / 2; ++i) {
                 Quantiles quantiles = new Quantiles(JOB_ID, new Date(), Integer.toString(i));
-                renormalizer.renormalize(quantiles);
+                renormalizer.renormalize(quantiles, () -> {});
             }
             renormalizer.waitUntilIdle();
             for (int i = TEST_SIZE / 2; i <= TEST_SIZE; ++i) {
                 Quantiles quantiles = new Quantiles(JOB_ID, new Date(), Integer.toString(i));
-                renormalizer.renormalize(quantiles);
+                renormalizer.renormalize(quantiles, () -> {});
             }
             renormalizer.waitUntilIdle();
 
@@ -77,8 +76,10 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
             // The quantiles immediately before the intermediate wait for idle must have been processed
             int intermediateWaitPoint = TEST_SIZE / 2 - 1;
-            assertTrue(quantilesUsed + " should contain " + intermediateWaitPoint,
-                    quantilesUsed.contains(Integer.toString(intermediateWaitPoint)));
+            assertTrue(
+                quantilesUsed + " should contain " + intermediateWaitPoint,
+                quantilesUsed.contains(Integer.toString(intermediateWaitPoint))
+            );
         } finally {
             threadpool.shutdown();
         }

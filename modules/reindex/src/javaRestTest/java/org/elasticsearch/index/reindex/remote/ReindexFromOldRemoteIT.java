@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex.remote;
@@ -32,6 +33,7 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
         assumeTrue("test is disabled, probably because this is windows", enabled);
 
         int oldEsPort = Integer.parseInt(System.getProperty(portPropertyName));
+        boolean success = false;
         try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
             try {
                 Request createIndex = new Request("PUT", "/test");
@@ -48,35 +50,35 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 Request reindex = new Request("POST", "/_reindex");
                 if (randomBoolean()) {
                     // Reindex using the external version_type
-                    reindex.setJsonEntity(
-                        "{\n"
-                            + "  \"source\":{\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"size\": 1,\n"
-                            + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
-                            + "    }\n"
-                            + "  },\n"
-                            + "  \"dest\": {\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"version_type\": \"external\"\n"
-                            + "  }\n"
-                            + "}");
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                        {
+                          "source":{
+                            "index": "test",
+                            "size": 1,
+                            "remote": {
+                              "host": "http://127.0.0.1:%s"
+                            }
+                          },
+                          "dest": {
+                            "index": "test",
+                            "version_type": "external"
+                          }
+                        }""", oldEsPort));
                 } else {
                     // Reindex using the default internal version_type
-                    reindex.setJsonEntity(
-                        "{\n"
-                            + "  \"source\":{\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"size\": 1,\n"
-                            + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
-                            + "    }\n"
-                            + "  },\n"
-                            + "  \"dest\": {\n"
-                            + "    \"index\": \"test\"\n"
-                            + "  }\n"
-                            + "}");
+                    reindex.setJsonEntity(String.format(java.util.Locale.ROOT, """
+                        {
+                          "source":{
+                            "index": "test",
+                            "size": 1,
+                            "remote": {
+                              "host": "http://127.0.0.1:%s"
+                            }
+                          },
+                          "dest": {
+                            "index": "test"
+                          }
+                        }""", oldEsPort));
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");
@@ -92,8 +94,18 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 for (int i = 0; i < DOCS; i++) {
                     assertThat(result, containsString("\"_id\" : \"testdoc" + i + "\""));
                 }
+                success = true;
             } finally {
-                oldEs.performRequest(new Request("DELETE", "/test"));
+                try {
+                    oldEs.performRequest(new Request("DELETE", "/test"));
+                } catch (Exception deleteException) {
+                    logger.warn("Exception deleting index", deleteException);
+                    if (success) {
+                        // When the test succeeds the delete should not fail. So if it unexpectandly fails
+                        // here, we propogate it.
+                        throw deleteException;
+                    }
+                }
             }
         }
     }

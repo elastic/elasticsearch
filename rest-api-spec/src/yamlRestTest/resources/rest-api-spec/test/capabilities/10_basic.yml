@@ -1,0 +1,29 @@
+---
+"Capabilities API":
+
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_capabilities
+          parameters: [method, path, parameters, capabilities]
+          capabilities: []
+      reason: "capabilities api requires itself to be supported"
+
+  - do:
+      capabilities:
+        method: GET
+        path: /_capabilities
+        parameters: method,path,parameters,capabilities
+        error_trace: false
+
+  - match: { supported: true }
+
+  - do:
+      capabilities:
+        method: GET
+        path: /_capabilities
+        parameters: unknown
+        error_trace: false
+
+  - match: { supported: false }

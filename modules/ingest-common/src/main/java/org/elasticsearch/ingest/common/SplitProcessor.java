@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -33,8 +35,15 @@ public final class SplitProcessor extends AbstractProcessor {
     private final boolean preserveTrailing;
     private final String targetField;
 
-    SplitProcessor(String tag, String description, String field, String separator, boolean ignoreMissing, boolean preserveTrailing,
-                   String targetField) {
+    SplitProcessor(
+        String tag,
+        String description,
+        String field,
+        String separator,
+        boolean ignoreMissing,
+        boolean preserveTrailing,
+        String targetField
+    ) {
         super(tag, description);
         this.field = field;
         this.separator = separator;
@@ -55,7 +64,9 @@ public final class SplitProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
-    boolean isPreserveTrailing() { return preserveTrailing; }
+    boolean isPreserveTrailing() {
+        return preserveTrailing;
+    }
 
     String getTargetField() {
         return targetField;
@@ -85,8 +96,13 @@ public final class SplitProcessor extends AbstractProcessor {
 
     public static class Factory implements Processor.Factory {
         @Override
-        public SplitProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                     String description, Map<String, Object> config) throws Exception {
+        public SplitProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean preserveTrailing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "preserve_trailing", false);

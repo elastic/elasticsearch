@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -13,8 +14,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.ArrayUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -44,13 +45,20 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
     protected RankEvalRequest createTestInstance() {
         int numberOfIndices = randomInt(3);
         String[] indices = new String[numberOfIndices];
-        for (int i=0; i < numberOfIndices; i++) {
+        for (int i = 0; i < numberOfIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         RankEvalRequest rankEvalRequest = new RankEvalRequest(RankEvalSpecTests.createTestItem(), indices);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(
-                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
-            randomBoolean());
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
         rankEvalRequest.indicesOptions(indicesOptions);
         rankEvalRequest.searchType(randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH));
         return rankEvalRequest;
@@ -66,8 +74,14 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         RankEvalRequest mutation = copyInstance(instance);
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(instance.indices(), new String[] { randomAlphaOfLength(10) })));
-        mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(instance.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+        mutators.add(
+            () -> mutation.indicesOptions(
+                randomValueOtherThan(
+                    instance.indicesOptions(),
+                    () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+                )
+            )
+        );
         mutators.add(() -> {
             if (instance.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
                 mutation.searchType(SearchType.QUERY_THEN_FETCH);

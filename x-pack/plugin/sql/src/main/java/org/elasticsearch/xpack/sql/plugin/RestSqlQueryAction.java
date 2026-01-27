@@ -7,16 +7,20 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,32 +29,47 @@ import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
+import static org.elasticsearch.xpack.ql.util.LoggingUtils.logOnFailure;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_QUERY_REST_ENDPOINT;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.URL_PARAM_DELIMITER;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestSqlQueryAction extends BaseRestHandler {
+    private static final Logger LOGGER = LogManager.getLogger(RestSqlQueryAction.class);
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestSqlQueryAction(Settings settings) {
+        crossProjectModeDecider = new CrossProjectModeDecider(settings);
+    }
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, Protocol.SQL_QUERY_REST_ENDPOINT),
-            new Route(POST, Protocol.SQL_QUERY_REST_ENDPOINT));
-    }
-
-    public MediaTypeRegistry<? extends MediaType> validAcceptMediaTypes() {
-        return SqlMediaTypeParser.MEDIA_TYPE_REGISTRY;
+        return List.of(new Route(GET, SQL_QUERY_REST_ENDPOINT), new Route(POST, SQL_QUERY_REST_ENDPOINT));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-            throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+
         SqlQueryRequest sqlRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             sqlRequest = SqlQueryRequest.fromXContent(parser);
         }
 
+        if (sqlRequest.projectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+            throw new InvalidArgumentException("[project_routing] is only allowed when cross-project search is enabled");
+        }
+
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new SqlResponseListener(channel, request, sqlRequest));
+            cancellableClient.execute(
+                SqlQueryAction.INSTANCE,
+                sqlRequest,
+                new SqlResponseListener(channel, request, sqlRequest).delegateResponse((l, ex) -> {
+                    logOnFailure(LOGGER, ex);
+                    l.onFailure(ex);
+                })
+            );
         };
     }
 

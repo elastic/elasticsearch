@@ -14,7 +14,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
 /**
@@ -23,11 +23,11 @@ import java.util.function.Predicate;
  */
 public class TypedChainTaskExecutor<T> {
 
-    public interface ChainTask <T> {
+    public interface ChainTask<T> {
         void run(ActionListener<T> listener);
     }
 
-    private final ExecutorService executorService;
+    private final Executor executorService;
     private final LinkedList<ChainTask<T>> tasks = new LinkedList<>();
     private final Predicate<Exception> failureShortCircuitPredicate;
     private final Predicate<T> continuationPredicate;
@@ -47,9 +47,11 @@ public class TypedChainTaskExecutor<T> {
      *                                     {@code true} means that no more tasks should execute and the listener::onFailure should be
      *                                     called.
      */
-    public TypedChainTaskExecutor(ExecutorService executorService,
-                                  Predicate<T> continuationPredicate,
-                                  Predicate<Exception> failureShortCircuitPredicate) {
+    public TypedChainTaskExecutor(
+        Executor executorService,
+        Predicate<T> continuationPredicate,
+        Predicate<Exception> failureShortCircuitPredicate
+    ) {
         this.executorService = Objects.requireNonNull(executorService);
         this.continuationPredicate = continuationPredicate;
         this.failureShortCircuitPredicate = failureShortCircuitPredicate;
@@ -66,7 +68,7 @@ public class TypedChainTaskExecutor<T> {
             if (tasks.isEmpty()) {
                 // noinspection Java9CollectionFactory (because the list can contain null entries)
                 listener.onResponse(Collections.unmodifiableList(new ArrayList<>(collectedResponses)));
-               return;
+                return;
             }
             ChainTask<T> task = tasks.pop();
             executorService.execute(new AbstractRunnable() {

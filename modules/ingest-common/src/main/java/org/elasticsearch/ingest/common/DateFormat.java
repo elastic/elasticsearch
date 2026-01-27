@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -36,12 +37,10 @@ enum DateFormat {
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale) {
             return (date) -> {
-                TemporalAccessor accessor = DateFormatter.forPattern("iso8601").parse(date);
-                //even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
-                return DateFormatters.from(accessor, Locale.ROOT, timezone)
-                                                .withZoneSameInstant(timezone);
+                TemporalAccessor accessor = ISO_8601.parse(date);
+                // even though locale could be set to en-us, Locale.ROOT (following iso8601 calendar data rules) should be used
+                return DateFormatters.from(accessor, Locale.ROOT, timezone).withZoneSameInstant(timezone);
             };
-
         }
     },
     Unix {
@@ -62,19 +61,25 @@ enum DateFormat {
             return date -> Instant.ofEpochMilli(parseMillis(date)).atZone(timezone);
         }
 
-        private long parseMillis(String date) {
+        private static long parseMillis(String date) {
             if (date.startsWith("@")) {
                 date = date.substring(1);
             }
             long base = Long.parseLong(date.substring(1, 16), 16);
             // 1356138046000
             long rest = Long.parseLong(date.substring(16, 24), 16);
-            return ((base * 1000) - 10000) + (rest/1000000);
+            return ((base * 1000) - 10000) + (rest / 1000000);
         }
     },
     Java {
-        private final List<ChronoField> FIELDS =
-            Arrays.asList(NANO_OF_SECOND, SECOND_OF_DAY, MINUTE_OF_DAY, HOUR_OF_DAY, DAY_OF_MONTH, MONTH_OF_YEAR);
+        private final List<ChronoField> FIELDS = Arrays.asList(
+            NANO_OF_SECOND,
+            SECOND_OF_DAY,
+            MINUTE_OF_DAY,
+            HOUR_OF_DAY,
+            DAY_OF_MONTH,
+            MONTH_OF_YEAR
+        );
 
         @Override
         Function<String, ZonedDateTime> getFunction(String format, ZoneId zoneId, Locale locale) {
@@ -83,14 +88,8 @@ enum DateFormat {
                 format = format.substring(1);
             }
 
-            boolean isUtc = ZoneOffset.UTC.equals(zoneId);
+            DateFormatter dateFormatter = DateFormatter.forPattern(format).withLocale(locale);
 
-            DateFormatter dateFormatter = DateFormatter.forPattern(format)
-                .withLocale(locale);
-            // if UTC zone is set here, the time zone specified in the format will be ignored, leading to wrong dates
-            if (isUtc == false) {
-                dateFormatter = dateFormatter.withZone(zoneId);
-            }
             final DateFormatter formatter = dateFormatter;
             return text -> {
                 TemporalAccessor accessor = formatter.parse(text);
@@ -98,7 +97,9 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false) {
+                    && accessor.isSupported(WeekFields.ISO.weekBasedYear()) == false
+                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false
+                    && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
@@ -110,29 +111,33 @@ enum DateFormat {
                     accessor = newTime.withZoneSameLocal(zoneId);
                 }
 
-                if (isUtc) {
-                    return DateFormatters.from(accessor, locale).withZoneSameInstant(ZoneOffset.UTC);
-                } else {
-                    return DateFormatters.from(accessor, locale);
-                }
+                return DateFormatters.from(accessor, locale, zoneId).withZoneSameInstant(zoneId);
+
             };
         }
     };
 
+    /** It's important to keep this variable as a constant because {@link DateFormatter#forPattern(String)} is an expensive method and,
+     * in this case, it's a never changing value.
+     * <br>
+     * Also, we shouldn't inline it in the {@link DateFormat#Iso8601}'s enum because it'd make useless the cache used
+     * at {@link DateProcessor}).
+     */
+    private static final DateFormatter ISO_8601 = DateFormatter.forPattern("iso8601");
+
     abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
-        switch (format) {
-            case "ISO8601":
-                return Iso8601;
-            case "UNIX":
-                return Unix;
-            case "UNIX_MS":
-                return UnixMs;
-            case "TAI64N":
-                return Tai64n;
-            default:
-                return Java;
-        }
+        // note: the ALL_CAPS format names here (UNIX_MS, etc) are present for historical reasons:
+        // they are the format literals that are supported by the logstash date filter plugin
+        // (see https://www.elastic.co/guide/en/logstash/current/plugins-filters-date.html#plugins-filters-date-match).
+        // don't extend this list with new special keywords (unless logstash has grown the same keyword).
+        return switch (format) {
+            case "ISO8601" -> Iso8601;
+            case "UNIX" -> Unix;
+            case "UNIX_MS" -> UnixMs;
+            case "TAI64N" -> Tai64n;
+            default -> Java;
+        };
     }
 }

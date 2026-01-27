@@ -1,0 +1,10 @@
+{
+    "properties": {
+      "age_range": {
+        "type": "integer_range"
+      },
+      "description": {
+        "type": "keyword"
+      }
+    }
+  }

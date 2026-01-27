@@ -17,112 +17,125 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
 
     @After
     public void afterTest() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), (String)null).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        updateClusterSettings(Settings.builder().putNull(DestructiveOperations.REQUIRES_NAME_SETTING.getKey()));
     }
 
     public void testDeleteIndexDestructiveOperationsRequireName() {
         createIndex("index1");
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareDelete("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareDelete("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareDelete("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareDelete("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
-            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            String[] indices = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).setIndices("index1").get().getIndices();
             assertEquals(1, indices.length);
             assertEquals("index1", indices[0]);
         }
 
         // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
-        assertAcked(client().admin().indices().prepareDelete("*", "-*"));
-        assertAcked(client().admin().indices().prepareDelete("index1"));
+        assertAcked(indicesAdmin().prepareDelete("*", "-*"));
+        assertAcked(indicesAdmin().prepareDelete("index1"));
     }
 
     public void testDestructiveOperationsDefaultBehaviour() {
         if (randomBoolean()) {
-            Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false));
         }
         createIndex("index1", "index2");
 
-        switch(randomIntBetween(0, 2)) {
-            case 0:
-                assertAcked(client().admin().indices().prepareClose("*"));
-                assertAcked(client().admin().indices().prepareOpen("*"));
-                assertAcked(client().admin().indices().prepareDelete("*"));
-                break;
-            case 1:
-                assertAcked(client().admin().indices().prepareClose("_all"));
-                assertAcked(client().admin().indices().prepareOpen("_all"));
-                assertAcked(client().admin().indices().prepareDelete("_all"));
-                break;
-            case 2:
-                assertAcked(client().admin().indices().prepareClose("*", "-index1"));
-                assertAcked(client().admin().indices().prepareOpen("*", "-index1"));
-                assertAcked(client().admin().indices().prepareDelete("*", "-index1"));
-                break;
-            default:
-                throw new UnsupportedOperationException();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> {
+                assertAcked(indicesAdmin().prepareClose("*"));
+                assertAcked(indicesAdmin().prepareOpen("*"));
+                assertAcked(indicesAdmin().prepareDelete("*"));
+            }
+            case 1 -> {
+                assertAcked(indicesAdmin().prepareClose("_all"));
+                assertAcked(indicesAdmin().prepareOpen("_all"));
+                assertAcked(indicesAdmin().prepareDelete("_all"));
+            }
+            case 2 -> {
+                assertAcked(indicesAdmin().prepareClose("*", "-index1"));
+                assertAcked(indicesAdmin().prepareOpen("*", "-index1"));
+                assertAcked(indicesAdmin().prepareDelete("*", "-index1"));
+            }
+            default -> throw new UnsupportedOperationException();
         }
     }
 
     public void testOpenCloseIndexDestructiveOperationsRequireName() {
-        Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        updateClusterSettings(Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true));
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareClose("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareClose("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareClose("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareClose("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("*").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareOpen("*").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("*", "-index1").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareOpen("*", "-index1").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
         {
-            IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
-                    () -> client().admin().indices().prepareOpen("_all").get());
+            IllegalArgumentException illegalArgumentException = expectThrows(
+                IllegalArgumentException.class,
+                () -> indicesAdmin().prepareOpen("_all").get()
+            );
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
         }
 
         // the "*,-*" pattern is specially handled because it makes a destructive action non-destructive
-        assertAcked(client().admin().indices().prepareClose("*", "-*"));
-        assertAcked(client().admin().indices().prepareOpen("*", "-*"));
+        assertAcked(indicesAdmin().prepareClose("*", "-*"));
+        assertAcked(indicesAdmin().prepareOpen("*", "-*"));
 
         createIndex("index1");
-        assertAcked(client().admin().indices().prepareClose("index1"));
-        assertAcked(client().admin().indices().prepareOpen("index1"));
+        assertAcked(indicesAdmin().prepareClose("index1"));
+        assertAcked(indicesAdmin().prepareOpen("index1"));
     }
 }

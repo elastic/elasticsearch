@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.execution.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -22,15 +21,13 @@ import java.util.Set;
  * the resulting ES document as a field.
  */
 public class QlSourceBuilder {
-    public static final Version SWITCH_TO_FIELDS_API_VERSION = Version.V_7_10_0;
     // The LinkedHashMaps preserve the order of the fields in the response
     private final Set<FieldAndFormat> fetchFields = new LinkedHashSet<>();
     private final Map<String, Script> scriptFields = new LinkedHashMap<>();
 
     boolean trackScores = false;
 
-    public QlSourceBuilder() {
-    }
+    public QlSourceBuilder() {}
 
     /**
      * Turns on returning the {@code _score} for documents.

@@ -22,10 +22,16 @@ public final class ServiceProviderCacheSettings {
     private static final int CACHE_SIZE_DEFAULT = 1000;
     private static final TimeValue CACHE_TTL_DEFAULT = TimeValue.timeValueMinutes(60);
 
-    public static final Setting<Integer> CACHE_SIZE
-        = Setting.intSetting("xpack.idp.sp.cache.size", CACHE_SIZE_DEFAULT, Setting.Property.NodeScope);
-    public static final Setting<TimeValue> CACHE_TTL
-        = Setting.timeSetting("xpack.idp.sp.cache.ttl", CACHE_TTL_DEFAULT, Setting.Property.NodeScope);
+    public static final Setting<Integer> CACHE_SIZE = Setting.intSetting(
+        "xpack.idp.sp.cache.size",
+        CACHE_SIZE_DEFAULT,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> CACHE_TTL = Setting.timeSetting(
+        "xpack.idp.sp.cache.ttl",
+        CACHE_TTL_DEFAULT,
+        Setting.Property.NodeScope
+    );
 
     static <K, V> Cache<K, V> buildCache(Settings settings) {
         return CacheBuilder.<K, V>builder()

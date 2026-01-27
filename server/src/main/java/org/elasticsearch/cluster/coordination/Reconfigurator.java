@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,11 +46,16 @@ public class Reconfigurator {
      * as long as there have been at least three master-eligible nodes in the cluster and no more than one of them is currently unavailable,
      * then the cluster will still operate, which is what almost everyone wants. Manual control is for users who want different guarantees.
      */
-    public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION =
-        Setting.boolSetting("cluster.auto_shrink_voting_configuration", true, Property.NodeScope, Property.Dynamic);
+    public static final Setting<Boolean> CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION = Setting.boolSetting(
+        "cluster.auto_shrink_voting_configuration",
+        true,
+        Property.NodeScope,
+        Property.Dynamic
+    );
 
     private volatile boolean autoShrinkVotingConfiguration;
 
+    @SuppressWarnings("this-escape")
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
@@ -63,9 +71,7 @@ public class Reconfigurator {
 
     @Override
     public String toString() {
-        return "Reconfigurator{" +
-            "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration +
-            '}';
+        return "Reconfigurator{" + "autoShrinkVotingConfiguration=" + autoShrinkVotingConfiguration + '}';
     }
 
     /**
@@ -80,22 +86,40 @@ public class Reconfigurator {
      * @param currentConfig  The current configuration. As far as possible, we prefer to keep the current config as-is.
      * @return An optimal configuration, or leave the current configuration unchanged if the optimal configuration has no live quorum.
      */
-    public VotingConfiguration reconfigure(Set<DiscoveryNode> liveNodes, Set<String> retiredNodeIds, DiscoveryNode currentMaster,
-                                           VotingConfiguration currentConfig) {
+    public VotingConfiguration reconfigure(
+        Set<DiscoveryNode> liveNodes,
+        Set<String> retiredNodeIds,
+        DiscoveryNode currentMaster,
+        VotingConfiguration currentConfig
+    ) {
         assert liveNodes.contains(currentMaster) : "liveNodes = " + liveNodes + " master = " + currentMaster;
-        logger.trace("{} reconfiguring {} based on liveNodes={}, retiredNodeIds={}, currentMaster={}",
-            this, currentConfig, liveNodes, retiredNodeIds, currentMaster);
+        logger.trace(
+            () -> Strings.format(
+                "%s reconfiguring %s based on liveNodes=%s, retiredNodeIds=%s, currentMaster=%s",
+                this,
+                currentConfig,
+                // Sorting the node IDs for deterministic logging until https://github.com/elastic/elasticsearch/issues/94946 is fixed
+                liveNodes.stream().map(DiscoveryNode::toString).sorted().collect(Collectors.joining(", ", "[", "]")),
+                retiredNodeIds.stream().sorted().collect(Collectors.joining(", ")),
+                currentMaster
+            )
+        );
 
         final Set<String> liveNodeIds = liveNodes.stream()
-            .filter(DiscoveryNode::isMasterNode).map(DiscoveryNode::getId).collect(Collectors.toSet());
+            .filter(DiscoveryNode::isMasterNode)
+            .map(DiscoveryNode::getId)
+            .collect(Collectors.toSet());
         final Set<String> currentConfigNodeIds = currentConfig.getNodeIds();
 
         final Set<VotingConfigNode> orderedCandidateNodes = new TreeSet<>();
         liveNodes.stream()
             .filter(DiscoveryNode::isMasterNode)
             .filter(n -> retiredNodeIds.contains(n.getId()) == false)
-            .forEach(n -> orderedCandidateNodes.add(new VotingConfigNode(n.getId(), true,
-                n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))));
+            .forEach(
+                n -> orderedCandidateNodes.add(
+                    new VotingConfigNode(n.getId(), true, n.getId().equals(currentMaster.getId()), currentConfigNodeIds.contains(n.getId()))
+                )
+            );
         currentConfigNodeIds.stream()
             .filter(nid -> liveNodeIds.contains(nid) == false)
             .filter(nid -> retiredNodeIds.contains(nid) == false)
@@ -110,10 +134,8 @@ public class Reconfigurator {
         final int targetSize = Math.max(roundDownToOdd(nonRetiredLiveNodeCount), minimumConfigEnforcedSize);
 
         final VotingConfiguration newConfig = new VotingConfiguration(
-            orderedCandidateNodes.stream()
-                .limit(targetSize)
-                .map(n -> n.id)
-                .collect(Collectors.toSet()));
+            orderedCandidateNodes.stream().limit(targetSize).map(n -> n.id).collect(Collectors.toSet())
+        );
 
         // new configuration should have a quorum
         if (newConfig.hasQuorum(liveNodeIds)) {
@@ -124,18 +146,18 @@ public class Reconfigurator {
         }
     }
 
-    static class VotingConfigNode implements Comparable<VotingConfigNode> {
-        final String id;
-        final boolean live;
-        final boolean currentMaster;
-        final boolean inCurrentConfig;
+    public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
+        return clusterState;
+    }
 
-        VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig) {
-            this.id = id;
-            this.live = live;
-            this.currentMaster = currentMaster;
-            this.inCurrentConfig = inCurrentConfig;
-        }
+    public void ensureVotingConfigCanBeModified() {
+        // Temporary workaround until #98055 is tackled
+        // no-op
+    }
+
+    record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)
+        implements
+            Comparable<VotingConfigNode> {
 
         @Override
         public int compareTo(VotingConfigNode other) {
@@ -156,16 +178,6 @@ public class Reconfigurator {
             }
             // tiebreak by node id to have stable ordering
             return id.compareTo(other.id);
-        }
-
-        @Override
-        public String toString() {
-            return "VotingConfigNode{" +
-                "id='" + id + '\'' +
-                ", live=" + live +
-                ", currentMaster=" + currentMaster +
-                ", inCurrentConfig=" + inCurrentConfig +
-                '}';
         }
     }
 }

@@ -1,31 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RandomQueryBuilder;
@@ -33,13 +32,22 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchSortValuesAndFormatsTests;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,14 +56,19 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
-    private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test").settings(Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
-        .numberOfShards(1).numberOfReplicas(1).build();
+    private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test")
+        .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+        .numberOfShards(1)
+        .numberOfReplicas(1)
+        .build();
 
     public void testSerialization() throws Exception {
         ShardSearchRequest shardSearchTransportRequest = createShardSearchRequest();
-        ShardSearchRequest deserializedRequest =
-            copyWriteable(shardSearchTransportRequest, namedWriteableRegistry, ShardSearchRequest::new);
+        ShardSearchRequest deserializedRequest = copyWriteable(
+            shardSearchTransportRequest,
+            namedWriteableRegistry,
+            ShardSearchRequest::new
+        );
         assertEquals(shardSearchTransportRequest, deserializedRequest);
     }
 
@@ -68,14 +81,17 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
     }
 
     private ShardSearchRequest createShardSearchRequest() throws IOException {
-        SearchRequest searchRequest = createSearchRequest();
+        return createShardSearchRequest(createSearchRequest());
+    }
+
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(2, 10), randomAlphaOfLengthBetween(2, 10), randomInt());
         final AliasFilter filteringAliases;
         if (randomBoolean()) {
             String[] strings = generateRandomStringArray(10, 10, false, false);
-            filteringAliases = new AliasFilter(RandomQueryBuilder.createQuery(random()), strings);
+            filteringAliases = AliasFilter.of(RandomQueryBuilder.createQuery(random()), strings);
         } else {
-            filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
+            filteringAliases = AliasFilter.EMPTY;
         }
         ShardSearchContextId shardSearchContextId = null;
         TimeValue keepAlive = null;
@@ -86,9 +102,20 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
             }
         }
         int numberOfShards = randomIntBetween(1, 100);
-        ShardSearchRequest req = new ShardSearchRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
-            randomIntBetween(1, numberOfShards), numberOfShards, filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
-            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), shardSearchContextId, keepAlive);
+        ShardSearchRequest req = new ShardSearchRequest(
+            new OriginalIndices(searchRequest),
+            searchRequest,
+            shardId,
+            randomIntBetween(1, numberOfShards),
+            numberOfShards,
+            filteringAliases,
+            randomBoolean() ? 1.0f : randomFloat(),
+            Math.abs(randomLong()),
+            randomAlphaOfLengthBetween(3, 10),
+            shardSearchContextId,
+            keepAlive,
+            SplitShardCountSummary.fromInt(randomIntBetween(0, numberOfShards))
+        );
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
             req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());
@@ -107,19 +134,24 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertThat(indexMetadata.getAliases().containsKey("turtles"), equalTo(false));
 
         assertEquals(aliasFilter(indexMetadata, "cats"), QueryBuilders.termQuery("animal", "cat"));
-        assertEquals(aliasFilter(indexMetadata, "cats", "dogs"), QueryBuilders.boolQuery().should(QueryBuilders.termQuery("animal", "cat"))
-            .should(QueryBuilders.termQuery("animal", "dog")));
+        assertEquals(
+            aliasFilter(indexMetadata, "cats", "dogs"),
+            QueryBuilders.boolQuery().should(QueryBuilders.termQuery("animal", "cat")).should(QueryBuilders.termQuery("animal", "dog"))
+        );
 
         // Non-filtering alias should turn off all filters because filters are ORed
-        assertThat(aliasFilter(indexMetadata,"all"), nullValue());
+        assertThat(aliasFilter(indexMetadata, "all"), nullValue());
         assertThat(aliasFilter(indexMetadata, "cats", "all"), nullValue());
         assertThat(aliasFilter(indexMetadata, "all", "cats"), nullValue());
 
         indexMetadata = add(indexMetadata, "cats", filter(termQuery("animal", "feline")));
         indexMetadata = add(indexMetadata, "dogs", filter(termQuery("animal", "canine")));
-        assertEquals(aliasFilter(indexMetadata, "dogs", "cats"),QueryBuilders.boolQuery()
-            .should(QueryBuilders.termQuery("animal", "canine"))
-            .should(QueryBuilders.termQuery("animal", "feline")));
+        assertEquals(
+            aliasFilter(indexMetadata, "dogs", "cats"),
+            QueryBuilders.boolQuery()
+                .should(QueryBuilders.termQuery("animal", "canine"))
+                .should(QueryBuilders.termQuery("animal", "feline"))
+        );
     }
 
     public void testRemovedAliasFilter() throws Exception {
@@ -152,14 +184,13 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(null), copy.cacheKey(null));
+        assertThat(copy.cacheKey(null), equalBytes(orig.cacheKey(null)));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
         assertEquals(orig.getClusterAlias(), copy.getClusterAlias());
         assertEquals(orig.allowPartialSearchResults(), copy.allowPartialSearchResults());
-        assertEquals(orig.canReturnNullResponseIfMatchNoDocs(),
-            orig.canReturnNullResponseIfMatchNoDocs());
+        assertEquals(orig.canReturnNullResponseIfMatchNoDocs(), orig.canReturnNullResponseIfMatchNoDocs());
     }
 
     public static CompressedXContent filter(QueryBuilder filterBuilder) throws IOException {
@@ -179,24 +210,30 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
 
     public QueryBuilder aliasFilter(IndexMetadata indexMetadata, String... aliasNames) {
         return ShardSearchRequest.parseAliasFilter(bytes -> {
-            try (InputStream inputStream = bytes.streamInput();
-                 XContentParser parser = XContentFactory.xContentType(inputStream).xContent()
-                         .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)) {
-                return parseInnerQueryBuilder(parser);
+            try (
+                InputStream inputStream = CompressorFactory.COMPRESSOR.uncompress(bytes).streamInput();
+                XContentParser parser = XContentFactory.xContentType(inputStream)
+                    .xContent()
+                    .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, inputStream)
+            ) {
+                return parseTopLevelQuery(parser);
             }
         }, indexMetadata, aliasNames);
     }
 
     public void testChannelVersion() throws Exception {
         ShardSearchRequest request = createShardSearchRequest();
-        Version channelVersion = Version.CURRENT;
+        TransportVersion channelVersion = TransportVersion.current();
         assertThat(request.getChannelVersion(), equalTo(channelVersion));
         int iterations = between(0, 5);
         // New version
         for (int i = 0; i < iterations; i++) {
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+            if (Optional.ofNullable(request.source()).map(SearchSourceBuilder::knnSearch).map(List::size).orElse(0) > 1) {
+                version = TransportVersionUtils.randomCompatibleVersion();
+            }
             request = copyWriteable(request, namedWriteableRegistry, ShardSearchRequest::new, version);
-            channelVersion = Version.min(channelVersion, version);
+            channelVersion = TransportVersion.min(channelVersion, version);
             assertThat(request.getChannelVersion(), equalTo(channelVersion));
             if (randomBoolean()) {
                 request = new ShardSearchRequest(request);

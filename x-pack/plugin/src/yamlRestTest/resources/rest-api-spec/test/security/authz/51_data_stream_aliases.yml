@@ -1,8 +1,8 @@
 ---
 setup:
-  - skip:
-      features: ["headers", "allowed_warnings"]
-      version: " - 7.99.99"
+  - requires:
+      test_runner_features: ["headers", "allowed_warnings"]
+      cluster_features: ["gte_v8.0.0"]
       reason: "data stream aliases not yet backported to 7.x branch"
 
   - do:
@@ -165,9 +165,9 @@ teardown:
 
 ---
 "Basic read authorization test":
-  - skip:
-      features: ["headers", "allowed_warnings"]
-      version: " - 7.99.99"
+  - requires:
+      test_runner_features: ["headers", "allowed_warnings"]
+      cluster_features: ["gte_v8.0.0"]
       reason: "data stream aliases not yet backported to 7.x branch"
 
   - do:

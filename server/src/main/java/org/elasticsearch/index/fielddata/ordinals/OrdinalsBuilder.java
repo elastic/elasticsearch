@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata.ordinals;
@@ -15,7 +16,6 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PagedGrowableWriter;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.Arrays;
 
 /**
@@ -119,7 +119,7 @@ public final class OrdinalsBuilder implements Closeable {
         }
 
         // Current position
-        private PagedGrowableWriter positions;
+        private final PagedGrowableWriter positions;
         // First level (0) of ordinals and pointers to the next level
         private final GrowableWriter firstOrdinals;
         private PagedGrowableWriter firstNextLevelSlices;
@@ -178,8 +178,7 @@ public final class OrdinalsBuilder implements Closeable {
             } else {
                 final long newSlice = newSlice(1);
                 if (firstNextLevelSlices == null) {
-                    firstNextLevelSlices =
-                        new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                    firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
                 }
                 firstNextLevelSlices.set(docID, newSlice);
                 final long offset = startOffset(1, newSlice);
@@ -229,7 +228,7 @@ public final class OrdinalsBuilder implements Closeable {
                 return;
             }
             // Other levels
-            for (int level = 1; ; ++level) {
+            for (int level = 1;; ++level) {
                 final int numSlots = numSlots(level);
                 ords.longs = ArrayUtil.grow(ords.longs, ords.offset + ords.length + numSlots);
                 final long offset = startOffset(level, sliceID);
@@ -346,15 +345,17 @@ public final class OrdinalsBuilder implements Closeable {
         final float acceptableOverheadRatio = PackedInts.DEFAULT;
         if (numMultiValuedDocs > 0
             || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(
-                maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)
-        ) {
+                maxDoc,
+                numDocsWithValue,
+                getValueCount(),
+                acceptableOverheadRatio
+            )) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {
             return new SinglePackedOrdinals(this, acceptableOverheadRatio);
         }
     }
-
 
     /**
      * Returns the maximum document ID this builder can associate with an ordinal
@@ -367,7 +368,7 @@ public final class OrdinalsBuilder implements Closeable {
      * Closes this builder and release all resources.
      */
     @Override
-    public void close() throws IOException {
+    public void close() {
         ordinals = null;
     }
 }

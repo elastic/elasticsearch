@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
@@ -27,9 +28,10 @@ import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString;
 
 public class NormalizeOutputGradleRunner extends GradleRunner {
 
-    public NormalizeOutputGradleRunner(GradleRunner delegate, File projectRootDir) {
+    private GradleRunner delegate;
+
+    public NormalizeOutputGradleRunner(GradleRunner delegate) {
         this.delegate = delegate;
-        this.projectRootDir = projectRootDir;
     }
 
     @Override
@@ -74,7 +76,8 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
 
     @Override
     public GradleRunner withArguments(List<String> arguments) {
-        return delegate.withArguments(arguments);
+        delegate.withArguments(arguments);
+        return this;
     }
 
     @Override
@@ -122,7 +125,6 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         return this;
     }
 
-
     @Override
     public GradleRunner forwardStdOutput(Writer writer) {
         delegate.forwardStdOutput(writer);
@@ -151,8 +153,10 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         return new NormalizedBuildResult(delegate.buildAndFail());
     }
 
-    private GradleRunner delegate;
-    private File projectRootDir;
+    @Override
+    public BuildResult run() throws InvalidRunnerConfigurationException {
+        return new NormalizedBuildResult(delegate.run());
+    }
 
     private class NormalizedBuildResult implements BuildResult {
         private BuildResult delegate;
@@ -165,7 +169,7 @@ public class NormalizeOutputGradleRunner extends GradleRunner {
         @Override
         public String getOutput() {
             if (normalizedString == null) {
-                normalizedString = normalizeString(delegate.getOutput(), projectRootDir);
+                normalizedString = normalizeString(delegate.getOutput(), getProjectDir());
             }
             return normalizedString;
         }

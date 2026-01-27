@@ -12,12 +12,16 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleResponse;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,22 +34,40 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportDeleteRoleActionTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setUpClass() {
+        // Initialize the reserved roles store so that static fields are populated.
+        // In production code, this is guaranteed by how components are initialized by the Security plugin
+        new ReservedRolesStore();
+    }
 
     public void testReservedRole() {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -67,16 +89,34 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         assertThat(responseRef.get(), is(nullValue()));
         assertThat(throwableRef.get(), is(instanceOf(IllegalArgumentException.class)));
         assertThat(throwableRef.get().getMessage(), containsString("is reserved and cannot be deleted"));
-        verifyZeroInteractions(rolesStore);
+        verifyNoMoreInteractions(rolesStore);
     }
 
     public void testValidRole() {
-        final String roleName = randomFrom("admin", "dept_a", "restricted");
+        testValidRole(randomFrom("admin", "dept_a", "restricted"));
+    }
+
+    public void testValidRoleWithInternalRoleName() {
+        testValidRole(AuthenticationTestHelper.randomInternalRoleName());
+    }
+
+    private void testValidRole(String roleName) {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class),
-                rolesStore, transportService);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);
@@ -115,9 +155,21 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (x) -> null, null, Collections.emptySet());
-        TransportDeleteRoleAction action = new TransportDeleteRoleAction(mock(ActionFilters.class), rolesStore, transportService);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (x) -> null,
+            null,
+            Collections.emptySet()
+        );
+        TransportDeleteRoleAction action = new TransportDeleteRoleAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            transportService,
+            new ReservedRoleNameChecker.Default()
+        );
 
         DeleteRoleRequest request = new DeleteRoleRequest();
         request.name(roleName);

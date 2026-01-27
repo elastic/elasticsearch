@@ -9,35 +9,38 @@ package org.elasticsearch.xpack.ccr.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreClusterStateListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
@@ -51,60 +54,70 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.regex.Matcher;
 import java.util.stream.Collectors;
 
-public final class TransportPutFollowAction
-    extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
+import static org.elasticsearch.cluster.metadata.DataStream.BACKING_INDEX_PREFIX;
+import static org.elasticsearch.xpack.ccr.Ccr.CCR_THREAD_POOL_NAME;
+
+public final class TransportPutFollowAction extends TransportMasterNodeAction<PutFollowAction.Request, PutFollowAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutFollowAction.class);
 
     private final IndexScopedSettings indexScopedSettings;
     private final Client client;
+    private final Executor remoteClientResponseExecutor;
     private final RestoreService restoreService;
     private final CcrLicenseChecker ccrLicenseChecker;
-    private final ActiveShardsObserver activeShardsObserver;
 
     @Inject
     public TransportPutFollowAction(
-            final ThreadPool threadPool,
-            final TransportService transportService,
-            final ClusterService clusterService,
-            final IndexScopedSettings indexScopedSettings,
-            final ActionFilters actionFilters,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final Client client,
-            final RestoreService restoreService,
-            final CcrLicenseChecker ccrLicenseChecker) {
+        final ThreadPool threadPool,
+        final TransportService transportService,
+        final ClusterService clusterService,
+        final IndexScopedSettings indexScopedSettings,
+        final ActionFilters actionFilters,
+        final Client client,
+        final RestoreService restoreService,
+        final CcrLicenseChecker ccrLicenseChecker
+    ) {
         super(
-                PutFollowAction.NAME,
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                PutFollowAction.Request::new,
-                indexNameExpressionResolver,
-                PutFollowAction.Response::new,
-                ThreadPool.Names.SAME);
+            PutFollowAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutFollowAction.Request::new,
+            PutFollowAction.Response::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.indexScopedSettings = indexScopedSettings;
         this.client = client;
+        this.remoteClientResponseExecutor = threadPool.executor(CCR_THREAD_POOL_NAME);
         this.restoreService = restoreService;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
-        this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
     }
 
     @Override
     protected void masterOperation(
-        Task task, final PutFollowAction.Request request,
+        Task task,
+        final PutFollowAction.Request request,
         final ClusterState state,
-        final ActionListener<PutFollowAction.Response> listener) {
+        final ActionListener<PutFollowAction.Response> listener
+    ) {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
         }
         String remoteCluster = request.getRemoteCluster();
         // Validates whether the leader cluster has been configured properly:
-        client.getRemoteClusterClient(remoteCluster);
+        client.getRemoteClusterClient(
+            remoteCluster,
+            remoteClientResponseExecutor,
+            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+        );
 
         String leaderIndex = request.getLeaderIndex();
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
@@ -112,33 +125,43 @@ public final class TransportPutFollowAction
             remoteCluster,
             leaderIndex,
             listener::onFailure,
-            (historyUUID, tuple) -> createFollowerIndex(tuple.v1(), tuple.v2(), request, listener));
+            (historyUUID, tuple) -> createFollowerIndex(tuple.v1(), tuple.v2(), request, listener)
+        );
     }
 
     private void createFollowerIndex(
-            final IndexMetadata leaderIndexMetadata,
-            final DataStream remoteDataStream,
-            final PutFollowAction.Request request,
-            final ActionListener<PutFollowAction.Response> listener) {
+        final IndexMetadata leaderIndexMetadata,
+        final DataStream remoteDataStream,
+        final PutFollowAction.Request request,
+        final ActionListener<PutFollowAction.Response> listener
+    ) {
         if (leaderIndexMetadata == null) {
             listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not exist"));
             return;
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexMetadata.getSettings()) == false) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
-                "] does not have soft deletes enabled"));
+            listener.onFailure(
+                new IllegalArgumentException("leader index [" + request.getLeaderIndex() + "] does not have soft deletes enabled")
+            );
             return;
         }
-        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexMetadata.getSettings())) {
-            listener.onFailure(new IllegalArgumentException("leader index [" + request.getLeaderIndex() +
-                "] is a searchable snapshot index and cannot be used as a leader index for cross-cluster replication purpose"));
+        if (leaderIndexMetadata.isSearchableSnapshot()) {
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "leader index ["
+                        + request.getLeaderIndex()
+                        + "] is a searchable snapshot index and cannot be used as a leader index for cross-cluster replication purpose"
+                )
+            );
             return;
         }
 
         final Settings replicatedRequestSettings = TransportResumeFollowAction.filter(request.getSettings());
         if (replicatedRequestSettings.isEmpty() == false) {
-            final List<String> unknownKeys =
-                replicatedRequestSettings.keySet().stream().filter(s -> indexScopedSettings.get(s) == null).collect(Collectors.toList());
+            final List<String> unknownKeys = replicatedRequestSettings.keySet()
+                .stream()
+                .filter(s -> indexScopedSettings.get(s) == null)
+                .collect(Collectors.toList());
             final String message;
             if (unknownKeys.isEmpty()) {
                 message = String.format(
@@ -158,16 +181,6 @@ public final class TransportPutFollowAction
             return;
         }
 
-        if (remoteDataStream != null) {
-            // when following a backing index then the names of the backing index must be remain the same in the local
-            // and remote cluster.
-            if (request.getLeaderIndex().equals(request.getFollowerIndex()) == false) {
-                listener.onFailure(
-                    new IllegalArgumentException("a backing index name in the local and remote cluster must remain the same"));
-                return;
-            }
-        }
-
         final Settings overrideSettings = Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getFollowerIndex())
             .put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true)
@@ -175,44 +188,75 @@ public final class TransportPutFollowAction
             .build();
 
         final String leaderClusterRepoName = CcrRepository.NAME_PREFIX + request.getRemoteCluster();
-        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(leaderClusterRepoName, CcrRepository.LATEST)
-            .indices(request.getLeaderIndex()).indicesOptions(request.indicesOptions()).renamePattern("^(.*)$")
-            .renameReplacement(request.getFollowerIndex()).masterNodeTimeout(request.masterNodeTimeout())
-            .indexSettings(overrideSettings);
+        final RestoreSnapshotRequest restoreRequest = new RestoreSnapshotRequest(
+            request.masterNodeTimeout(),
+            leaderClusterRepoName,
+            CcrRepository.LATEST
+        ).indices(request.getLeaderIndex())
+            .indicesOptions(request.indicesOptions())
+            .renamePattern("^(.*)$")
+            .renameReplacement(Matcher.quoteReplacement(request.getFollowerIndex()))
+            .indexSettings(overrideSettings)
+            .quiet(true);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
+            this.client,
+            threadPool.getThreadContext().getHeaders(),
+            clusterService.state()
+        );
+        ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
+            (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
+        @FixForMultiProject(
+            description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
+        )
+        final ProjectId projectId = ProjectId.DEFAULT;
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
+        if (remoteDataStream == null) {
+            // If the index we're following is not part of a data stream, start the
+            // restoration of the index normally.
+            updater = (clusterState, projectBuilder) -> {};
+        } else {
+            String followerIndexName = request.getFollowerIndex();
+            // This method is used to update the metadata in the same cluster state
+            // update as the snapshot is restored.
+            updater = (currentState, projectBuilder) -> {
+                final String localDataStreamName;
 
-            @Override
-            protected void doRun() {
-                ActionListener<RestoreService.RestoreCompletionResponse> delegatelistener = listener.delegateFailure(
-                        (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response));
-                if (remoteDataStream == null) {
-                    restoreService.restoreSnapshot(restoreRequest, delegatelistener);
+                // If we have been given a data stream name, use that name for the local
+                // data stream. See the javadoc for AUTO_FOLLOW_PATTERN_REPLACEMENT
+                // for more info.
+                final String dsName = request.getDataStreamName();
+                if (Strings.hasText(dsName)) {
+                    localDataStreamName = dsName;
                 } else {
-                    String followerIndexName = request.getFollowerIndex();
-                    BiConsumer<ClusterState, Metadata.Builder> updater = (currentState, mdBuilder) -> {
-                        DataStream localDataStream = currentState.getMetadata().dataStreams().get(remoteDataStream.getName());
-                        Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
-                        assert followerIndex != null;
-
-                        DataStream updatedDataStream = updateLocalDataStream(followerIndex, localDataStream, remoteDataStream);
-                        mdBuilder.put(updatedDataStream);
-                    };
-                    restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
+                    // There was no specified name, use the original data stream name.
+                    localDataStreamName = remoteDataStream.getName();
                 }
-            }
-        });
+                final DataStream localDataStream = projectBuilder.dataStream(localDataStreamName);
+                final Index followerIndex = projectBuilder.get(followerIndexName).getIndex();
+                assert followerIndex != null : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";
+
+                final DataStream updatedDataStream = updateLocalDataStream(
+                    followerIndex,
+                    localDataStream,
+                    localDataStreamName,
+                    remoteDataStream
+                );
+                projectBuilder.put(updatedDataStream);
+            };
+        }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(projectId, restoreRequest, l, updater)));
     }
 
-    private void afterRestoreStarted(Client clientWithHeaders, PutFollowAction.Request request,
-                                     ActionListener<PutFollowAction.Response> originalListener,
-                                     RestoreService.RestoreCompletionResponse response) {
+    private void afterRestoreStarted(
+        Client clientWithHeaders,
+        PutFollowAction.Request request,
+        ActionListener<PutFollowAction.Response> originalListener,
+        RestoreService.RestoreCompletionResponse response
+    ) {
         final ActionListener<PutFollowAction.Response> listener;
         if (ActiveShardCount.NONE.equals(request.waitForActiveShards())) {
             originalListener.onResponse(new PutFollowAction.Response(true, false, false));
@@ -225,15 +269,17 @@ public final class TransportPutFollowAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("put follow {} failed during the restore process", request), e);
+                    logger.debug(() -> "put follow " + request + " failed during the restore process", e);
                 }
             };
         } else {
             listener = originalListener;
         }
 
-        RestoreClusterStateListener.createAndRegisterListener(clusterService, response, listener.delegateFailure(
-            (delegatedListener, restoreSnapshotResponse) -> {
+        RestoreClusterStateListener.createAndRegisterListener(
+            clusterService,
+            response,
+            listener.delegateFailure((delegatedListener, restoreSnapshotResponse) -> {
                 RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
                 if (restoreInfo == null) {
                     // If restoreInfo is null then it is possible there was a master failure during the
@@ -245,54 +291,108 @@ public final class TransportPutFollowAction
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            }));
+            }),
+            threadPool.getThreadContext()
+        );
     }
 
     private void initiateFollowing(
-        final Client client,
+        final Client clientWithHeaders,
         final PutFollowAction.Request request,
-        final ActionListener<PutFollowAction.Response> listener) {
+        final ActionListener<PutFollowAction.Response> listener
+    ) {
         assert request.waitForActiveShards() != ActiveShardCount.DEFAULT : "PutFollowAction does not support DEFAULT.";
         FollowParameters parameters = request.getParameters();
-        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request();
+        ResumeFollowAction.Request resumeFollowRequest = new ResumeFollowAction.Request(request.masterNodeTimeout());
         resumeFollowRequest.setFollowerIndex(request.getFollowerIndex());
         resumeFollowRequest.setParameters(new FollowParameters(parameters));
-        client.execute(ResumeFollowAction.INSTANCE, resumeFollowRequest, ActionListener.wrap(
-            r -> activeShardsObserver.waitForActiveShards(new String[]{request.getFollowerIndex()},
-                request.waitForActiveShards(), request.timeout(), result ->
-                    listener.onResponse(new PutFollowAction.Response(true, result, r.isAcknowledged())),
-                listener::onFailure),
-            listener::onFailure
-        ));
+        clientWithHeaders.execute(
+            ResumeFollowAction.INSTANCE,
+            resumeFollowRequest,
+            listener.delegateFailureAndWrap(
+                (l, r) -> ActiveShardsObserver.waitForActiveShards(
+                    clusterService,
+                    Metadata.DEFAULT_PROJECT_ID,
+                    new String[] { request.getFollowerIndex() },
+                    request.waitForActiveShards(),
+                    request.ackTimeout(),
+                    l.map(result -> new PutFollowAction.Response(true, result, r.isAcknowledged()))
+                )
+            )
+        );
     }
 
-    static DataStream updateLocalDataStream(Index backingIndexToFollow,
-                                            DataStream localDataStream,
-                                            DataStream remoteDataStream) {
+    /**
+     * Given the backing index that the follower is going to follow, the local data stream (if it
+     * exists) and the remote data stream, return the new local data stream for the local cluster
+     * (the follower) updated with whichever information is necessary to restore the new
+     * soon-to-be-followed index.
+     */
+    static DataStream updateLocalDataStream(
+        Index backingIndexToFollow,
+        DataStream localDataStream,
+        String localDataStreamName,
+        DataStream remoteDataStream
+    ) {
         if (localDataStream == null) {
             // The data stream and the backing indices have been created and validated in the remote cluster,
             // just copying the data stream is in this case safe.
-            return new DataStream(remoteDataStream.getName(), remoteDataStream.getTimeStampField(),
-                List.of(backingIndexToFollow), remoteDataStream.getGeneration(), remoteDataStream.getMetadata(),
-                remoteDataStream.isHidden(), true);
+            return remoteDataStream.copy()
+                .setName(localDataStreamName)
+                .setBackingIndices(
+                    // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                    // (and potentially even break things).
+                    remoteDataStream.getDataComponent().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
+                )
+                // Replicated data streams should not have the failure store marked for lazy rollover (which they do by default for lazy
+                // failure store creation).
+                .setFailureIndices(remoteDataStream.getFailureComponent().copy().setRolloverOnWrite(false).build())
+                .setReplicated(true)
+                .build();
         } else {
             if (localDataStream.isReplicated() == false) {
-                throw new IllegalArgumentException("cannot follow backing index [" + backingIndexToFollow.getName() +
-                    "], because local data stream [" + localDataStream.getName() + "] is no longer marked as replicated");
+                throw new IllegalArgumentException(
+                    "cannot follow backing index ["
+                        + backingIndexToFollow.getName()
+                        + "], because local data stream ["
+                        + localDataStream.getName()
+                        + "] is no longer marked as replicated"
+                );
             }
 
-            List<Index> backingIndices = new ArrayList<>(localDataStream.getIndices());
-            backingIndices.add(backingIndexToFollow);
+            final List<Index> backingIndices;
+            if (localDataStream.getIndices().contains(backingIndexToFollow) == false) {
+                backingIndices = new ArrayList<>(localDataStream.getIndices());
+                backingIndices.add(backingIndexToFollow);
+                // When following an older backing index it should be positioned before the newer backing indices.
+                // Currently the assumption is that the newest index (highest generation) is the write index.
+                // (just appending an older backing index to the list of backing indices would break that assumption)
+                // Not all backing indices follow the data stream backing indices naming convention (e.g. some might start with
+                // "restored-" if they're mounted indices, "shrink-" if they were shrunk, or miscellaneously named indices could be added
+                // to the data stream using the modify data stream API) so we use a comparator that partitions the non-standard backing
+                // indices at the beginning of the data stream (lower generations) and sorts them amongst themselves, and the rest of the
+                // indices (that contain `.ds-`) are sorted based on the original backing index name (ie. ignoring everything up to `.ds-`)
+                // The goal is to make sure the prefixed (usually read-only - shrink-, restored-, partial-) backing indices do not end
+                // up being the write index of the local data stream.
 
-            // When following an older backing index it should be positioned before the newer backing indices.
-            // Currently the assumption is that the newest index (highest generation) is the write index.
-            // (just appending an older backing index to the list of backing indices would break that assumption)
-            // (string sorting works because of the naming backing index naming scheme)
-            backingIndices.sort(Comparator.comparing(Index::getName));
+                String partitionByBackingIndexBaseName = BACKING_INDEX_PREFIX + localDataStream.getName();
+                backingIndices.sort(
+                    Comparator.comparing((Index o) -> o.getName().contains(partitionByBackingIndexBaseName) ? 1 : -1)
+                        .thenComparing((Index o) -> {
+                            int backingPrefixPosition = o.getName().indexOf(BACKING_INDEX_PREFIX);
+                            return backingPrefixPosition > -1 ? o.getName().substring(backingPrefixPosition) : o.getName();
+                        })
+                );
+            } else {
+                // edge case where the index was closed on the follower and was already in the datastream's index list
+                backingIndices = localDataStream.getIndices();
+            }
 
-            return new DataStream(localDataStream.getName(), localDataStream.getTimeStampField(), backingIndices,
-                remoteDataStream.getGeneration(), remoteDataStream.getMetadata(), localDataStream.isHidden(),
-                localDataStream.isReplicated());
+            return localDataStream.copy()
+                .setBackingIndices(localDataStream.getDataComponent().copy().setIndices(backingIndices).build())
+                .setGeneration(remoteDataStream.getGeneration())
+                .setMetadata(remoteDataStream.getMetadata())
+                .build();
         }
     }
 

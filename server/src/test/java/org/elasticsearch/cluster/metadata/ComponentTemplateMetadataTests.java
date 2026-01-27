@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -21,7 +22,7 @@ public class ComponentTemplateMetadataTests extends AbstractNamedWriteableTestCa
     @Override
     protected ComponentTemplateMetadata createTestInstance() {
         int count = randomIntBetween(0, 3);
-        Map<String, ComponentTemplate> templateMap = new HashMap<>(count);
+        Map<String, ComponentTemplate> templateMap = Maps.newMapWithExpectedSize(count);
         for (int i = 0; i < count; i++) {
             templateMap.put(randomAlphaOfLength(4), ComponentTemplateTests.randomInstance());
         }
@@ -29,7 +30,7 @@ public class ComponentTemplateMetadataTests extends AbstractNamedWriteableTestCa
     }
 
     @Override
-    protected ComponentTemplateMetadata mutateInstance(ComponentTemplateMetadata instance) throws IOException {
+    protected ComponentTemplateMetadata mutateInstance(ComponentTemplateMetadata instance) {
         if (instance.componentTemplates().size() == 0) {
             // Not really much to mutate, so just generate a new one
             return randomValueOtherThan(instance, this::createTestInstance);
@@ -48,8 +49,15 @@ public class ComponentTemplateMetadataTests extends AbstractNamedWriteableTestCa
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(Collections.singletonList(new NamedWriteableRegistry.Entry(ComponentTemplateMetadata.class,
-            ComponentTemplateMetadata.TYPE, ComponentTemplateMetadata::new)));
+        return new NamedWriteableRegistry(
+            Collections.singletonList(
+                new NamedWriteableRegistry.Entry(
+                    ComponentTemplateMetadata.class,
+                    ComponentTemplateMetadata.TYPE,
+                    ComponentTemplateMetadata::new
+                )
+            )
+        );
     }
 
     @Override

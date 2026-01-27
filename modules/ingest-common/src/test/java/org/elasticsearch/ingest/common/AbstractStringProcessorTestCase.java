@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -38,8 +39,14 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
 
     public void testProcessor() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        String fieldValue = RandomDocumentPicks.randomString(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
+        String fieldValue;
+        String fieldName;
+        String modifiedFieldValue;
+        do {
+            fieldValue = RandomDocumentPicks.randomString(random());
+            modifiedFieldValue = modifyInput(fieldValue);
+            fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifiedFieldValue);
+        } while (isSupportedValue(modifiedFieldValue) == false);
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(expectedResult(fieldValue)));
@@ -48,8 +55,13 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         List<String> fieldValueList = new ArrayList<>();
         List<T> expectedList = new ArrayList<>();
         for (int i = 0; i < numItems; i++) {
-            String randomString = RandomDocumentPicks.randomString(random());
-            fieldValueList.add(modifyInput(randomString));
+            String randomString;
+            String modifiedRandomString;
+            do {
+                randomString = RandomDocumentPicks.randomString(random());
+                modifiedRandomString = modifyInput(randomString);
+            } while (isSupportedValue(modifiedRandomString) == false);
+            fieldValueList.add(modifiedRandomString);
             expectedList.add(expectedResult(randomString));
         }
         String multiValueFieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValueList);
@@ -96,16 +108,23 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(e.getMessage(), equalTo("field [" + fieldName +
-            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
 
         List<Integer> fieldValueList = new ArrayList<>();
         int randomValue = randomInt();
         fieldValueList.add(randomValue);
         ingestDocument.setFieldValue(fieldName, fieldValueList);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
-            "] cannot be cast to [java.lang.String]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "value ["
+                    + randomValue
+                    + "] of type [java.lang.Integer] in list field ["
+                    + fieldName
+                    + "] cannot be cast to [java.lang.String]"
+            )
+        );
     }
 
     public void testNonStringValueWithIgnoreMissing() throws Exception {
@@ -114,16 +133,23 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(e.getMessage(), equalTo("field [" + fieldName +
-            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
 
         List<Integer> fieldValueList = new ArrayList<>();
         int randomValue = randomInt();
         fieldValueList.add(randomValue);
         ingestDocument.setFieldValue(fieldName, fieldValueList);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
-            "] cannot be cast to [java.lang.String]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "value ["
+                    + randomValue
+                    + "] of type [java.lang.Integer] in list field ["
+                    + fieldName
+                    + "] cannot be cast to [java.lang.String]"
+            )
+        );
     }
 
     public void testTargetField() throws Exception {
@@ -132,7 +158,7 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         String fieldName;
         boolean ignoreMissing;
         do {
-            ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+            ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
             fieldValue = RandomDocumentPicks.randomString(random());
             fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
             ignoreMissing = randomBoolean();

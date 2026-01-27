@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -27,16 +29,14 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         ScriptLanguagesInfo info = ss.getScriptLanguages();
         ScriptType[] types = ScriptType.values();
         assertEquals(types.length, info.typesAllowed.size());
-        for(ScriptType type: types) {
+        for (ScriptType type : types) {
             assertTrue("[" + type.getName() + "] is allowed", info.typesAllowed.contains(type.getName()));
         }
     }
 
     public void testSingleTypesAllowedReturnsThatType() {
-        for (ScriptType type: ScriptType.values()) {
-            ScriptService ss = getMockScriptService(
-                Settings.builder().put("script.allowed_types", type.getName()).build()
-            );
+        for (ScriptType type : ScriptType.values()) {
+            ScriptService ss = getMockScriptService(Settings.builder().put("script.allowed_types", type.getName()).build());
             ScriptLanguagesInfo info = ss.getScriptLanguages();
             assertEquals(1, info.typesAllowed.size());
             assertTrue("[" + type.getName() + "] is allowed", info.typesAllowed.contains(type.getName()));
@@ -44,48 +44,63 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
     }
 
     public void testBothTypesAllowedReturnsBothTypes() {
-        List<String> types = Arrays.stream(ScriptType.values()).map(ScriptType::getName).collect(Collectors.toList());
+        List<String> types = Arrays.stream(ScriptType.values()).map(ScriptType::getName).toList();
         Settings.Builder settings = Settings.builder().putList("script.allowed_types", types);
         ScriptService ss = getMockScriptService(settings.build());
         ScriptLanguagesInfo info = ss.getScriptLanguages();
         assertEquals(types.size(), info.typesAllowed.size());
-        for(String type: types) {
+        for (String type : types) {
             assertTrue("[" + type + "] is allowed", info.typesAllowed.contains(type));
         }
     }
 
     private ScriptService getMockScriptService(Settings settings) {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
             Collections.singletonMap("test_script", script -> 1),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(settings, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(
+            settings,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
-
 
     public interface MiscContext {
         void execute();
+
         Object newInstance();
     }
 
     public void testOnlyScriptEngineContextsReturned() {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
             Collections.singletonMap("test_script", script -> 1),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        Map<String, ScriptContext<?>> mockContexts =  scriptEngine.getSupportedContexts().stream().collect(Collectors.toMap(
-            c -> c.name,
-            Function.identity()
-        ));
+        Map<String, ScriptContext<?>> mockContexts = scriptEngine.getSupportedContexts()
+            .stream()
+            .collect(Collectors.toMap(c -> c.name, Function.identity()));
         String miscContext = "misc_context";
         assertFalse(mockContexts.containsKey(miscContext));
 
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(Settings.EMPTY, engines, mockAndMiscContexts);
+        ScriptService ss = new ScriptService(
+            Settings.EMPTY,
+            engines,
+            mockAndMiscContexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
@@ -94,17 +109,18 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
     }
 
     public void testContextsAllowedSettingRespected() {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME,
+        MockScriptEngine scriptEngine = new MockScriptEngine(
+            MockScriptEngine.NAME,
             Collections.singletonMap("test_script", script -> 1),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        Map<String, ScriptContext<?>> mockContexts =  scriptEngine.getSupportedContexts().stream().collect(Collectors.toMap(
-            c -> c.name,
-            Function.identity()
-        ));
+        Map<String, ScriptContext<?>> mockContexts = scriptEngine.getSupportedContexts()
+            .stream()
+            .collect(Collectors.toMap(c -> c.name, Function.identity()));
 
         List<String> allContexts = new ArrayList<>(mockContexts.keySet());
-        List<String> allowed = allContexts.subList(0, allContexts.size()/2);
+        List<String> allowed = new ArrayList<>(allContexts.subList(0, allContexts.size() / 2));
         String miscContext = "misc_context";
         allowed.add(miscContext);
         // check that allowing more than available doesn't pollute the returned contexts
@@ -113,11 +129,17 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(settings.build(), engines, mockAndMiscContexts);
+        ScriptService ss = new ScriptService(
+            settings.build(),
+            engines,
+            mockAndMiscContexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
         assertEquals(1, info.languageContexts.size());
-        assertEquals(new HashSet<>(allContexts.subList(0, allContexts.size()/2)), info.languageContexts.get(MockScriptEngine.NAME));
+        assertEquals(new HashSet<>(allContexts.subList(0, allContexts.size() / 2)), info.languageContexts.get(MockScriptEngine.NAME));
     }
 }

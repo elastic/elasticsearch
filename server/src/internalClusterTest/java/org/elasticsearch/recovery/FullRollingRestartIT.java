@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.recovery;
@@ -12,17 +13,17 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -46,16 +47,14 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
         createIndex("test");
 
-        final String healthTimeout = "1m";
+        final var healthTimeout = TimeValue.timeValueMinutes(1);
 
         for (int i = 0; i < 1000; i++) {
-            client().prepareIndex("test").setId(Long.toString(i))
-                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         flush();
         for (int i = 1000; i < 2000; i++) {
-            client().prepareIndex("test").setId(Long.toString(i))
-                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
 
         logger.info("--> now start adding nodes");
@@ -63,56 +62,92 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("3")
+        );
 
         logger.info("--> add two more nodes");
         internalCluster().startNode();
         internalCluster().startNode();
 
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("5"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("5")
+        );
 
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // now start shutting nodes down
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("4"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("4")
+        );
 
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("3"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("3")
+        );
 
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
 
         // closing the 3rd node
         internalCluster().stopRandomDataNode();
         // make sure the cluster state is green, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForGreenStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("2"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForGreenStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("2")
+        );
 
         internalCluster().stopRandomDataNode();
 
         // make sure the cluster state is yellow, and all has been recovered
-        assertTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout(healthTimeout)
-                .setWaitForYellowStatus().setWaitForNoRelocatingShards(true).setWaitForNodes("1"));
+        assertTimeout(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setWaitForEvents(Priority.LANGUID)
+                .setTimeout(healthTimeout)
+                .setWaitForYellowStatus()
+                .setWaitForNoRelocatingShards(true)
+                .setWaitForNodes("1")
+        );
 
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000L);
+            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2000L);
         }
     }
 
@@ -121,35 +156,53 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         internalCluster().startMasterOnlyNode(Settings.EMPTY);
         internalCluster().startDataOnlyNodes(3);
         /**
-         * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.
+         * We start 3 nodes and a dedicated master. Restart one of the data-nodes and ensure that we got no relocations.
          * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
          * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
          * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
          */
-        prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "6")
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))).get();
+        prepareCreate("test").setSettings(
+            indexSettings(6, 0).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(1))
+        ).get();
 
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Long.toString(i))
-                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+            prepareIndex("test").setId(Long.toString(i)).setSource(Map.<String, Object>of("test", "value" + i)).get();
         }
         ensureGreen();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state,
-                recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+            assertNotEquals(
+                "relocated "
+                    + recoveryState.getShardId()
+                    + " from: "
+                    + recoveryState.getSourceNode()
+                    + " to: "
+                    + recoveryState.getTargetNode()
+                    + "\n"
+                    + state,
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
+            );
         }
         internalCluster().restartRandomDataNode();
         ensureGreen();
-        client().admin().cluster().prepareState().get().getState();
+        clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
 
-        recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        recoveryResponse = indicesAdmin().prepareRecoveries("test").get();
         for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
-           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " +
-                   recoveryState.getTargetNode()+ "-- \nbefore: \n" + state,
-               recoveryState.getRecoverySource().getType() != RecoverySource.Type.PEER || recoveryState.getPrimary() == false);
+            assertNotEquals(
+                "relocated "
+                    + recoveryState.getShardId()
+                    + " from: "
+                    + recoveryState.getSourceNode()
+                    + " to: "
+                    + recoveryState.getTargetNode()
+                    + "-- \nbefore: \n"
+                    + state,
+                recoveryState.getRecoverySource().getType(),
+                RecoverySource.Type.PEER
+            );
         }
     }
 }

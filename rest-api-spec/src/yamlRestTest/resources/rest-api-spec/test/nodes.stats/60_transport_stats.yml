@@ -20,3 +20,22 @@
   - gte: { nodes.$node_id.transport.tx_count: 0 }
   - gte: { nodes.$node_id.transport.rx_size_in_bytes: 0 }
   - gte: { nodes.$node_id.transport.tx_size_in_bytes: 0 }
+
+---
+"Transport handling time histogram":
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
+      reason: "handling_time_histograms were added in 8.1"
+      test_runner_features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      nodes.stats:
+        metric: [ transport ]
+
+  - is_true: nodes.$node_id.transport.inbound_handling_time_histogram
+  - is_true: nodes.$node_id.transport.outbound_handling_time_histogram

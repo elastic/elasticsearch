@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.dissect;
@@ -98,9 +99,9 @@ public final class DissectKey {
     /**
      * Copy constructor to explicitly override the modifier.
      * @param key The key to copy (except for the modifier)
-     * @param modifier the modifer to use for this copy
+     * @param modifier the modifier to use for this copy
      */
-    DissectKey(DissectKey key, DissectKey.Modifier modifier){
+    DissectKey(DissectKey key, DissectKey.Modifier modifier) {
         this.modifier = modifier;
         this.skipRightPadding = key.skipRightPadding;
         this.skip = key.skip;
@@ -128,19 +129,29 @@ public final class DissectKey {
         return name;
     }
 
-    //generated
+    // generated
     @Override
     public String toString() {
-        return "DissectKey{" +
-            "modifier=" + modifier +
-            ", skip=" + skip +
-            ", appendPosition=" + appendPosition +
-            ", name='" + name + '\'' +
-            '}';
+        return "DissectKey{"
+            + "modifier="
+            + modifier
+            + ", skip="
+            + skip
+            + ", appendPosition="
+            + appendPosition
+            + ", name='"
+            + name
+            + '\''
+            + '}';
     }
 
     public enum Modifier {
-        NONE(""), APPEND_WITH_ORDER("/"), APPEND("+"), FIELD_NAME("*"), FIELD_VALUE("&"), NAMED_SKIP("?");
+        NONE(""),
+        APPEND_WITH_ORDER("/"),
+        APPEND("+"),
+        FIELD_NAME("*"),
+        FIELD_VALUE("&"),
+        NAMED_SKIP("?");
 
         private static final Pattern MODIFIER_PATTERN = Pattern.compile("[/+*&?]");
 
@@ -155,10 +166,13 @@ public final class DissectKey {
             this.modifier = modifier;
         }
 
-        //package private for testing
+        // package private for testing
         static Modifier fromString(String modifier) {
-            return EnumSet.allOf(Modifier.class).stream().filter(km -> km.modifier.equals(modifier))
-                .findFirst().orElseThrow(() -> new IllegalArgumentException("Found invalid modifier.")); //throw should never happen
+            return EnumSet.allOf(Modifier.class)
+                .stream()
+                .filter(km -> km.modifier.equals(modifier))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Found invalid modifier.")); // throw should never happen
         }
 
         private static Modifier findModifier(String key) {

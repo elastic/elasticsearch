@@ -11,13 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
@@ -36,10 +37,20 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
     private final JobResultsProvider jobResultsProvider;
 
     @Inject
-    public TransportDeleteCalendarAction(TransportService transportService,
-                                         ActionFilters actionFilters, Client client, JobManager jobManager,
-                                         JobResultsProvider jobResultsProvider) {
-        super(DeleteCalendarAction.NAME, transportService, actionFilters, DeleteCalendarAction.Request::new);
+    public TransportDeleteCalendarAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        JobManager jobManager,
+        JobResultsProvider jobResultsProvider
+    ) {
+        super(
+            DeleteCalendarAction.NAME,
+            transportService,
+            actionFilters,
+            DeleteCalendarAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.client = client;
         this.jobManager = jobManager;
         this.jobResultsProvider = jobResultsProvider;
@@ -50,31 +61,32 @@ public class TransportDeleteCalendarAction extends HandledTransportAction<Delete
 
         final String calendarId = request.getCalendarId();
 
-        ActionListener<Calendar> calendarListener = ActionListener.wrap(
-                calendar -> {
-                    // Delete calendar and events
-                    DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
-                    executeAsyncWithOrigin(client, ML_ORIGIN, DeleteByQueryAction.INSTANCE, dbqRequest, ActionListener.wrap(
-                            response -> {
-                                if (response.getDeleted() == 0) {
-                                    listener.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
-                                    return;
-                                }
+        ActionListener<Calendar> calendarListener = listener.delegateFailureAndWrap((delegate, calendar) -> {
+            // Delete calendar and events
+            DeleteByQueryRequest dbqRequest = buildDeleteByQuery(calendarId);
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                DeleteByQueryAction.INSTANCE,
+                dbqRequest,
+                delegate.delegateFailureAndWrap((l, response) -> {
+                    if (response.getDeleted() == 0) {
+                        l.onFailure(new ResourceNotFoundException("No calendar with id [" + calendarId + "]"));
+                        return;
+                    }
 
-                                jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                        r -> listener.onResponse(AcknowledgedResponse.TRUE),
-                                        listener::onFailure
-                                ));
-                            },
-                            listener::onFailure));
-                },
-                listener::onFailure
-        );
+                    jobManager.updateProcessOnCalendarChanged(
+                        calendar.getJobIds(),
+                        l.delegateFailureAndWrap((ll, r) -> ll.onResponse(AcknowledgedResponse.TRUE))
+                    );
+                })
+            );
+        });
 
         jobResultsProvider.calendar(calendarId, calendarListener);
     }
 
-    private DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
+    private static DeleteByQueryRequest buildDeleteByQuery(String calendarId) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(MlMetaIndex.indexName());
         request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         request.setRefresh(true);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -11,9 +12,10 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafGeoPointFieldData;
+import org.elasticsearch.index.fielddata.plain.LeafGeoPointFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -21,28 +23,40 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
-public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
+public final class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final GeoPointFieldScript.LeafFactory leafFactory;
+        private final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
 
-        public Builder(String name, GeoPointFieldScript.LeafFactory leafFactory) {
+        public Builder(
+            String name,
+            GeoPointFieldScript.LeafFactory leafFactory,
+            ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
         public GeoPointScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new GeoPointScriptFieldData(name, leafFactory);
+            return new GeoPointScriptFieldData(name, leafFactory, toScriptFieldFactory);
         }
     }
 
     private final GeoPointFieldScript.LeafFactory leafFactory;
     private final String name;
+    private final ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory;
 
-    private GeoPointScriptFieldData(String fieldName, GeoPointFieldScript.LeafFactory leafFactory) {
+    private GeoPointScriptFieldData(
+        String fieldName,
+        GeoPointFieldScript.LeafFactory leafFactory,
+        ToScriptFieldFactory<MultiGeoPointValues> toScriptFieldFactory
+    ) {
         this.name = fieldName;
         this.leafFactory = leafFactory;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -75,11 +89,11 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
     }
 
     @Override
-    public LeafGeoPointFieldData load(LeafReaderContext context) {
+    public LeafPointFieldData<MultiGeoPointValues> load(LeafReaderContext context) {
         GeoPointFieldScript script = leafFactory.newInstance(context);
-        return new AbstractLeafGeoPointFieldData() {
+        return new LeafGeoPointFieldData(toScriptFieldFactory) {
             @Override
-            public MultiGeoPointValues getGeoPointValues() {
+            public SortedNumericLongValues getSortedNumericLongValues() {
                 return new GeoPointScriptDocValues(script);
             }
 
@@ -88,15 +102,11 @@ public class GeoPointScriptFieldData implements IndexGeoPointFieldData {
                 return 0;
             }
 
-            @Override
-            public void close() {
-
-            }
         };
     }
 
     @Override
-    public LeafGeoPointFieldData loadDirect(LeafReaderContext context) {
+    public LeafPointFieldData<MultiGeoPointValues> loadDirect(LeafReaderContext context) {
         return load(context);
     }
 }

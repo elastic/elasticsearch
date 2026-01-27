@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -25,14 +25,19 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
 
     @Override
     protected FrequencyEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ?
-            FrequencyEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
-            FrequencyEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
+        return lenient
+            ? FrequencyEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT)
+            : FrequencyEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
     protected FrequencyEncoding createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected FrequencyEncoding mutateInstance(FrequencyEncoding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static FrequencyEncoding createRandom() {
@@ -49,10 +54,7 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new FrequencyEncoding(inputField,
-            randomAlphaOfLength(10),
-            valueMap,
-            isCustom);
+        return new FrequencyEncoding(inputField, randomAlphaOfLength(10), valueMap, isCustom);
     }
 
     @Override
@@ -63,13 +65,15 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     public void testProcessWithFieldPresent() {
         String field = "categorical";
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
-            v -> randomDoubleBetween(0.0, 1.0, false)));
+        Map<String, Double> valueMap = values.stream()
+            .collect(Collectors.toMap(Object::toString, v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = "encoded";
         FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap, false);
         Object fieldValue = randomFrom(values);
-        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(encodedFeatureName,
-            equalTo(valueMap.get(fieldValue.toString())));
+        Map<String, Matcher<? super Object>> matchers = Collections.singletonMap(
+            encodedFeatureName,
+            equalTo(valueMap.get(fieldValue.toString()))
+        );
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
         testProcess(encoding, fieldValues, matchers);
 
@@ -83,8 +87,8 @@ public class FrequencyEncodingTests extends PreProcessingTests<FrequencyEncoding
     public void testInputOutputFields() {
         String field = randomAlphaOfLength(10);
         List<Object> values = Arrays.asList("foo", "bar", "foobar", "baz", "farequote", 1.5);
-        Map<String, Double> valueMap = values.stream().collect(Collectors.toMap(Object::toString,
-            v -> randomDoubleBetween(0.0, 1.0, false)));
+        Map<String, Double> valueMap = values.stream()
+            .collect(Collectors.toMap(Object::toString, v -> randomDoubleBetween(0.0, 1.0, false)));
         String encodedFeatureName = randomAlphaOfLength(10);
         FrequencyEncoding encoding = new FrequencyEncoding(field, encodedFeatureName, valueMap, false);
         assertThat(encoding.inputFields(), containsInAnyOrder(field));

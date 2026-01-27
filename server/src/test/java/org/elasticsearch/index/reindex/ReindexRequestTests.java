@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -12,15 +13,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
@@ -67,8 +69,20 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         if (randomBoolean()) {
             try (XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint()) {
                 BytesReference query = BytesReference.bytes(matchAllQuery().toXContent(builder, ToXContent.EMPTY_PARAMS));
-                reindexRequest.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE),
-                    null, query, "user", "pass", emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+                reindexRequest.setRemoteInfo(
+                    new RemoteInfo(
+                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(5),
+                        between(1, Integer.MAX_VALUE),
+                        null,
+                        query,
+                        "user",
+                        new SecureString("pass".toCharArray()),
+                        emptyMap(),
+                        RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                        RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+                    )
+                );
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -102,7 +116,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     @Override
     protected ReindexRequest doParseInstance(XContentParser parser) throws IOException {
-        return ReindexRequest.fromXContent(parser);
+        return ReindexRequest.fromXContent(parser, Predicates.never());
     }
 
     @Override
@@ -127,24 +141,144 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
-        assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
-                e.getMessage());
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
+            e.getMessage()
+        );
     }
 
-    public void testReindexFromRemoteDoesNotSupportSlices() {
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterGreaterThan1() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, Integer.MAX_VALUE), null,
-                    matchAll, null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with a random number of slices greater than 1 (like setting the slices URL parameter):
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
-                "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
-                e.getMessage());
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterSetToAuto() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
+        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesSourceField() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable manual slicing (like setting source.slice.max and source.slice.id in the request body):
+        int numSlices = randomIntBetween(2, Integer.MAX_VALUE);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        reindex.getSearchRequest().source().slice(new SliceBuilder(sliceId, numSlices));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support source.slice but was ["
+                + reindex.getSearchRequest().source().slice()
+                + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteRejectsUsernameWithNoPassword() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                "user",
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included username but not password;", e.getMessage());
+    }
+
+    public void testReindexFromRemoteRejectsPasswordWithNoUsername() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                new SecureString("password".toCharArray()),
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {
@@ -161,9 +295,20 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             original.setScript(mockScript(randomAlphaOfLength(5)));
         }
         if (randomBoolean()) {
-            original.setRemoteInfo(new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), between(1, 10000), null, matchAll, null,
-                null, emptyMap(), parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
-                parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
+            original.setRemoteInfo(
+                new RemoteInfo(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    between(1, 10000),
+                    null,
+                    matchAll,
+                    null,
+                    null,
+                    emptyMap(),
+                    randomPositiveTimeValue(),
+                    randomPositiveTimeValue()
+                )
+            );
         }
     }
 
@@ -211,9 +356,12 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals("https", remoteInfo.getScheme());
         assertEquals("example.com", remoteInfo.getHost());
         assertEquals(9200, remoteInfo.getPort());
-        assertEquals("{\n  \"a\" : \"b\"\n}", remoteInfo.getQuery().utf8ToString());
+        assertEquals("""
+            {
+              "a" : "b"
+            }""", remoteInfo.getQuery().utf8ToString());
         assertEquals("testuser", remoteInfo.getUsername());
-        assertEquals("testpass", remoteInfo.getPassword());
+        assertEquals("testpass", remoteInfo.getPassword().toString());
         assertEquals(headers, remoteInfo.getHeaders());
         assertEquals(timeValueSeconds(90), remoteInfo.getSocketTimeout());
         assertEquals(timeValueSeconds(10), remoteInfo.getConnectTimeout());
@@ -268,25 +416,66 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(RemoteInfo.DEFAULT_SOCKET_TIMEOUT, info.getSocketTimeout());
         assertEquals(RemoteInfo.DEFAULT_CONNECT_TIMEOUT, info.getConnectTimeout());
 
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> buildRemoteInfoHostTestCase("https"));
-        assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]",
-            exception.getMessage());
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> buildRemoteInfoHostTestCase("https"));
+        assertEquals("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [https]", exception.getMessage());
+    }
+
+    public void testBuildRemoteInfoWithApiKey() throws IOException {
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(remoteInfo.getHeaders(), Map.of("Authorization", "ApiKey l3t-m3-1n"));
+    }
+
+    public void testBuildRemoteInfoWithApiKeyAndOtherHeaders() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("X-Routing-Magic", "Abracadabra");
+        originalHeaders.put("X-Tracing-Magic", "12345");
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        RemoteInfo remoteInfo = ReindexRequest.buildRemoteInfo(source);
+        assertEquals(
+            remoteInfo.getHeaders(),
+            Map.of("X-Routing-Magic", "Abracadabra", "X-Tracing-Magic", "12345", "Authorization", "ApiKey l3t-m3-1n")
+        );
+    }
+
+    public void testBuildRemoteInfoWithConflictingApiKeyAndAuthorizationHeader() throws IOException {
+        Map<String, Object> originalHeaders = new HashMap<>();
+        originalHeaders.put("aUtHoRiZaTiOn", "op3n-s3s4m3"); // non-standard capitalization, but HTTP headers are not case-sensitive
+        Map<String, Object> remote = new HashMap<>();
+        remote.put("host", "https://example.com:9200");
+        remote.put("api_key", "l3t-m3-1n");
+        remote.put("headers", originalHeaders);
+        Map<String, Object> source = new HashMap<>();
+        source.put("remote", remote);
+        assertThrows(IllegalArgumentException.class, () -> ReindexRequest.buildRemoteInfo(source));
     }
 
     public void testReindexFromRemoteRequestParsing() throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
-            b.startObject(); {
-                b.startObject("source"); {
-                    b.startObject("remote"); {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
+                    b.startObject("remote");
+                    {
                         b.field("host", "http://localhost:9200");
                     }
                     b.endObject();
                     b.field("index", "source");
                 }
                 b.endObject();
-                b.startObject("dest"); {
+                b.startObject("dest");
+                {
                     b.field("index", "dest");
                 }
                 b.endObject();
@@ -295,9 +484,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            ReindexRequest r = ReindexRequest.fromXContent(p);
+            ReindexRequest r = ReindexRequest.fromXContent(p, nf -> false);
             assertEquals("localhost", r.getRemoteInfo().getHost());
-            assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
+            assertArrayEquals(new String[] { "source" }, r.getSearchRequest().indices());
         }
     }
 
@@ -313,12 +502,12 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testCommaSeparatedSourceIndices() throws IOException {
         ReindexRequest r = parseRequestWithSourceIndices("a,b");
-        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+        assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
     }
 
     public void testArraySourceIndices() throws IOException {
-        ReindexRequest r = parseRequestWithSourceIndices(new String[]{"a", "b"});
-        assertArrayEquals(new String[]{"a", "b"}, r.getSearchRequest().indices());
+        ReindexRequest r = parseRequestWithSourceIndices(new String[] { "a", "b" });
+        assertArrayEquals(new String[] { "a", "b" }, r.getSearchRequest().indices());
     }
 
     public void testEmptyStringSourceIndices() throws IOException {
@@ -329,15 +518,25 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
     }
 
+    public void testValidateGivenRemoteIndex() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("remote:index");
+        assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNull(validationException);
+    }
+
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {
         BytesReference request;
         try (XContentBuilder b = JsonXContent.contentBuilder()) {
-            b.startObject(); {
-                b.startObject("source"); {
+            b.startObject();
+            {
+                b.startObject("source");
+                {
                     b.field("index", sourceIndices);
                 }
                 b.endObject();
-                b.startObject("dest"); {
+                b.startObject("dest");
+                {
                     b.field("index", "dest");
                 }
                 b.endObject();
@@ -346,7 +545,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             request = BytesReference.bytes(b);
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
-            return ReindexRequest.fromXContent(p);
+            return ReindexRequest.fromXContent(p, Predicates.never());
         }
     }
 }

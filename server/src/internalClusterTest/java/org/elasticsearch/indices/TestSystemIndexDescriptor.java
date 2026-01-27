@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -12,14 +13,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it
@@ -37,10 +38,47 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
         .put(IndexMetadata.SETTING_PRIORITY, Integer.MAX_VALUE)
         .build();
+    private static final int NEW_MAPPINGS_VERSION = 1;
+    private static final int OLD_MAPPINGS_VERSION = 0;
 
     TestSystemIndexDescriptor() {
-        super(INDEX_NAME + "*", PRIMARY_INDEX_NAME, "Test system index", getOldMappings(), SETTINGS, INDEX_NAME, 0, "version", "stack",
-            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_MANAGED, List.of(), List.of(), null, false);
+        super(
+            INDEX_NAME + "*",
+            PRIMARY_INDEX_NAME,
+            "Test system index",
+            getOldMappings(),
+            SETTINGS,
+            INDEX_NAME,
+            0,
+            "stack",
+            null,
+            Type.INTERNAL_MANAGED,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            false
+        );
+    }
+
+    TestSystemIndexDescriptor(String name, String primaryName, boolean allowsTemplates) {
+        super(
+            name + "*",
+            primaryName,
+            "Test system index",
+            getOldMappings(),
+            SETTINGS,
+            name,
+            0,
+            "stack",
+            null,
+            Type.INTERNAL_MANAGED,
+            List.of(),
+            List.of(),
+            null,
+            false,
+            allowsTemplates
+        );
     }
 
     @Override
@@ -53,13 +91,23 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
         return useNewMappings.get() ? getNewMappings() : getOldMappings();
     }
 
+    @Override
+    public MappingsVersion getMappingsVersion() {
+        return useNewMappings.get() ? new MappingsVersion(NEW_MAPPINGS_VERSION, 0) : new MappingsVersion(OLD_MAPPINGS_VERSION, 0);
+    }
+
     public static String getOldMappings() {
+        return getOldMappings(false);
+    }
+
+    public static String getOldMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
             {
                 builder.startObject("_meta");
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, OLD_MAPPINGS_VERSION);
                 builder.field("version", Version.CURRENT.previousMajor().toString());
                 builder.endObject();
 
@@ -67,6 +115,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                 {
                     builder.startObject("foo");
                     builder.field("type", "text");
+                    builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
                     builder.endObject();
                 }
                 builder.endObject();
@@ -80,12 +140,17 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
     }
 
     public static String getNewMappings() {
+        return getNewMappings(false);
+    }
+
+    public static String getNewMappings(boolean includeVectorDims) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
             {
                 builder.startObject("_meta");
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, NEW_MAPPINGS_VERSION);
                 builder.field("version", Version.CURRENT.toString());
                 builder.endObject();
 
@@ -96,6 +161,18 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
                     builder.endObject();
                     builder.startObject("foo");
                     builder.field("type", "text");
+                    builder.endObject();
+
+                    builder.startObject("vector");
+                    builder.field("type", "dense_vector");
+                    if (includeVectorDims) {
+                        builder.field("dims", 3);
+                    }
+                    builder.field("index", true);
+                    builder.field("similarity", "cosine");
+                    builder.startObject("index_options");
+                    builder.field("type", "flat");
+                    builder.endObject();
                     builder.endObject();
                 }
                 builder.endObject();

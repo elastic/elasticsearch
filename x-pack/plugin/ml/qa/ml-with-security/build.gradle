@@ -1,14 +1,14 @@
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  yamlRestTestImplementation(testArtifact(xpackProject('plugin')))
+  yamlRestTestImplementation(testArtifact(project(':x-pack:plugin')))
 }
 
 // bring in machine learning rest test suite
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
+    include '_common', 'capabilities', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'count', 'ingest', 'bulk', 'ml', 'cat'
   }
   restTests {
     includeXpack 'ml'
@@ -28,6 +28,13 @@ tasks.named("yamlRestTest").configure {
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/3rd_party_deployment/Test start deployment fails with missing model definition',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple allocations',
+    'ml/3rd_party_deployment/Test start deployment with low priority and multiple threads per allocation',
+    'ml/3rd_party_deployment/Test start deployment with low priority and max allocations more than one',
+    'ml/3rd_party_deployment/Test stop deployments with allow_no_match',
+    'ml/3rd_party_deployment/Test cannot start 2 deployments with the same Id',
+    'ml/3rd_party_deployment/Test cannot start when deployment Id matches a different model',
+    'ml/3rd_party_deployment/Test cannot create model with a deployment Id',
     'ml/calendar_crud/Test get calendar given missing',
     'ml/calendar_crud/Test cannot create calendar with name _all',
     'ml/calendar_crud/Test PageParams with ID is invalid',
@@ -35,6 +42,14 @@ tasks.named("yamlRestTest").configure {
     'ml/calendar_crud/Test put calendar given id contains invalid chars',
     'ml/calendar_crud/Test delete event from non existing calendar',
     'ml/calendar_crud/Test delete job from non existing calendar',
+    // These are searching tests with aggregations, and do not call any ML endpoints
+    'ml/categorization_agg/Test categorization agg simple',
+    'ml/categorization_agg/Test categorization aggregation against unsupported field',
+    'ml/categorization_agg/Test categorization aggregation with poor settings',
+    'ml/change_point_agg/Test change_point agg simple',
+    'ml/change_point_agg/Test change_point with missing buckets_path',
+    'ml/change_point_agg/Test change_point with bad buckets_path',
+    'ml/change_point_agg/Test change_point with too few buckets',
     'ml/custom_all_field/Test querying custom all field',
     'ml/datafeeds_crud/Test delete datafeed with missing id',
     'ml/datafeeds_crud/Test put datafeed referring to missing job_id',
@@ -146,7 +161,8 @@ tasks.named("yamlRestTest").configure {
     'ml/filter_crud/Test get all filter given index exists but no mapping for filter_id',
     'ml/get_datafeed_stats/Test get datafeed stats given missing datafeed_id',
     'ml/get_datafeeds/Test get datafeed given missing datafeed_id',
-    'ml/inference_crud/Test delete given used trained model',
+    'ml/inference_crud/Test delete given model referenced by pipeline',
+    'ml/inference_crud/Test delete given model with alias referenced by pipeline',
     'ml/inference_crud/Test delete with missing model',
     'ml/inference_crud/Test get given missing trained model',
     'ml/inference_crud/Test get given expression without matches and allow_no_match is false',
@@ -165,6 +181,8 @@ tasks.named("yamlRestTest").configure {
     'ml/inference_crud/Test put nlp model config with vocabulary set',
     'ml/inference_crud/Test put model model aliases with nlp model',
     'ml/inference_processor/Test create processor with missing mandatory fields',
+    'ml/learning_to_rank_rescorer/Test rescore with missing model',
+    'ml/learning_to_rank_rescorer/Test model input validation',
     'ml/inference_stats_crud/Test get stats given missing trained model',
     'ml/inference_stats_crud/Test get stats given expression without matches and allow_no_match is false',
     'ml/jobs_crud/Test cannot create job with model snapshot id set',
@@ -174,6 +192,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_crud/Test put job with time field in analysis_config',
     'ml/jobs_crud/Test put job with duplicate detector configurations',
     'ml/jobs_crud/Test job with categorization_analyzer and categorization_filters',
+    'ml/jobs_crud/Test job with rule referencing missing filter',
     'ml/jobs_get/Test get job given missing job_id',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params',
     'ml/jobs_get_result_buckets/Test mutually-exclusive params via body',
@@ -186,6 +205,7 @@ tasks.named("yamlRestTest").configure {
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid start param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given invalid end param',
     'ml/jobs_get_result_overall_buckets/Test overall buckets given bucket_span is smaller than max job bucket_span',
+    'ml/jobs_get_stats/Test closed results index',
     'ml/jobs_get_stats/Test get job stats given missing job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
     'ml/job_groups/Test put job with empty group',
@@ -225,17 +245,19 @@ tasks.named("yamlRestTest").configure {
     'ml/set_upgrade_mode/Attempt to open job when upgrade_mode is enabled',
     'ml/set_upgrade_mode/Setting upgrade_mode to enabled',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',
-    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false'
+    'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
+    'ml/update_trained_model_deployment/Test with unknown model id'
   ].join(',')
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
-  extraConfigFile 'roles.yml', file('roles.yml')
+  rolesFile file('roles.yml')
   user username: "x_pack_rest_user", password: "x-pack-test-password"
   user username: "ml_admin", password: "x-pack-test-password", role: "minimal,machine_learning_admin,ingest_admin"
   user username: "ml_user", password: "x-pack-test-password", role: "minimal,machine_learning_user"
   user username: "no_ml", password: "x-pack-test-password", role: "minimal"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
 }

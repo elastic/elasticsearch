@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.oidc;
 
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.Nonce;
+
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
@@ -67,10 +68,21 @@ public class OpenIdConnectToken implements AuthenticationToken {
         return redirectUrl;
     }
 
-    public String getAuthenticatingRealm() { return authenticatingRealm; }
+    public String getAuthenticatingRealm() {
+        return authenticatingRealm;
+    }
 
     public String toString() {
-        return getClass().getSimpleName() + "{ redirectUrl=" + redirectUrl + ", state=" + state + ", nonce=" + nonce + ", " +
-            "authenticatingRealm="+ authenticatingRealm +"}";
+        return getClass().getSimpleName()
+            + "{ redirectUrl="
+            + redirectUrl
+            + ", state="
+            + state
+            + ", nonce="
+            + nonce
+            + ", "
+            + "authenticatingRealm="
+            + authenticatingRealm
+            + "}";
     }
 }

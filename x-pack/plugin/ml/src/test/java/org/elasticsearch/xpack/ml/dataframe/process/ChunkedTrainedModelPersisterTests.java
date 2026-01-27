@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.License;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -22,10 +22,10 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -75,10 +75,9 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPersistAllDocs() {
-        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder()
-            .setId(JOB_ID)
+        DataFrameAnalyticsConfig analyticsConfig = new DataFrameAnalyticsConfig.Builder().setId(JOB_ID)
             .setDescription(JOB_DESCRIPTION)
-            .setSource(new DataFrameAnalyticsSource(new String[] {"my_source"}, null, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { "my_source" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("my_dest", null))
             .setAnalysis(randomBoolean() ? new Regression("foo") : new Classification("foo"))
             .build();
@@ -103,7 +102,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         }).when(trainedModelProvider).storeTrainedModelMetadata(any(TrainedModelMetadata.class), any(ActionListener.class));
 
         doAnswer(invocationOnMock -> {
-            ActionListener<RefreshResponse> storeListener = (ActionListener<RefreshResponse>) invocationOnMock.getArguments()[0];
+            ActionListener<BroadcastResponse> storeListener = (ActionListener<BroadcastResponse>) invocationOnMock.getArguments()[0];
             storeListener.onResponse(null);
             return null;
         }).when(trainedModelProvider).refreshInferenceIndex(any(ActionListener.class));
@@ -112,13 +111,11 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         ModelSizeInfo modelSizeInfo = ModelSizeInfoTests.createRandom();
         TrainedModelDefinitionChunk chunk1 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 0, false);
         TrainedModelDefinitionChunk chunk2 = new TrainedModelDefinitionChunk(randomAlphaOfLength(10), 1, true);
-        ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()),
+        ModelMetadata modelMetadata = new ModelMetadata(
+            Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             FeatureImportanceBaselineTests.randomInstance(),
-            Stream.generate(HyperparametersTests::randomInstance)
-            .limit(randomIntBetween(1, 10))
-            .collect(Collectors.toList()));
+            Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
 
         resultProcessor.createAndIndexInferenceModelConfig(modelSizeInfo, TrainedModelType.TREE_ENSEMBLE);
         resultProcessor.createAndIndexInferenceModelDoc(chunk1);
@@ -129,23 +126,21 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         verify(trainedModelProvider).storeTrainedModelConfig(storedModelCaptor.capture(), any(ActionListener.class));
 
         ArgumentCaptor<TrainedModelDefinitionDoc> storedDocCapture = ArgumentCaptor.forClass(TrainedModelDefinitionDoc.class);
-        verify(trainedModelProvider, times(2))
-            .storeTrainedModelDefinitionDoc(storedDocCapture.capture(), any(ActionListener.class));
+        verify(trainedModelProvider, times(2)).storeTrainedModelDefinitionDoc(storedDocCapture.capture(), any(ActionListener.class));
 
         ArgumentCaptor<TrainedModelMetadata> storedMetadataCaptor = ArgumentCaptor.forClass(TrainedModelMetadata.class);
-        verify(trainedModelProvider, times(1))
-            .storeTrainedModelMetadata(storedMetadataCaptor.capture(), any(ActionListener.class));
+        verify(trainedModelProvider, times(1)).storeTrainedModelMetadata(storedMetadataCaptor.capture(), any(ActionListener.class));
 
         TrainedModelConfig storedModel = storedModelCaptor.getValue();
         assertThat(storedModel.getLicenseLevel(), equalTo(License.OperationMode.PLATINUM));
         assertThat(storedModel.getModelId(), containsString(JOB_ID));
-        assertThat(storedModel.getVersion(), equalTo(Version.CURRENT));
-        assertThat(storedModel.getCreatedBy(), equalTo(XPackUser.NAME));
+        assertThat(storedModel.getVersion(), equalTo(MlConfigVersion.CURRENT));
+        assertThat(storedModel.getCreatedBy(), equalTo(InternalUsers.XPACK_USER.principal()));
         assertThat(storedModel.getTags(), contains(JOB_ID));
         assertThat(storedModel.getDescription(), equalTo(JOB_DESCRIPTION));
         assertThat(storedModel.getModelDefinition(), is(nullValue()));
-        assertThat(storedModel.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
-        assertThat(storedModel.getEstimatedOperations(), equalTo((long)modelSizeInfo.numOperations()));
+        assertThat(storedModel.getModelSize(), equalTo(modelSizeInfo.ramBytesUsed()));
+        assertThat(storedModel.getEstimatedOperations(), equalTo((long) modelSizeInfo.numOperations()));
         if (analyticsConfig.getAnalysis() instanceof Classification) {
             assertThat(storedModel.getInferenceConfig().getName(), equalTo("classification"));
         } else {
@@ -154,8 +149,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         Map<String, Object> metadata = storedModel.getMetadata();
         assertThat(metadata.size(), equalTo(1));
         assertThat(metadata, hasKey("analytics_config"));
-        Map<String, Object> analyticsConfigAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, analyticsConfig.toString(),
-            true);
+        Map<String, Object> analyticsConfigAsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, analyticsConfig.toString(), true);
         assertThat(analyticsConfigAsMap, equalTo(metadata.get("analytics_config")));
 
         TrainedModelDefinitionDoc storedDoc1 = storedDocCapture.getAllValues().get(0);
@@ -175,13 +169,17 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
         Mockito.verifyNoMoreInteractions(auditor);
     }
 
-    private ChunkedTrainedModelPersister createChunkedTrainedModelPersister(List<ExtractedField> fieldNames,
-                                                                            DataFrameAnalyticsConfig analyticsConfig) {
-        return new ChunkedTrainedModelPersister(trainedModelProvider,
+    private ChunkedTrainedModelPersister createChunkedTrainedModelPersister(
+        List<ExtractedField> fieldNames,
+        DataFrameAnalyticsConfig analyticsConfig
+    ) {
+        return new ChunkedTrainedModelPersister(
+            trainedModelProvider,
             analyticsConfig,
             auditor,
-            (unused)->{},
-            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap()));
+            (unused) -> {},
+            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap())
+        );
     }
 
 }

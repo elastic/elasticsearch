@@ -1,19 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -24,6 +23,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,30 +39,35 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     public void testReloadSearchAnalyzers() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
+        Settings settings = indexSettings(1, 1).put("index.analysis.analyzer.reloadableAnalyzer.type", "custom")
             .put("index.analysis.analyzer.reloadableAnalyzer.tokenizer", "standard")
-            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter").build();
+            .putList("index.analysis.analyzer.reloadableAnalyzer.filter", "myReloadableFilter")
+            .build();
 
         MapperService mapperService = createIndex("test_index", settings).mapperService();
-        CompressedXContent mapping = new CompressedXContent(BytesReference.bytes(
-            XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject("properties")
-                .startObject("field")
-                .field("type", "text")
-                .field("analyzer", "simple")
-                .field("search_analyzer", "reloadableAnalyzer")
-                .field("search_quote_analyzer", "stop")
-                .endObject()
-                .startObject("otherField")
-                .field("type", "text")
-                .field("analyzer", "standard")
-                .field("search_analyzer", "simple")
-                .field("search_quote_analyzer", "reloadableAnalyzer")
-                .endObject()
-                .endObject()
-                .endObject().endObject()));
+        CompressedXContent mapping = new CompressedXContent(
+            BytesReference.bytes(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("_doc")
+                    .startObject("properties")
+                    .startObject("field")
+                    .field("type", "text")
+                    .field("analyzer", "simple")
+                    .field("search_analyzer", "reloadableAnalyzer")
+                    .field("search_quote_analyzer", "stop")
+                    .endObject()
+                    .startObject("otherField")
+                    .field("type", "text")
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                    .field("search_quote_analyzer", "reloadableAnalyzer")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
 
         mapperService.merge("_doc", mapping, MapperService.MergeReason.MAPPING_UPDATE);
         IndexAnalyzers current = mapperService.getIndexAnalyzers();
@@ -73,7 +78,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertEquals("myReloadableFilter", originalTokenFilters[0].name());
 
         // now reload, this should change the tokenfilterFactory inside the analyzer
-        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class));
+        mapperService.reloadSearchAnalyzers(getInstanceFromNode(AnalysisRegistry.class), null, false);
         IndexAnalyzers updatedAnalyzers = mapperService.getIndexAnalyzers();
         assertSame(current, updatedAnalyzers);
         assertSame(current.getDefaultIndexAnalyzer(), updatedAnalyzers.getDefaultIndexAnalyzer());
@@ -81,10 +86,15 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         assertSame(current.getDefaultSearchQuoteAnalyzer(), updatedAnalyzers.getDefaultSearchQuoteAnalyzer());
 
         assertFalse(assertSameContainedFilters(originalTokenFilters, current.get("reloadableAnalyzer")));
-        assertFalse(assertSameContainedFilters(originalTokenFilters,
-            mapperService.fieldType("field").getTextSearchInfo().getSearchAnalyzer()));
-        assertFalse(assertSameContainedFilters(originalTokenFilters,
-            mapperService.fieldType("otherField").getTextSearchInfo().getSearchQuoteAnalyzer()));
+        assertFalse(
+            assertSameContainedFilters(originalTokenFilters, mapperService.fieldType("field").getTextSearchInfo().searchAnalyzer())
+        );
+        assertFalse(
+            assertSameContainedFilters(
+                originalTokenFilters,
+                mapperService.fieldType("otherField").getTextSearchInfo().searchQuoteAnalyzer()
+            )
+        );
     }
 
     private boolean assertSameContainedFilters(TokenFilterFactory[] originalTokenFilter, NamedAnalyzer updatedAnalyzer) {
@@ -92,7 +102,7 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
         TokenFilterFactory[] newTokenFilters = updatedReloadableAnalyzer.getComponents().getTokenFilters();
         assertEquals(originalTokenFilter.length, newTokenFilters.length);
         int i = 0;
-        for (TokenFilterFactory tf : newTokenFilters ) {
+        for (TokenFilterFactory tf : newTokenFilters) {
             assertEquals(originalTokenFilter[i].name(), tf.name());
             if (originalTokenFilter[i] != tf) {
                 return false;
@@ -106,23 +116,22 @@ public class ReloadableAnalyzerTests extends ESSingleNodeTestCase {
 
         @Override
         public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
-            return Collections.singletonMap("myReloadableFilter",
-                (indexSettings, environment, name, settings) -> new TokenFilterFactory() {
-                    @Override
-                    public String name() {
-                        return "myReloadableFilter";
-                    }
+            return Collections.singletonMap("myReloadableFilter", (indexSettings, environment, name, settings) -> new TokenFilterFactory() {
+                @Override
+                public String name() {
+                    return "myReloadableFilter";
+                }
 
-                    @Override
-                    public TokenStream create(TokenStream tokenStream) {
-                        return tokenStream;
-                    }
+                @Override
+                public TokenStream create(TokenStream tokenStream) {
+                    return tokenStream;
+                }
 
-                    @Override
-                    public AnalysisMode getAnalysisMode() {
-                        return AnalysisMode.SEARCH_TIME;
-                    }
-                });
+                @Override
+                public AnalysisMode getAnalysisMode() {
+                    return AnalysisMode.SEARCH_TIME;
+                }
+            });
         }
     }
 }

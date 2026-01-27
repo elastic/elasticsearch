@@ -1,27 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +77,7 @@ public class RecallAtKTests extends ESTestCase {
 
         RecallAtK recallAtN = new RecallAtK(2, 5);
 
-        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0,3), "test"), rated);
+        EvalQueryQuality evaluated = recallAtN.evaluate("id", toSearchHits(rated.subList(0, 3), "test"), rated);
         assertEquals((double) 1 / 3, evaluated.metricScore(), 0.00001);
         assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(3, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -103,8 +104,8 @@ public class RecallAtKTests extends ESTestCase {
         int k = 5;
         SearchHit[] hits = new SearchHit[k];
         for (int i = 0; i < k; i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i] = SearchHit.unpooled(i, i + "");
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
 
         EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", hits, Collections.emptyList());
@@ -114,7 +115,7 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     public void testNoResults() throws Exception {
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", new SearchHit[0], Collections.emptyList());
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", SearchHits.EMPTY, Collections.emptyList());
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -124,7 +125,7 @@ public class RecallAtKTests extends ESTestCase {
         List<RatedDocument> rated = new ArrayList<>();
         rated.add(createRatedDoc("test", "0", RELEVANT_RATING));
 
-        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", new SearchHit[0], rated);
+        EvalQueryQuality evaluated = (new RecallAtK()).evaluate("id", SearchHits.EMPTY, rated);
         assertEquals(0.0d, evaluated.metricScore(), 0.00001);
         assertEquals(0, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevantRetrieved());
         assertEquals(1, ((RecallAtK.Detail) evaluated.getMetricDetails()).getRelevant());
@@ -188,8 +189,7 @@ public class RecallAtKTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RecallAtK original = createTestItem();
-        RecallAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-            RecallAtK::new);
+        RecallAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), RecallAtK::new);
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -204,29 +204,22 @@ public class RecallAtKTests extends ESTestCase {
     }
 
     private static RecallAtK mutate(RecallAtK original) {
-        RecallAtK recallAtK;
-        switch (randomIntBetween(0, 1)) {
-            case 0:
-                recallAtK = new RecallAtK(
-                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.forcedSearchSize().getAsInt());
-                break;
-            case 1:
-                recallAtK = new RecallAtK(
-                    original.getRelevantRatingThreshold(),
-                    original.forcedSearchSize().getAsInt() + 1);
-                break;
-            default:
-                throw new IllegalStateException("The test should only allow two parameters mutated");
-        }
+        RecallAtK recallAtK = switch (randomIntBetween(0, 1)) {
+            case 0 -> new RecallAtK(
+                randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                original.forcedSearchSize().getAsInt()
+            );
+            case 1 -> new RecallAtK(original.getRelevantRatingThreshold(), original.forcedSearchSize().getAsInt() + 1);
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
+        };
         return recallAtK;
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index) {
         SearchHit[] hits = new SearchHit[rated.size()];
         for (int i = 0; i < rated.size(); i++) {
-            hits[i] = new SearchHit(i, i + "", Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null, OriginalIndices.NONE));
+            hits[i] = SearchHit.unpooled(i, i + "");
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         }
         return hits;
     }

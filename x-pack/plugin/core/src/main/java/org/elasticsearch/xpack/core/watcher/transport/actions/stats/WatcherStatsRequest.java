@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.stats;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 
 /**
  * The Request to get the watcher stats
  */
-public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
+public class WatcherStatsRequest extends BaseNodesRequest {
 
     private boolean includeCurrentWatches;
     private boolean includeQueuedWatches;
@@ -25,13 +24,6 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
 
     public WatcherStatsRequest() {
         super((String[]) null);
-    }
-
-    public WatcherStatsRequest(StreamInput in) throws IOException {
-        super(in);
-        includeCurrentWatches = in.readBoolean();
-        includeQueuedWatches = in.readBoolean();
-        includeStats = in.readBoolean();
     }
 
     public boolean includeCurrentWatches() {
@@ -59,24 +51,11 @@ public class WatcherStatsRequest extends BaseNodesRequest<WatcherStatsRequest> {
     }
 
     @Override
-    public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(includeCurrentWatches);
-        out.writeBoolean(includeQueuedWatches);
-        out.writeBoolean(includeStats);
-    }
-
-    @Override
     public String toString() {
         return "watcher_stats";
     }
 
-    public static class Node extends TransportRequest {
+    public static class Node extends AbstractTransportRequest {
 
         private boolean includeCurrentWatches;
         private boolean includeQueuedWatches;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper.flattened;
@@ -13,11 +14,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,11 +37,12 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
 
     private final String key;
     private final LeafOrdinalsFieldData delegate;
+    private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-    KeyedFlattenedLeafFieldData(String key,
-                                LeafOrdinalsFieldData delegate) {
+    KeyedFlattenedLeafFieldData(String key, LeafOrdinalsFieldData delegate, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
         this.key = key;
         this.delegate = delegate;
+        this.toScriptFieldFactory = toScriptFieldFactory;
     }
 
     @Override
@@ -74,14 +76,8 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
     }
 
     @Override
-    public void close() {
-        delegate.close();
-    }
-
-    @Override
-    public ScriptDocValues<?> getScriptValues() {
-        return AbstractLeafOrdinalsFieldData.DEFAULT_SCRIPT_FUNCTION
-            .apply(getOrdinalsValues());
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+        return toScriptFieldFactory.getScriptFieldFactory(getOrdinalsValues(), name);
     }
 
     @Override
@@ -163,16 +159,16 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
          */
         private long cachedNextOrd;
 
-        private KeyedFlattenedDocValues(BytesRef key,
-                                        SortedSetDocValues delegate,
-                                        long minOrd,
-                                        long maxOrd) {
+        private int count;
+
+        private KeyedFlattenedDocValues(BytesRef key, SortedSetDocValues delegate, long minOrd, long maxOrd) {
             assert minOrd >= 0 && maxOrd >= 0;
             this.key = key;
             this.delegate = delegate;
             this.minOrd = minOrd;
             this.maxOrd = maxOrd;
             this.cachedNextOrd = -1;
+            this.count = -1;
         }
 
         @Override
@@ -204,20 +200,44 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             long ord = delegate.nextOrd();
-            if (ord != NO_MORE_ORDS && ord <= maxOrd) {
-                assert ord >= minOrd;
-                return mapOrd(ord);
-            } else {
-                return NO_MORE_ORDS;
-            }
+            assert ord <= maxOrd;
+            return mapOrd(ord);
+        }
+
+        @Override
+        public int docValueCount() {
+            return count;
         }
 
         @Override
         public boolean advanceExact(int target) throws IOException {
             if (delegate.advanceExact(target)) {
+
+                int count = 0;
+                for (int i = 0; i < delegate.docValueCount(); i++) {
+                    long ord = delegate.nextOrd();
+                    if (ord > maxOrd) {
+                        break;
+                    }
+                    if (ord >= minOrd) {
+                        count++;
+                    }
+                }
+                if (count == 0) {
+                    this.count = -1;
+                    this.cachedNextOrd = -1;
+                    return false;
+                }
+                this.count = count;
+
+                // It is a match, but still need to reset the iterator on the current doc and
+                // iterate the delegate until at least minOrd has been seen.
+                boolean advanced = delegate.advanceExact(target);
+                assert advanced;
+
                 while (true) {
                     long ord = delegate.nextOrd();
-                    if (ord == NO_MORE_ORDS || ord > maxOrd) {
+                    if (ord > maxOrd) {
                         break;
                     }
 
@@ -229,6 +249,7 @@ public class KeyedFlattenedLeafFieldData implements LeafOrdinalsFieldData {
             }
 
             cachedNextOrd = -1;
+            count = -1;
             return false;
         }
 

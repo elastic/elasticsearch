@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.index;
@@ -19,14 +20,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -57,7 +59,6 @@ public class FreqTermsEnumTests extends ESTestCase {
         int docFreq;
         long totalTermFreq;
     }
-
 
     @Before
     @Override
@@ -127,8 +128,9 @@ public class FreqTermsEnumTests extends ESTestCase {
         // now go over each doc, build the relevant references and filter
         reader = DirectoryReader.open(iw);
         List<BytesRef> filterTerms = new ArrayList<>();
+        StoredFields storedFields = reader.storedFields();
         for (int docId = 0; docId < reader.maxDoc(); docId++) {
-            Document doc = reader.document(docId);
+            Document doc = storedFields.document(docId);
             addFreqs(doc, referenceAll);
             if (deletedIds.contains(doc.getField("id").stringValue()) == false) {
                 addFreqs(doc, referenceNotDeleted);
@@ -138,7 +140,7 @@ public class FreqTermsEnumTests extends ESTestCase {
                 }
             }
         }
-        filter = new TermInSetQuery("id",filterTerms);
+        filter = new TermInSetQuery("id", filterTerms);
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {
@@ -168,9 +170,9 @@ public class FreqTermsEnumTests extends ESTestCase {
     }
 
     public void testNonDeletedFreqs() throws Exception {
-        assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
-        assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
-        assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
+        assertAgainstReference(true, true, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
+        assertAgainstReference(true, false, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
+        assertAgainstReference(false, true, Queries.ALL_DOCS_INSTANCE, referenceNotDeleted);
     }
 
     public void testFilterFreqs() throws Exception {
@@ -179,19 +181,19 @@ public class FreqTermsEnumTests extends ESTestCase {
         assertAgainstReference(false, true, filter, referenceFilter);
     }
 
-    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Query filter,
-            Map<String, FreqHolder> reference) throws Exception {
+    private void assertAgainstReference(boolean docFreq, boolean totalTermFreq, Query filter, Map<String, FreqHolder> reference)
+        throws Exception {
         FreqTermsEnum freqTermsEnum = new FreqTermsEnum(reader, "field", docFreq, totalTermFreq, filter, BigArrays.NON_RECYCLING_INSTANCE);
         assertAgainstReference(freqTermsEnum, reference, docFreq, totalTermFreq);
     }
 
-    private void assertAgainstReference(FreqTermsEnum termsEnum, Map<String, FreqHolder> reference, boolean docFreq,
-            boolean totalTermFreq) throws Exception {
+    private void assertAgainstReference(FreqTermsEnum termsEnum, Map<String, FreqHolder> reference, boolean docFreq, boolean totalTermFreq)
+        throws Exception {
         int cycles = randomIntBetween(1, 5);
         for (int i = 0; i < cycles; i++) {
             List<String> terms = new ArrayList<>(Arrays.asList(this.terms));
 
-           Collections.shuffle(terms, random());
+            Collections.shuffle(terms, random());
             for (String term : terms) {
                 if (termsEnum.seekExact(new BytesRef(term)) == false) {
                     assertThat("term : " + term, reference.get(term).docFreq, is(0));
@@ -201,8 +203,11 @@ public class FreqTermsEnumTests extends ESTestCase {
                     assertThat("cycle " + i + ", term " + term + ", docFreq", termsEnum.docFreq(), equalTo(reference.get(term).docFreq));
                 }
                 if (totalTermFreq) {
-                    assertThat("cycle " + i + ", term " + term + ", totalTermFreq", termsEnum.totalTermFreq(),
-                            equalTo(reference.get(term).totalTermFreq));
+                    assertThat(
+                        "cycle " + i + ", term " + term + ", totalTermFreq",
+                        termsEnum.totalTermFreq(),
+                        equalTo(reference.get(term).totalTermFreq)
+                    );
                 }
             }
         }

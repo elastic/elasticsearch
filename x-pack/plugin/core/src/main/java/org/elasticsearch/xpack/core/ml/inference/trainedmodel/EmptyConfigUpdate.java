@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 
@@ -17,29 +18,24 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     public static final String NAME = "empty";
 
-    public static Version minimumSupportedVersion() {
-        return Version.V_7_9_0;
+    public static final EmptyConfigUpdate INSTANCE = new EmptyConfigUpdate();
+
+    public static MlConfigVersion minimumSupportedVersion() {
+        return MlConfigVersion.V_7_9_0;
     }
 
-    public EmptyConfigUpdate() {
-    }
+    public EmptyConfigUpdate() {}
 
-    public EmptyConfigUpdate(StreamInput in) {
+    public EmptyConfigUpdate(StreamInput in) {}
+
+    @Override
+    public boolean isEmpty() {
+        return true;
     }
 
     @Override
     public String getResultsField() {
         return null;
-    }
-
-    @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        return originalConfig;
-    }
-
-    @Override
-    public InferenceConfig toConfig() {
-        throw new UnsupportedOperationException("the empty config update cannot be rewritten");
     }
 
     @Override
@@ -72,6 +68,11 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
         return EmptyConfigUpdate.class.hashCode();
     }
 
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
+    }
+
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {
 
         @Override
@@ -79,6 +80,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
             return this;
         }
 
+        @Override
         public EmptyConfigUpdate build() {
             return new EmptyConfigUpdate();
         }

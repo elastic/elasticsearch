@@ -77,8 +77,8 @@ public class EsQueryExec extends LeafExec {
 
         EsQueryExec other = (EsQueryExec) obj;
         return Objects.equals(index, other.index)
-                && Objects.equals(queryContainer, other.queryContainer)
-                && Objects.equals(output, other.output);
+            && Objects.equals(queryContainer, other.queryContainer)
+            && Objects.equals(output, other.output);
     }
 
     @Override

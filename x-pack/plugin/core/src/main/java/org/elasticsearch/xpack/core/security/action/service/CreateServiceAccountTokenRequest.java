@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class CreateServiceAccountTokenRequest extends ActionRequest {
+public class CreateServiceAccountTokenRequest extends LegacyActionRequest {
 
     private final String namespace;
     private final String serviceName;
@@ -63,13 +63,13 @@ public class CreateServiceAccountTokenRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         CreateServiceAccountTokenRequest that = (CreateServiceAccountTokenRequest) o;
-        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName)
-            && Objects.equals(tokenName, that.tokenName) && refreshPolicy == that.refreshPolicy;
+        return Objects.equals(namespace, that.namespace)
+            && Objects.equals(serviceName, that.serviceName)
+            && Objects.equals(tokenName, that.tokenName)
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override

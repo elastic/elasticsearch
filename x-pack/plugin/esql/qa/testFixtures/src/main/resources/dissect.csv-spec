@@ -1,0 +1,373 @@
+simpleDissect
+row a = "foo bar" | dissect a "%{b} %{c}";
+
+a:keyword | b:keyword | c:keyword
+foo bar   | foo       | bar
+;
+
+
+simpleDissectNoMatch
+row a = "foo bar" | dissect a "%{b} %{c} baz";
+
+a:keyword | b:keyword | c:keyword
+foo bar   | null       | null
+;
+
+
+shadowing
+FROM employees
+| KEEP first_name, last_name
+| WHERE last_name == "Facello"
+| EVAL left = "left", full_name = concat(first_name, " ", last_name) , last_name = "last_name", right = "right"
+| DISSECT full_name "%{?} %{last_name}"
+;
+
+first_name:keyword | left:keyword | full_name:keyword | right:keyword | last_name:keyword
+Georgi             | left         |    Georgi Facello | right         | Facello
+;
+
+shadowingSubfields
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| DISSECT city.name "%{city.country.continent.planet.name} %{?}"
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword
+Netherlands               | Amsterdam         | null
+United States of America  | San Francisco     | San
+Japan                     | Tokyo             | null
+;
+
+shadowingSelf
+FROM employees
+| KEEP first_name, last_name
+| WHERE last_name == "Facello"
+| EVAL left = "left", name = concat(first_name, "1 ", last_name), right = "right"
+| DISSECT name "%{name} %{?}"
+;
+
+first_name:keyword | last_name:keyword | left:keyword | right:keyword | name:keyword
+Georgi             | Facello           | left         | right         | Georgi1
+;
+
+shadowingMulti
+FROM employees
+| KEEP first_name, last_name
+| WHERE last_name == "Facello"
+| EVAL left = "left", foo = concat(first_name, "1 ", first_name, "2 ", last_name) , middle = "middle", bar = "bar", right = "right"
+| DISSECT foo "%{bar} %{first_name} %{last_name_again}"
+;
+
+last_name:keyword | left:keyword | foo:keyword             | middle:keyword | right:keyword | bar:keyword  | first_name:keyword | last_name_again:keyword
+Facello           | left         | Georgi1 Georgi2 Facello | middle         | right         | Georgi1      | Georgi2            | Facello
+;
+
+shadowingInternal
+FROM employees
+| KEEP first_name, last_name
+| WHERE last_name == "Facello"
+| EVAL name = concat(first_name, "1 ", last_name)
+| DISSECT name "%{foo} %{foo}"
+;
+
+first_name:keyword | last_name:keyword | name:keyword    | foo:keyword
+Georgi             | Facello           | Georgi1 Facello | Facello
+;
+
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME city AS c
+| DISSECT long_city_name "Zurich, the %{city} city in Switzerland"
+;
+
+c:keyword | long_city_name:keyword                  | city:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME city AS c
+| DISSECT long_city_name "Zurich, the %{city} city in %{foo}"
+;
+
+c:keyword | long_city_name:keyword                  | city:keyword | foo:keyword
+Zürich    | Zurich, the largest city in Switzerland | largest      | Switzerland
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+ROW city = "Zürich", long_city_name = "Zurich, the largest city in Switzerland"
+| RENAME long_city_name AS c
+| DISSECT c "Zurich, the %{long_city_name} city in Switzerland"
+;
+
+city:keyword | c:keyword                               | long_city_name:keyword
+Zürich       | Zurich, the largest city in Switzerland | largest
+;
+
+
+complexPattern
+ROW a = "1953-01-23T12:15:00Z - some text - 127.0.0.1;" 
+| DISSECT a "%{Y}-%{M}-%{D}T%{h}:%{m}:%{s}Z - %{msg} - %{ip};" 
+| KEEP Y, M, D, h, m, s, msg, ip
+;
+
+Y:keyword | M:keyword | D:keyword | h:keyword | m:keyword | s:keyword | msg:keyword  | ip:keyword
+1953      | 01        | 23        | 12        | 15        | 00        | some text    | 127.0.0.1
+;
+
+
+append
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}";
+
+a:keyword        | b:keyword  | c:keyword | d:keyword
+foo 1 bar 2 baz  | foobarbaz  | 1          | 2         
+;
+
+
+appendWithOrder
+row a = "foo 1 bar 2 baz" | dissect a "%{+b/3} %{c} %{+b/2} %{d} %{+b/1}";
+
+a:keyword        | b:keyword | c:keyword  | d:keyword 
+foo 1 bar 2 baz  | bazbarfoo | 1          | 2         
+;
+
+
+appendSeparator
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" append_separator=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
+appendSeparatorUppercase
+row a = "foo 1 bar 2 baz" | dissect a "%{+b} %{c} %{+b} %{d} %{+b}" APPEND_SEPARATOR=",";
+
+a:keyword        | b:keyword   | c:keyword    | d:keyword 
+foo 1 bar 2 baz  | foo,bar,baz | 1            | 2         
+;
+
+
+namedSkip
+row a = "foo bar baz" | dissect a "%{b} %{?c} %{d}";
+
+a:keyword    | b:keyword  | d:keyword
+foo bar baz  | foo        | baz 
+;
+
+
+padding
+row a = "foo           bar" | dissect a "%{b->} %{c}";
+
+a:keyword          | b:keyword  | c:keyword
+foo           bar  | foo        | bar
+;
+
+
+evalDissect
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort emp_no asc | keep full_name, a, b | limit 3;
+
+full_name:keyword | a:keyword | b:keyword
+Georgi Facello    | Georgi    | Facello
+Bezalel Simmel    | Bezalel   | Simmel 
+Parto Bamford     | Parto     | Bamford
+;
+
+
+dissectExpression
+from employees | dissect concat(first_name, " ", last_name) "%{a} %{b}" | sort emp_no asc | keep a, b | limit 3;
+
+a:keyword | b:keyword
+Georgi    | Facello
+Bezalel   | Simmel 
+Parto     | Bamford
+;
+
+
+evalDissectSort
+from employees | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{a} %{b}" | sort a asc | keep full_name, a, b | limit 3;
+
+full_name:keyword     | a:keyword    | b:keyword
+Alejandro McAlpine    | Alejandro    | McAlpine
+Amabile Gomatam       | Amabile      | Gomatam 
+Anneke Preusig        | Anneke       | Preusig
+;
+
+
+dissectStats
+from employees | eval x = concat(gender, " foobar") | dissect x "%{a} %{b}" | stats n = max(emp_no) by a | keep a, n | sort a asc;
+
+a:keyword  | n:integer
+F          | 10100    
+M          | 10097
+null       | 10019
+;
+
+
+nullOnePattern
+from employees | where emp_no == 10030 | dissect first_name "%{a}" | keep first_name, a;
+
+first_name:keyword | a:keyword
+null               | null     
+;
+
+
+nullTwoPatterns
+from employees | where emp_no == 10030 | dissect first_name "%{a} %{b}" | keep first_name, a, b;
+
+first_name:keyword | a:keyword | b:keyword
+null               | null      | null
+;
+
+
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteName#[skip:-8.12.99]
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | keep full_name, emp_no, b | limit 3;
+
+full_name:keyword | emp_no:keyword | b:keyword
+Georgi Facello    | Georgi         | Facello
+Bezalel Simmel    | Bezalel        | Simmel 
+Parto Bamford     | Parto          | Bamford
+;
+
+
+// different from shadowingSelf because in this case we dissect an indexed field
+// see https://github.com/elastic/elasticsearch/issues/110184
+overwriteInputName
+required_capability: grok_dissect_masking
+from employees | sort emp_no asc | dissect first_name "%{first_name}o%{rest}" | keep emp_no, first_name, rest | limit 1;
+
+emp_no:integer | first_name:keyword | rest:keyword
+10001          | Ge                 | rgi
+;
+
+
+// the query is incorrectly physically planned (fails the verification) in pre-8.13.0 versions
+overwriteNameWhere#[skip:-8.12.99]
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | dissect full_name "%{emp_no} %{b}" | where emp_no == "Bezalel" | keep full_name, emp_no, b | limit 3;
+
+full_name:keyword | emp_no:keyword | b:keyword
+Bezalel Simmel    | Bezalel        | Simmel 
+;
+
+
+overwriteNameAfterSort#[skip:-8.13.0]
+from employees | sort emp_no ASC | dissect first_name "Ge%{emp_no}gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
+;
+
+first_name_fragment:keyword
+or
+;
+
+# for now it calculates only based on the first value
+multivalueInput
+from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | keep emp_no, a, b, c;
+
+emp_no:integer | a:keyword            | b:keyword         | c:keyword
+10001          | Senior               | Python            | Developer
+10002          | Senior               | Team              | Lead
+10003          | null                 | null              | null
+10004          | Head                 | Human             | Resources
+10005          | null                 | null              | null 
+10006          | [Principal, Senior]  | [Support, Team]   | [Engineer, Lead]
+;
+
+docsGettingStartedDissect
+// tag::gs-dissect[]
+FROM sample_data
+| DISSECT message "Connected to %{server_ip}"
+// end::gs-dissect[]
+| LIMIT 0
+;
+
+@timestamp:date | client_ip:ip | event_duration:long | message:keyword | server_ip:keyword
+;
+
+docsGettingStartedDissectStatsBy
+// tag::gs-dissect-stats-by[]
+FROM sample_data
+| WHERE STARTS_WITH(message, "Connected to")
+| DISSECT message "Connected to %{server_ip}"
+| STATS COUNT(*) BY server_ip
+// end::gs-dissect-stats-by[]
+| SORT server_ip
+;
+
+COUNT(*):long  | server_ip:keyword
+1              |10.1.0.1       
+1              |10.1.0.2       
+1              |10.1.0.3      
+;
+
+emptyPattern#[skip:-8.11.99]
+ROW a="b c d"| DISSECT a "%{b} %{} %{d}";
+
+a:keyword | b:keyword | d:keyword
+b c d     | b         | d
+;
+
+
+multipleEmptyPatterns#[skip:-8.11.99]
+ROW a="b c d e"| DISSECT a "%{b} %{} %{} %{e}";
+
+a:keyword | b:keyword | e:keyword
+b c d e   | b         | e
+;
+
+firstEmptyPattern#[skip:-8.11.99]
+ROW a="x b c d"| DISSECT a "%{} %{b} %{} %{d}";
+
+a:keyword   | b:keyword | d:keyword
+x b c d     | b         | d
+;
+
+
+lastEmptyPattern#[skip:-8.11.99]
+ROW a="b c d x"| DISSECT a "%{b} %{} %{d} %{}";
+
+a:keyword  | b:keyword | d:keyword
+b c d x    | b         | d
+;
+
+avoidAttributesRemoval
+// https://github.com/elastic/elasticsearch/issues/127468
+required_capability: keep_regex_extract_attributes
+required_capability: join_lookup_v12
+from message_types 
+| eval type = 1 
+| lookup join message_types_lookup on message 
+| drop message 
+| dissect type "%{b}" 
+| stats x = max(b) 
+| keep x
+;
+
+x:keyword
+Success
+;
+
+avoidAttributesRemoval2
+// https://github.com/elastic/elasticsearch/issues/127468
+required_capability: keep_regex_extract_attributes
+required_capability: join_lookup_v12
+FROM sample_data, employees
+| EVAL client_ip = client_ip::keyword
+| RENAME languages AS language_code
+| LOOKUP JOIN clientips_lookup ON client_ip
+| EVAL type = 1::keyword
+| EVAL type = 2
+| LOOKUP JOIN message_types_lookup ON message
+| LOOKUP JOIN languages_lookup ON language_code
+| DISSECT type "%{type_as_text}"
+| KEEP message
+| WHERE message IS NOT NULL
+| SORT message DESC
+| LIMIT 1
+;
+
+message:keyword
+Disconnected
+;

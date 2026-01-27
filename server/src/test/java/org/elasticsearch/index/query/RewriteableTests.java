@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -21,22 +22,27 @@ import java.util.function.Supplier;
 public class RewriteableTests extends ESTestCase {
 
     public void testRewrite() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
-        TestRewriteable rewrite = Rewriteable.rewrite(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)), context,
-            randomBoolean());
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
+        TestRewriteable rewrite = Rewriteable.rewrite(
+            new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS)),
+            context,
+            randomBoolean()
+        );
         assertEquals(rewrite.numRewrites, 0);
-        IllegalStateException ise = expectThrows(IllegalStateException.class, () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable
-                .MAX_REWRITE_ROUNDS+1),
-            context));
+        IllegalStateException ise = expectThrows(
+            IllegalStateException.class,
+            () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable.MAX_REWRITE_ROUNDS + 1), context)
+        );
         assertEquals(ise.getMessage(), "too many rewrite rounds, rewriteable might return new objects even if they are not rewritten");
-        ise = expectThrows(IllegalStateException.class, () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable
-                .MAX_REWRITE_ROUNDS + 1, true),
-            context, true));
+        ise = expectThrows(
+            IllegalStateException.class,
+            () -> Rewriteable.rewrite(new TestRewriteable(Rewriteable.MAX_REWRITE_ROUNDS + 1, true), context, true)
+        );
         assertEquals(ise.getMessage(), "async actions are left after rewrite");
     }
 
     public void testRewriteAndFetch() throws ExecutionException, InterruptedException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         PlainActionFuture<TestRewriteable> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(new TestRewriteable(randomIntBetween(0, Rewriteable.MAX_REWRITE_ROUNDS), true), context, future);
         TestRewriteable rewrite = future.get();
@@ -54,7 +60,7 @@ public class RewriteableTests extends ESTestCase {
     }
 
     public void testRewriteList() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null);
         List<TestRewriteable> rewriteableList = new ArrayList<>();
         int numInstances = randomIntBetween(1, 10);
         rewriteableList.add(new TestRewriteable(randomIntBetween(1, Rewriteable.MAX_REWRITE_ROUNDS)));
@@ -122,9 +128,9 @@ public class RewriteableTests extends ESTestCase {
                         r.run();
                     }
                 });
-                return new TestRewriteable(numRewrites-1, fetch, setOnce::get);
+                return new TestRewriteable(numRewrites - 1, fetch, setOnce::get);
             }
-            return new TestRewriteable(numRewrites-1, fetch, null);
+            return new TestRewriteable(numRewrites - 1, fetch, null);
         }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.usage;
@@ -12,8 +13,8 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,8 +47,13 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
      *            a map containing the counts of the number of times each REST
      *            endpoint has been called
      */
-    public NodeUsage(DiscoveryNode node, long timestamp, long sinceTime, Map<String, Long> restUsage,
-                     Map<String, Object> aggregationUsage) {
+    public NodeUsage(
+        DiscoveryNode node,
+        long timestamp,
+        long sinceTime,
+        Map<String, Long> restUsage,
+        Map<String, Object> aggregationUsage
+    ) {
         super(node);
         this.timestamp = timestamp;
         this.sinceTime = sinceTime;

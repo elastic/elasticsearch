@@ -1,0 +1,27 @@
+# Rename this file to `elasticsearch-plugins.yml` to use it.
+#
+# All plugins must be listed here. If you add a plugin to this list and run
+# `elasticsearch-plugin sync`, that plugin will be installed. If you remove
+# a plugin from this list, that plugin will be removed when Elasticsearch
+# next starts.
+
+plugins:
+  # Each plugin must have an ID. Plugins with only an ID are official plugins and will be downloaded from Elastic.
+  - id: example-id
+
+  # Plugins can be specified by URL (it doesn't have to be HTTP, you could use e.g. `file:`)
+  - id: example-with-url
+    location: https://some.domain/path/example4.zip
+
+  # Or by maven coordinates:
+  - id: example-with-maven-url
+    location: org.elasticsearch.plugins:example-plugin:1.2.3
+
+  # A proxy can also be configured per-plugin, if necessary
+  - id: example-with-proxy
+    location: https://some.domain/path/example.zip
+    proxy: https://some.domain:1234
+
+# Configures a proxy for all network access. Remove this if you don't need
+# to use a proxy.
+proxy: https://some.domain:1234

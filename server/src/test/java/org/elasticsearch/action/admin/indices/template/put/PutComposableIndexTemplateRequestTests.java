@@ -1,23 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateTests;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -25,15 +25,18 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<PutComposableIndexTemplateAction.Request> {
+public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<
+    TransportPutComposableIndexTemplateAction.Request> {
     @Override
-    protected Writeable.Reader<PutComposableIndexTemplateAction.Request> instanceReader() {
-        return PutComposableIndexTemplateAction.Request::new;
+    protected Writeable.Reader<TransportPutComposableIndexTemplateAction.Request> instanceReader() {
+        return TransportPutComposableIndexTemplateAction.Request::new;
     }
 
     @Override
-    protected PutComposableIndexTemplateAction.Request createTestInstance() {
-        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request(randomAlphaOfLength(4));
+    protected TransportPutComposableIndexTemplateAction.Request createTestInstance() {
+        TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request(
+            randomAlphaOfLength(4)
+        );
         req.cause(randomAlphaOfLength(4));
         req.create(randomBoolean());
         req.indexTemplate(ComposableIndexTemplateTests.randomInstance());
@@ -41,17 +44,26 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     @Override
-    protected PutComposableIndexTemplateAction.Request mutateInstance(PutComposableIndexTemplateAction.Request instance)
-        throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+    protected TransportPutComposableIndexTemplateAction.Request mutateInstance(TransportPutComposableIndexTemplateAction.Request instance) {
+        String name = instance.name();
+        String cause = instance.cause();
+        boolean create = instance.create();
+        ComposableIndexTemplate indexTemplate = instance.indexTemplate();
+        switch (between(0, 3)) {
+            case 0 -> name = randomValueOtherThan(name, () -> randomAlphaOfLength(4));
+            case 1 -> cause = randomValueOtherThan(cause, () -> randomAlphaOfLength(4));
+            case 2 -> create = create == false;
+            case 3 -> indexTemplate = ComposableIndexTemplateTests.randomInstance();
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new TransportPutComposableIndexTemplateAction.Request(name).cause(cause).create(create).indexTemplate(indexTemplate);
     }
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate.Builder().indexPatterns(List.of("*"))
-            .template(template).build();
+        ComposableIndexTemplate globalTemplate = ComposableIndexTemplate.builder().indexPatterns(List.of("*")).template(template).build();
 
-        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
 
         ActionRequestValidationException validationException = request.validate();
@@ -63,7 +75,9 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     public void testPutIndexTemplateV2RequestMustContainTemplate() {
-        PutComposableIndexTemplateAction.Request requestWithoutTemplate = new PutComposableIndexTemplateAction.Request("test");
+        TransportPutComposableIndexTemplateAction.Request requestWithoutTemplate = new TransportPutComposableIndexTemplateAction.Request(
+            "test"
+        );
 
         ActionRequestValidationException validationException = requestWithoutTemplate.validate();
         assertThat(validationException, is(notNullValue()));
@@ -74,9 +88,8 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     public void testValidationOfPriority() {
-        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
-        req.indexTemplate(new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo", "bar"))
-           .priority(-5L).build());
+        TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request("test");
+        req.indexTemplate(ComposableIndexTemplate.builder().indexPatterns(Arrays.asList("foo", "bar")).priority(-5L).build());
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();
@@ -86,16 +99,13 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
     }
 
     public void testValidateNoTemplate() {
-        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
-        req.indexTemplate(new ComposableIndexTemplate.Builder()
-            .indexPatterns(Collections.singletonList("*"))
-            .build());
+        TransportPutComposableIndexTemplateAction.Request req = new TransportPutComposableIndexTemplateAction.Request("test");
+        req.indexTemplate(ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList("*")).build());
         assertNull(req.validate());
 
-        req.indexTemplate(new ComposableIndexTemplate.Builder()
-            .indexPatterns(Collections.singletonList("*"))
-            .template(new Template(null, null, null))
-            .build());
+        req.indexTemplate(
+            ComposableIndexTemplate.builder().indexPatterns(Collections.singletonList("*")).template(new Template(null, null, null)).build()
+        );
         assertNull(req.validate());
     }
 }

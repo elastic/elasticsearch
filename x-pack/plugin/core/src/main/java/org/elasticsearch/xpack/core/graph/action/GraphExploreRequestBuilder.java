@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.graph.action;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
  */
 public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExploreRequest, GraphExploreResponse> {
 
-    public GraphExploreRequestBuilder(ElasticsearchClient client, GraphExploreAction action) {
-        super(client, action, new GraphExploreRequest());
+    public GraphExploreRequestBuilder(ElasticsearchClient client) {
+        super(client, GraphExploreAction.INSTANCE, new GraphExploreRequest());
     }
 
     public GraphExploreRequestBuilder setIndices(String... indices) {
@@ -87,21 +87,11 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return request.maxDocsPerDiversityValue();
     }
 
-
     /**
      * An optional timeout to control how long the graph exploration is allowed
      * to take.
      */
     public GraphExploreRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
-        return this;
-    }
-
-    /**
-     * An optional timeout to control how long the graph exploration is allowed
-     * to take.
-     */
-    public GraphExploreRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
         return this;
     }
@@ -128,7 +118,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         request.useSignificance(value);
         return this;
     }
-
 
     /**
      * The number of top-matching documents that are considered during each hop (default is

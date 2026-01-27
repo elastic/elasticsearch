@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.analytics.action;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -25,7 +26,8 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     AnalyticsStatsAction.Request,
     AnalyticsStatsAction.Response,
     AnalyticsStatsAction.NodeRequest,
-    AnalyticsStatsAction.NodeResponse> {
+    AnalyticsStatsAction.NodeResponse,
+    Void> {
     private final AnalyticsUsage usage;
 
     @Inject
@@ -38,14 +40,11 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
     ) {
         super(
             AnalyticsStatsAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            AnalyticsStatsAction.Request::new,
             AnalyticsStatsAction.NodeRequest::new,
-            ThreadPool.Names.MANAGEMENT,
-            AnalyticsStatsAction.NodeResponse.class
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.usage = usage;
     }
@@ -61,11 +60,11 @@ public class TransportAnalyticsStatsAction extends TransportNodesAction<
 
     @Override
     protected AnalyticsStatsAction.NodeRequest newNodeRequest(AnalyticsStatsAction.Request request) {
-        return new AnalyticsStatsAction.NodeRequest(request);
+        return new AnalyticsStatsAction.NodeRequest();
     }
 
     @Override
-    protected AnalyticsStatsAction.NodeResponse newNodeResponse(StreamInput in) throws IOException {
+    protected AnalyticsStatsAction.NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new AnalyticsStatsAction.NodeResponse(in);
     }
 

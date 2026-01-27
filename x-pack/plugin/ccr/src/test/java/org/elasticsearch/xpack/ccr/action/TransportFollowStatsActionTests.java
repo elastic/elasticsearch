@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -31,7 +31,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
 
     public void testFindFollowerIndicesFromShardFollowTasks() {
         Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
@@ -46,25 +46,31 @@ public class TransportFollowStatsActionTests extends ESTestCase {
             .addTask("3", ShardFollowTask.NAME, createShardFollowTask(index3.getIndex()), null);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(Metadata.builder()
-                .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
-                // only add index1 and index2
-                .put(index1, false)
-                .put(index2, false)
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
+                    // only add index1 and index2
+                    .put(index1, false)
+                    .put(index2, false)
+                    .build()
+            )
             .build();
         Set<String> result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState, null);
         assertThat(result.size(), equalTo(2));
         assertThat(result.contains(index1.getIndex().getName()), is(true));
         assertThat(result.contains(index2.getIndex().getName()), is(true));
 
-        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState,
-            new String[]{index2.getIndex().getName()});
+        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(
+            clusterState,
+            new String[] { index2.getIndex().getName() }
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.contains(index2.getIndex().getName()), is(true));
 
-        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState,
-            new String[]{index3.getIndex().getName()});
+        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(
+            clusterState,
+            new String[] { index3.getIndex().getName() }
+        );
         assertThat(result.size(), equalTo(0));
     }
 
@@ -80,7 +86,7 @@ public class TransportFollowStatsActionTests extends ESTestCase {
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()

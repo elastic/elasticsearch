@@ -1,22 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -25,8 +22,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -41,21 +42,26 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     private final Script script;
     private final ScriptService scriptService;
-    private final IngestScript precompiledIngestScript;
+    private final IngestScript.Factory precompiledIngestScriptFactory;
 
     /**
      * Processor that evaluates a script with an ingest document in its context
      *  @param tag The processor's tag.
      * @param description The processor's description.
      * @param script The {@link Script} to execute.
-     * @param precompiledIngestScript The {@link Script} precompiled
+     * @param precompiledIngestScriptFactory The {@link Script} precompiled script
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(String tag, String description, Script script, @Nullable IngestScript precompiledIngestScript,
-                    ScriptService scriptService) {
+    ScriptProcessor(
+        String tag,
+        String description,
+        Script script,
+        @Nullable IngestScript.Factory precompiledIngestScriptFactory,
+        ScriptService scriptService
+    ) {
         super(tag, description);
         this.script = script;
-        this.precompiledIngestScript = precompiledIngestScript;
+        this.precompiledIngestScriptFactory = precompiledIngestScriptFactory;
         this.scriptService = scriptService;
     }
 
@@ -66,15 +72,12 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public IngestDocument execute(IngestDocument document) {
-        final IngestScript ingestScript;
-        if (precompiledIngestScript == null) {
-            IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-            ingestScript = factory.newInstance(script.getParams());
-        } else {
-            ingestScript = precompiledIngestScript;
+        document.doNoSelfReferencesCheck(true);
+        IngestScript.Factory factory = precompiledIngestScriptFactory;
+        if (factory == null) {
+            factory = scriptService.compile(script, IngestScript.CONTEXT);
         }
-        ingestScript.execute(document.getSourceAndMetadata());
-        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
+        factory.newInstance(script.getParams(), document.getCtxMap()).execute();
         return document;
     }
 
@@ -87,8 +90,8 @@ public final class ScriptProcessor extends AbstractProcessor {
         return script;
     }
 
-    IngestScript getPrecompiledIngestScript() {
-        return precompiledIngestScript;
+    IngestScript.Factory getPrecompiledIngestScriptFactory() {
+        return precompiledIngestScriptFactory;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -99,27 +102,37 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
-        public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      String description, Map<String, Object> config) throws Exception {
-            try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
-                 InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
+        public ScriptProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
+            try (
+                XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).map(config);
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                    BytesReference.bytes(builder),
+                    XContentType.JSON
+                )
+            ) {
                 Script script = Script.parse(parser);
 
                 Arrays.asList("id", "source", "inline", "lang", "params", "options").forEach(config::remove);
 
                 // verify script is able to be compiled before successfully creating processor.
-                IngestScript ingestScript = null;
+                IngestScript.Factory ingestScriptFactory = null;
                 try {
-                    final IngestScript.Factory factory = scriptService.compile(script, IngestScript.CONTEXT);
-                    if (ScriptType.INLINE.equals(script.getType())) {
-                        ingestScript = factory.newInstance(script.getParams());
+                    ingestScriptFactory = scriptService.compile(script, IngestScript.CONTEXT);
+                    if (ScriptType.STORED.equals(script.getType())) {
+                        // do not cache stored scripts lest they change and invalidate the cached value
+                        ingestScriptFactory = null;
                     }
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptProcessor(processorTag, description, script, ingestScript, scriptService);
+                return new ScriptProcessor(processorTag, description, script, ingestScriptFactory, scriptService);
             }
         }
     }

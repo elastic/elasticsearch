@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
 import org.junit.AfterClass;
@@ -33,6 +35,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 
 @SuppressForbidden(reason = "use http server")
 public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
@@ -125,8 +129,8 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     public void testRangeReadOutsideOfLegalRange() {
         BlobContainer container = getBlobContainer();
-        expectThrows(IllegalArgumentException.class, () -> container.readBlob(blobName, -1, content.length).read());
-        expectThrows(IOException.class, () -> container.readBlob(blobName, content.length + 1, content.length).read());
+        expectThrows(IllegalArgumentException.class, () -> container.readBlob(randomPurpose(), blobName, -1, content.length).read());
+        expectThrows(IOException.class, () -> container.readBlob(randomPurpose(), blobName, content.length + 1, content.length).read());
     }
 
     private String getEndpointForServer() {

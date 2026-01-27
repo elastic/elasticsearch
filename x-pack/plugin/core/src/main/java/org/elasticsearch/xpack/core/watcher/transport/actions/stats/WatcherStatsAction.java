@@ -17,6 +17,6 @@ public class WatcherStatsAction extends ActionType<WatcherStatsResponse> {
     public static final String NAME = "cluster:monitor/xpack/watcher/stats/dist";
 
     private WatcherStatsAction() {
-        super(NAME, WatcherStatsResponse::new);
+        super(NAME);
     }
 }

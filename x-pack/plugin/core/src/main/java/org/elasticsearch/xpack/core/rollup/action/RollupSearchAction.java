@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 public class RollupSearchAction extends ActionType<SearchResponse> {
 
@@ -18,7 +18,7 @@ public class RollupSearchAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/xpack/rollup/search";
 
     private RollupSearchAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
     public static class RequestBuilder extends ActionRequestBuilder<SearchRequest, SearchResponse> {

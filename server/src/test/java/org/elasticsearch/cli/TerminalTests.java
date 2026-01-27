@@ -1,36 +1,38 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 
-import java.io.BufferedReader;
 import java.io.StringReader;
 
 import static org.elasticsearch.cli.Terminal.readLineToCharArray;
 import static org.hamcrest.Matchers.equalTo;
 
+@WithoutEntitlements // test & cli only - never running with entitlements enabled
 public class TerminalTests extends ESTestCase {
 
     public void testVerbosity() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
@@ -38,49 +40,46 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testErrorVerbosity() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
     }
 
-
     public void testEscaping() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
     }
 
     public void testPromptYesNoDefault() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("");
         assertTrue(terminal.promptYesNo("Answer?", true));
         terminal.addTextInput("");
         assertFalse(terminal.promptYesNo("Answer?", false));
-        terminal.addTextInput(null);
-        assertFalse(terminal.promptYesNo("Answer?", false));
     }
 
     public void testPromptYesNoReprompt() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("blah");
         terminal.addTextInput("y");
         assertTrue(terminal.promptYesNo("Answer? [Y/n]\nDid not understand answer 'blah'\nAnswer? [Y/n]", true));
     }
 
     public void testPromptYesNoCase() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("Y");
         assertTrue(terminal.promptYesNo("Answer?", false));
         terminal.addTextInput("y");
@@ -89,22 +88,6 @@ public class TerminalTests extends ESTestCase {
         assertFalse(terminal.promptYesNo("Answer?", true));
         terminal.addTextInput("n");
         assertFalse(terminal.promptYesNo("Answer?", true));
-    }
-
-    public void testMaxSecretLength() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        String secret = "A very long secret, too long in fact for our purposes.";
-        terminal.addSecretInput(secret);
-
-        expectThrows(IllegalStateException.class, "Secret exceeded maximum length of ",
-            () -> terminal.readSecret("Secret? ", secret.length() - 1));
-    }
-
-    public void testTerminalReusesBufferedReaders() throws Exception {
-        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
-        BufferedReader reader1 = terminal.getReader();
-        BufferedReader reader2 = terminal.getReader();
-        assertSame("System terminal should not create multiple buffered readers", reader1, reader2);
     }
 
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
@@ -152,16 +135,25 @@ public class TerminalTests extends ESTestCase {
         assertReadLines("one\r\ntwo\r\n\r\nthree", "one", "two", "", "three");
     }
 
-    public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
-        try (StringReader reader = new StringReader("hellohellohello!\n")) {
-            expectThrows(RuntimeException.class, "Input exceeded maximum length of 10",
-                () -> readLineToCharArray(reader, 10));
-        }
+    public void testReadLineToCharArrayBufferExpansion() throws Exception {
+        String passphrase = randomAlphaOfLength(128);
+        assertRead(passphrase + "\n", passphrase);
+        assertRead(passphrase + "\r\n", passphrase);
+    }
+
+    /**
+     * Tests an edge case when read buffer gets completely filled (up to 128 chars) with the last character being carriage return
+     * and asserts that this last CR character is properly removed.
+     */
+    public void testReadLineToCharArrayBufferWithCarriageReturnRemoval() throws Exception {
+        String passphrase = randomAlphaOfLength(127);
+        assertRead(passphrase + "\n", passphrase);
+        assertRead(passphrase + "\r\n", passphrase);
     }
 
     private void assertRead(String source, String expected) {
         try (StringReader reader = new StringReader(source)) {
-            char[] result = readLineToCharArray(reader, 10);
+            char[] result = readLineToCharArray(reader);
             assertThat(result, equalTo(expected.toCharArray()));
         }
     }
@@ -170,7 +162,7 @@ public class TerminalTests extends ESTestCase {
         try (StringReader reader = new StringReader(source)) {
             char[] result;
             for (String exp : expected) {
-                result = readLineToCharArray(reader, 10);
+                result = readLineToCharArray(reader);
                 assertThat(result, equalTo(exp.toCharArray()));
             }
         }

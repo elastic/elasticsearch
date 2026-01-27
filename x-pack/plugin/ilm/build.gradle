@@ -1,24 +1,46 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
-  name 'x-pack-ilm'
-  description 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
-  classname 'org.elasticsearch.xpack.ilm.IndexLifecycle'
+  name = 'x-pack-ilm'
+  description = 'Elasticsearch Expanded Pack Plugin - Index Lifecycle Management'
+  classname ='org.elasticsearch.xpack.ilm.IndexLifecycle'
   extendedPlugins = ['x-pack-core']
-  hasNativeController false
-  requiresKeystore true
+  hasNativeController =false
+  requiresKeystore =true
 }
-archivesBaseName = 'x-pack-ilm'
+base {
+  archivesName = 'x-pack-ilm'
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
-  testImplementation project(path: xpackModule('data-streams'))
+  testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('slm')) // used by LifecycleOperationSnapshotTests
+  testImplementation project(':modules:data-streams')
+
+  yamlRestTestImplementation project(':x-pack:qa')
+
+  javaRestTestImplementation project(xpackModule('ilm'))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(testArtifact(project(xpackModule('ccr')), 'javaRestTest'))
+
+  clusterModules project(':modules:analysis-common')
+  clusterModules project(xpackModule('ilm'))
+  clusterModules project(xpackModule('slm'))
+  clusterModules project(xpackModule('ccr'))
+  clusterModules project(xpackModule('downsample'))
+  clusterModules project(xpackModule('searchable-snapshots'))
+  clusterModules project(':modules:data-streams')
 }
 
-addQaCheckDependencies()
+addQaCheckDependencies(project)
 
-tasks.named("test").configure {
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
+restResources {
+  restApi {
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'ilm', 'slm', 'health_report', 'capabilities'
+  }
 }

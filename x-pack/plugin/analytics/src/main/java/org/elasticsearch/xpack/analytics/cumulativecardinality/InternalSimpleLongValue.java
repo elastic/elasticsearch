@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,8 +24,7 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
     protected final long value;
 
     public InternalSimpleLongValue(String name, long value, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.format = formatter;
+        super(name, formatter, metadata);
         this.value = value;
     }
 
@@ -34,7 +33,6 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
      */
     public InternalSimpleLongValue(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         value = in.readZLong();
     }
 
@@ -54,16 +52,8 @@ public class InternalSimpleLongValue extends InternalNumericMetricsAggregation.S
         return value;
     }
 
-    public long getValue() {
-        return value;
-    }
-
-    DocValueFormat formatter() {
-        return format;
-    }
-
     @Override
-    public InternalSimpleLongValue reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         throw new UnsupportedOperationException("Not supported");
     }
 

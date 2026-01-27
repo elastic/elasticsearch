@@ -7,13 +7,20 @@
         body:
           settings:
             number_of_shards: 1
-            number_of_replicas: 0
+            refresh_interval: -1
             index.sort.field: rank
+            # ensure no relocation as tests rely on segments.
+            routing.rebalance.enable: "none"
           mappings:
             properties:
               rank:
                 type:     integer
-
+  - do:
+      cluster.health:
+        index: test
+        # ensure that all shards are ready before indexing/refresh as tests rely on segments.
+        wait_for_events: languid
+        wait_for_no_initializing_shards: true
   - do:
       index:
         index: test
@@ -94,7 +101,7 @@
         index: test
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 1
 
@@ -135,7 +142,7 @@
         index: test
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 3
 
@@ -153,6 +160,6 @@
         scroll: 1m
         body:
           sort: ["rank"]
-          query: {"range": { "rank": { "from": 0 } } }
+          query: {"range": { "rank": { "gte": 0 } } }
           track_total_hits: false
           size: 3

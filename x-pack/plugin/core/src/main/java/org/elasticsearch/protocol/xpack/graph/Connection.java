@@ -6,23 +6,16 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import com.carrotsearch.hppc.ObjectIntHashMap;
-
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.protocol.xpack.graph.Vertex.VertexId;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * A Connection links exactly two {@link Vertex} objects. The basis of a
@@ -50,8 +43,7 @@ public class Connection {
         docCount = in.readVLong();
     }
 
-    Connection() {
-    }
+    Connection() {}
 
     void writeTo(StreamOutput out) throws IOException {
         out.writeString(from.getField());
@@ -91,17 +83,11 @@ public class Connection {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         Connection other = (Connection) obj;
-        return docCount == other.docCount &&
-               weight == other.weight &&
-               Objects.equals(to, other.to) &&
-               Objects.equals(from, other.from);
+        return docCount == other.docCount && weight == other.weight && Objects.equals(to, other.to) && Objects.equals(from, other.from);
     }
 
     @Override
@@ -109,60 +95,17 @@ public class Connection {
         return Objects.hash(docCount, weight, from, to);
     }
 
-
     private static final ParseField SOURCE = new ParseField("source");
     private static final ParseField TARGET = new ParseField("target");
     private static final ParseField WEIGHT = new ParseField("weight");
     private static final ParseField DOC_COUNT = new ParseField("doc_count");
 
-
-    void toXContent(XContentBuilder builder, Params params, ObjectIntHashMap<Vertex> vertexNumbers) throws IOException {
+    void toXContent(XContentBuilder builder, Params params, Map<Vertex, Integer> vertexNumbers) throws IOException {
         builder.field(SOURCE.getPreferredName(), vertexNumbers.get(from));
         builder.field(TARGET.getPreferredName(), vertexNumbers.get(to));
         builder.field(WEIGHT.getPreferredName(), weight);
         builder.field(DOC_COUNT.getPreferredName(), docCount);
     }
-
-    //When deserializing from XContent we need to wait for all vertices to be loaded before
-    // Connection objects can be created that reference them. This class provides the interim
-    // state for connections.
-    static class UnresolvedConnection {
-        int fromIndex;
-        int toIndex;
-        double weight;
-        long docCount;
-        UnresolvedConnection(int fromIndex, int toIndex, double weight, long docCount) {
-            super();
-            this.fromIndex = fromIndex;
-            this.toIndex = toIndex;
-            this.weight = weight;
-            this.docCount = docCount;
-        }
-        public Connection resolve(List<Vertex> vertices) {
-            return new Connection(vertices.get(fromIndex), vertices.get(toIndex), weight, docCount);
-        }
-
-        private static final ConstructingObjectParser<UnresolvedConnection, Void> PARSER = new ConstructingObjectParser<>(
-                "ConnectionParser", true,
-                args -> {
-                    int source = (Integer) args[0];
-                    int target = (Integer) args[1];
-                    double weight = (Double) args[2];
-                    long docCount = (Long) args[3];
-                    return new UnresolvedConnection(source, target, weight, docCount);
-                });
-
-        static {
-            PARSER.declareInt(constructorArg(), SOURCE);
-            PARSER.declareInt(constructorArg(), TARGET);
-            PARSER.declareDouble(constructorArg(), WEIGHT);
-            PARSER.declareLong(constructorArg(), DOC_COUNT);
-        }
-        static UnresolvedConnection fromXContent(XContentParser parser) throws IOException {
-            return PARSER.apply(parser, null);
-        }
-    }
-
 
     /**
      * An identifier (implements hashcode and equals) that represents a

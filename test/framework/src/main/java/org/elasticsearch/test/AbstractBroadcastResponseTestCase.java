@@ -1,34 +1,64 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastResponse> extends AbstractXContentTestCase<T> {
+
+    private static final ParseField _SHARDS_FIELD = new ParseField("_shards");
+    private static final ParseField TOTAL_FIELD = new ParseField("total");
+    private static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
+    private static final ParseField FAILED_FIELD = new ParseField("failed");
+    private static final ParseField FAILURES_FIELD = new ParseField("failures");
+
+    @SuppressWarnings("unchecked")
+    public static <T extends BaseBroadcastResponse> void declareBroadcastFields(ConstructingObjectParser<T, Void> PARSER) {
+        ConstructingObjectParser<BaseBroadcastResponse, Void> shardsParser = new ConstructingObjectParser<>(
+            "_shards",
+            true,
+            arg -> new BaseBroadcastResponse((int) arg[0], (int) arg[1], (int) arg[2], (List<DefaultShardOperationFailedException>) arg[3])
+        );
+        shardsParser.declareInt(constructorArg(), TOTAL_FIELD);
+        shardsParser.declareInt(constructorArg(), SUCCESSFUL_FIELD);
+        shardsParser.declareInt(constructorArg(), FAILED_FIELD);
+        shardsParser.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> DefaultShardOperationFailedException.fromXContent(p),
+            FAILURES_FIELD
+        );
+        PARSER.declareObject(constructorArg(), shardsParser, _SHARDS_FIELD);
+    }
 
     @Override
     protected T createTestInstance() {
@@ -53,8 +83,12 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         return createTestInstance(totalShards, successfulShards, failedShards, failures);
     }
 
-    protected abstract T createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                          List<DefaultShardOperationFailedException> failures);
+    protected abstract T createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    );
 
     @Override
     protected void assertEqualInstances(T response, T parsedResponse) {
@@ -103,7 +137,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference bytesReference = toShuffledXContent(response, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         T parsedResponse;
-        try(XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), bytesReference)) {
             parsedResponse = doParseInstance(parser);
             assertNull(parser.nextToken());
         }
@@ -120,9 +154,10 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
         assertThat(parsedFailures[1].getCause().getMessage(), containsString("fizz"));
     }
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         T response = createTestInstance(10, 10, 0, null);
         String output = Strings.toString(response);
-        assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
+        assertEquals("""
+            {"_shards":{"total":10,"successful":10,"failed":0}}""", output);
     }
 }

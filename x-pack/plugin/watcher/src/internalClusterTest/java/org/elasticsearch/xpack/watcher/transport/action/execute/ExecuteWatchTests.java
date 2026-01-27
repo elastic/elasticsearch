@@ -33,14 +33,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
 
     public void testExecuteAllDefaults() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/5 * * * * ? 2099")))
-                        .input(simpleInput("foo", "bar"))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/5 * * * * ? 2099")))
+                    .input(simpleInput("foo", "bar"))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -73,15 +73,15 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testExecuteActionMode() throws Exception {
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
-                .setId("_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("1s"))) // run every second so we can ack it
-                        .input(simpleInput("foo", "bar"))
-                        .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("log", loggingAction("_text")))
-                .get();
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("_id")
+            .setSource(
+                watchBuilder().trigger(schedule(interval("1s"))) // run every second so we can ack it
+                    .input(simpleInput("foo", "bar"))
+                    .defaultThrottlePeriod(TimeValue.timeValueMillis(0))
+                    .condition(InternalAlwaysCondition.INSTANCE)
+                    .addAction("log", loggingAction("_text"))
+            )
+            .get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
 
@@ -109,12 +109,7 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             // lets wait for the watch to be ackable
             timeWarp().trigger("_id");
 
-            String[] actionIds = randomFrom(
-                    new String[] { "_all" },
-                    new String[] { "log" },
-                    new String[] { "foo", "_all" },
-                    null
-            );
+            String[] actionIds = randomFrom(new String[] { "_all" }, new String[] { "log" }, new String[] { "foo", "_all" }, null);
             AckWatchRequestBuilder ackWatchRequestBuilder = new AckWatchRequestBuilder(client(), "_id");
             if (actionIds != null) {
                 ackWatchRequestBuilder.setActionIds(actionIds);
@@ -128,9 +123,10 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
             assertThat(actionStatus.ackStatus().state(), is(ActionStatus.AckStatus.State.ACKED));
         }
 
-        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id")
-                .setActionMode(randomBoolean() ? "log" : "_all", mode)
-                .get();
+        ExecuteWatchResponse response = new ExecuteWatchRequestBuilder(client(), "_id").setActionMode(
+            randomBoolean() ? "log" : "_all",
+            mode
+        ).get();
         assertThat(response, notNullValue());
         assertThat(response.getRecordId(), notNullValue());
         Wid wid = new Wid(response.getRecordId());
@@ -158,17 +154,18 @@ public class ExecuteWatchTests extends AbstractWatcherIntegrationTestCase {
         assertValue(record, "result.actions.0.id", is("log"));
         assertValue(record, "result.actions.0.type", is("logging"));
         switch (mode) {
-            case SKIP: // the action should be manually skipped/throttled
+            case SKIP -> { // the action should be manually skipped/throttled
                 assertValue(record, "result.actions.0.status", is("throttled"));
                 assertValue(record, "result.actions.0.reason", is("manually skipped"));
-                break;
-            default:
+            }
+            default -> {
                 if (mode.simulate()) {
                     assertValue(record, "result.actions.0.status", is("simulated"));
                 } else {
                     assertValue(record, "result.actions.0.status", is("success"));
                 }
                 assertValue(record, "result.actions.0.logging.logged_text", is("_text"));
+            }
         }
     }
 }

@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
@@ -47,15 +49,25 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testEnforceBootstrapChecks() throws NodeValidationException {
         setEsEnforceBootstrapChecks("true");
-        final List<BootstrapCheck> checks = Collections.singletonList(context -> BootstrapCheck.BootstrapCheckResult.failure("error"));
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.failure("error");
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        });
 
         final Logger logger = mock(Logger.class);
 
         final NodeValidationException e = expectThrows(
-                NodeValidationException.class,
-                () -> BootstrapChecks.check(emptyContext, false, checks, logger));
-        final Matcher<String> allOf =
-                allOf(containsString("bootstrap checks failed"), containsString("error"));
+            NodeValidationException.class,
+            () -> BootstrapChecks.check(emptyContext, false, checks, logger)
+        );
+        final Matcher<String> allOf = allOf(containsString("bootstrap checks failed"), containsString("error"));
         assertThat(e, hasToString(allOf));
         verify(logger).info("explicitly enforcing bootstrap checks");
         verifyNoMoreInteractions(logger);
@@ -74,10 +86,10 @@ public class EvilBootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         setEsEnforceBootstrapChecks(value);
         final boolean enforceLimits = randomBoolean();
         final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList()));
-        final Matcher<String> matcher = containsString(
-                "[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
+            IllegalArgumentException.class,
+            () -> BootstrapChecks.check(emptyContext, enforceLimits, emptyList())
+        );
+        final Matcher<String> matcher = containsString("[es.enforce.bootstrap.checks] must be [true] but was [" + value + "]");
         assertThat(e, hasToString(matcher));
     }
 

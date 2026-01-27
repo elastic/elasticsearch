@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.common.network.NetworkUtils.getInterfaces;
+import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -76,21 +78,25 @@ public class NetworkUtilsTests extends ESTestCase {
     public void testMaybeGetInterfaceByName() throws Exception {
         final List<NetworkInterface> networkInterfaces = getInterfaces();
         for (NetworkInterface netIf : networkInterfaces) {
-            final Optional<NetworkInterface> maybeNetworkInterface =
-                NetworkUtils.maybeGetInterfaceByName(networkInterfaces, netIf.getName());
-            assertThat(maybeNetworkInterface, OptionalMatchers.isPresent());
-            assertThat(maybeNetworkInterface.get().getName(), equalTo(netIf.getName()));
+            final Optional<NetworkInterface> maybeNetworkInterface = NetworkUtils.maybeGetInterfaceByName(
+                networkInterfaces,
+                netIf.getName()
+            );
+            assertThat(maybeNetworkInterface, isPresentWith(transformedMatch(NetworkInterface::getName, equalTo(netIf.getName()))));
         }
     }
 
     public void testNonExistingInterface() throws Exception {
-        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix", "non-existing"));
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix", "non-existing")
+        );
         assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
         final boolean atLeastOneInterfaceIsPresentInExceptionMessage = getInterfaces().stream()
             .anyMatch(anInterface -> exception.getMessage().contains(anInterface.getName() + ":suffix"));
 
-        assertThat("Expected to get at least one interface name in the exception but got none: " + exception.getMessage(),
+        assertThat(
+            "Expected to get at least one interface name in the exception but got none: " + exception.getMessage(),
             atLeastOneInterfaceIsPresentInExceptionMessage,
             equalTo(true)
         );

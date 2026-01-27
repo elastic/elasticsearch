@@ -11,15 +11,17 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -40,24 +42,35 @@ public class RolloverStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, ActionListener<Void> listener) {
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ProjectState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         String indexName = indexMetadata.getIndex().getName();
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(indexMetadata.getSettings());
         if (indexingComplete) {
-            logger.trace(indexMetadata.getIndex() + " has lifecycle complete set, skipping " + RolloverStep.NAME);
+            logger.trace("{} has lifecycle complete set, skipping {}", indexMetadata.getIndex(), RolloverStep.NAME);
             listener.onResponse(null);
             return;
         }
-        IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
+        IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
-        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        final boolean targetFailureStore;
+        DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().getIndex().equals(indexMetadata.getIndex()) == false) {
-                logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
-                    indexName, dataStream.getName(), LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getWriteFailureIndex());
+            targetFailureStore = dataStream.isFailureStoreIndex(indexMetadata.getIndex().getName());
+            if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
+                logger.warn(
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
+                    indexName,
+                    targetFailureStore ? "failure store " : "",
+                    dataStream.getName(),
+                    indexMetadata.getLifecyclePolicyName()
+                );
                 listener.onResponse(null);
                 return;
             }
@@ -66,45 +79,66 @@ public class RolloverStep extends AsyncActionStep {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 
             if (Strings.isNullOrEmpty(rolloverAlias)) {
-                listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                    "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias " +
-                        "pointing to the group of indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexName)));
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        Strings.format(
+                            "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias "
+                                + "pointing to the group of indices being rolled over",
+                            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                            indexName
+                        )
+                    )
+                );
                 return;
             }
 
             if (indexMetadata.getRolloverInfos().get(rolloverAlias) != null) {
-                logger.info("index [{}] was already rolled over for alias [{}], not attempting to roll over again",
-                    indexName, rolloverAlias);
+                logger.info(
+                    "index [{}] was already rolled over for alias [{}], not attempting to roll over again",
+                    indexName,
+                    rolloverAlias
+                );
                 listener.onResponse(null);
                 return;
             }
 
             if (indexMetadata.getAliases().containsKey(rolloverAlias) == false) {
-                listener.onFailure(new IllegalArgumentException(String.format(Locale.ROOT,
-                    "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias,
-                    indexName)));
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        Strings.format(
+                            "%s [%s] does not point to index [%s]",
+                            RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                            rolloverAlias,
+                            indexName
+                        )
+                    )
+                );
                 return;
             }
 
             rolloverTarget = rolloverAlias;
+            targetFailureStore = false;
         }
 
         // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
+        if (targetFailureStore) {
+            rolloverRequest.setRolloverTarget(IndexNameExpressionResolver.combineSelector(rolloverTarget, IndexComponentSelector.FAILURES));
+        }
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);
-        getClient().admin().indices().rolloverIndex(rolloverRequest,
-            ActionListener.wrap(response -> {
+        getClient(currentState.projectId()).admin()
+            .indices()
+            .rolloverIndex(rolloverRequest, listener.delegateFailureAndWrap((l, response) -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
                 if (response.isRolledOver()) {
-                    listener.onResponse(null);
+                    l.onResponse(null);
                 } else {
-                    listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                    l.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
                 }
-            }, listener::onFailure));
+            }));
     }
-
 
     @Override
     public int hashCode() {

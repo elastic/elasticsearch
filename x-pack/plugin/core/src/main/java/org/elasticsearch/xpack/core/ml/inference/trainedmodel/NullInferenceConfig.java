@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 
 import java.io.IOException;
 
@@ -18,7 +19,6 @@ import java.io.IOException;
 public class NullInferenceConfig implements InferenceConfig {
 
     private final boolean requestingFeatureImportance;
-
 
     public NullInferenceConfig(boolean requestingFeatureImportance) {
         this.requestingFeatureImportance = requestingFeatureImportance;
@@ -30,8 +30,18 @@ public class NullInferenceConfig implements InferenceConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        throw new UnsupportedOperationException("Cannot update NullInferenceConfig objects");
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.CURRENT;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.current();
     }
 
     @Override
@@ -62,5 +72,10 @@ public class NullInferenceConfig implements InferenceConfig {
     @Override
     public boolean isAllocateOnly() {
         return false;
+    }
+
+    @Override
+    public String getResultsField() {
+        return null;
     }
 }

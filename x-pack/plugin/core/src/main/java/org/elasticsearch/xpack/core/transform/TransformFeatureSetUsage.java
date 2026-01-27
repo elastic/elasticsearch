@@ -7,21 +7,21 @@
 
 package org.elasticsearch.xpack.core.transform;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet.Usage;
-import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 
-public class TransformFeatureSetUsage extends Usage {
+public class TransformFeatureSetUsage extends XPackFeatureUsage {
 
     private static final String FEATURE_COUNTS = "feature_counts";
 
@@ -31,14 +31,16 @@ public class TransformFeatureSetUsage extends Usage {
 
     public TransformFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        this.transformCountByState = in.readMap(StreamInput::readString, StreamInput::readLong);
-        this.transformCountByFeature = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.transformCountByState = in.readMap(StreamInput::readLong);
+        this.transformCountByFeature = in.readMap(StreamInput::readLong);
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 
-    public TransformFeatureSetUsage(Map<String, Long> transformCountByState,
-                                    Map<String, Long> transformCountByFeature,
-                                    TransformIndexerStats accumulatedStats) {
+    public TransformFeatureSetUsage(
+        Map<String, Long> transformCountByState,
+        Map<String, Long> transformCountByFeature,
+        TransformIndexerStats accumulatedStats
+    ) {
         super(XPackField.TRANSFORM, true, true);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.transformCountByFeature = Objects.requireNonNull(transformCountByFeature);
@@ -46,15 +48,15 @@ public class TransformFeatureSetUsage extends Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_5_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(transformCountByState, StreamOutput::writeString, StreamOutput::writeLong);
-        out.writeMap(transformCountByFeature, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeMap(transformCountByState, StreamOutput::writeLong);
+        out.writeMap(transformCountByFeature, StreamOutput::writeLong);
         accumulatedStats.writeTo(out);
     }
 
@@ -94,9 +96,11 @@ public class TransformFeatureSetUsage extends Usage {
             return false;
         }
         TransformFeatureSetUsage other = (TransformFeatureSetUsage) obj;
-        return Objects.equals(name, other.name) && available == other.available && enabled == other.enabled
-                && Objects.equals(transformCountByState, other.transformCountByState)
-                && Objects.equals(transformCountByFeature, other.transformCountByFeature)
-                && Objects.equals(accumulatedStats, other.accumulatedStats);
+        return Objects.equals(name, other.name)
+            && available == other.available
+            && enabled == other.enabled
+            && Objects.equals(transformCountByState, other.transformCountByState)
+            && Objects.equals(transformCountByFeature, other.transformCountByFeature)
+            && Objects.equals(accumulatedStats, other.accumulatedStats);
     }
 }

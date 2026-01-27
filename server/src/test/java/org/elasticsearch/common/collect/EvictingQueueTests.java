@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Copyright (C) 2012 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,8 +28,7 @@ public class EvictingQueueTests extends ESTestCase {
         try {
             new EvictingQueue<>(-1);
             fail();
-        } catch (IllegalArgumentException expected) {
-        }
+        } catch (IllegalArgumentException expected) {}
     }
 
     public void testCreateWithZeroSize() throws Exception {

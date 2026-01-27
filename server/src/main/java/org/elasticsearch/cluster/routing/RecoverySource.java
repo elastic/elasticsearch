@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,6 +32,7 @@ import java.util.Objects;
  * - {@link PeerRecoverySource} recovery from a primary on another node
  * - {@link SnapshotRecoverySource} recovery from a snapshot
  * - {@link LocalShardsRecoverySource} recovery from other shards of another index on the same node
+ * - {@link ReshardSplitRecoverySource} recovery of a shard that is created as a result of a resharding split
  */
 public abstract class RecoverySource implements Writeable, ToXContentObject {
 
@@ -50,14 +53,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
     public static RecoverySource readFrom(StreamInput in) throws IOException {
         Type type = Type.values()[in.readByte()];
-        switch (type) {
-            case EMPTY_STORE: return EmptyStoreRecoverySource.INSTANCE;
-            case EXISTING_STORE: return ExistingStoreRecoverySource.read(in);
-            case PEER: return PeerRecoverySource.INSTANCE;
-            case SNAPSHOT: return new SnapshotRecoverySource(in);
-            case LOCAL_SHARDS: return LocalShardsRecoverySource.INSTANCE;
-            default: throw new IllegalArgumentException("unknown recovery type: " + type.name());
-        }
+        return switch (type) {
+            case EMPTY_STORE -> EmptyStoreRecoverySource.INSTANCE;
+            case EXISTING_STORE -> ExistingStoreRecoverySource.read(in);
+            case PEER -> PeerRecoverySource.INSTANCE;
+            case SNAPSHOT -> new SnapshotRecoverySource(in);
+            case LOCAL_SHARDS -> LocalShardsRecoverySource.INSTANCE;
+            case RESHARD_SPLIT -> new ReshardSplitRecoverySource(in);
+        };
     }
 
     @Override
@@ -78,7 +81,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         EXISTING_STORE,
         PEER,
         SNAPSHOT,
-        LOCAL_SHARDS
+        LOCAL_SHARDS,
+        RESHARD_SPLIT
     }
 
     public abstract Type getType();
@@ -183,8 +187,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final LocalShardsRecoverySource INSTANCE = new LocalShardsRecoverySource();
 
-        private LocalShardsRecoverySource() {
-        }
+        private LocalShardsRecoverySource() {}
 
         @Override
         public Type getType() {
@@ -208,9 +211,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final String restoreUUID;
         private final Snapshot snapshot;
         private final IndexId index;
-        private final Version version;
+        private final IndexVersion version;
 
-        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, IndexVersion version, IndexId indexId) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
@@ -220,7 +223,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
+            version = IndexVersion.readVersion(in);
             index = new IndexId(in);
         }
 
@@ -242,7 +245,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return index;
         }
 
-        public Version version() {
+        public IndexVersion version() {
             return version;
         }
 
@@ -250,7 +253,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            Version.writeVersion(version, out);
+            IndexVersion.writeVersion(version, out);
             index.writeTo(out);
         }
 
@@ -263,7 +266,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
-                .field("version", version.toString())
+                .field("version", version.toReleaseVersion())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID);
         }
@@ -283,8 +286,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             }
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
-            return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+            return restoreUUID.equals(that.restoreUUID)
+                && snapshot.equals(that.snapshot)
+                && index.equals(that.index)
+                && version.equals(that.version);
         }
 
         @Override
@@ -301,8 +306,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         public static final PeerRecoverySource INSTANCE = new PeerRecoverySource();
 
-        private PeerRecoverySource() {
-        }
+        private PeerRecoverySource() {}
 
         @Override
         public Type getType() {
@@ -317,6 +321,41 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         public boolean expectEmptyRetentionLeases() {
             return false;
+        }
+    }
+
+    /**
+     * Recovery of a shard that is created as a result of a resharding split.
+     * Not to be confused with _split API.
+     */
+    public static class ReshardSplitRecoverySource extends RecoverySource {
+        private final ShardId sourceShardId;
+
+        public ReshardSplitRecoverySource(ShardId sourceShardId) {
+            this.sourceShardId = sourceShardId;
+        }
+
+        ReshardSplitRecoverySource(StreamInput in) throws IOException {
+            sourceShardId = new ShardId(in);
+        }
+
+        @Override
+        public Type getType() {
+            return Type.RESHARD_SPLIT;
+        }
+
+        public ShardId getSourceShardId() {
+            return sourceShardId;
+        }
+
+        @Override
+        protected void writeAdditionalFields(StreamOutput out) throws IOException {
+            sourceShardId.writeTo(out);
+        }
+
+        @Override
+        public void addAdditionalFields(XContentBuilder builder, Params params) throws IOException {
+            builder.field("sourceShardId", sourceShardId);
         }
     }
 }

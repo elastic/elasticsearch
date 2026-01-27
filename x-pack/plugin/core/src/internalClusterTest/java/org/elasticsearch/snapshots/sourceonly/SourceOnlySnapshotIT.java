@@ -18,11 +18,10 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -33,13 +32,17 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -55,9 +58,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -80,11 +84,18 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
 
     public static final class MyPlugin extends Plugin implements RepositoryPlugin, EnginePlugin {
         @Override
-        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                               ClusterService clusterService, BigArrays bigArrays,
-                                                               RecoverySettings recoverySettings) {
+        public Map<String, Repository.Factory> getRepositories(
+            Environment env,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings,
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
+        ) {
             return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
         }
+
         @Override
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
@@ -110,21 +121,17 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
         assertMappings(sourceIdx, requireRouting, useNested);
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery()
-                .addIds("" + randomIntBetween(0, builders.length))).get();
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get();
         });
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
 
         // can-match phase pre-filters access to non-existing field
-        assertEquals(0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
-            .setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete).get());
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(client().admin().indices().prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get());
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, sourceHadDeletions);
     }
@@ -137,19 +144,18 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(indicesStatsResponse.getTotal().docs.getDeleted(), Matchers.greaterThan(0L));
         assertHits(sourceIdx, builders.length, true);
         assertMappings(sourceIdx, requireRouting, true);
-        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length))).get());
+        SearchPhaseExecutionException e = expectThrows(
+            SearchPhaseExecutionException.class,
+            prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("" + randomIntBetween(0, builders.length)))
+        );
         assertTrue(e.toString().contains("_source only indices can't be searched or filtered"));
         // can-match phase pre-filters access to non-existing field
-        assertEquals(0,
-            client().prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")).get().getHits().getTotalHits().value);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.termQuery("field1", "bar")), 0);
         // make sure deletes do not work
         String idToDelete = "" + randomIntBetween(0, builders.length);
-        expectThrows(ClusterBlockException.class, () -> client().prepareDelete(sourceIdx, idToDelete)
-            .setRouting("r" + idToDelete).get());
+        expectThrows(ClusterBlockException.class, client().prepareDelete(sourceIdx, idToDelete).setRouting("r" + idToDelete));
         internalCluster().ensureAtLeastNumDataNodes(2);
-        assertAcked(client().admin().indices().prepareUpdateSettings(sourceIdx)
-                .setSettings(Settings.builder().put("index.number_of_replicas", 1)).get());
+        setReplicaCount(1, sourceIdx);
         ensureGreen(sourceIdx);
         assertHits(sourceIdx, builders.length, true);
     }
@@ -160,21 +166,27 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
 
         final String repo = "test-repo";
-        createRepository(repo, "source",
-            Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean()));
+        createRepository(
+            repo,
+            "source",
+            Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean())
+        );
 
         final String indexName = "test-idx";
         createIndex(indexName);
-        client().prepareIndex(indexName).setSource("foo", "bar").get();
+        prepareIndex(indexName).setSource("foo", "bar").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-1"));
 
-        client().prepareIndex(indexName).setSource("foo", "baz").get();
+        prepareIndex(indexName).setSource("foo", "baz").get();
         assertSuccessful(startFullSnapshot(repo, "snapshot-2"));
 
         logger.info("--> randomly deleting files from the local _snapshot path to simulate corruption");
-        Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode).indexService(
-                clusterService().state().metadata().index(indexName).getIndex()).getShard(0).shardPath().getDataPath()
-                .resolve("_snapshot");
+        Path snapshotShardPath = internalCluster().getInstance(IndicesService.class, dataNode)
+            .indexService(clusterService().state().metadata().getProject().index(indexName).getIndex())
+            .getShard(0)
+            .shardPath()
+            .getDataPath()
+            .resolve("_snapshot");
         try (DirectoryStream<Path> localFiles = Files.newDirectoryStream(snapshotShardPath)) {
             for (Path localFile : localFiles) {
                 if (randomBoolean()) {
@@ -186,29 +198,64 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSuccessful(startFullSnapshot(repo, "snapshot-3"));
     }
 
-    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) {
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(sourceIdx).get();
+    private static void assertMappings(String sourceIdx, boolean requireRouting, boolean useNested) throws IOException {
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings(TEST_REQUEST_TIMEOUT, sourceIdx).get();
         MappingMetadata mapping = getMappingsResponse.getMappings().get(sourceIdx);
-        String nested = useNested ?
-            ",\"incorrect\":{\"type\":\"object\"},\"nested\":{\"type\":\"nested\",\"properties\":{\"value\":{\"type\":\"long\"}}}" : "";
+        String nested = useNested ? """
+            ,"incorrect":{"type":"object"},"nested":{"type":"nested","properties":{"value":{"type":"long"}}}""" : "";
         if (requireRouting) {
-            assertEquals("{\"_doc\":{\"enabled\":false," +
-                "\"_meta\":{\"_doc\":{\"_routing\":{\"required\":true}," +
-                "\"properties\":{\"field1\":{\"type\":\"text\"," +
-                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested +
-                "}}}}}", mapping.source().string());
+            assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
+                {
+                  "_doc": {
+                    "enabled": false,
+                    "_meta": {
+                      "_doc": {
+                        "_routing": {
+                          "required": true
+                        },
+                        "properties": {
+                          "field1": {
+                            "type": "text",
+                            "fields": {
+                              "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                              }
+                            }
+                          }
+                          %s
+                        }
+                      }
+                    }
+                  }
+                }""", nested)), mapping.source().string());
         } else {
-            assertEquals("{\"_doc\":{\"enabled\":false," +
-                "\"_meta\":{\"_doc\":{\"properties\":{\"field1\":{\"type\":\"text\"," +
-                "\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}" + nested + "}}}}}",
-                mapping.source().string());
+            assertEquals(XContentHelper.stripWhitespace(String.format(java.util.Locale.ROOT, """
+                {
+                  "_doc": {
+                    "enabled": false,
+                    "_meta": {
+                      "_doc": {
+                        "properties": {
+                          "field1": {
+                            "type": "text",
+                            "fields": {
+                              "keyword": {
+                                "type": "keyword",
+                                "ignore_above": 256
+                              }
+                            }
+                          }
+                          %s
+                        }
+                      }
+                    }
+                  }
+                }""", nested)), mapping.source().string());
         }
     }
 
     private void assertHits(String index, int numDocsExpected, boolean sourceHadDeletions) {
-        SearchResponse searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setSize(numDocsExpected).get();
         BiConsumer<SearchResponse, Boolean> assertConsumer = (res, allowHoles) -> {
             SearchHits hits = res.getHits();
             long i = 0;
@@ -227,29 +274,32 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 assertEquals("r" + id, hit.field("_routing").getValue());
             }
         };
-        assertConsumer.accept(searchResponse, sourceHadDeletions);
-        assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value);
-        searchResponse = client().prepareSearch(index)
-            .addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
-            .setScroll("1m")
-            .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0,1), 2))
-            .setSize(randomIntBetween(1, 10)).get();
+        assertResponse(prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC).setSize(numDocsExpected), searchResponse -> {
+            assertConsumer.accept(searchResponse, sourceHadDeletions);
+            assertEquals(numDocsExpected, searchResponse.getHits().getTotalHits().value());
+        });
+        SearchResponse searchResponse = prepareSearch(index).addSort(SeqNoFieldMapper.NAME, SortOrder.ASC)
+            .setScroll(TimeValue.timeValueMinutes(1))
+            .slice(new SliceBuilder(SeqNoFieldMapper.NAME, randomIntBetween(0, 1), 2))
+            .setSize(randomIntBetween(1, 10))
+            .get();
         try {
             do {
                 // now do a scroll with a slice
                 assertConsumer.accept(searchResponse, true);
+                searchResponse.decRef();
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(1)).get();
             } while (searchResponse.getHits().getHits().length > 0);
         } finally {
             if (searchResponse.getScrollId() != null) {
                 client().prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
             }
+            searchResponse.decRef();
         }
     }
 
-    private IndexRequestBuilder[] snapshotAndRestore(final String sourceIdx,
-                                                     final boolean requireRouting,
-                                                     final boolean useNested) throws InterruptedException, IOException {
+    private IndexRequestBuilder[] snapshotAndRestore(final String sourceIdx, final boolean requireRouting, final boolean useNested)
+        throws InterruptedException, IOException {
         logger.info("-->  starting a master node and a data node");
         internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNode();
@@ -257,8 +307,11 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         final String repo = "test-repo";
         final String snapshot = "test-snap";
 
-        createRepository(repo, "source",
-                Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean()));
+        createRepository(
+            repo,
+            "source",
+            Settings.builder().put("location", randomRepoPath()).put("delegate_type", "fs").put("compress", randomBoolean())
+        );
 
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate(sourceIdx, 0, indexSettingsNoReplicas(1));
         List<String> mappings = new ArrayList<>();
@@ -278,9 +331,7 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> indexing some data");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[randomIntBetween(10, 100)];
         for (int i = 0; i < builders.length; i++) {
-            XContentBuilder source = jsonBuilder()
-                .startObject()
-                .field("field1", "bar " + i);
+            XContentBuilder source = jsonBuilder().startObject().field("field1", "bar " + i);
             if (useNested) {
                 source.startArray("nested");
                 for (int j = 0; j < 2; ++j) {
@@ -289,29 +340,41 @@ public class SourceOnlySnapshotIT extends AbstractSnapshotIntegTestCase {
                 source.endArray();
             }
             source.endObject();
-            builders[i] = client().prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
+            builders[i] = prepareIndex(sourceIdx).setId(Integer.toString(i)).setSource(source).setRouting("r" + i);
         }
         indexRandom(true, builders);
         flushAndRefresh();
-        assertHitCount(client().prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")).get(), 1);
+        assertHitCount(prepareSearch(sourceIdx).setQuery(QueryBuilders.idsQuery().addIds("0")), 1);
 
         createSnapshot(repo, snapshot, Collections.singletonList(sourceIdx));
 
         logger.info("--> delete index and stop the data node");
         assertAcked(client().admin().indices().prepareDelete(sourceIdx).get());
         internalCluster().stopRandomDataNode();
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("1").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("1")
+                .get()
+                .isTimedOut()
+        );
 
         final String newDataNode = internalCluster().startDataOnlyNode();
         logger.info("--> start a new data node " + newDataNode);
-        assertFalse(client().admin().cluster().prepareHealth().setTimeout("30s").setWaitForNodes("2").get().isTimedOut());
+        assertFalse(
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT)
+                .setTimeout(TimeValue.timeValueSeconds(30))
+                .setWaitForNodes("2")
+                .get()
+                .isTimedOut()
+        );
 
         logger.info("--> restore the index and ensure all shards are allocated");
-        RestoreSnapshotResponse restoreResponse = client().admin().cluster()
-            .prepareRestoreSnapshot(repo, snapshot).setWaitForCompletion(true)
-            .setIndices(sourceIdx).get();
-        assertEquals(restoreResponse.getRestoreInfo().totalShards(),
-            restoreResponse.getRestoreInfo().successfulShards());
+        RestoreSnapshotResponse restoreResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repo, snapshot)
+            .setWaitForCompletion(true)
+            .setIndices(sourceIdx)
+            .get();
+        assertEquals(restoreResponse.getRestoreInfo().totalShards(), restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
         return builders;
     }

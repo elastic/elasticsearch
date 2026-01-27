@@ -12,19 +12,19 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,11 +37,10 @@ public class DataCountsReporterTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(Arrays.asList(new Detector.Builder("metric", "field").build()));
+        AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(List.of(new Detector.Builder("metric", "field").build()));
         acBuilder.setBucketSpan(bucketSpan);
         acBuilder.setLatency(TimeValue.ZERO);
-        acBuilder.setDetectors(Arrays.asList(new Detector.Builder("metric", "field").build()));
-
+        acBuilder.setDetectors(List.of(new Detector.Builder("metric", "field").build()));
 
         Job.Builder builder = new Job.Builder("sr");
         builder.setAnalysisConfig(acBuilder);
@@ -59,8 +58,25 @@ public class DataCountsReporterTests extends ESTestCase {
     }
 
     public void testComplexConstructor() {
-        DataCounts counts = new DataCounts("foo", 1L, 1L, 2L, 0L, 3L, 4L, 5L, 6L, 7L, 8L,
-                new Date(), new Date(), new Date(), new Date(), new Date(), Instant.now());
+        DataCounts counts = new DataCounts(
+            "foo",
+            1L,
+            1L,
+            2L,
+            0L,
+            3L,
+            4L,
+            5L,
+            6L,
+            7L,
+            8L,
+            new Date(),
+            new Date(),
+            new Date(),
+            new Date(),
+            new Date(),
+            Instant.now()
+        );
 
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, counts, jobDataCountsPersister);
         DataCounts stats = dataCountsReporter.incrementalStats();
@@ -137,7 +153,7 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(5001L, dataCountsReporter.incrementalStats().getLatestRecordTimeStamp().getTime());
     }
 
-    public void testReportRecordsWritten() {
+    public void testReportRecordsWritten() throws InterruptedException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
 
@@ -158,7 +174,7 @@ public class DataCountsReporterTests extends ESTestCase {
 
         assertEquals(dataCountsReporter.incrementalStats(), dataCountsReporter.runningTotalStats());
 
-        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class));
+        verify(jobDataCountsPersister, never()).persistDataCounts(anyString(), any(DataCounts.class), eq(false));
     }
 
     public void testReportRecordsWritten_Given9999Records() {
@@ -246,14 +262,30 @@ public class DataCountsReporterTests extends ESTestCase {
         assertEquals(20, dataCountsReporter.getLogStatusCallCount());
     }
 
-
-    public void testFinishReporting() {
+    public void testFinishReporting() throws InterruptedException {
         DataCountsReporter dataCountsReporter = new DataCountsReporter(job, new DataCounts(job.getId()), jobDataCountsPersister);
 
         dataCountsReporter.setAnalysedFieldsPerRecord(3);
         Date now = new Date();
-        DataCounts dc = new DataCounts(job.getId(), 2L, 5L, 0L, 10L, 0L, 1L, 0L, 0L, 0L, 0L, new Date(2000), new Date(3000),
-                now, (Date) null, (Date) null, (Instant) null);
+        DataCounts dc = new DataCounts(
+            job.getId(),
+            2L,
+            5L,
+            0L,
+            10L,
+            0L,
+            1L,
+            0L,
+            0L,
+            0L,
+            0L,
+            new Date(2000),
+            new Date(3000),
+            now,
+            (Date) null,
+            (Date) null,
+            (Instant) null
+        );
         dataCountsReporter.reportRecordWritten(5, 2000, 2000);
         dataCountsReporter.reportRecordWritten(5, 3000, 3000);
         dataCountsReporter.reportMissingField();
@@ -261,13 +293,14 @@ public class DataCountsReporterTests extends ESTestCase {
 
         long lastReportedTimeMs = dataCountsReporter.incrementalStats().getLastDataTimeStamp().getTime();
         // check last data time is equal to now give or take a second
-        assertTrue(lastReportedTimeMs >= now.getTime()
-                && lastReportedTimeMs <= now.getTime() + TimeUnit.SECONDS.toMillis(1));
-        assertEquals(dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
-                dataCountsReporter.runningTotalStats().getLastDataTimeStamp());
+        assertTrue(lastReportedTimeMs >= now.getTime() && lastReportedTimeMs <= now.getTime() + TimeUnit.SECONDS.toMillis(1));
+        assertEquals(
+            dataCountsReporter.incrementalStats().getLastDataTimeStamp(),
+            dataCountsReporter.runningTotalStats().getLastDataTimeStamp()
+        );
 
         dc.setLastDataTimeStamp(dataCountsReporter.incrementalStats().getLastDataTimeStamp());
-        verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc));
+        verify(jobDataCountsPersister, times(1)).persistDataCounts(eq("sr"), eq(dc), eq(false));
         assertEquals(dc, dataCountsReporter.incrementalStats());
     }
 

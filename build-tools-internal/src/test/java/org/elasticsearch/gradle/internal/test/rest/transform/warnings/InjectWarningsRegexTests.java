@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.feature.InjectFeatureTests;
 import org.junit.Test;
@@ -17,6 +19,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
 
 public class InjectWarningsRegexTests extends InjectFeatureTests {
 
@@ -33,7 +38,7 @@ public class InjectWarningsRegexTests extends InjectFeatureTests {
         validateSetupDoesNotExist(tests);
         assertEquals(
             "inject warnings is only supported for named tests",
-            expectThrows(
+            assertThrows(
                 NullPointerException.class,
                 () -> transformTests(tests, Collections.singletonList(new InjectWarnings(new ArrayList<>(addWarnings), null)))
             ).getMessage()

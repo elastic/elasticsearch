@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.sql.SqlClientException;
 
@@ -48,11 +47,6 @@ public class ParsingException extends SqlClientException {
 
     public String getErrorMessage() {
         return super.getMessage();
-    }
-
-    @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
     }
 
     @Override

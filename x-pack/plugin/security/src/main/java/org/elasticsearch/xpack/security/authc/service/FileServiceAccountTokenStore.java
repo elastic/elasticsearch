@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.FileWatcher;
@@ -22,9 +22,12 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
+import org.elasticsearch.xpack.core.security.authc.service.NodeLocalServiceAccountTokenStore;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.FileLineParser;
 import org.elasticsearch.xpack.security.support.FileReloadListener;
@@ -39,9 +42,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
 
-public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore {
+public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStore implements NodeLocalServiceAccountTokenStore {
 
     private static final Logger logger = LogManager.getLogger(FileServiceAccountTokenStore.class);
 
@@ -50,12 +52,18 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     private final CopyOnWriteArrayList<Runnable> refreshListeners;
     private volatile Map<String, char[]> tokenHashes;
 
-    public FileServiceAccountTokenStore(Environment env, ResourceWatcherService resourceWatcherService, ThreadPool threadPool,
-                                        ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry) {
+    @SuppressWarnings("this-escape")
+    public FileServiceAccountTokenStore(
+        Environment env,
+        ResourceWatcherService resourceWatcherService,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        CacheInvalidatorRegistry cacheInvalidatorRegistry
+    ) {
         super(env.settings(), threadPool);
         this.clusterService = clusterService;
         file = resolveFile(env);
-        FileWatcher watcher = new FileWatcher(file.getParent());
+        FileWatcher watcher = new PrivilegedFileWatcher(file.getParent());
         watcher.addListener(new FileReloadListener(file, this::tryReload));
         try {
             resourceWatcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
@@ -75,9 +83,11 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
     public void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // This is done on the current thread instead of using a dedicated thread pool like API key does
         // because it is not expected to have a large number of service tokens.
-        listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
-            .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
-            .orElse(new StoreAuthenticationResult(false, getTokenSource())));
+        listener.onResponse(
+            Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
+                .map(hash -> StoreAuthenticationResult.fromBooleanResult(getTokenSource(), Hasher.verifyHash(token.getSecret(), hash)))
+                .orElse(StoreAuthenticationResult.failed(getTokenSource()))
+        );
     }
 
     @Override
@@ -85,15 +95,19 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         return TokenSource.FILE;
     }
 
-    public List<TokenInfo> findTokensFor(ServiceAccountId accountId) {
+    @Override
+    public List<TokenInfo> findNodeLocalTokensFor(ServiceAccountId accountId) {
         final String principal = accountId.asPrincipal();
         return tokenHashes.keySet()
             .stream()
             .filter(k -> k.startsWith(principal + "/"))
-            .map(k -> TokenInfo.fileToken(
-                Strings.substring(k, principal.length() + 1, k.length()),
-                List.of(clusterService.localNode().getName())))
-            .collect(Collectors.toUnmodifiableList());
+            .map(
+                k -> TokenInfo.fileToken(
+                    Strings.substring(k, principal.length() + 1, k.length()),
+                    List.of(clusterService.localNode().getName())
+                )
+            )
+            .toList();
     }
 
     public void addListener(Runnable listener) {
@@ -131,8 +145,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         try {
             return parseFile(path, logger);
         } catch (Exception e) {
-            logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...",
-                path.toAbsolutePath());
+            logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...", path.toAbsolutePath());
             return Map.of();
         }
     }
@@ -172,7 +185,10 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
 
     static void writeFile(Path path, Map<String, char[]> tokenHashes) {
         SecurityFiles.writeFileAtomically(
-            path, tokenHashes, e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
+            path,
+            tokenHashes,
+            e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue()))
+        );
     }
 
 }

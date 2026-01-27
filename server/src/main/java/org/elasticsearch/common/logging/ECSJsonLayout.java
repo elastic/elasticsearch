@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
 
 import co.elastic.logging.log4j2.EcsLayout;
+
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -31,8 +33,9 @@ public class ECSJsonLayout {
         return new ECSJsonLayout.Builder().asBuilder();
     }
 
-    public static class Builder extends AbstractStringLayout.Builder<Builder>
-        implements org.apache.logging.log4j.core.util.Builder<EcsLayout> {
+    public static final class Builder extends AbstractStringLayout.Builder<Builder>
+        implements
+            org.apache.logging.log4j.core.util.Builder<EcsLayout> {
 
         @PluginAttribute("dataset")
         String dataset;
@@ -44,23 +47,23 @@ public class ECSJsonLayout {
         @Override
         public EcsLayout build() {
             return EcsLayout.newBuilder()
-                            .setConfiguration(getConfiguration())
-                            .setServiceName("ES_ECS")
-                            .setStackTraceAsArray(false)
-                            .setIncludeMarkers(true)
-                            .setAdditionalFields(additionalFields())
-                            .build();
+                .setConfiguration(getConfiguration())
+                .setServiceName("ES_ECS")
+                .setEventDataset(dataset)
+                .setStackTraceAsArray(false)
+                .setIncludeMarkers(true)
+                .setAdditionalFields(additionalFields())
+                .build();
         }
 
-        private KeyValuePair[] additionalFields() {
+        private static KeyValuePair[] additionalFields() {
             return new KeyValuePair[] {
-                new KeyValuePair("event.dataset", dataset),
                 new KeyValuePair("trace.id", "%trace_id"),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
                 new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
-    }
+        }
 
         public String getDataset() {
             return dataset;

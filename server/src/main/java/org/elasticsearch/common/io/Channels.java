@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
@@ -19,8 +20,7 @@ import java.nio.channels.WritableByteChannel;
 @SuppressForbidden(reason = "Channel#read")
 public final class Channels {
 
-    private Channels() {
-    }
+    private Channels() {}
 
     /**
      * The maximum chunk size for reads in bytes
@@ -51,8 +51,13 @@ public final class Channels {
      * @param destOffset      offset in dest to read into
      * @param length          number of bytes to read
      */
-    public static void readFromFileChannelWithEofException(FileChannel channel, long channelPosition,
-                                                           byte[] dest, int destOffset, int length) throws IOException {
+    public static void readFromFileChannelWithEofException(
+        FileChannel channel,
+        long channelPosition,
+        byte[] dest,
+        int destOffset,
+        int length
+    ) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest, destOffset, length);
         if (read < 0) {
             throw new EOFException("read past EOF. pos [" + channelPosition + "] length: [" + length + "] end: [" + channel.size() + "]");
@@ -70,12 +75,11 @@ public final class Channels {
      * @return total bytes read or -1 if an attempt was made to read past EOF. The method always tries to read all the bytes
      * that will fit in the destination byte buffer.
      */
-    public static int readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest,
-                                          int destOffset, int length) throws IOException {
+    public static int readFromFileChannel(FileChannel channel, long channelPosition, byte[] dest, int destOffset, int length)
+        throws IOException {
         ByteBuffer buffer = ByteBuffer.wrap(dest, destOffset, length);
         return readFromFileChannel(channel, channelPosition, buffer);
     }
-
 
     /**
      * read from a file channel into a byte buffer, starting at a certain position.  An EOFException will be thrown if you
@@ -89,8 +93,9 @@ public final class Channels {
     public static int readFromFileChannelWithEofException(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int read = readFromFileChannel(channel, channelPosition, dest);
         if (read < 0) {
-            throw new EOFException("read past EOF. pos [" + channelPosition +
-                "] length: [" + dest.limit() + "] end: [" + channel.size() + "]");
+            throw new EOFException(
+                "read past EOF. pos [" + channelPosition + "] length: [" + dest.limit() + "] end: [" + channel.size() + "]"
+            );
         }
         return read;
     }
@@ -129,12 +134,11 @@ public final class Channels {
                 dest.position(tmpBuffer.position());
             }
 
-            assert bytesRead == bytesToRead : "failed to read an entire buffer but also didn't get an EOF (read [" +
-                bytesRead + "] needed [" + bytesToRead + "]";
+            assert bytesRead == bytesToRead
+                : "failed to read an entire buffer but also didn't get an EOF (read [" + bytesRead + "] needed [" + bytesToRead + "]";
             return bytesRead;
         }
     }
-
 
     private static int readSingleChunk(FileChannel channel, long channelPosition, ByteBuffer dest) throws IOException {
         int bytesRead = 0;
@@ -144,8 +148,9 @@ public final class Channels {
                 return read;
             }
 
-            assert read > 0 : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte " +
-                "(FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+            assert read > 0
+                : "FileChannel.read with non zero-length bb.remaining() must always read at least one byte "
+                    + "(FileChannel is in blocking mode, see spec of ReadableByteChannel)";
 
             bytesRead += read;
             channelPosition += read;

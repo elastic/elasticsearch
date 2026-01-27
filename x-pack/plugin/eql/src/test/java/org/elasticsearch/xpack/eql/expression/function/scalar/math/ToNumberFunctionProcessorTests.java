@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.eql.expression.function.scalar.math;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-
 
 public class ToNumberFunctionProcessorTests extends ESTestCase {
 
@@ -20,10 +21,17 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
         return new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null);
     }
 
+    private static String error(Object value, Object base, Class<? extends QlException> exceptionClass) {
+        Exception e = expectThrows(exceptionClass, () -> new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null));
+        return e.getMessage();
+    }
+
     private static String error(Object value, Object base) {
-        QlIllegalArgumentException saie = expectThrows(QlIllegalArgumentException.class,
-            () -> new ToNumber(EMPTY, l(value), l(base)).makePipe().asProcessor().process(null));
-        return saie.getMessage();
+        return error(value, base, QlIllegalArgumentException.class);
+    }
+
+    private static String clientError(Object value, Object base) {
+        return error(value, base, InvalidArgumentException.class);
     }
 
     public void toNumberWithLongRange() {
@@ -90,8 +98,8 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
 
         double expected = Math.pow((double) number, (double) exponent);
 
-        assertEquals(expected, process(number  + "e" + exponent, null));
-        assertEquals(expected, process(number  + "e" + exponent, 10));
+        assertEquals(expected, process(number + "e" + exponent, null));
+        assertEquals(expected, process(number + "e" + exponent, 10));
     }
 
     public void toNumberWithNegativeExponent() {
@@ -100,69 +108,49 @@ public class ToNumberFunctionProcessorTests extends ESTestCase {
 
         double expected = Math.pow(number, exponent);
 
-        assertEquals(expected, process(number  + "e-" + exponent, null));
-        assertEquals(expected, process(number  + "e-" + exponent, 10));
+        assertEquals(expected, process(number + "e-" + exponent, null));
+        assertEquals(expected, process(number + "e-" + exponent, 10));
     }
 
     public void toNumberWithLocales() {
-        assertEquals("Unable to convert [1,000] to number of base [10]",
-            error("1,000", 7));
-        assertEquals("Unable to convert [1,000] to number of base [10]",
-            error("1,000,000", 7));
-        assertEquals("Unable to convert [1,000] to number of base [10]",
-            error("1.000.000", 7));
-        assertEquals("Unable to convert [1,000] to number of base [10]",
-            error("1,000.000.000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]", error("1,000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]", error("1,000,000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]", error("1.000.000", 7));
+        assertEquals("Unable to convert [1,000] to number of base [10]", error("1,000.000.000", 7));
     }
 
     public void toNumberWithUnsupportedDoubleBase() {
         // test that only base 10 fractions are supported
         double decimal = randomDouble();
-        assertEquals("Unable to convert [1.0] to number of base [7]",
-            error(Double.toString(decimal), 7));
-        assertEquals("Unable to convert [1.0] to number of base [8]",
-            error(Double.toString(decimal), 8));
-        assertEquals("Unable to convert [1.0] to number of base [16]",
-            error(Double.toString(decimal), 16));
+        assertEquals("Unable to convert [1.0] to number of base [7]", error(Double.toString(decimal), 7));
+        assertEquals("Unable to convert [1.0] to number of base [8]", error(Double.toString(decimal), 8));
+        assertEquals("Unable to convert [1.0] to number of base [16]", error(Double.toString(decimal), 16));
     }
 
     public void testNegativeBase16() {
-        assertEquals("Unable to convert [-0x1] to number of base [16]",
-            error("-0x1", 16));
+        assertEquals("Unable to convert [-0x1] to number of base [16]", clientError("-0x1", 16));
     }
 
     public void testNumberInvalidDataType() {
-        assertEquals("A string/char is required; received [false]",
-            error(false, null));
-        assertEquals("A string/char is required; received [1.0]",
-            error(1.0, null));
-        assertEquals("A string/char is required; received [1]",
-            error(1, null));
+        assertEquals("A string/char is required; received [false]", error(false, null));
+        assertEquals("A string/char is required; received [1.0]", error(1.0, null));
+        assertEquals("A string/char is required; received [1]", error(1, null));
     }
 
     public void testInvalidBase() {
         int number = randomIntBetween(-100, 100);
 
-        assertEquals("An integer base is required; received [foo]",
-            error(Integer.toString(number), "foo"));
-        assertEquals("An integer base is required; received [1.0]",
-            error(Integer.toString(number), 1.0));
-        assertEquals("An integer base is required; received [false]",
-            error(Integer.toString(number), false));
+        assertEquals("An integer base is required; received [foo]", error(Integer.toString(number), "foo"));
+        assertEquals("An integer base is required; received [1.0]", error(Integer.toString(number), 1.0));
+        assertEquals("An integer base is required; received [false]", error(Integer.toString(number), false));
     }
 
     public void testInvalidSourceString() {
-        assertEquals("Unable to convert [] to number of base [10]",
-            error("", null));
-        assertEquals("Unable to convert [] to number of base [16]",
-            error("", 16));
-        assertEquals("Unable to convert [foo] to number of base [10]",
-            error("foo", null));
-        assertEquals("Unable to convert [foo] to number of base [16]",
-            error("foo", 16));
-        assertEquals("Unable to convert [1.2.3.4] to number of base [10]",
-            error("1.2.3.4", 10));
-        assertEquals("Unable to convert [1.2.3.4] to number of base [16]",
-            error("1.2.3.4", 16));
+        assertEquals("Unable to convert [] to number of base [10]", clientError("", null));
+        assertEquals("Unable to convert [] to number of base [16]", clientError("", 16));
+        assertEquals("Unable to convert [foo] to number of base [10]", clientError("foo", null));
+        assertEquals("Unable to convert [foo] to number of base [16]", clientError("foo", 16));
+        assertEquals("Unable to convert [1.2.3.4] to number of base [10]", clientError("1.2.3.4", 10));
+        assertEquals("Unable to convert [1.2.3.4] to number of base [16]", clientError("1.2.3.4", 16));
     }
 }

@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 
 import java.io.IOException;
@@ -27,8 +27,10 @@ public class Recall extends AbstractConfusionMatrixMetric {
     public static final ParseField NAME = new ParseField("recall");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Recall, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
-        a -> new Recall((List<Double>) a[0]));
+    private static final ConstructingObjectParser<Recall, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        a -> new Recall((List<Double>) a[0])
+    );
 
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.constructorArg(), AT);
@@ -81,12 +83,12 @@ public class Recall extends AbstractConfusionMatrixMetric {
     }
 
     @Override
-    public EvaluationMetricResult evaluate(Aggregations aggs) {
+    public EvaluationMetricResult evaluate(InternalAggregations aggs) {
         double[] recalls = new double[thresholds.length];
         for (int i = 0; i < thresholds.length; i++) {
             double threshold = thresholds[i];
-            Filter tpAgg = aggs.get(aggName(threshold, Condition.TP));
-            Filter fnAgg = aggs.get(aggName(threshold, Condition.FN));
+            SingleBucketAggregation tpAgg = aggs.get(aggName(threshold, Condition.TP));
+            SingleBucketAggregation fnAgg = aggs.get(aggName(threshold, Condition.FN));
             long tp = tpAgg.getDocCount();
             long fn = fnAgg.getDocCount();
             recalls[i] = tp + fn == 0 ? 0.0 : (double) tp / (tp + fn);

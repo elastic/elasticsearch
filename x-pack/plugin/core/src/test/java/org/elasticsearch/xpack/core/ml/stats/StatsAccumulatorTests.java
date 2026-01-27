@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml.stats;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -152,6 +153,11 @@ public class StatsAccumulatorTests extends AbstractWireSerializingTestCase<Stats
         }
 
         return accumulator;
+    }
+
+    @Override
+    protected StatsAccumulator mutateInstance(StatsAccumulator instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

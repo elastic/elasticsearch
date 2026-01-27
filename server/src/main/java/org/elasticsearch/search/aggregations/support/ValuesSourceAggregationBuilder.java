@@ -1,31 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends AbstractAggregationBuilder<AB> {
 
@@ -108,19 +109,17 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         }
     }
 
-    public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>> extends
-        ValuesSourceAggregationBuilder<AB> {
+    public abstract static class LeafOnly<AB extends ValuesSourceAggregationBuilder<AB>> extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
         }
 
-        protected LeafOnly(LeafOnly<VS, AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+        @SuppressWarnings("this-escape")
+        protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException(
-                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-                );
+                throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
             }
         }
 
@@ -133,14 +132,53 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         @Override
         public final AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException(
-                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-            );
+            throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
         }
 
         @Override
         public final BucketCardinality bucketCardinality() {
             return BucketCardinality.NONE;
+        }
+    }
+
+    public abstract static class MetricsAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends LeafOnly<AB> {
+
+        protected MetricsAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected MetricsAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected MetricsAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        /** Generated metrics from this aggregation that can be accessed via
+         * {@link org.elasticsearch.search.aggregations.InternalAggregation#getProperty(String)}*/
+        public abstract Set<String> metricNames();
+    }
+
+    public abstract static class SingleMetricAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>> extends
+        MetricsAggregationBuilder<AB> {
+
+        private static final Set<String> METRIC_NAME = Set.of("value");
+
+        protected SingleMetricAggregationBuilder(String name) {
+            super(name);
+        }
+
+        protected SingleMetricAggregationBuilder(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
+            super(clone, factoriesBuilder, metadata);
+        }
+
+        protected SingleMetricAggregationBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public Set<String> metricNames() {
+            return METRIC_NAME;
         }
     }
 
@@ -150,7 +188,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
-    protected ValuesSourceConfig config;
 
     protected ValuesSourceAggregationBuilder(String name) {
         super(name);
@@ -167,16 +204,16 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         this.format = clone.format;
         this.missing = clone.missing;
         this.timeZone = clone.timeZone;
-        this.config = clone.config;
         this.script = clone.script;
     }
 
     /**
      * Read from a stream.
      */
+    @SuppressWarnings("this-escape")
     protected ValuesSourceAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        if (serializeTargetValueType(in.getVersion())) {
+        if (serializeTargetValueType(in.getTransportVersion())) {
             ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
             assert valueType == null;
         }
@@ -201,7 +238,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        if (serializeTargetValueType(out.getVersion())) {
+        if (serializeTargetValueType(out.getTransportVersion())) {
             // TODO: deprecate this so we don't need to carry around a useless null in the wire format
             out.writeOptionalWriteable(null);
         }
@@ -234,7 +271,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version
      */
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return false;
     }
 
@@ -332,14 +369,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     /**
-     * Gets the value to use when the aggregation finds a missing value in a
-     * document
-     */
-    public Object missing() {
-        return missing;
-    }
-
-    /**
      * Sets the time zone to use for this aggregation
      */
     @SuppressWarnings("unchecked")
@@ -378,8 +407,6 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
-
-    protected abstract ValuesSourceRegistry.RegistryKey<?> getRegistryKey();
 
     /**
      * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver

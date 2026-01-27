@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -31,6 +31,8 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * An implementation that extracts data from elasticsearch using search with composite aggregations on a client.
@@ -68,7 +70,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.requestBuilder = Objects.requireNonNull(requestBuilder);
-        this.interval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        this.interval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         this.hasNext = true;
     }
 
@@ -84,124 +86,139 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Data extractor received cancel request", context.jobId));
+        LOGGER.debug("[{}] Data extractor received cancel request", context.jobId);
         isCancelled = true;
     }
 
     @Override
-    public long getEndTime() {
-        return context.end;
+    public void destroy() {
+        cancel();
     }
 
     @Override
-    public Optional<InputStream> next() throws IOException {
+    public long getEndTime() {
+        return context.queryContext.end;
+    }
+
+    @Override
+    public Result next() throws IOException {
         if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
-        Aggregations aggs = search();
+        SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
+        InternalAggregations aggs = search();
         if (aggs == null) {
-            LOGGER.trace(() -> new ParameterizedMessage("[{}] extraction finished", context.jobId));
+            LOGGER.trace("[{}] extraction finished", context.jobId);
             hasNext = false;
             afterKey = null;
-            return Optional.empty();
+            return new Result(searchInterval, Optional.empty());
         }
-        return Optional.of(processAggs(aggs));
+        return new Result(searchInterval, Optional.of(processAggs(aggs)));
     }
 
-    private Aggregations search() {
+    private InternalAggregations search() {
         // Compare to the normal aggregation implementation, this search does not search for the previous bucket's data.
         // For composite aggs, since it is scrolling, it is not really possible to know the previous pages results in the current page.
         // Aggregations like derivative cannot work within composite aggs, for now.
         // Also, it doesn't make sense to have a derivative when grouping by time AND by some other criteria.
 
         LOGGER.trace(
-            () -> new ParameterizedMessage(
-                "[{}] Executing composite aggregated search from [{}] to [{}]",
+            () -> format(
+                "[%s] Executing composite aggregated search from [%s] to [%s]",
                 context.jobId,
-                context.start,
-                context.end
+                context.queryContext.start,
+                context.queryContext.end
             )
         );
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
-            .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, context.start, context.end));
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
+            .query(
+                DataExtractorUtils.wrapInTimeRangeQuery(
+                    context.queryContext.query,
+                    context.queryContext.timeField,
+                    context.queryContext.start,
+                    context.queryContext.end
+                )
+            );
 
-        if (context.runtimeMappings.isEmpty() == false) {
-            searchSourceBuilder.runtimeMappings(context.runtimeMappings);
+        if (context.queryContext.runtimeMappings.isEmpty() == false) {
+            searchSourceBuilder.runtimeMappings(context.queryContext.runtimeMappings);
         }
         if (afterKey != null) {
             compositeAggregationBuilder.aggregateAfter(afterKey);
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
-        SearchResponse searchResponse = executeSearchRequest(searchRequest);
-        LOGGER.trace(() -> new ParameterizedMessage("[{}] Search composite response was obtained", context.jobId));
-        timingStatsReporter.reportSearchDuration(searchResponse.getTook());
-        Aggregations aggregations = searchResponse.getAggregations();
-        if (aggregations == null) {
-            return null;
+        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
+        try {
+            LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            InternalAggregations aggregations = searchResponse.getAggregations();
+            if (aggregations == null) {
+                return null;
+            }
+            CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
+            if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
+                return null;
+            }
+            return aggregations;
+        } finally {
+            searchResponse.decRef();
         }
-        CompositeAggregation compositeAgg = aggregations.get(compositeAggregationBuilder.getName());
-        if (compositeAgg == null || compositeAgg.getBuckets().isEmpty()) {
-            return null;
-        }
-        return aggregations;
     }
 
-    protected SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        return ClientHelper.executeWithHeaders(context.headers, ClientHelper.ML_ORIGIN, client, searchRequestBuilder::get);
-    }
-
-    private InputStream processAggs(Aggregations aggs) throws IOException {
+    private InputStream processAggs(InternalAggregations aggs) throws IOException {
         AggregationToJsonProcessor aggregationToJsonProcessor = new AggregationToJsonProcessor(
-            context.timeField,
+            context.queryContext.timeField,
             context.fields,
             context.includeDocCount,
-            context.start,
+            context.queryContext.start,
             context.compositeAggDateHistogramGroupSourceName
         );
-        LOGGER.trace(() -> new ParameterizedMessage(
-            "[{}] got [{}] composite buckets",
-            context.jobId,
-            ((CompositeAggregation)aggs.get(compositeAggregationBuilder.getName())).getBuckets().size()
-        ));
+        LOGGER.trace(
+            () -> format(
+                "[%s] got [%s] composite buckets",
+                context.jobId,
+                ((CompositeAggregation) aggs.get(compositeAggregationBuilder.getName())).getBuckets().size()
+            )
+        );
         aggregationToJsonProcessor.process(aggs);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        final Long afterKeyTimeBucket = afterKey != null ? (Long)afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null ;
-        boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(
-            timestamp -> {
-                if (isCancelled) {
-                    // If we have not processed a single composite agg page yet and we are cancelled
-                    // We should not process anything
-                    if (afterKeyTimeBucket == null) {
-                        return true;
-                    }
-                    // We want to stop processing once a timestamp enters the next time bucket.
-                    // This could occur in any page. One benefit we have is that even though the paging order is not sorted
-                    // by max timestamp, our iteration of the page results is. So, once we cross over to the next bucket within
-                    // a given page, we know the previous bucket has been exhausted.
-                    if (nextBucketOnCancel == 0L) {
-                        // This simple equation handles two unique scenarios:
-                        //   If the timestamp is the current floor, this means we need to keep processing until the next timebucket
-                        //   If we are not matching the current bucket floor, then this simply aligns to the next bucket
-                        nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
-                        LOGGER.debug(() -> new ParameterizedMessage(
-                            "[{}] set future timestamp cancel to [{}] via timestamp [{}]",
+        final Long afterKeyTimeBucket = afterKey != null ? (Long) afterKey.get(context.compositeAggDateHistogramGroupSourceName) : null;
+        boolean cancellable = aggregationToJsonProcessor.writeAllDocsCancellable(timestamp -> {
+            if (isCancelled) {
+                // If we have not processed a single composite agg page yet and we are cancelled
+                // We should not process anything
+                if (afterKeyTimeBucket == null) {
+                    return true;
+                }
+                // We want to stop processing once a timestamp enters the next time bucket.
+                // This could occur in any page. One benefit we have is that even though the paging order is not sorted
+                // by max timestamp, our iteration of the page results is. So, once we cross over to the next bucket within
+                // a given page, we know the previous bucket has been exhausted.
+                if (nextBucketOnCancel == 0L) {
+                    // This simple equation handles two unique scenarios:
+                    // If the timestamp is the current floor, this means we need to keep processing until the next timebucket
+                    // If we are not matching the current bucket floor, then this simply aligns to the next bucket
+                    nextBucketOnCancel = Intervals.alignToFloor(timestamp + interval, interval);
+                    LOGGER.debug(
+                        () -> format(
+                            "[%s] set future timestamp cancel to [%s] via timestamp [%s]",
                             context.jobId,
                             nextBucketOnCancel,
                             timestamp
-                        ));
-                    }
-                    return timestamp >= nextBucketOnCancel;
+                        )
+                    );
                 }
-                return false;
-            }, outputStream);
+                return timestamp >= nextBucketOnCancel;
+            }
+            return false;
+        }, outputStream);
         // If the process is canceled and cancelable, then we can indicate that there are no more buckets to process.
         if (isCancelled && cancellable) {
             LOGGER.debug(
-                () -> new ParameterizedMessage(
-                    "[{}] cancelled before bucket [{}] on date_histogram page [{}]",
+                () -> format(
+                    "[%s] cancelled before bucket [%s] on date_histogram page [%s]",
                     context.jobId,
                     nextBucketOnCancel,
                     afterKeyTimeBucket != null ? afterKeyTimeBucket : "__null__"
@@ -216,4 +233,23 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         return new ByteArrayInputStream(outputStream.toByteArray());
     }
 
+    @Override
+    public DataSummary getSummary() {
+        ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder = DataExtractorUtils.getSearchRequestBuilderForSummary(
+            client,
+            context.queryContext
+        );
+        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
+            client,
+            context.queryContext,
+            searchRequestBuilder
+        );
+        try {
+            LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
+            timingStatsReporter.reportSearchDuration(searchResponse.getTook());
+            return DataExtractorUtils.getDataSummary(searchResponse);
+        } finally {
+            searchResponse.decRef();
+        }
+    }
 }

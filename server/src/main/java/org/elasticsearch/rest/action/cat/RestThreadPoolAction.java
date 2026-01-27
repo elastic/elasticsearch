@@ -1,22 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
@@ -25,6 +28,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -39,15 +45,18 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestThreadPoolAction extends AbstractCatAction {
+
+    private static final Set<String> RESPONSE_PARAMS = addToCopy(AbstractCatAction.RESPONSE_PARAMS, "thread_pool_patterns");
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/thread_pool"),
-            new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
+        return List.of(new Route(GET, "/_cat/thread_pool"), new Route(GET, "/_cat/thread_pool/{thread_pool_patterns}"));
     }
 
     @Override
@@ -63,42 +72,35 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
-                nodesInfoRequest.clear().addMetrics(
-                        NodesInfoRequest.Metric.PROCESS.metricName(),
-                        NodesInfoRequest.Metric.THREAD_POOL.metricName());
+                nodesInfoRequest.clear()
+                    .addMetrics(NodesInfoMetrics.Metric.PROCESS.metricName(), NodesInfoMetrics.Metric.THREAD_POOL.metricName());
                 client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().addMetric(NodesStatsRequest.Metric.THREAD_POOL.metricName());
+                        nodesStatsRequest.setIncludeShardsStats(false);
+                        nodesStatsRequest.clear().addMetric(NodesStatsRequestParameters.Metric.THREAD_POOL);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
                                 return RestTable.buildResponse(
-                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse), channel);
+                                    buildTable(request, clusterStateResponse, nodesInfoResponse, nodesStatsResponse),
+                                    channel
+                                );
                             }
                         });
                     }
                 });
             }
         });
-    }
-
-    private static final Set<String> RESPONSE_PARAMS;
-
-    static {
-        final Set<String> responseParams = new HashSet<>(AbstractCatAction.RESPONSE_PARAMS);
-        responseParams.add("thread_pool_patterns");
-        RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
     @Override
@@ -143,7 +145,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
         final Set<String> candidates = new HashSet<>();
         for (final NodeStats nodeStats : nodesStats.getNodes()) {
             for (final ThreadPoolStats.Stats threadPoolStats : nodeStats.getThreadPool()) {
-                candidates.add(threadPoolStats.getName());
+                candidates.add(threadPoolStats.name());
             }
         }
 
@@ -172,7 +174,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 ThreadPoolStats threadPoolStats = stats.getThreadPool();
                 for (ThreadPoolStats.Stats threadPoolStat : threadPoolStats) {
-                    poolThreadStats.put(threadPoolStat.getName(), threadPoolStat);
+                    poolThreadStats.put(threadPoolStat.name(), threadPoolStat);
                 }
                 if (info != null) {
                     for (ThreadPool.Info threadPoolInfo : info.getInfo(ThreadPoolInfo.class)) {
@@ -205,9 +207,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 Integer size = null;
 
                 if (poolInfo != null) {
-                    if (poolInfo.getQueueSize() != null) {
-                        maxQueueSize = poolInfo.getQueueSize().singles();
-                    }
+                    maxQueueSize = poolInfo.getQueueSize();
                     if (poolInfo.getKeepAlive() != null) {
                         keepAlive = poolInfo.getKeepAlive();
                     }
@@ -224,14 +224,14 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 }
 
                 table.addCell(entry.getKey());
-                table.addCell(poolInfo == null  ? null : poolInfo.getThreadPoolType().getType());
-                table.addCell(poolStats == null ? null : poolStats.getActive());
-                table.addCell(poolStats == null ? null : poolStats.getThreads());
-                table.addCell(poolStats == null ? null : poolStats.getQueue());
+                table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
+                table.addCell(poolStats == null ? null : poolStats.active());
+                table.addCell(poolStats == null ? null : poolStats.threads());
+                table.addCell(poolStats == null ? null : poolStats.queue());
                 table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
-                table.addCell(poolStats == null ? null : poolStats.getRejected());
-                table.addCell(poolStats == null ? null : poolStats.getLargest());
-                table.addCell(poolStats == null ? null : poolStats.getCompleted());
+                table.addCell(poolStats == null ? null : poolStats.rejected());
+                table.addCell(poolStats == null ? null : poolStats.largest());
+                table.addCell(poolStats == null ? null : poolStats.completed());
                 table.addCell(core);
                 table.addCell(max);
                 table.addCell(size);

@@ -1,22 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
@@ -27,12 +32,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,79 +51,54 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
 
     public void testSearchProgressSimple() throws Exception {
         for (SearchType searchType : SearchType.values()) {
-            SearchRequest request = new SearchRequest("index-*")
-                .searchType(searchType)
-                .source(new SearchSourceBuilder().size(0));
+            SearchRequest request = new SearchRequest("index-*").searchType(searchType).source(new SearchSourceBuilder().size(0));
             testCase((NodeClient) client(), request, shards, false);
         }
     }
 
     public void testSearchProgressWithHits() throws Exception {
         for (SearchType searchType : SearchType.values()) {
-            SearchRequest request = new SearchRequest("index-*")
-                .searchType(searchType)
-                .source(
-                    new SearchSourceBuilder()
-                        .size(10)
-                );
+            SearchRequest request = new SearchRequest("index-*").searchType(searchType).source(new SearchSourceBuilder().size(10));
             testCase((NodeClient) client(), request, shards, true);
         }
     }
 
     public void testSearchProgressWithAggs() throws Exception {
         for (SearchType searchType : SearchType.values()) {
-            SearchRequest request = new SearchRequest("index-*")
-                .searchType(searchType)
-                .source(
-                    new SearchSourceBuilder()
-                        .size(0)
-                        .aggregation(AggregationBuilders.max("max").field("number"))
-                );
+            SearchRequest request = new SearchRequest("index-*").searchType(searchType)
+                .source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.max("max").field("number")));
             testCase((NodeClient) client(), request, shards, false);
         }
     }
 
     public void testSearchProgressWithHitsAndAggs() throws Exception {
         for (SearchType searchType : SearchType.values()) {
-            SearchRequest request = new SearchRequest("index-*")
-                .searchType(searchType)
-                .source(
-                    new SearchSourceBuilder()
-                        .size(10)
-                        .aggregation(AggregationBuilders.max("max").field("number"))
-                );
+            SearchRequest request = new SearchRequest("index-*").searchType(searchType)
+                .source(new SearchSourceBuilder().size(10).aggregation(AggregationBuilders.max("max").field("number")));
             testCase((NodeClient) client(), request, shards, true);
         }
     }
 
     public void testSearchProgressWithQuery() throws Exception {
         for (SearchType searchType : SearchType.values()) {
-            SearchRequest request = new SearchRequest("index-*")
-                .searchType(searchType)
-                .source(
-                    new SearchSourceBuilder()
-                        .size(10)
-                        .query(QueryBuilders.termQuery("foo", "bar"))
-                );
+            SearchRequest request = new SearchRequest("index-*").searchType(searchType)
+                .source(new SearchSourceBuilder().size(10).query(QueryBuilders.termQuery("foo", "bar")));
             testCase((NodeClient) client(), request, shards, true);
         }
     }
 
     public void testSearchProgressWithShardSort() throws Exception {
-        SearchRequest request = new SearchRequest("index-*")
-            .source(
-                new SearchSourceBuilder()
-                    .size(0)
-                    .sort(new FieldSortBuilder("number").order(SortOrder.DESC))
-            );
+        SearchRequest request = new SearchRequest("index-*").source(
+            new SearchSourceBuilder().size(0).sort(new FieldSortBuilder("number").order(SortOrder.DESC))
+        );
         request.setPreFilterShardSize(1);
         List<SearchShard> sortShards = new ArrayList<>(shards);
         Collections.sort(sortShards, Comparator.reverseOrder());
         testCase((NodeClient) client(), request, sortShards, false);
     }
 
-    private void testCase(NodeClient client, SearchRequest request,
-                          List<SearchShard> expectedShards, boolean hasFetchPhase) throws InterruptedException {
+    private void testCase(NodeClient client, SearchRequest request, List<SearchShard> expectedShards, boolean hasFetchPhase)
+        throws InterruptedException {
         AtomicInteger numQueryResults = new AtomicInteger();
         AtomicInteger numQueryFailures = new AtomicInteger();
         AtomicInteger numFetchResults = new AtomicInteger();
@@ -131,14 +109,19 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         SearchProgressActionListener listener = new SearchProgressActionListener() {
             @Override
-            public void onListShards(List<SearchShard> shards, List<SearchShard> skippedShards,
-                                     SearchResponse.Clusters clusters, boolean fetchPhase) {
-                shardsListener.set(shards);
+            public void onListShards(
+                List<SearchShard> searchShards,
+                List<SearchShard> skippedShards,
+                SearchResponse.Clusters clusters,
+                boolean fetchPhase,
+                TransportSearchAction.SearchTimeProvider timeProvider
+            ) {
+                shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
 
             @Override
-            public void onQueryResult(int shardIndex) {
+            public void onQueryResult(int shardIndex, QuerySearchResult result) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryResults.incrementAndGet();
             }
@@ -162,12 +145,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onPartialReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
             @Override
-            public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onFinalReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
@@ -182,7 +165,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
+        client.executeLocally(TransportSearchAction.TYPE, new SearchRequest(request) {
             @Override
             public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 SearchTask task = super.createTask(id, type, action, parentTaskId, headers);
@@ -207,15 +190,16 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
     private static List<SearchShard> createRandomIndices(Client client) {
         int numIndices = randomIntBetween(3, 20);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = String.format(Locale.ROOT, "index-%03d" , i);
+            String indexName = Strings.format("index-%03d", i);
             assertAcked(client.admin().indices().prepareCreate(indexName).get());
             client.prepareIndex(indexName).setSource("number", i, "foo", "bar").get();
         }
         client.admin().indices().prepareRefresh("index-*").get();
-        ClusterSearchShardsResponse resp = client.admin().cluster().prepareSearchShards("index-*").get();
-        return Arrays.stream(resp.getGroups())
-            .map(e -> new SearchShard(null, e.getShardId()))
-            .sorted()
-            .collect(Collectors.toList());
+        ClusterSearchShardsResponse resp = safeExecute(
+            client,
+            TransportClusterSearchShardsAction.TYPE,
+            new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "index-*")
+        );
+        return Arrays.stream(resp.getGroups()).map(e -> new SearchShard(null, e.getShardId())).sorted().toList();
     }
 }

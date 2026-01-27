@@ -7,11 +7,19 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasLength;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class LifecycleExecutionStateTests extends ESTestCase {
 
@@ -19,6 +27,18 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         Map<String, String> customMetadata = createCustomMetadata();
         LifecycleExecutionState parsed = LifecycleExecutionState.fromCustomMetadata(customMetadata);
         assertEquals(customMetadata, parsed.asMap());
+    }
+
+    public void testTruncatingStepInfo() {
+        Map<String, String> custom = createCustomMetadata();
+        LifecycleExecutionState state = LifecycleExecutionState.fromCustomMetadata(custom);
+        assertThat(custom.get("step_info"), equalTo(state.stepInfo()));
+        String longStepInfo = "{\"key\": \""
+            + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH + 100)
+            + "\"}";
+        LifecycleExecutionState newState = LifecycleExecutionState.builder(state).setStepInfo(longStepInfo).build();
+        assertThat(newState.stepInfo(), hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertThat(newState.stepInfo(), endsWith("... (~111 chars truncated)\"}"));
     }
 
     public void testEmptyValuesAreNotSerialized() {
@@ -66,15 +86,12 @@ public class LifecycleExecutionStateTests extends ESTestCase {
 
     public void testEqualsAndHashcode() {
         LifecycleExecutionState original = LifecycleExecutionState.fromCustomMetadata(createCustomMetadata());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            original,
-            toCopy -> LifecycleExecutionState.builder(toCopy).build(),
-            LifecycleExecutionStateTests::mutate);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(original, toCopy -> LifecycleExecutionState.builder(toCopy).build(), this::mutate);
     }
 
     public void testGetCurrentStepKey() {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
-        Step.StepKey stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState.build());
+        Step.StepKey stepKey = Step.getCurrentStepKey(lifecycleState.build());
         assertNull(stepKey);
 
         String phase = randomAlphaOfLength(20);
@@ -84,11 +101,11 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState2.setPhase(phase);
         lifecycleState2.setAction(action);
         lifecycleState2.setStep(step);
-        stepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState2.build());
+        stepKey = Step.getCurrentStepKey(lifecycleState2.build());
         assertNotNull(stepKey);
-        assertEquals(phase, stepKey.getPhase());
-        assertEquals(action, stepKey.getAction());
-        assertEquals(step, stepKey.getName());
+        assertEquals(phase, stepKey.phase());
+        assertEquals(action, stepKey.action());
+        assertEquals(step, stepKey.name());
 
         phase = randomAlphaOfLength(20);
         action = randomAlphaOfLength(20);
@@ -97,8 +114,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState3.setPhase(phase);
         lifecycleState3.setAction(action);
         lifecycleState3.setStep(step);
-        AssertionError error3 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState3.build()));
+        AssertionError error3 = expectThrows(AssertionError.class, () -> Step.getCurrentStepKey(lifecycleState3.build()));
         assertEquals("Current phase is not empty: " + phase, error3.getMessage());
 
         phase = null;
@@ -108,8 +124,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState4.setPhase(phase);
         lifecycleState4.setAction(action);
         lifecycleState4.setStep(step);
-        AssertionError error4 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState4.build()));
+        AssertionError error4 = expectThrows(AssertionError.class, () -> Step.getCurrentStepKey(lifecycleState4.build()));
         assertEquals("Current action is not empty: " + action, error4.getMessage());
 
         phase = null;
@@ -119,8 +134,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState5.setPhase(phase);
         lifecycleState5.setAction(action);
         lifecycleState5.setStep(step);
-        AssertionError error5 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState5.build()));
+        AssertionError error5 = expectThrows(AssertionError.class, () -> Step.getCurrentStepKey(lifecycleState5.build()));
         assertNull(error5.getMessage());
 
         phase = null;
@@ -130,73 +144,94 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         lifecycleState6.setPhase(phase);
         lifecycleState6.setAction(action);
         lifecycleState6.setStep(step);
-        AssertionError error6 = expectThrows(AssertionError.class,
-            () -> LifecycleExecutionState.getCurrentStepKey(lifecycleState6.build()));
+        AssertionError error6 = expectThrows(AssertionError.class, () -> Step.getCurrentStepKey(lifecycleState6.build()));
         assertNull(error6.getMessage());
     }
 
-    private static LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {
+    /** test that strings with length less than or equal to maximum string length are not truncated and returned as-is */
+    public void testPotentiallyTruncateLongJsonWithExplanationNoNeedToTruncate() {
+        final String input = randomAlphaOfLengthBetween(0, LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH);
+        assertSame(input, LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input));
+    }
+
+    /** test that string with length one character over the max limit has truncation applied to it and has correct explanation */
+    public void testPotentiallyTruncateLongJsonWithExplanationOneCharTruncated() {
+        final String jsonBaseFormat = "{\"key\": \"%s\"}";
+        final int baseLength = Strings.format(jsonBaseFormat, "").length();
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 1);
+        final String input = Strings.format(jsonBaseFormat, value);
+
+        final String expectedSuffix = "... (~1 chars truncated)";
+        final String expectedOutput = Strings.format(
+            jsonBaseFormat,
+            value.substring(0, value.length() - expectedSuffix.length() - 1) + expectedSuffix
+        );
+        final String actualOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+        assertThat(actualOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertEquals(expectedOutput, actualOutput);
+    }
+
+    /** test that string with length two characters over the max limit has truncation applied to it and has correct explanation */
+    public void testPotentiallyTruncateLongJsonWithExplanationTwoCharsTruncated() {
+        final String jsonBaseFormat = "{\"key\": \"%s\"}";
+        final int baseLength = Strings.format(jsonBaseFormat, "").length();
+        final String value = randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH - baseLength + 2);
+        final String input = Strings.format(jsonBaseFormat, value);
+
+        final String expectedSuffix = "... (~2 chars truncated)";
+        final String expectedOutput = Strings.format(
+            jsonBaseFormat,
+            value.substring(0, value.length() - expectedSuffix.length() - 2) + expectedSuffix
+        );
+        final String actualOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+        assertThat(actualOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertEquals(expectedOutput, actualOutput);
+    }
+
+    public void testPotentiallyTruncateLongJsonWithExplanationIsIdempotent() {
+        final String input = "{\"key\": \"" + randomAlphanumericOfLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH) + "\"}";
+
+        final String firstOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(input);
+
+        assertThat(firstOutput, hasLength(LifecycleExecutionState.MAXIMUM_STEP_INFO_STRING_LENGTH));
+        assertThat(firstOutput, not(equalTo(input)));
+
+        final String secondOutput = LifecycleExecutionState.potentiallyTruncateLongJsonWithExplanation(firstOutput);
+
+        assertThat(secondOutput, sameInstance(firstOutput));
+    }
+
+    private LifecycleExecutionState mutate(LifecycleExecutionState toMutate) {
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(toMutate);
-        switch (randomIntBetween(0, 17)) {
-            case 0:
-                newState.setPhase(randomValueOtherThan(toMutate.getPhase(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 1:
-                newState.setAction(randomValueOtherThan(toMutate.getAction(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 2:
-                newState.setStep(randomValueOtherThan(toMutate.getStep(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 3:
-                newState.setPhaseDefinition(randomValueOtherThan(toMutate.getPhaseDefinition(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 4:
-                newState.setFailedStep(randomValueOtherThan(toMutate.getFailedStep(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 5:
-                newState.setStepInfo(randomValueOtherThan(toMutate.getStepInfo(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 6:
-                newState.setPhaseTime(randomValueOtherThan(toMutate.getPhaseTime(), ESTestCase::randomLong));
-                break;
-            case 7:
-                newState.setActionTime(randomValueOtherThan(toMutate.getActionTime(), ESTestCase::randomLong));
-                break;
-            case 8:
-                newState.setStepTime(randomValueOtherThan(toMutate.getStepTime(), ESTestCase::randomLong));
-                break;
-            case 9:
-                newState.setIndexCreationDate(randomValueOtherThan(toMutate.getLifecycleDate(), ESTestCase::randomLong));
-                break;
-            case 10:
-                newState.setShrinkIndexName(randomValueOtherThan(toMutate.getShrinkIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 11:
-                newState.setSnapshotRepository(randomValueOtherThan(toMutate.getSnapshotRepository(),
-                    () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 12:
-                newState.setSnapshotIndexName(randomValueOtherThan(toMutate.getSnapshotIndexName(),
-                    () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 13:
-                newState.setSnapshotName(randomValueOtherThan(toMutate.getSnapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 14:
-                newState.setRollupIndexName(randomValueOtherThan(toMutate.getRollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
-                break;
-            case 15:
-                newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));
-                break;
-            case 16:
-                newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.getFailedStepRetryCount(), ESTestCase::randomInt));
-                break;
-            case 17:
-                return LifecycleExecutionState.builder().build();
-            default:
-                throw new IllegalStateException("unknown randomization branch");
+        switch (randomIntBetween(0, 18)) {
+            case 0 -> newState.setPhase(randomValueOtherThan(toMutate.phase(), this::randomString));
+            case 1 -> newState.setAction(randomValueOtherThan(toMutate.action(), this::randomString));
+            case 2 -> newState.setStep(randomValueOtherThan(toMutate.step(), this::randomString));
+            case 3 -> newState.setPhaseDefinition(randomValueOtherThan(toMutate.phaseDefinition(), this::randomString));
+            case 4 -> newState.setFailedStep(randomValueOtherThan(toMutate.failedStep(), this::randomString));
+            case 5 -> newState.setStepInfo(randomValueOtherThan(toMutate.stepInfo(), this::randomString));
+            case 6 -> newState.setPreviousStepInfo(randomValueOtherThan(toMutate.previousStepInfo(), this::randomString));
+            case 7 -> newState.setPhaseTime(randomValueOtherThan(toMutate.phaseTime(), ESTestCase::randomLong));
+            case 8 -> newState.setActionTime(randomValueOtherThan(toMutate.actionTime(), ESTestCase::randomLong));
+            case 9 -> newState.setStepTime(randomValueOtherThan(toMutate.stepTime(), ESTestCase::randomLong));
+            case 10 -> newState.setIndexCreationDate(randomValueOtherThan(toMutate.lifecycleDate(), ESTestCase::randomLong));
+            case 11 -> newState.setShrinkIndexName(randomValueOtherThan(toMutate.shrinkIndexName(), this::randomString));
+            case 12 -> newState.setSnapshotRepository(randomValueOtherThan(toMutate.snapshotRepository(), this::randomString));
+            case 13 -> newState.setSnapshotIndexName(randomValueOtherThan(toMutate.snapshotIndexName(), this::randomString));
+            case 14 -> newState.setSnapshotName(randomValueOtherThan(toMutate.snapshotName(), this::randomString));
+            case 15 -> newState.setDownsampleIndexName(randomValueOtherThan(toMutate.downsampleIndexName(), this::randomString));
+            case 16 -> newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));
+            case 17 -> newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.failedStepRetryCount(), ESTestCase::randomInt));
+            case 18 -> {
+                return LifecycleExecutionState.EMPTY_STATE;
+            }
+            default -> throw new IllegalStateException("unknown randomization branch");
         }
         return newState.build();
+    }
+
+    private String randomString() {
+        return randomAlphaOfLengthBetween(5, 20);
     }
 
     static Map<String, String> createCustomMetadata() {
@@ -205,6 +240,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         String step = randomAlphaOfLengthBetween(5, 20);
         String failedStep = randomAlphaOfLengthBetween(5, 20);
         String stepInfo = randomAlphaOfLengthBetween(15, 50);
+        String previousStepInfo = randomAlphaOfLengthBetween(15, 50);
         String phaseDefinition = randomAlphaOfLengthBetween(15, 50);
         String repositoryName = randomAlphaOfLengthBetween(10, 20);
         String snapshotName = randomAlphaOfLengthBetween(10, 20);
@@ -220,6 +256,7 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         customMetadata.put("step", step);
         customMetadata.put("failed_step", failedStep);
         customMetadata.put("step_info", stepInfo);
+        customMetadata.put("previous_step_info", previousStepInfo);
         customMetadata.put("phase_definition", phaseDefinition);
         customMetadata.put("creation_date", String.valueOf(indexCreationDate));
         customMetadata.put("phase_time", String.valueOf(phaseTime));

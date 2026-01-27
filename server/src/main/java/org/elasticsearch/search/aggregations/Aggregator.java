@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -12,13 +13,15 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -77,7 +80,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * aggregation.
      */
     public final Aggregator resolveSortPathOnValidAgg(AggregationPath.PathElement next, Iterator<AggregationPath.PathElement> path) {
-        Aggregator n = subAggregator(next.name);
+        Aggregator n = subAggregator(next.name());
         if (n == null) {
             throw new IllegalArgumentException(
                 "The provided aggregation ["
@@ -89,7 +92,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         if (false == path.hasNext()) {
             return n;
         }
-        if (next.key != null) {
+        if (next.key() != null) {
             throw new IllegalArgumentException("Key only allowed on last aggregation path element but got [" + next + "]");
         }
         return n.resolveSortPath(path.next(), path);
@@ -141,17 +144,22 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * @return the results for each ordinal, in the same order as the array
      *         of ordinals
      */
-    public abstract InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException;
+    public abstract InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException;
+
+    /**
+     * Release this aggregation and its sub-aggregations.
+     */
+    public abstract void releaseAggregations();
 
     /**
      * Build the result of this aggregation if it is at the "top level"
      * of the aggregation tree. If, instead, it is a sub-aggregation of
      * another aggregation then the aggregation that contains it will call
-     * {@link #buildAggregations(long[])}.
+     * {@link #buildAggregations(LongArray)}.
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(new long[] { 0 })[0];
+        return buildAggregations(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true))[0];
     }
 
     /**

@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,13 +72,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     /**
-     * Gets the lag to use when calculating the serial difference.
-     */
-    public int lag() {
-        return lag;
-    }
-
-    /**
      * Sets the format to use on the output of this aggregation.
      */
     public SerialDiffPipelineAggregationBuilder format(String format) {
@@ -87,13 +83,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     }
 
     /**
-     * Gets the format to use on the output of this aggregation.
-     */
-    public String format() {
-        return format;
-    }
-
-    /**
      * Sets the GapPolicy to use on the output of this aggregation.
      */
     public SerialDiffPipelineAggregationBuilder gapPolicy(GapPolicy gapPolicy) {
@@ -102,13 +91,6 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
         }
         this.gapPolicy = gapPolicy;
         return this;
-    }
-
-    /**
-     * Gets the GapPolicy to use on the output of this aggregation.
-     */
-    public GapPolicy gapPolicy() {
-        return gapPolicy;
     }
 
     protected DocValueFormat formatter() {
@@ -187,11 +169,11 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (BUCKETS_PATH.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> paths = new ArrayList<>();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
                         paths.add(path);
                     }
-                    bucketsPaths = paths.toArray(new String[paths.size()]);
+                    bucketsPaths = paths.toArray(Strings.EMPTY_ARRAY);
                 } else {
                     throw new ParsingException(
                         parser.getTokenLocation(),
@@ -244,5 +226,10 @@ public class SerialDiffPipelineAggregationBuilder extends AbstractPipelineAggreg
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

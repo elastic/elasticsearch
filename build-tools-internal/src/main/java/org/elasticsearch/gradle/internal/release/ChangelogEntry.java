@@ -1,15 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
+import org.gradle.api.logging.Logger;
+import org.gradle.api.logging.Logging;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,29 +26,37 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This class models the contents of a changelog YAML file. We validate it using a
- * JSON Schema, as well as some programmatic checks in {@link ValidateChangelogEntryTask}.
+ * This class models the contents of a changelog YAML file. We validate it using a JSON Schema.
  * <ul>
  *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
  *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>
  * </ul>
  */
 public class ChangelogEntry {
+    private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
+
     private Integer pr;
-    private List<Integer> issues;
+    private String summary;
     private String area;
     private String type;
-    private String summary;
-    private Highlight highlight;
+    private List<Integer> issues;
     private Breaking breaking;
+    private Highlight highlight;
     private Deprecation deprecation;
+    private String entryOverride;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
+    /**
+     * Create a new instance by parsing the supplied file
+     * @param file the YAML file to parse
+     * @return a new instance
+     */
     public static ChangelogEntry parse(File file) {
         try {
             return yamlMapper.readValue(file, ChangelogEntry.class);
         } catch (IOException e) {
+            LOGGER.error("Failed to parse changelog from " + file.getAbsolutePath(), e);
             throw new UncheckedIOException(e);
         }
     }
@@ -94,6 +107,7 @@ public class ChangelogEntry {
 
     public void setHighlight(Highlight highlight) {
         this.highlight = highlight;
+        if (this.highlight != null) this.highlight.pr = this.pr;
     }
 
     public Breaking getBreaking() {
@@ -112,6 +126,14 @@ public class ChangelogEntry {
         this.deprecation = deprecation;
     }
 
+    public String getEntryOverride() {
+        return entryOverride;
+    }
+
+    public void setEntryOverride(String entryOverride) {
+        this.entryOverride = entryOverride;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -127,12 +149,13 @@ public class ChangelogEntry {
             && Objects.equals(type, that.type)
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
-            && Objects.equals(breaking, that.breaking);
+            && Objects.equals(breaking, that.breaking)
+            && Objects.equals(entryOverride, that.entryOverride);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, entryOverride);
     }
 
     @Override
@@ -155,6 +178,7 @@ public class ChangelogEntry {
         private boolean notable;
         private String title;
         private String body;
+        private Integer pr;
 
         public boolean isNotable() {
             return notable;
@@ -180,8 +204,13 @@ public class ChangelogEntry {
             this.body = body;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
+        }
+
+        public Integer getPr() {
+            return pr;
         }
 
         @Override
@@ -209,12 +238,17 @@ public class ChangelogEntry {
         }
     }
 
-    public static class Breaking {
+    public static class Breaking extends CompatibilityChange {}
+
+    public static class Deprecation extends CompatibilityChange {}
+
+    abstract static class CompatibilityChange {
         private String area;
         private String title;
         private String details;
         private String impact;
         private boolean notable;
+        private boolean essSettingChange;
 
         public String getArea() {
             return area;
@@ -256,8 +290,17 @@ public class ChangelogEntry {
             this.notable = notable;
         }
 
+        @JsonIgnore
         public String getAnchor() {
             return generatedAnchor(this.title);
+        }
+
+        public boolean isEssSettingChange() {
+            return essSettingChange;
+        }
+
+        public void setEssSettingChange(boolean essSettingChange) {
+            this.essSettingChange = essSettingChange;
         }
 
         @Override
@@ -268,92 +311,40 @@ public class ChangelogEntry {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Breaking breaking = (Breaking) o;
-            return notable == breaking.notable
-                && Objects.equals(area, breaking.area)
-                && Objects.equals(title, breaking.title)
-                && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact);
+            CompatibilityChange breaking = (CompatibilityChange) o;
+            return notable == breaking.isNotable()
+                && Objects.equals(area, breaking.getArea())
+                && Objects.equals(title, breaking.getTitle())
+                && Objects.equals(details, breaking.getDetails())
+                && Objects.equals(impact, breaking.getImpact())
+                && Objects.equals(essSettingChange, breaking.isEssSettingChange());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, details, impact, notable);
+            return Objects.hash(area, title, details, impact, notable, essSettingChange);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s}",
+                "%s{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
+                this.getClass().getSimpleName(),
                 area,
                 title,
                 details,
                 impact,
-                notable
+                notable,
+                essSettingChange
             );
         }
     }
 
-    public static class Deprecation {
-        private String area;
-        private String title;
-        private String body;
-
-        public String getArea() {
-            return area;
-        }
-
-        public void setArea(String area) {
-            this.area = area;
-        }
-
-        public String getTitle() {
-            return title;
-        }
-
-        public void setTitle(String title) {
-            this.title = title;
-        }
-
-        public String getBody() {
-            return body;
-        }
-
-        public void setBody(String body) {
-            this.body = body;
-        }
-
-        public String getAnchor() {
-            return generatedAnchor(this.title);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Deprecation that = (Deprecation) o;
-            return Objects.equals(area, that.area) && Objects.equals(title, that.title) && Objects.equals(body, that.body);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(area, title, body);
-        }
-
-        @Override
-        public String toString() {
-            return String.format("Deprecation{area='%s', title='%s', body='%s'}", area, title, body);
-        }
-    }
-
     private static String generatedAnchor(String input) {
-        final List<String> excludes = List.of("the", "is", "a");
+        final List<String> excludes = List.of("the", "is", "a", "and", "now", "that");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
+            .replace("'", "")
             .replaceAll("[^\\w]+", "_")
             .replaceFirst("^_+", "")
             .replaceFirst("_+$", "")

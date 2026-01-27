@@ -29,13 +29,17 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
     public static void setupSecondaryRealm() {
         // Pick a secondary realm that has the inverse value for 'loginWithCommonName' compare with the primary realm
         final List<RealmConfig> configs = Arrays.stream(RealmConfig.values())
-                .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
-                .filter(config -> config.name().startsWith("AD"))
-                .collect(Collectors.toList());
+            .filter(config -> config.loginWithCommonName != AbstractAdLdapRealmTestCase.realmConfig.loginWithCommonName)
+            .filter(config -> config.name().startsWith("AD"))
+            .collect(Collectors.toList());
         secondaryRealmConfig = randomFrom(configs);
-        LogManager.getLogger(MultipleAdRealmIT.class).info(
+        LogManager.getLogger(MultipleAdRealmIT.class)
+            .info(
                 "running test with secondary realm configuration [{}], with direct group to role mapping [{}]. Settings [{}]",
-                secondaryRealmConfig, secondaryRealmConfig.mapGroupsAsRoles, secondaryRealmConfig.settings);
+                secondaryRealmConfig,
+                secondaryRealmConfig.mapGroupsAsRoles,
+                secondaryRealmConfig.settings
+            );
 
         // It's easier to test 2 realms when using file based role mapping, and for the purposes of
         // this test, there's no need to test native mappings.
@@ -48,8 +52,11 @@ public class MultipleAdRealmIT extends AbstractAdLdapRealmTestCase {
         builder.put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         final List<RoleMappingEntry> secondaryRoleMappings = secondaryRealmConfig.selectRoleMappings(() -> true);
-        final Settings secondarySettings = super.buildRealmSettings(secondaryRealmConfig, secondaryRoleMappings,
-            getNodeTrustedCertificates());
+        final Settings secondarySettings = super.buildRealmSettings(
+            secondaryRealmConfig,
+            secondaryRoleMappings,
+            getNodeTrustedCertificates()
+        );
         secondarySettings.keySet().forEach(name -> {
             final String newname;
             if (name.contains(LdapRealmSettings.AD_TYPE)) {

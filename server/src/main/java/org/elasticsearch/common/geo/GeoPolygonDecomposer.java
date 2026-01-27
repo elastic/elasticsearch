@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -30,13 +31,31 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizeLon;
 /**
  * Splits polygons by datelines.
  */
-public class GeoPolygonDecomposer {
+class GeoPolygonDecomposer {
 
     private static final double DATELINE = 180;
     private static final Comparator<Edge> INTERSECTION_ORDER = Comparator.comparingDouble(o -> o.intersect.getY());
 
     private GeoPolygonDecomposer() {
         // no instances
+    }
+
+    public static boolean needsDecomposing(Polygon polygon) {
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            if (GeoUtils.needsNormalizeLat(linearRing.getLat(i)) || GeoUtils.needsNormalizeLon(linearRing.getLon(i))) {
+                return true;
+            }
+            minX = Math.min(minX, linearRing.getLon(i));
+            maxX = Math.max(maxX, linearRing.getLon(i));
+        }
+        // calculate range
+        final double rng = maxX - minX;
+        // we need to decompose tif the range is greater than a hemisphere (180 degrees)
+        // but not spanning 2 hemispheres (translation would result in a collapsed poly)
+        return rng > DATELINE && rng != 2 * DATELINE;
     }
 
     public static void decomposeMultiPolygon(MultiPolygon multiPolygon, boolean orientation, List<Polygon> collector) {
@@ -88,18 +107,9 @@ public class GeoPolygonDecomposer {
         int numPoints = linearRing.length();
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
-                    // same point
-                    continue;
-                }
-                if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1) &&
-                    linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                    // coplanar
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
             }
-            count++;
         }
         if (numPoints == count) {
             return linearRing;
@@ -111,18 +121,29 @@ public class GeoPolygonDecomposer {
         lons[0] = lons[count - 1] = linearRing.getLon(0);
         count = 0;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i) ||
-                    linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
-                    // filter
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
+                lats[count] = linearRing.getLat(i);
+                lons[count] = linearRing.getLon(i);
             }
-            count++;
-            lats[count] = linearRing.getLat(i);
-            lons[count] = linearRing.getLon(i);
         }
         return new LinearRing(lons, lats);
+    }
+
+    private static boolean skipPoint(LinearRing linearRing, int i) {
+        if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+            if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
+                // same point
+                return true;
+            }
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
+                && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
+                // collinear - we only remove points that go in the same direction. So latitudes [1,2,3] we would want
+                // to remove 1 but for [1,2,-1] we don't.
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateHole(LinearRing shell, LinearRing hole) {
@@ -140,20 +161,15 @@ public class GeoPolygonDecomposer {
         }
     }
 
-    private static Point position(Point p1, Point p2, double position) {
-        if (position == 0) {
-            return p1;
-        } else if (position == 1) {
-            return p2;
-        } else {
-            final double x = p1.getX() + position * (p2.getX() - p1.getX());
-            final double y = p1.getY() + position * (p2.getY() - p1.getY());
-            return new Point(x, y);
-        }
-    }
-
-    private static int createEdges(int component, boolean orientation, LinearRing shell,
-                            LinearRing hole, Edge[] edges, int offset, final AtomicBoolean translated) {
+    private static int createEdges(
+        int component,
+        boolean orientation,
+        LinearRing shell,
+        LinearRing hole,
+        Edge[] edges,
+        int offset,
+        final AtomicBoolean translated
+    ) {
         // inner rings (holes) have an opposite direction than the outer rings
         // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
         boolean direction = (component == 0 ^ orientation);
@@ -179,8 +195,17 @@ public class GeoPolygonDecomposer {
      * @param length number of points
      * @return Array of edges
      */
-    private static Edge[] ring(int component, boolean direction, boolean handedness,
-                        Point[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
+    private static Edge[] ring(
+        int component,
+        boolean direction,
+        boolean handedness,
+        Point[] points,
+        int offset,
+        Edge[] edges,
+        int toffset,
+        int length,
+        final AtomicBoolean translated
+    ) {
         double signedArea = 0;
         double minX = Double.POSITIVE_INFINITY;
         double maxX = Double.NEGATIVE_INFINITY;
@@ -189,12 +214,9 @@ public class GeoPolygonDecomposer {
             minX = Math.min(minX, points[i].getX());
             maxX = Math.max(maxX, points[i].getX());
         }
-        if (signedArea == 0) {
-            // Points are collinear or self-intersection
-            throw new IllegalArgumentException("Cannot determine orientation: signed area equal to 0." +
-                " Points are collinear or polygon self-intersects.");
-        }
-        boolean orientation = signedArea < 0;
+        // if the polygon is tiny, the computed area can result in zero. In that case
+        // we assume orientation is correct
+        boolean orientation = signedArea == 0 ? handedness : signedArea < 0;
 
         // OGC requires shell as ccw (Right-Handedness) and holes as cw (Left-Handedness)
         // since GeoJSON doesn't specify (and doesn't need to) GEO core will assume OGC standards
@@ -204,9 +226,9 @@ public class GeoPolygonDecomposer {
         // calculate range
         final double rng = maxX - minX;
         // translate the points if the following is true
-        //   1.  shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
-        //       (translation would result in a collapsed poly)
-        //   2.  the shell of the candidate hole has been translated (to preserve the coordinate system)
+        // 1. shell orientation is cw and range is greater than a hemisphere (180 degrees) but not spanning 2 hemispheres
+        // (translation would result in a collapsed poly)
+        // 2. the shell of the candidate hole has been translated (to preserve the coordinate system)
         boolean incorrectOrientation = component == 0 && handedness != orientation;
         if ((incorrectOrientation && (rng > DATELINE && rng != 2 * DATELINE)) || (translated.get() && component != 0)) {
             translate(points);
@@ -248,14 +270,14 @@ public class GeoPolygonDecomposer {
             // the second edge only (the first edge is either polygon or
             // already handled)
             if (e2.component > 0) {
-                //TODO: Check if we could save the set null step
+                // TODO: Check if we could save the set null step
                 numHoles--;
                 holes[e2.component - 1] = holes[numHoles];
                 holes[numHoles] = null;
             }
             // only connect edges if intersections are pairwise
             // 1. per the comment above, the edge array is sorted by y-value of the intersection
-            // with the dateline.  Two edges have the same y intercept when they cross the
+            // with the dateline. Two edges have the same y intercept when they cross the
             // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
             // do not have the same y intercept when we're forming a multi-poly from a poly
             // that wraps the dateline (but there are 2 ordered intercepts).
@@ -263,11 +285,13 @@ public class GeoPolygonDecomposer {
             // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge
             // to connect. Thus the first logic check enforces the pairwise rule
             // 2. the second logic check ensures the two candidate edges aren't already connected by an
-            //    existing edge along the dateline - this is necessary due to a logic change in
-            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
-            //    in support of OGC standards
-            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
-                && (e1.next.next.coordinate.equals(e2.coordinate) && Math.abs(e1.next.coordinate.getX()) == DATELINE
+            // existing edge along the dateline - this is necessary due to a logic change in
+            // ShapeBuilder.intersection that computes dateline edges as valid intersect points
+            // in support of OGC standards
+            if (e1.intersect != Edge.MAX_COORDINATE
+                && e2.intersect != Edge.MAX_COORDINATE
+                && (e1.next.next.coordinate.equals(e2.coordinate)
+                    && Math.abs(e1.next.coordinate.getX()) == DATELINE
                     && Math.abs(e2.coordinate.getX()) == DATELINE) == false) {
                 connect(e1, e2);
             }
@@ -324,8 +348,15 @@ public class GeoPolygonDecomposer {
      * @param length      number of points to use
      * @return the edges creates
      */
-    private static Edge[] concat(int component, boolean direction, Point[] points, final int pointOffset, Edge[] edges,
-                                                 final int edgeOffset, int length) {
+    private static Edge[] concat(
+        int component,
+        boolean direction,
+        Point[] points,
+        final int pointOffset,
+        Edge[] edges,
+        final int edgeOffset,
+        int length
+    ) {
         assert edges.length >= length + edgeOffset;
         assert points.length >= length + pointOffset;
         edges[edgeOffset] = new Edge(new Point(points[pointOffset].getX(), points[pointOffset].getY()), null);
@@ -374,7 +405,7 @@ public class GeoPolygonDecomposer {
 
             double position = intersection(p1.getX(), p2.getX(), dateline);
             if (Double.isNaN(position) == false) {
-                edges[i].intersection(position);
+                edges[i].setIntersection(position, dateline);
                 numIntersections++;
                 maxComponent = Math.max(maxComponent, edges[i].component);
             }
@@ -416,7 +447,6 @@ public class GeoPolygonDecomposer {
         }
         return intersection != null;
     }
-
 
     private static Edge[] edges(Edge[] edges, int numHoles, List<List<Point[]>> components) {
         ArrayList<Edge> mainEdges = new ArrayList<>(edges.length);
@@ -593,11 +623,13 @@ public class GeoPolygonDecomposer {
         // First and last coordinates must be equal
         if (coordinates[0].equals(coordinates[coordinates.length - 1]) == false) {
             if (Double.isNaN(partitionPoint[2])) {
-                throw new IllegalArgumentException("Self-intersection at or near point ["
-                    + partitionPoint[0] + "," + partitionPoint[1] + "]");
+                throw new IllegalArgumentException(
+                    "Self-intersection at or near point [" + partitionPoint[0] + "," + partitionPoint[1] + "]"
+                );
             } else {
-                throw new IllegalArgumentException("Self-intersection at or near point ["
-                    + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]");
+                throw new IllegalArgumentException(
+                    "Self-intersection at or near point [" + partitionPoint[0] + "," + partitionPoint[1] + "," + partitionPoint[2] + "]"
+                );
             }
         }
         return coordinates;
@@ -616,8 +648,8 @@ public class GeoPolygonDecomposer {
             holes = new ArrayList<>(polygon.size() - 1);
             for (int i = 1; i < polygon.size(); ++i) {
                 Point[] coords = polygon.get(i);
-                //We do not have holes on the dateline as they get eliminated
-                //when breaking the polygon around it.
+                // We do not have holes on the dateline as they get eliminated
+                // when breaking the polygon around it.
                 double[] x = new double[coords.length];
                 double[] y = new double[coords.length];
                 for (int c = 0; c < coords.length; ++c) {
@@ -633,8 +665,8 @@ public class GeoPolygonDecomposer {
         double[] x = new double[shell.length];
         double[] y = new double[shell.length];
         for (int i = 0; i < shell.length; ++i) {
-            //Lucene Tessellator treats different +180 and -180 and we should keep the sign.
-            //normalizeLon method excludes -180.
+            // Lucene Tessellator treats different +180 and -180 and we should keep the sign.
+            // normalizeLon method excludes -180.
             x[i] = normalizeLonMinus180Inclusive(shell[i].getX());
             y[i] = normalizeLat(shell[i].getY());
         }
@@ -661,7 +693,7 @@ public class GeoPolygonDecomposer {
      * Normalizes longitude while accepting -180 degrees as a valid value
      */
     private static double normalizeLonMinus180Inclusive(double lon) {
-        return  Math.abs(lon) > 180 ? normalizeLon(lon) : lon;
+        return Math.abs(lon) > 180 ? normalizeLon(lon) : lon;
     }
 
     private static Point shift(Point coordinate, double dateline) {
@@ -734,13 +766,20 @@ public class GeoPolygonDecomposer {
         }
 
         /**
-         * Set the intersection of this line segment to the given position
+         * Set the intersection of this line segment with the given dateline
          *
          * @param position position of the intersection [0..1]
-         * @return the {@link Point} of the intersection
+         * @param dateline of the intersection
          */
-        Point intersection(double position) {
-            return intersect = position(coordinate, next.coordinate, position);
+        void setIntersection(double position, double dateline) {
+            if (position == 0) {
+                this.intersect = coordinate;
+            } else if (position == 1) {
+                this.intersect = next.coordinate;
+            } else {
+                final double y = coordinate.getY() + position * (next.coordinate.getY() - coordinate.getY());
+                this.intersect = new Point(dateline, y);
+            }
         }
 
         @Override

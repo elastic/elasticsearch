@@ -51,7 +51,6 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
         long classB = 0;
         long classC = 0;
 
-
         classValuesPerRow = new String[ROWS_COUNT];
         for (int i = 0; i < classValuesPerRow.length; i++) {
             double randomDouble = randomDoubleBetween(0.0, 1.0, true);
@@ -74,8 +73,10 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
     }
 
     public void testConstructor_GivenMissingDependentVariable() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new StratifiedTrainTestSplitter(
-            Collections.emptyList(), "foo", Collections.emptyMap(), 100.0, 0));
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new StratifiedTrainTestSplitter(Collections.emptyList(), "foo", Collections.emptyMap(), 100.0, 0)
+        );
         assertThat(e.getMessage(), equalTo("Could not find dependent variable [foo] in fields []"));
     }
 
@@ -87,8 +88,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
         }
         row[dependentVariableIndex] = "unknown_class";
 
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-            () -> splitter.isTraining(row));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> splitter.isTraining(row));
 
         assertThat(e.getMessage(), equalTo("Unknown class [unknown_class]; expected one of [a, b, c]"));
     }
@@ -169,7 +169,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
 
         long expectedTotalTrainingCount = 0;
         for (long classCount : classCounts.values()) {
-            expectedTotalTrainingCount += trainingFraction * classCount;
+            expectedTotalTrainingCount += (long) (trainingFraction * classCount);
         }
         assertThat(actualTotalTrainingCount, greaterThanOrEqualTo(expectedTotalTrainingCount - 2));
         assertThat(actualTotalTrainingCount, lessThanOrEqualTo(expectedTotalTrainingCount));
@@ -214,7 +214,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
         // should be close to the training percent, which is set to 0.5
         for (int rowTrainingCount : trainingCountPerRow) {
             double meanCount = rowTrainingCount / (double) runCount;
-            assertThat(meanCount, is(closeTo(0.5, 0.13)));
+            assertThat(meanCount, is(closeTo(0.5, 0.14)));
         }
     }
 
@@ -227,7 +227,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
         TrainTestSplitter splitter = createSplitter(80.0);
 
         {
-            String[] row = new String[]{"class_a", "42.0"};
+            String[] row = new String[] { "class_a", "42.0" };
 
             String[] processedRow = Arrays.copyOf(row, row.length);
             assertThat(splitter.isTraining(processedRow), is(true));
@@ -236,7 +236,7 @@ public class StratifiedTrainTestSplitterTests extends ESTestCase {
             assertThat(Arrays.equals(processedRow, row), is(true));
         }
         {
-            String[] row = new String[]{"class_b", "42.0"};
+            String[] row = new String[] { "class_b", "42.0" };
 
             String[] processedRow = Arrays.copyOf(row, row.length);
             assertThat(splitter.isTraining(processedRow), is(true));

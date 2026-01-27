@@ -22,7 +22,11 @@ import java.util.Locale;
  */
 public enum JobState implements Writeable, MemoryTrackedTaskState {
 
-    CLOSING, CLOSED, OPENED, FAILED, OPENING;
+    CLOSING,
+    CLOSED,
+    OPENED,
+    FAILED,
+    OPENING;
 
     public static JobState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
@@ -41,7 +45,6 @@ public enum JobState implements Writeable, MemoryTrackedTaskState {
     public String value() {
         return name().toLowerCase(Locale.ROOT);
     }
-
 
     /**
      * @return {@code true} if state matches any of the given {@code candidates}

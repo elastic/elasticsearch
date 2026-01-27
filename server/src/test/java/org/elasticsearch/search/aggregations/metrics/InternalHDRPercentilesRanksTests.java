@@ -1,20 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalHDRPercentileRanks> {
 
@@ -25,9 +31,13 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
 
+        if (empty) {
+            return new InternalHDRPercentileRanks(name, percents, null, keyed, format, metadata);
+        }
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
 
@@ -45,8 +55,17 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentileRanks.class;
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalHDRPercentileRanks sampled, InternalHDRPercentileRanks reduced, SamplingContext samplingContext) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
     }
 
     @Override
@@ -58,33 +77,28 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 4)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
                 percents = Arrays.copyOf(percents, percents.length + 1);
                 percents[percents.length - 1] = randomDouble() * 100;
                 Arrays.sort(percents);
-                break;
-            case 2:
+            }
+            case 2 -> {
                 state = new DoubleHistogram(state);
                 for (int i = 0; i < between(10, 100); i++) {
                     state.recordValue(randomDouble());
                 }
-                break;
-            case 3:
-                keyed = keyed == false;
-                break;
-            case 4:
+            }
+            case 3 -> keyed = keyed == false;
+            case 4 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalHDRPercentileRanks(name, percents, state, keyed, formatter, metadata);
     }

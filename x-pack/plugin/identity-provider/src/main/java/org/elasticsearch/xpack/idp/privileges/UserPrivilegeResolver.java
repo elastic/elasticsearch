@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.idp.privileges;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -45,8 +51,7 @@ public class UserPrivilegeResolver {
 
         @Override
         public String toString() {
-            StringBuilder str = new StringBuilder()
-                .append(getClass().getSimpleName())
+            StringBuilder str = new StringBuilder().append(getClass().getSimpleName())
                 .append("{")
                 .append(principal)
                 .append(", ")
@@ -63,7 +68,7 @@ public class UserPrivilegeResolver {
         }
     }
 
-    private final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(UserPrivilegeResolver.class);
     private final Client client;
     private final SecurityContext securityContext;
     private final ApplicationActionsResolver actionsResolver;
@@ -79,10 +84,10 @@ public class UserPrivilegeResolver {
      * Requires that the active user is set in the {@link org.elasticsearch.xpack.core.security.SecurityContext}.
      */
     public void resolve(ServiceProviderPrivileges service, ActionListener<UserPrivileges> listener) {
-        buildResourcePrivilege(service, ActionListener.wrap(resourcePrivilege -> {
+        buildResourcePrivilege(service, listener.delegateFailureAndWrap((delegate, resourcePrivilege) -> {
             final String username = securityContext.requireUser().principal();
             if (resourcePrivilege == null) {
-                listener.onResponse(UserPrivileges.noAccess(username));
+                delegate.onResponse(UserPrivileges.noAccess(username));
                 return;
             }
             HasPrivilegesRequest request = new HasPrivilegesRequest();
@@ -90,21 +95,22 @@ public class UserPrivilegeResolver {
             request.clusterPrivileges(Strings.EMPTY_ARRAY);
             request.indexPrivileges(new RoleDescriptor.IndicesPrivileges[0]);
             request.applicationPrivileges(resourcePrivilege);
-            client.execute(HasPrivilegesAction.INSTANCE, request, ActionListener.wrap(
-                response -> {
-                    logger.debug("Checking access for user [{}] to application [{}] resource [{}]",
-                        username, service.getApplicationName(), service.getResource());
-                    UserPrivileges privileges = buildResult(response, service);
-                    logger.debug("Resolved service privileges [{}]", privileges);
-                    listener.onResponse(privileges);
-                },
-                listener::onFailure
-            ));
-        }, listener::onFailure));
+            client.execute(HasPrivilegesAction.INSTANCE, request, delegate.delegateFailureAndWrap((l, response) -> {
+                logger.debug(
+                    "Checking access for user [{}] to application [{}] resource [{}]",
+                    username,
+                    service.getApplicationName(),
+                    service.getResource()
+                );
+                UserPrivileges privileges = buildResult(response, service);
+                logger.debug("Resolved service privileges [{}]", privileges);
+                l.onResponse(privileges);
+            }));
+        }));
 
     }
 
-    private UserPrivileges buildResult(HasPrivilegesResponse response, ServiceProviderPrivileges service) {
+    private static UserPrivileges buildResult(HasPrivilegesResponse response, ServiceProviderPrivileges service) {
         final Set<ResourcePrivileges> appPrivileges = response.getApplicationPrivileges().get(service.getApplicationName());
         if (appPrivileges == null || appPrivileges.isEmpty()) {
             return UserPrivileges.noAccess(response.getUsername());
@@ -124,20 +130,48 @@ public class UserPrivilegeResolver {
         return new UserPrivileges(response.getUsername(), hasAccess, roles);
     }
 
-    private void buildResourcePrivilege(ServiceProviderPrivileges service,
-                                        ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener) {
-        actionsResolver.getActions(service.getApplicationName(), ActionListener.wrap(actions -> {
+    private void buildResourcePrivilege(
+        ServiceProviderPrivileges service,
+        ActionListener<RoleDescriptor.ApplicationResourcePrivileges> listener
+    ) {
+        var groupedListener = new GroupedActionListener<Set<String>>(2, listener.delegateFailureAndWrap((delegate, actionSets) -> {
+            final Set<String> actions = actionSets.stream().flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
             if (actions == null || actions.isEmpty()) {
                 logger.warn("No application-privilege actions defined for application [{}]", service.getApplicationName());
-                listener.onResponse(null);
+                delegate.onResponse(null);
             } else {
                 logger.debug("Using actions [{}] for application [{}]", actions, service.getApplicationName());
                 final RoleDescriptor.ApplicationResourcePrivileges.Builder builder = RoleDescriptor.ApplicationResourcePrivileges.builder();
                 builder.application(service.getApplicationName());
                 builder.resources(service.getResource());
                 builder.privileges(actions);
-                listener.onResponse(builder.build());
+                delegate.onResponse(builder.build());
             }
-        }, listener::onFailure));
+        }));
+
+        // We need to enumerate possible actions that might be authorized for the user. Here we combine actions that
+        // have been granted to the user via roles and other actions that are registered privileges for the given
+        // application. These actions will be checked by a has-privileges check above
+        final GetUserPrivilegesRequest request = new GetUserPrivilegesRequestBuilder(client).username(securityContext.getUser().principal())
+            // If the subject in the security context is an API Key, then it might contain both ASSIGNED roles (those set on the API Key)
+            // and LIMITED_BY roles (the roles captured from the owner). In this case we retrieve the limited (owner) role, which will
+            // likely contain a superset of what the API Key actually has access to.
+            // However, since all we use these privileges for is to feed them into HasPrivileges, it's OK to return too many privileges,
+            // since the ones without access will be filtered out in that privilege check
+            .unwrapLimitedRole(RoleReference.ApiKeyRoleType.LIMITED_BY)
+            .request();
+        client.execute(
+            GetUserPrivilegesAction.INSTANCE,
+            request,
+            groupedListener.map(
+                userPrivileges -> userPrivileges.getApplicationPrivileges()
+                    .stream()
+                    .filter(appPriv -> appPriv.getApplication().equals(service.getApplicationName()))
+                    .map(appPriv -> appPriv.getPrivileges())
+                    .flatMap(Arrays::stream)
+                    .collect(Collectors.toUnmodifiableSet())
+            )
+        );
+        actionsResolver.getActions(service.getApplicationName(), groupedListener);
     }
 }

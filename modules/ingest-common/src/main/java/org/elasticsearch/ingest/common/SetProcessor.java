@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -39,8 +41,15 @@ public final class SetProcessor extends AbstractProcessor {
         this(tag, description, field, value, copyFrom, true, false);
     }
 
-    SetProcessor(String tag, String description, TemplateScript.Factory field, ValueSource value, String copyFrom, boolean overrideEnabled,
-                 boolean ignoreEmptyValue) {
+    SetProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory field,
+        ValueSource value,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
         super(tag, description);
         this.overrideEnabled = overrideEnabled;
         this.field = field;
@@ -71,12 +80,13 @@ public final class SetProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument document) {
-        if (overrideEnabled || document.hasField(field) == false || document.getFieldValue(field, Object.class) == null) {
+        String path = document.renderTemplate(field);
+        if (overrideEnabled || document.hasField(path) == false || document.getFieldValue(path, Object.class) == null) {
             if (copyFrom != null) {
                 Object fieldValue = document.getFieldValue(copyFrom, Object.class, ignoreEmptyValue);
-                document.setFieldValue(field, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
+                document.setFieldValue(path, IngestDocument.deepCopy(fieldValue), ignoreEmptyValue);
             } else {
-                document.setFieldValue(field, value, ignoreEmptyValue);
+                document.setFieldValue(path, value, ignoreEmptyValue);
             }
         }
         return document;
@@ -96,8 +106,13 @@ public final class SetProcessor extends AbstractProcessor {
         }
 
         @Override
-        public SetProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                   String description, Map<String, Object> config) throws Exception {
+        public SetProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
             String mediaType = ConfigurationUtils.readMediaTypeProperty(TYPE, processorTag, config, "media_type", "application/json");
@@ -108,8 +123,12 @@ public final class SetProcessor extends AbstractProcessor {
             } else {
                 Object value = config.remove("value");
                 if (value != null) {
-                    throw newConfigurationException(TYPE, processorTag, "copy_from",
-                        "cannot set both `copy_from` and `value` in the same processor");
+                    throw newConfigurationException(
+                        TYPE,
+                        processorTag,
+                        "copy_from",
+                        "cannot set both `copy_from` and `value` in the same processor"
+                    );
                 }
             }
 
@@ -117,14 +136,7 @@ public final class SetProcessor extends AbstractProcessor {
             TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
 
-            return new SetProcessor(
-                    processorTag,
-                    description,
-                    compiledTemplate,
-                    valueSource,
-                    copyFrom,
-                    overrideEnabled,
-                    ignoreEmptyValue);
+            return new SetProcessor(processorTag, description, compiledTemplate, valueSource, copyFrom, overrideEnabled, ignoreEmptyValue);
         }
     }
 }

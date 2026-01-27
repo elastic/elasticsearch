@@ -1,21 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.Tag;
+import software.amazon.awssdk.services.ec2.model.Instance;
+import software.amazon.awssdk.services.ec2.model.Tag;
+
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.core.SuppressForbidden;
+
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -24,16 +27,16 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.xml.XMLConstants;
-import javax.xml.stream.XMLOutputFactory;
-import javax.xml.stream.XMLStreamWriter;
-
 import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+
+import javax.xml.XMLConstants;
+import javax.xml.stream.XMLOutputFactory;
+import javax.xml.stream.XMLStreamWriter;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -113,11 +116,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                 sw.writeStartElement("item");
                                 {
                                     sw.writeStartElement("instanceId");
-                                    sw.writeCharacters(instance.getInstanceId());
+                                    sw.writeCharacters(instance.instanceId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("imageId");
-                                    sw.writeCharacters(instance.getImageId());
+                                    sw.writeCharacters(instance.imageId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceState");
@@ -133,11 +136,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateDnsName");
-                                    sw.writeCharacters(instance.getPrivateDnsName());
+                                    sw.writeCharacters(instance.privateDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("dnsName");
-                                    sw.writeCharacters(instance.getPublicDnsName());
+                                    sw.writeCharacters(instance.publicDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceType");
@@ -159,23 +162,23 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateIpAddress");
-                                    sw.writeCharacters(instance.getPrivateIpAddress());
+                                    sw.writeCharacters(instance.privateIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("ipAddress");
-                                    sw.writeCharacters(instance.getPublicIpAddress());
+                                    sw.writeCharacters(instance.publicIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("tagSet");
-                                    for (Tag tag : instance.getTags()) {
+                                    for (Tag tag : instance.tags()) {
                                         sw.writeStartElement("item");
                                         {
                                             sw.writeStartElement("key");
-                                            sw.writeCharacters(tag.getKey());
+                                            sw.writeCharacters(tag.key());
                                             sw.writeEndElement();
 
                                             sw.writeStartElement("value");
-                                            sw.writeCharacters(tag.getValue());
+                                            sw.writeCharacters(tag.value());
                                             sw.writeEndElement();
                                         }
                                         sw.writeEndElement();

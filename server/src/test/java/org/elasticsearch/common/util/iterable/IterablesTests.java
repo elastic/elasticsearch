@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.iterable;
@@ -15,7 +16,6 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.is;
@@ -27,26 +27,25 @@ public class IterablesTests extends ESTestCase {
     }
 
     public void testGetOverIterable() {
-        Iterable<String> iterable = () ->
-                new Iterator<String>() {
-                    private int position = 0;
+        Iterable<String> iterable = () -> new Iterator<String>() {
+            private int position = 0;
 
-                    @Override
-                    public boolean hasNext() {
-                        return position < 3;
-                    }
+            @Override
+            public boolean hasNext() {
+                return position < 3;
+            }
 
-                    @Override
-                    public String next() {
-                        if (position < 3) {
-                            String s = position == 0 ? "a" : position == 1 ? "b" : "c";
-                            position++;
-                            return s;
-                        } else {
-                            throw new NoSuchElementException();
-                        }
-                    }
-                };
+            @Override
+            public String next() {
+                if (position < 3) {
+                    String s = position == 0 ? "a" : position == 1 ? "b" : "c";
+                    position++;
+                    return s;
+                } else {
+                    throw new NoSuchElementException();
+                }
+            }
+        };
         test(iterable);
     }
 
@@ -56,7 +55,8 @@ public class IterablesTests extends ESTestCase {
 
         Iterable<Integer> allInts = Iterables.flatten(list);
         int count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
@@ -65,14 +65,16 @@ public class IterablesTests extends ESTestCase {
 
         // changes to the outer list are not seen since flatten pre-caches outer list on init:
         count = 0;
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(0, count);
 
         // but changes to the original inner lists are seen:
         list.get(0).add(0);
-        for(@SuppressWarnings("unused") int x : allInts) {
+        for (@SuppressWarnings("unused")
+        int x : allInts) {
             count++;
         }
         assertEquals(1, count);
@@ -82,7 +84,7 @@ public class IterablesTests extends ESTestCase {
         final List<String> list = Stream.generate(() -> randomAlphaOfLengthBetween(3, 9))
             .limit(randomIntBetween(10, 30))
             .distinct()
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         for (int i = 0; i < list.size(); i++) {
             final String val = list.get(i);
             assertThat(Iterables.indexOf(list, val::equals), is(i));

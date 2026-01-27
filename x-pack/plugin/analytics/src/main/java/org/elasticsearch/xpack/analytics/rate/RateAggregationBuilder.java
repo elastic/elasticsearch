@@ -6,13 +6,10 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -20,17 +17,19 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource, RateAggregationBuilder> {
+public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<RateAggregationBuilder> {
     public static final String NAME = "rate";
     public static final ParseField UNIT_FIELD = new ParseField("unit");
     public static final ParseField MODE_FIELD = new ParseField("mode");
@@ -72,6 +71,11 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         return new RateAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */
@@ -83,10 +87,8 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         } else {
             rateUnit = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
-            if (in.readBoolean()) {
-                rateMode = in.readEnum(RateMode.class);
-            }
+        if (in.readBoolean()) {
+            rateMode = in.readEnum(RateMode.class);
         }
     }
 
@@ -102,19 +104,12 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
         } else {
             out.writeByte((byte) 0);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            if (rateMode != null) {
-                out.writeBoolean(true);
-                out.writeEnum(rateMode);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (rateMode != null) {
+            out.writeBoolean(true);
+            out.writeEnum(rateMode);
+        } else {
+            out.writeBoolean(false);
         }
-    }
-
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
     }
 
     @Override
@@ -189,7 +184,16 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     @Override
     protected ValuesSourceConfig resolveConfig(AggregationContext context) {
         if (field() == null && script() == null) {
-            return new ValuesSourceConfig(CoreValuesSourceType.NUMERIC, null, true, null, null, 1.0, null, DocValueFormat.RAW, context);
+            return new ValuesSourceConfig(
+                CoreValuesSourceType.NUMERIC,
+                null,
+                true,
+                null,
+                null,
+                1.0,
+                DocValueFormat.RAW,
+                context::nowInMillis
+            );
         } else {
             return super.resolveConfig(context);
         }
@@ -207,5 +211,10 @@ public class RateAggregationBuilder extends ValuesSourceAggregationBuilder.LeafO
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), rateUnit, rateMode);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

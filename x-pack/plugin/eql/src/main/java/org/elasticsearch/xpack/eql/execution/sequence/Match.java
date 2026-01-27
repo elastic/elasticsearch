@@ -58,8 +58,7 @@ class Match implements Accountable {
         }
 
         Match other = (Match) obj;
-        return Objects.equals(ordinal, other.ordinal)
-                && Objects.equals(hit, other.hit);
+        return Objects.equals(ordinal, other.ordinal) && Objects.equals(hit, other.hit);
     }
 
     @Override

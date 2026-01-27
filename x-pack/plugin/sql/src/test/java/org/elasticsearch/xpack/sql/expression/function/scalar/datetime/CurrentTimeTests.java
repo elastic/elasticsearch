@@ -15,11 +15,8 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
-import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
-import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.time.OffsetTime;
@@ -30,6 +27,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.sql.SqlTestUtils.literal;
+import static org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerTestUtils.analyzer;
 
 public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expression> {
 
@@ -50,18 +48,18 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
     @Override
     protected CurrentTime mutate(CurrentTime instance) {
         ZonedDateTime now = instance.configuration().now();
-        ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-            ESTestCase::randomZone);
+        ZoneId mutatedZoneId = randomValueOtherThanMany(
+            o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
+            ESTestCase::randomZone
+        );
         return new CurrentTime(instance.source(), literal(randomInt(9)), SqlTestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override
-    public void testTransform() {
-    }
+    public void testTransform() {}
 
     @Override
-    public void testReplaceChildren() {
-    }
+    public void testReplaceChildren() {}
 
     public void testNanoPrecision() {
         OffsetTime ot = OffsetTime.parse("12:34:45.123456789Z");
@@ -90,16 +88,18 @@ public class CurrentTimeTests extends AbstractNodeTestCase<CurrentTime, Expressi
 
     public void testInvalidPrecision() {
         SqlParser parser = new SqlParser();
-        IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-                SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+        IndexResolution indexResolution = IndexResolution.valid(
+            new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json"))
+        );
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution, new Verifier(new Metrics()));
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true));
+        Analyzer analyzer = analyzer(indexResolution);
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100000000000000)"), true)
+        );
         assertEquals("line 1:22: invalid precision; [100000000000000] out of [integer] range", e.getMessage());
 
-        e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100)"), true));
+        e = expectThrows(ParsingException.class, () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIME(100)"), true));
         assertEquals("line 1:22: precision needs to be between [0-9], received [100]", e.getMessage());
     }
 }

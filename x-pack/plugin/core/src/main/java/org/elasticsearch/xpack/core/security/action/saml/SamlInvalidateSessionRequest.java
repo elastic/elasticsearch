@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -19,7 +19,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to invalidate a SAML session using a {@code LogoutRequest}.
  */
-public final class SamlInvalidateSessionRequest extends ActionRequest {
+public final class SamlInvalidateSessionRequest extends LegacyActionRequest {
 
     @Nullable
     private String realmName;
@@ -33,8 +33,7 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
         super(in);
     }
 
-    public SamlInvalidateSessionRequest() {
-    }
+    public SamlInvalidateSessionRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -75,11 +74,18 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + "{" +
-                "realmName='" + realmName + '\'' +
-                ", assertionConsumerServiceURL='" + assertionConsumerServiceURL + '\'' +
-                ", url-query=" + queryString.length() + " chars" +
-                '}';
+        return getClass().getSimpleName()
+            + "{"
+            + "realmName='"
+            + realmName
+            + '\''
+            + ", assertionConsumerServiceURL='"
+            + assertionConsumerServiceURL
+            + '\''
+            + ", url-query="
+            + queryString.length()
+            + " chars"
+            + '}';
     }
 
 }

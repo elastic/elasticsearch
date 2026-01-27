@@ -18,6 +18,7 @@ import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.SslVerificationMode;
+import org.elasticsearch.common.ssl.X509Field;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 
@@ -25,13 +26,14 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * A configuration loader for SSL Settings
  */
-public class SslSettingsLoader extends SslConfigurationLoader {
+public final class SslSettingsLoader extends SslConfigurationLoader {
 
     private final Settings settings;
     private final Map<String, Setting<? extends SecureString>> secureSettings;
@@ -50,8 +52,8 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
     }
 
-    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settings) {
-        return settings.stream().collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+    private static <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settingList) {
+        return settingList.stream().collect(Collectors.toMap(Setting::getKey, Function.identity()));
     }
 
     @Override
@@ -85,8 +87,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
             // This triggers deprecation warnings
             setting.get(settings);
         } else if (disabledSettings.containsKey(key) == false) {
-            throw new SslConfigException("The setting [" + key + "] is not supported, valid SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(standardSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The setting ["
+                    + key
+                    + "] is not supported, valid SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(standardSettings.keySet())
+                    + "]"
+            );
         }
     }
 
@@ -94,24 +101,34 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     protected char[] getSecureSetting(String key) {
         final Setting<? extends SecureString> setting = secureSettings.get(key);
         if (setting == null) {
-            throw new SslConfigException("The secure setting [" + key + "] is not supported, valid secure SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(secureSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The secure setting ["
+                    + key
+                    + "] is not supported, valid secure SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(secureSettings.keySet())
+                    + "]"
+            );
         }
         return setting.exists(settings) ? setting.get(settings).getChars() : null;
     }
 
     @Override
-    protected SslTrustConfig buildTrustConfig(Path basePath, SslVerificationMode verificationMode, SslKeyConfig keyConfig) {
-        final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig);
+    protected SslTrustConfig buildTrustConfig(
+        Path basePath,
+        SslVerificationMode verificationMode,
+        SslKeyConfig keyConfig,
+        Set<X509Field> restrictedTrustFields
+    ) {
+        final SslTrustConfig trustConfig = super.buildTrustConfig(basePath, verificationMode, keyConfig, null);
         final Path trustRestrictions = super.resolvePath("trust_restrictions.path", basePath);
         if (trustRestrictions == null) {
             return trustConfig;
         }
-        return new RestrictedTrustConfig(trustRestrictions, trustConfig);
+        return new RestrictedTrustConfig(trustRestrictions, restrictedTrustFields, trustConfig);
     }
 
     public SslConfiguration load(Environment env) {
-        return load(env.configFile());
+        return load(env.configDir());
     }
 
     public static SslConfiguration load(Settings settings, String prefix, Environment env) {

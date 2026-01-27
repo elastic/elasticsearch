@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.phase;
@@ -15,14 +16,14 @@ public class DefaultStringConcatenationOptimizationPhase extends IRTreeBaseVisit
 
     @Override
     public void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Void scope) {
-         int i = 0;
+        int i = 0;
 
         while (i < irStringConcatenationNode.getArgumentNodes().size()) {
             ExpressionNode irArgumentNode = irStringConcatenationNode.getArgumentNodes().get(i);
 
-            if (irArgumentNode instanceof StringConcatenationNode) {
+            if (irArgumentNode instanceof StringConcatenationNode scn) {
                 irStringConcatenationNode.getArgumentNodes().remove(i);
-                irStringConcatenationNode.getArgumentNodes().addAll(i, ((StringConcatenationNode)irArgumentNode).getArgumentNodes());
+                irStringConcatenationNode.getArgumentNodes().addAll(i, scn.getArgumentNodes());
             } else {
                 i++;
             }

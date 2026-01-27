@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-
 /**
  * An enumeration of the different normalization levels.
  * The string value of each level has to match the equivalent

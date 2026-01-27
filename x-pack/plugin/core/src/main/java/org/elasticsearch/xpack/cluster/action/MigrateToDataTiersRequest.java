@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.cluster.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,10 +24,15 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     private static final ParseField LEGACY_TEMPLATE_TO_DELETE = new ParseField("legacy_template_to_delete");
     private static final ParseField NODE_ATTRIBUTE_NAME = new ParseField("node_attribute");
 
-    @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<MigrateToDataTiersRequest, Void> PARSER = new ConstructingObjectParser<>("index_template",
+    public interface Factory {
+        MigrateToDataTiersRequest create(@Nullable String legacyTemplateToDelete, @Nullable String nodeAttributeName);
+    }
+
+    public static final ConstructingObjectParser<MigrateToDataTiersRequest, Factory> PARSER = new ConstructingObjectParser<>(
+        "index_template",
         false,
-        a -> new MigrateToDataTiersRequest((String) a[0], (String) a[1]));
+        (a, factory) -> factory.create((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), LEGACY_TEMPLATE_TO_DELETE);
@@ -47,17 +52,18 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     private final String legacyTemplateToDelete;
     private boolean dryRun = false;
 
-    public static MigrateToDataTiersRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+    public static MigrateToDataTiersRequest parse(Factory factory, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, factory);
     }
 
-    public MigrateToDataTiersRequest(@Nullable String legacyTemplateToDelete, @Nullable String nodeAttributeName) {
+    public MigrateToDataTiersRequest(
+        TimeValue masterNodeTimeout,
+        @Nullable String legacyTemplateToDelete,
+        @Nullable String nodeAttributeName
+    ) {
+        super(masterNodeTimeout, DEFAULT_ACK_TIMEOUT);
         this.legacyTemplateToDelete = legacyTemplateToDelete;
         this.nodeAttributeName = nodeAttributeName;
-    }
-
-    public MigrateToDataTiersRequest() {
-        this(null, null);
     }
 
     public MigrateToDataTiersRequest(StreamInput in) throws IOException {
@@ -65,11 +71,6 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
         dryRun = in.readBoolean();
         legacyTemplateToDelete = in.readOptionalString();
         nodeAttributeName = in.readOptionalString();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override
@@ -105,9 +106,9 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
             return false;
         }
         MigrateToDataTiersRequest that = (MigrateToDataTiersRequest) o;
-        return dryRun == that.dryRun &&
-            Objects.equals(nodeAttributeName, that.nodeAttributeName) &&
-            Objects.equals(legacyTemplateToDelete, that.legacyTemplateToDelete);
+        return dryRun == that.dryRun
+            && Objects.equals(nodeAttributeName, that.nodeAttributeName)
+            && Objects.equals(legacyTemplateToDelete, that.legacyTemplateToDelete);
     }
 
     @Override

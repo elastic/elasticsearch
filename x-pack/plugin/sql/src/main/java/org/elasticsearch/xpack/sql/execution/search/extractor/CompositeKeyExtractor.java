@@ -10,15 +10,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef.Property;
+import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isDateBased;
 
 public class CompositeKeyExtractor implements BucketExtractor {
 
@@ -30,22 +36,22 @@ public class CompositeKeyExtractor implements BucketExtractor {
     private final String key;
     private final Property property;
     private final ZoneId zoneId;
-    private final boolean isDateTimeBased;
+    private final DataType dataType;
 
     /**
      * Constructs a new <code>CompositeKeyExtractor</code> instance.
      */
-    public CompositeKeyExtractor(String key, Property property, ZoneId zoneId, boolean isDateTimeBased) {
+    public CompositeKeyExtractor(String key, Property property, ZoneId zoneId, DataType dataType) {
         this.key = key;
         this.property = property;
         this.zoneId = zoneId;
-        this.isDateTimeBased = isDateTimeBased;
+        this.dataType = dataType;
     }
 
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         property = in.readEnum(Property.class);
-        isDateTimeBased = in.readBoolean();
+        dataType = SqlDataTypes.fromTypeName(in.readString());
 
         zoneId = SqlStreamInput.asSqlStream(in).zoneId();
     }
@@ -54,7 +60,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(key);
         out.writeEnum(property);
-        out.writeBoolean(isDateTimeBased);
+        out.writeString(dataType.typeName());
     }
 
     String key() {
@@ -69,8 +75,8 @@ public class CompositeKeyExtractor implements BucketExtractor {
         return zoneId;
     }
 
-    public boolean isDateTimeBased() {
-        return isDateTimeBased;
+    public DataType dataType() {
+        return dataType;
     }
 
     @Override
@@ -92,13 +98,21 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         Object object = ((Map<?, ?>) m).get(key);
 
-        if (isDateTimeBased) {
-            if (object == null) {
-                return object;
-            } else if (object instanceof Long) {
-                object = DateUtils.asDateTimeWithMillis(((Long) object).longValue(), zoneId);
-            } else {
-                throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
+        if (object != null) {
+            if (isDateBased(dataType)) {
+                if (object instanceof Long l) {
+                    object = DateUtils.asDateTimeWithMillis(l, zoneId);
+                } else {
+                    throw new SqlIllegalArgumentException("Invalid date key returned: {}", object);
+                }
+            } else if (dataType == UNSIGNED_LONG) {
+                // For integral types we coerce the bucket type to long in composite aggs (unsigned_long is not an available choice). So
+                // when getting back a long value, this needs to be type- and value-converted to an UNSIGNED_LONG
+                if (object instanceof Number number) {
+                    object = toUnsignedLong(number);
+                } else {
+                    throw new SqlIllegalArgumentException("Invalid unsigned_long key returned: {}", object);
+                }
             }
         }
 
@@ -107,7 +121,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, property, zoneId, isDateTimeBased);
+        return Objects.hash(key, property, zoneId, dataType);
     }
 
     @Override
@@ -122,9 +136,9 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
         return Objects.equals(key, other.key)
-                && Objects.equals(property, other.property)
-                && Objects.equals(zoneId, other.zoneId)
-                && Objects.equals(isDateTimeBased, other.isDateTimeBased);
+            && Objects.equals(property, other.property)
+            && Objects.equals(zoneId, other.zoneId)
+            && Objects.equals(dataType, other.dataType);
     }
 
     @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -11,14 +12,15 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,16 +29,30 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Statistics about analysis usage.
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
+
+    private static final Set<String> SYNONYM_FILTER_TYPES = Set.of("synonym", "synonym_graph");
+
+    // Maps the synonyms token filter configurations to the stats keys used
+    static final Map<String, String> SYNONYM_STATS_KEYS_FOR_CONFIG = Map.of(
+        "synonyms",
+        "inline",
+        "synonyms_set",
+        "sets",
+        "synonyms_path",
+        "paths"
+    );
 
     /**
      * Create {@link AnalysisStats} from the given cluster state.
@@ -50,99 +66,135 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         final Map<String, IndexFeatureStats> usedBuiltInTokenizers = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInTokenFilters = new HashMap<>();
         final Map<String, IndexFeatureStats> usedBuiltInAnalyzers = new HashMap<>();
+        final Map<String, SynonymsStats> usedSynonyms = new HashMap<>();
+        final Set<String> synonymsIdsUsedInIndices = new HashSet<>();
+        final Set<String> synonymsIdsUsed = new HashSet<>();
 
-        for (IndexMetadata indexMetadata : metadata) {
-            ensureNotCancelled.run();
-            if (indexMetadata.isSystem()) {
-                // Don't include system indices in statistics about analysis,
-                // we care about the user's indices.
-                continue;
-            }
-            Set<String> indexAnalyzers = new HashSet<>();
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
-                    for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
-                        Object analyzerO = fieldMapping.get(key);
-                        if (analyzerO != null) {
-                            final String analyzer = analyzerO.toString();
-                            IndexFeatureStats stats = usedBuiltInAnalyzers.computeIfAbsent(analyzer, IndexFeatureStats::new);
-                            stats.count++;
-                            if (indexAnalyzers.add(analyzer)) {
-                                stats.indexCount++;
-                            }
+        final int mappingCount = metadata.projects().values().stream().mapToInt(p -> p.getMappingsByHash().size()).sum();
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(mappingCount);
+
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                ensureNotCancelled.run();
+                if (indexMetadata.isSystem()) {
+                    // Don't include system indices in statistics about analysis,
+                    // we care about the user's indices.
+                    continue;
+                }
+
+                Set<String> indexCharFilters = new HashSet<>();
+                Set<String> indexTokenizers = new HashSet<>();
+                Set<String> indexTokenFilters = new HashSet<>();
+
+                Set<String> indexAnalyzerTypes = new HashSet<>();
+                Set<String> indexCharFilterTypes = new HashSet<>();
+                Set<String> indexTokenizerTypes = new HashSet<>();
+                Set<String> indexTokenFilterTypes = new HashSet<>();
+
+                Settings indexSettings = indexMetadata.getSettings();
+                Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
+                usedBuiltInAnalyzers.keySet().removeAll(analyzerSettings.keySet());
+                for (Settings analyzerSetting : analyzerSettings.values()) {
+                    final String analyzerType = analyzerSetting.get("type", "custom");
+                    IndexFeatureStats stats = usedAnalyzerTypes.computeIfAbsent(analyzerType, IndexFeatureStats::new);
+                    stats.count++;
+                    if (indexAnalyzerTypes.add(analyzerType)) {
+                        stats.indexCount++;
+                    }
+
+                    for (String charFilter : analyzerSetting.getAsList("char_filter")) {
+                        stats = usedBuiltInCharFilters.computeIfAbsent(charFilter, IndexFeatureStats::new);
+                        stats.count++;
+                        if (indexCharFilters.add(charFilter)) {
+                            stats.indexCount++;
                         }
                     }
-                });
+
+                    String tokenizer = analyzerSetting.get("tokenizer");
+                    if (tokenizer != null) {
+                        stats = usedBuiltInTokenizers.computeIfAbsent(tokenizer, IndexFeatureStats::new);
+                        stats.count++;
+                        if (indexTokenizers.add(tokenizer)) {
+                            stats.indexCount++;
+                        }
+                    }
+
+                    for (String filter : analyzerSetting.getAsList("filter")) {
+                        stats = usedBuiltInTokenFilters.computeIfAbsent(filter, IndexFeatureStats::new);
+                        stats.count++;
+                        if (indexTokenFilters.add(filter)) {
+                            stats.indexCount++;
+                        }
+                    }
+                }
+
+                Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
+                usedBuiltInCharFilters.keySet().removeAll(charFilterSettings.keySet());
+                aggregateAnalysisTypes(charFilterSettings.values(), usedCharFilterTypes, indexCharFilterTypes);
+
+                Map<String, Settings> tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer");
+                usedBuiltInTokenizers.keySet().removeAll(tokenizerSettings.keySet());
+                aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizerTypes, indexTokenizerTypes);
+
+                Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
+                usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
+                aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
+                aggregateSynonymsStats(
+                    tokenFilterSettings.values(),
+                    usedSynonyms,
+                    indexMetadata.getIndex().getName(),
+                    synonymsIdsUsed,
+                    synonymsIdsUsedInIndices
+                );
+                countMapping(mappingCounts, indexMetadata);
             }
-
-            Set<String> indexCharFilters = new HashSet<>();
-            Set<String> indexTokenizers = new HashSet<>();
-            Set<String> indexTokenFilters = new HashSet<>();
-
-            Set<String> indexAnalyzerTypes = new HashSet<>();
-            Set<String> indexCharFilterTypes = new HashSet<>();
-            Set<String> indexTokenizerTypes = new HashSet<>();
-            Set<String> indexTokenFilterTypes = new HashSet<>();
-
-            Settings indexSettings = indexMetadata.getSettings();
-            Map<String, Settings> analyzerSettings = indexSettings.getGroups("index.analysis.analyzer");
-            usedBuiltInAnalyzers.keySet().removeAll(analyzerSettings.keySet());
-            for (Settings analyzerSetting : analyzerSettings.values()) {
-                final String analyzerType = analyzerSetting.get("type", "custom");
-                IndexFeatureStats stats = usedAnalyzerTypes.computeIfAbsent(analyzerType, IndexFeatureStats::new);
-                stats.count++;
-                if (indexAnalyzerTypes.add(analyzerType)) {
-                    stats.indexCount++;
-                }
-
-                for (String charFilter : analyzerSetting.getAsList("char_filter")) {
-                    stats = usedBuiltInCharFilters.computeIfAbsent(charFilter, IndexFeatureStats::new);
-                    stats.count++;
-                    if (indexCharFilters.add(charFilter)) {
-                        stats.indexCount++;
-                    }
-                }
-
-                String tokenizer = analyzerSetting.get("tokenizer");
-                if (tokenizer != null) {
-                    stats = usedBuiltInTokenizers.computeIfAbsent(tokenizer, IndexFeatureStats::new);
-                    stats.count++;
-                    if (indexTokenizers.add(tokenizer)) {
-                        stats.indexCount++;
-                    }
-                }
-
-                for (String filter : analyzerSetting.getAsList("filter")) {
-                    stats = usedBuiltInTokenFilters.computeIfAbsent(filter, IndexFeatureStats::new);
-                    stats.count++;
-                    if (indexTokenFilters.add(filter)) {
-                        stats.indexCount++;
-                    }
-                }
-            }
-
-            Map<String, Settings> charFilterSettings = indexSettings.getGroups("index.analysis.char_filter");
-            usedBuiltInCharFilters.keySet().removeAll(charFilterSettings.keySet());
-            aggregateAnalysisTypes(charFilterSettings.values(), usedCharFilterTypes, indexCharFilterTypes);
-
-            Map<String, Settings> tokenizerSettings = indexSettings.getGroups("index.analysis.tokenizer");
-            usedBuiltInTokenizers.keySet().removeAll(tokenizerSettings.keySet());
-            aggregateAnalysisTypes(tokenizerSettings.values(), usedTokenizerTypes, indexTokenizerTypes);
-
-            Map<String, Settings> tokenFilterSettings = indexSettings.getGroups("index.analysis.filter");
-            usedBuiltInTokenFilters.keySet().removeAll(tokenFilterSettings.keySet());
-            aggregateAnalysisTypes(tokenFilterSettings.values(), usedTokenFilterTypes, indexTokenFilterTypes);
         }
-        return new AnalysisStats(usedCharFilterTypes.values(), usedTokenizerTypes.values(), usedTokenFilterTypes.values(),
-                usedAnalyzerTypes.values(), usedBuiltInCharFilters.values(), usedBuiltInTokenizers.values(),
-                usedBuiltInTokenFilters.values(), usedBuiltInAnalyzers.values());
+
+        for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
+            ensureNotCancelled.run();
+            Set<String> indexAnalyzers = new HashSet<>();
+            final int count = mappingAndCount.getValue();
+            MappingVisitor.visitMapping(mappingAndCount.getKey().getSourceAsMap(), (field, fieldMapping) -> {
+                for (String key : new String[] { "analyzer", "search_analyzer", "search_quote_analyzer" }) {
+                    Object analyzerO = fieldMapping.get(key);
+                    if (analyzerO != null) {
+                        final String analyzer = analyzerO.toString();
+                        IndexFeatureStats stats = usedBuiltInAnalyzers.computeIfAbsent(analyzer, IndexFeatureStats::new);
+                        stats.count += count;
+                        if (indexAnalyzers.add(analyzer)) {
+                            stats.indexCount += count;
+                        }
+                    }
+                }
+            });
+        }
+
+        return new AnalysisStats(
+            usedCharFilterTypes.values(),
+            usedTokenizerTypes.values(),
+            usedTokenFilterTypes.values(),
+            usedAnalyzerTypes.values(),
+            usedBuiltInCharFilters.values(),
+            usedBuiltInTokenizers.values(),
+            usedBuiltInTokenFilters.values(),
+            usedBuiltInAnalyzers.values(),
+            usedSynonyms
+        );
+    }
+
+    public static void countMapping(Map<MappingMetadata, Integer> mappingCounts, IndexMetadata indexMetadata) {
+        final MappingMetadata mappingMetadata = indexMetadata.mapping();
+        if (mappingMetadata == null) {
+            return;
+        }
+        mappingCounts.compute(mappingMetadata, (k, count) -> count == null ? 1 : count + 1);
     }
 
     private static void aggregateAnalysisTypes(
-                Collection<Settings> settings,
-                Map<String, IndexFeatureStats> stats,
-                Set<String> indexTypes) {
+        Collection<Settings> settings,
+        Map<String, IndexFeatureStats> stats,
+        Set<String> indexTypes
+    ) {
         for (Settings analysisComponentSettings : settings) {
             final String type = analysisComponentSettings.get("type");
             if (type != null) {
@@ -150,6 +202,42 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
                 s.count++;
                 if (indexTypes.add(type)) {
                     s.indexCount++;
+                }
+            }
+        }
+    }
+
+    private static void aggregateSynonymsStats(
+        Collection<Settings> filterSettings,
+        Map<String, SynonymsStats> synonymsStats,
+        String indexName,
+        Set<String> synonymsIdsUsed,
+        Set<String> synonymIdsUsedInIndices
+    ) {
+        for (Settings filterComponentSettings : filterSettings) {
+            final String type = filterComponentSettings.get("type");
+            if (SYNONYM_FILTER_TYPES.contains(type)) {
+                boolean isInline = false;
+                String synonymRuleType = "synonyms_set";
+                // Avoid requesting settings for synonyms rule type, as it transforms to string a potentially large number of synonym rules
+                String synonymId = filterComponentSettings.get(synonymRuleType);
+                if (synonymId == null) {
+                    synonymRuleType = "synonyms_path";
+                    synonymId = filterComponentSettings.get(synonymRuleType);
+                }
+                if (synonymId == null) {
+                    synonymRuleType = "synonyms";
+                    isInline = true;
+                }
+                SynonymsStats stat = synonymsStats.computeIfAbsent(
+                    SYNONYM_STATS_KEYS_FOR_CONFIG.get(synonymRuleType),
+                    id -> new SynonymsStats()
+                );
+                if (synonymIdsUsedInIndices.add(synonymRuleType + indexName)) {
+                    stat.indexCount++;
+                }
+                if (isInline || synonymsIdsUsed.add(synonymRuleType + synonymId)) {
+                    stat.count++;
                 }
             }
         }
@@ -164,15 +252,19 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private final Set<IndexFeatureStats> usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers;
     private final Set<IndexFeatureStats> usedBuiltInCharFilters, usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers;
 
+    private final Map<String, SynonymsStats> usedSynonyms;
+
     AnalysisStats(
-            Collection<IndexFeatureStats> usedCharFilters,
-            Collection<IndexFeatureStats> usedTokenizers,
-            Collection<IndexFeatureStats> usedTokenFilters,
-            Collection<IndexFeatureStats> usedAnalyzers,
-            Collection<IndexFeatureStats> usedBuiltInCharFilters,
-            Collection<IndexFeatureStats> usedBuiltInTokenizers,
-            Collection<IndexFeatureStats> usedBuiltInTokenFilters,
-            Collection<IndexFeatureStats> usedBuiltInAnalyzers) {
+        Collection<IndexFeatureStats> usedCharFilters,
+        Collection<IndexFeatureStats> usedTokenizers,
+        Collection<IndexFeatureStats> usedTokenFilters,
+        Collection<IndexFeatureStats> usedAnalyzers,
+        Collection<IndexFeatureStats> usedBuiltInCharFilters,
+        Collection<IndexFeatureStats> usedBuiltInTokenizers,
+        Collection<IndexFeatureStats> usedBuiltInTokenFilters,
+        Collection<IndexFeatureStats> usedBuiltInAnalyzers,
+        Map<String, SynonymsStats> usedSynonyms
+    ) {
         this.usedCharFilters = sort(usedCharFilters);
         this.usedTokenizers = sort(usedTokenizers);
         this.usedTokenFilters = sort(usedTokenFilters);
@@ -181,17 +273,19 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         this.usedBuiltInTokenizers = sort(usedBuiltInTokenizers);
         this.usedBuiltInTokenFilters = sort(usedBuiltInTokenFilters);
         this.usedBuiltInAnalyzers = sort(usedBuiltInAnalyzers);
+        this.usedSynonyms = new TreeMap<>(usedSynonyms);
     }
 
     public AnalysisStats(StreamInput input) throws IOException {
-        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
-        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readList(IndexFeatureStats::new)));
+        usedCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInCharFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInTokenizers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInTokenFilters = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedBuiltInAnalyzers = Collections.unmodifiableSet(new LinkedHashSet<>(input.readCollectionAsList(IndexFeatureStats::new)));
+        usedSynonyms = input.readImmutableMap(SynonymsStats::new);
     }
 
     @Override
@@ -204,6 +298,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         out.writeCollection(usedBuiltInTokenizers);
         out.writeCollection(usedBuiltInTokenFilters);
         out.writeCollection(usedBuiltInAnalyzers);
+        out.writeMap(usedSynonyms, StreamOutput::writeWriteable);
     }
 
     /**
@@ -262,29 +357,43 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         return usedBuiltInAnalyzers;
     }
 
+    public Map<String, SynonymsStats> getUsedSynonyms() {
+        return usedSynonyms;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AnalysisStats that = (AnalysisStats) o;
-        return Objects.equals(usedCharFilters, that.usedCharFilters) &&
-                Objects.equals(usedTokenizers, that.usedTokenizers) &&
-                Objects.equals(usedTokenFilters, that.usedTokenFilters) &&
-                Objects.equals(usedAnalyzers, that.usedAnalyzers) &&
-                Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters) &&
-                Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers) &&
-                Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters) &&
-                Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers);
+        return Objects.equals(usedCharFilters, that.usedCharFilters)
+            && Objects.equals(usedTokenizers, that.usedTokenizers)
+            && Objects.equals(usedTokenFilters, that.usedTokenFilters)
+            && Objects.equals(usedAnalyzers, that.usedAnalyzers)
+            && Objects.equals(usedBuiltInCharFilters, that.usedBuiltInCharFilters)
+            && Objects.equals(usedBuiltInTokenizers, that.usedBuiltInTokenizers)
+            && Objects.equals(usedBuiltInTokenFilters, that.usedBuiltInTokenFilters)
+            && Objects.equals(usedBuiltInAnalyzers, that.usedBuiltInAnalyzers)
+            && Objects.equals(usedSynonyms, that.usedSynonyms);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(usedCharFilters, usedTokenizers, usedTokenFilters, usedAnalyzers, usedBuiltInCharFilters,
-                usedBuiltInTokenizers, usedBuiltInTokenFilters, usedBuiltInAnalyzers);
+        return Objects.hash(
+            usedCharFilters,
+            usedTokenizers,
+            usedTokenFilters,
+            usedAnalyzers,
+            usedBuiltInCharFilters,
+            usedBuiltInTokenizers,
+            usedBuiltInTokenFilters,
+            usedBuiltInAnalyzers,
+            usedSynonyms
+        );
     }
 
-    private void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
-                throws IOException {
+    private static void toXContentCollection(XContentBuilder builder, Params params, String name, Collection<? extends ToXContent> coll)
+        throws IOException {
         builder.startArray(name);
         for (ToXContent toXContent : coll) {
             toXContent.toXContent(builder, params);
@@ -303,7 +412,10 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
         toXContentCollection(builder, params, "built_in_tokenizers", usedBuiltInTokenizers);
         toXContentCollection(builder, params, "built_in_filters", usedBuiltInTokenFilters);
         toXContentCollection(builder, params, "built_in_analyzers", usedBuiltInAnalyzers);
+        builder.field("synonyms");
+        builder.map(usedSynonyms);
         builder.endObject();
+
         return builder;
     }
 

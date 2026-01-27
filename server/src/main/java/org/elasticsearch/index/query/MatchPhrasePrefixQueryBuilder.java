@@ -1,23 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -64,9 +65,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            this.zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
-        }
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
     }
 
     @Override
@@ -76,9 +75,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
     }
 
     /** Returns the field name used in this query. */
@@ -98,11 +95,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     public MatchPhrasePrefixQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
-    }
-
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
     }
 
     /** Sets a slop factor for phrase queries */
@@ -169,10 +161,16 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         if (analyzer != null) {
             builder.field(MatchQueryBuilder.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field(MatchPhraseQueryBuilder.SLOP_FIELD.getPreferredName(), slop);
-        builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
-        builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
-        printBoostAndQueryName(builder);
+        if (slop != MatchQueryParser.DEFAULT_PHRASE_SLOP) {
+            builder.field(MatchPhraseQueryBuilder.SLOP_FIELD.getPreferredName(), slop);
+        }
+        if (maxExpansions != FuzzyQuery.defaultMaxExpansions) {
+            builder.field(MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
+        }
+        if (zeroTermsQuery != MatchQueryParser.DEFAULT_ZERO_TERMS_QUERY) {
+            builder.field(ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
         builder.endObject();
     }
@@ -197,12 +195,12 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
 
     @Override
     protected boolean doEquals(MatchPhrasePrefixQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(analyzer, other.analyzer)&&
-                Objects.equals(slop, other.slop) &&
-                Objects.equals(maxExpansions, other.maxExpansions) &&
-                Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(slop, other.slop)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
     }
 
     @Override
@@ -250,16 +248,22 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {
@@ -277,5 +281,10 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.boost(boost);
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         return matchQuery;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

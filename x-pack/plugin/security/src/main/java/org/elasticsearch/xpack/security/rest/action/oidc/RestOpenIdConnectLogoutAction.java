@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.security.rest.action.oidc;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutRequest;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutResponse;
@@ -33,8 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler {
 
-    static final ObjectParser<OpenIdConnectLogoutRequest, Void> PARSER = new ObjectParser<>("oidc_logout",
-        OpenIdConnectLogoutRequest::new);
+    static final ObjectParser<OpenIdConnectLogoutRequest, Void> PARSER = new ObjectParser<>("oidc_logout", OpenIdConnectLogoutRequest::new);
 
     static {
         PARSER.declareString(OpenIdConnectLogoutRequest::setToken, new ParseField("token"));
@@ -54,16 +52,19 @@ public class RestOpenIdConnectLogoutAction extends OpenIdConnectBaseRestHandler 
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final OpenIdConnectLogoutRequest logoutRequest = PARSER.parse(parser, null);
-            return channel -> client.execute(OpenIdConnectLogoutAction.INSTANCE, logoutRequest,
+            return channel -> client.execute(
+                OpenIdConnectLogoutAction.INSTANCE,
+                logoutRequest,
                 new RestBuilderListener<OpenIdConnectLogoutResponse>(channel) {
                     @Override
                     public RestResponse buildResponse(OpenIdConnectLogoutResponse response, XContentBuilder builder) throws Exception {
                         builder.startObject();
                         builder.field("redirect", response.getEndSessionUrl());
                         builder.endObject();
-                        return new BytesRestResponse(RestStatus.OK, builder);
+                        return new RestResponse(RestStatus.OK, builder);
                     }
-                });
+                }
+            );
         }
     }
 

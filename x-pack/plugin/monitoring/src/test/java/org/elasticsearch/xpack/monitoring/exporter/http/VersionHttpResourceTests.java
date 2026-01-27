@@ -21,7 +21,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockPublishResultActionListener;
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.whenPerformRequestAsyncWith;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -36,7 +36,7 @@ public class VersionHttpResourceTests extends ESTestCase {
     private final ActionListener<ResourcePublishResult> publishListener = mockPublishResultActionListener();
 
     public void testDoCheckAndPublishSuccess() {
-        final Version minimumVersion = VersionUtils.randomVersion(random());
+        final Version minimumVersion = VersionUtils.randomVersion();
         final Version version = randomFrom(minimumVersion, Version.CURRENT);
         final Response response = responseForVersion(version);
 

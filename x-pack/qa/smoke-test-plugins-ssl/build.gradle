@@ -1,16 +1,16 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.apache.tools.ant.filters.ReplaceTokens
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:plugin:core')
-  testImplementation project(':modules:transport-netty4')
-  testImplementation project(':client:rest-high-level')
+  yamlRestTestImplementation project(':x-pack:plugin:core')
 }
 
 String outputDir = "${buildDir}/generated-resources/${project.name}"
@@ -19,68 +19,18 @@ def copyXPackPluginProps = tasks.register("copyXPackPluginProps", Copy) {
   from project(xpackModule('core')).tasks.pluginProperties
   into outputDir
 }
-project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
-
-// location of generated keystores and certificates
-File keystoreDir = new File(project.buildDir, 'keystore')
-File nodeKeystore = file("$keystoreDir/testnode.jks")
-File nodeKey = file("$keystoreDir/testnode.pem")
-File nodeCert = file("$keystoreDir/testnode.crt")
-File clientKeyStore = file("$keystoreDir/testclient.jks")
-File clientKey = file("$keystoreDir/testclient.pem")
-File clientCert = file("$keystoreDir/testclient.crt")
-
-// Add keystores to test classpath: it expects it there
-def copyKeyCerts = tasks.register("copyKeyCerts", Copy) {
-  from('./') {
-    include '*.crt', '*.pem', '*.jks'
-  }
-  into keystoreDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-
-['processTestResources', 'integTest', 'filepermissions', 'forbiddenPatterns'].each {
-  tasks.named(it).configure {
-    dependsOn(copyKeyCerts)
-  }
-}
+project.sourceSets.yamlRestTest.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 ext.pluginPaths = []
+ext.pluginNames = []
 project(':plugins').getChildProjects().each { pluginName, pluginProject ->
-  if (BuildParams.inFipsJvm && pluginName == "ingest-attachment") {
-      // Do not attempt to install ingest-attachment in FIPS 140 as it is not supported (it depends on non-FIPS BouncyCastle)
-      return
-    }
   pluginPaths << pluginProject.path
+  pluginNames << pluginName
 }
 
-testClusters.matching { it.name == "integTest" }.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.interval', '1s'
-
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'true'
-  setting 'xpack.security.http.ssl.key', 'testnode.pem'
-  setting 'xpack.security.http.ssl.certificate', 'testnode.crt'
-  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
-  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'testnode'
-
-  setting 'xpack.ml.enabled', 'false'
-  // copy keystores, keys and certificates into config/
-  extraConfigFile nodeKeystore.name, nodeKeystore
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile clientKeyStore.name, clientKeyStore
-  extraConfigFile clientKey.name, clientKey
-  extraConfigFile clientCert.name, clientCert
-
-  user username: "test_user", password: "x-pack-test-password"
-  user username: "monitoring_agent", password: "x-pack-test-password", role: "remote_monitoring_agent"
-
+dependencies {
   pluginPaths.each { pluginPath ->
-    plugin pluginPath
+    clusterPlugins(project(pluginPath))
   }
 }
 
@@ -88,11 +38,16 @@ ext.expansions = [
   'expected.plugins.count': pluginPaths.size()
 ]
 
-tasks.named("processTestResources").configure {
-  from(sourceSets.test.resources.srcDirs) {
+tasks.named("processYamlRestTestResources").configure {
+  from(sourceSets.yamlRestTest.resources.srcDirs) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
     filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
   }
+}
+
+tasks.named("yamlRestTest") {
+  usesDefaultDistribution("smoke test requires default distro with all plugins installed")
+  systemProperty('tests.plugin.names', pluginNames.join(','))
 }

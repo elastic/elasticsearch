@@ -9,21 +9,20 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.xpack.sql.proto.SqlClearCursorResponse.SUCCEEDED;
 
 /**
  * Response to the request to clean all SQL resources associated with the cursor
  */
-public class SqlClearCursorResponse extends ActionResponse implements StatusToXContentObject {
+public class SqlClearCursorResponse extends ActionResponse implements ToXContentObject {
 
     private boolean succeeded;
 
@@ -32,7 +31,6 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     }
 
     SqlClearCursorResponse(StreamInput in) throws IOException {
-        super(in);
         succeeded = in.readBoolean();
     }
 
@@ -48,7 +46,6 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
         return this;
     }
 
-    @Override
     public RestStatus status() {
         return succeeded ? NOT_FOUND : OK;
     }
@@ -56,7 +53,7 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(SUCCEEDED.getPreferredName(), succeeded);
+        builder.field("succeeded", succeeded);
         builder.endObject();
         return builder;
     }
@@ -78,5 +75,4 @@ public class SqlClearCursorResponse extends ActionResponse implements StatusToXC
     public int hashCode() {
         return Objects.hash(succeeded);
     }
-
 }

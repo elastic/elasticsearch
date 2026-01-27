@@ -1,0 +1,218 @@
+isNull
+from employees
+| where gender is null
+| sort first_name
+| keep first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Berni             |null
+Cristinel         |null
+Duangkaew         |null
+;
+
+notIsNull
+from employees
+| where gender is not null
+| sort first_name
+| keep first_name, gender
+| limit 3;
+
+first_name:keyword|gender:keyword
+Alejandro         |F
+Amabile           |M
+Anneke            |F
+;
+
+isNullForDocs
+// tag::is-null[]
+FROM employees
+| WHERE birth_date IS NULL
+// end::is-null[]
+| KEEP first_name, last_name
+| SORT first_name
+| LIMIT 3
+;
+
+// tag::is-null-result[]
+first_name:keyword|last_name:keyword   
+Basil             |Tramer         
+Florian           |Syrotiuk       
+Lucien            |Rosenbaum
+// end::is-null-result[]
+;
+
+isNotNullForDocs
+// tag::is-not-null[]
+FROM employees
+| WHERE is_rehired IS NOT NULL
+| STATS COUNT(emp_no)
+// end::is-not-null[]
+;
+
+// tag::is-not-null-result[]
+COUNT(emp_no):long 
+84
+// end::is-not-null-result[]
+;
+
+coalesceSimple#[skip:-8.12.99,reason:expression spaces are maintained since 8.13]
+// tag::coalesce[]
+ROW a=null, b="b"
+| EVAL COALESCE(a, b)
+// end::coalesce[]
+;
+
+// tag::coalesce-result[]
+a:null | b:keyword | COALESCE(a, b):keyword
+  null |         b | b
+// end::coalesce-result[]
+;
+
+coalesce
+FROM employees
+| EVAL first_name = COALESCE(first_name, "X")
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 10;
+
+emp_no:integer | first_name:keyword
+         10047 | Zvonko
+         10081 | Zhongwei
+         10026 | Yongqiao
+         10043 | Yishay
+         10050 | Yinghua
+         10087 | Xinglin
+         10030 | X
+         10031 | X
+         10032 | X
+         10033 | X
+;
+
+coalesceOnce
+ROW a=1 | EVAL a = COALESCE(a);
+
+a:integer
+        1
+;
+
+coalesceBackwards
+FROM employees
+| EVAL first_name = COALESCE("X", first_name)
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 10;
+
+emp_no:integer | first_name:keyword
+         10001 | X
+         10002 | X
+         10003 | X
+         10004 | X
+         10005 | X
+         10006 | X
+         10007 | X
+         10008 | X
+         10009 | X
+         10010 | X
+;
+
+coalesceEndsInNull
+# ending in null is sill because it'll noop but it shouldn't break things.
+FROM employees
+| EVAL first_name = COALESCE(first_name, last_name, null)
+| SORT first_name DESC, emp_no ASC
+| KEEP emp_no, first_name
+| limit 3;
+
+emp_no:integer | first_name:keyword
+         10047 | Zvonko
+         10081 | Zhongwei
+         10026 | Yongqiao
+;
+
+coalesceFolding
+FROM employees
+| EVAL foo=COALESCE(true, false, null)
+| SORT emp_no ASC
+| KEEP emp_no, first_name, foo
+| limit 3;
+
+emp_no:integer | first_name:keyword | foo:boolean
+         10001 | Georgi             | true
+         10002 | Bezalel            | true
+         10003 | Parto              | true
+;
+
+coalesceMixedNumeric
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, 0), y = coalesce(height, 0), z = coalesce(languages::double, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, x, height, y, z
+;
+
+emp_no:integer | languages:integer | x:long | height:double | y:double | z:double
+         10018 | 2                 | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                 | 1      | 2.06          | 2.06     | 1.0
+         10020 | null              | 0      | 1.41          | 1.41     | 0.0
+         10021 | null              | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericWithNull
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(languages.long, null, 0), y = coalesce(null, height, 0),  z = coalesce(languages::double, null, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages.long, x, height, y, z
+;
+
+emp_no:integer | languages.long:long | x:long | height:double | y:double | z:double
+         10018 | 2                   | 2      | 1.97          | 1.97     | 2.0
+         10019 | 1                   | 1      | 2.06          | 2.06     | 1.0
+         10020 | null                | 0      | 1.41          | 1.41     | 0.0
+         10021 | null                | 0      | 1.47          | 1.47     | 0.0
+;
+
+coalesceMixedNumericFields
+required_capability: mixed_numeric_types_in_coalesce
+FROM employees
+| WHERE emp_no <= 10021 and emp_no >= 10018
+| EVAL x = coalesce(height, languages.long, 0), y = coalesce(height, null, languages, 0),
+z = coalesce(languages::double, null, salary, height, 0)
+| SORT emp_no ASC
+| KEEP emp_no, languages, height, x, y, z, salary
+;
+
+emp_no:integer | languages:integer | height:double | x:double | y:double | z:double | salary:integer
+         10018 | 2                 | 1.97          | 1.97     | 1.97     | 2.0      | 56760
+         10019 | 1                 | 2.06          | 2.06     | 2.06     | 1.0      | 73717
+         10020 | null              | 1.41          | 1.41     | 1.41     | 40031.0  | 40031
+         10021 | null              | 1.47          | 1.47     | 1.47     | 60408.0  | 60408
+;
+
+whereNull
+FROM employees
+| WHERE NULL and emp_no <= 10021
+| SORT first_name, last_name
+| EVAL fullname = CONCAT(first_name, " ", last_name)
+| KEEP fullname, job_positions, salary, salary_change
+| limit 5
+;
+
+fullname:keyword | job_positions:keyword | salary:integer | salary_change:double
+;
+
+inConvertedNull
+required_capability: filter_in_converted_null
+FROM employees
+| WHERE emp_no in (10021, 10022, null::int)
+| KEEP emp_no, first_name, last_name
+| SORT emp_no
+;
+
+emp_no:integer | first_name:keyword | last_name:keyword   
+10021          | Ramzi              | Erde
+10022          | Shahaf             | Famili
+;

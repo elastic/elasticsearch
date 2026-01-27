@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -67,7 +67,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
                 null
             )
         );
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();
 
@@ -80,27 +80,30 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
         assertThat(result, hasEntry("name1", patterns.get("name1")));
         assertThat(result, hasEntry("name2", patterns.get("name2")));
 
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "another_alias"));
+        expectThrows(
+            ResourceNotFoundException.class,
+            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "another_alias")
+        );
     }
 
     public void testGetAutoFollowPatternNoAutoFollowPatterns() {
-        AutoFollowMetadata autoFollowMetadata =
-            new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
-        Metadata metadata = Metadata.builder()
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault())
             .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
             .build();
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
+        expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);
         assertThat(result.size(), equalTo(0));
     }
 
     public void testGetAutoFollowPatternNoAutoFollowMetadata() {
-        Metadata metadata = Metadata.builder().build();
-        expectThrows(ResourceNotFoundException.class,
-            () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
+        ProjectMetadata metadata = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+        expectThrows(ResourceNotFoundException.class, () -> TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, "name1"));
 
         Map<String, AutoFollowPattern> result = TransportGetAutoFollowPatternAction.getAutoFollowPattern(metadata, null);
         assertThat(result.size(), equalTo(0));

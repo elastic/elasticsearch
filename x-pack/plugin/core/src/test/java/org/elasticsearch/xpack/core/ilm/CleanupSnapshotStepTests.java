@@ -6,18 +6,20 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.action.admin.cluster.snapshots.delete.TransportDeleteSnapshotAction;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Map;
@@ -36,7 +38,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
     @Override
     protected CleanupSnapshotStep copyInstance(CleanupSnapshotStep instance) {
-        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new CleanupSnapshotStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     @Override
@@ -44,16 +46,11 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         switch (between(0, 1)) {
-            case 0:
-                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new CleanupSnapshotStep(key, nextKey, instance.getClient());
+        return new CleanupSnapshotStep(key, nextKey, instance.getClientWithoutProject());
     }
 
     public void testPerformActionDoesntFailIfSnapshotInfoIsMissing() throws Exception {
@@ -61,33 +58,28 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         String policyName = "test-ilm-policy";
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            final var indexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
-
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
-
-            CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
+            performActionAndWait(createRandomInstance(), indexMetadata, state, null);
         }
 
         {
-            IndexMetadata.Builder indexMetadataBuilder =
-                IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                    .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5));
             Map<String, String> ilmCustom = Map.of("snapshot_repository", "repository_name");
             indexMetadataBuilder.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom);
 
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
+            ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
-            ClusterState clusterState =
-                ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
-
-            CleanupSnapshotStep cleanupSnapshotStep = createRandomInstance();
-            PlainActionFuture.<Void, Exception>get(f -> cleanupSnapshotStep.performAction(indexMetadata, clusterState, null, f));
+            performActionAndWait(createRandomInstance(), indexMetadata, state, null);
         }
     }
 
@@ -97,36 +89,31 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
         String snapshotName = indexName + "-" + policyName;
         Map<String, String> ilmCustom = Map.of("snapshot_name", snapshotName);
 
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, ilmCustom)
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5));
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
 
-        ClusterState clusterState =
-            ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
 
-        try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getDeleteSnapshotRequestAssertingClient(threadPool, snapshotName);
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                }
-            });
+            step.performAction(indexMetadata, state, null, ActionListener.noop());
         }
     }
 
-    private NoOpClient getDeleteSnapshotRequestAssertingClient(String expectedSnapshotName) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getDeleteSnapshotRequestAssertingClient(ThreadPool threadPool, String expectedSnapshotName) {
+        return new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(ActionType<Response> action,
-                                                                                                      Request request,
-                                                                                                      ActionListener<Response> listener) {
-                assertThat(action.name(), is(DeleteSnapshotAction.NAME));
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                assertThat(action.name(), is(TransportDeleteSnapshotAction.TYPE.name()));
                 assertTrue(request instanceof DeleteSnapshotRequest);
                 assertThat(((DeleteSnapshotRequest) request).snapshots(), arrayContaining(expectedSnapshotName));
             }

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -63,14 +65,8 @@ public class DoubleTermsTests extends InternalTermsTestCase {
     }
 
     @Override
-    protected Class<ParsedDoubleTerms> implementationClass() {
-        return ParsedDoubleTerms.class;
-    }
-
-    @Override
     protected InternalTerms<?, ?> mutateInstance(InternalTerms<?, ?> instance) {
-        if (instance instanceof DoubleTerms) {
-            DoubleTerms doubleTerms = (DoubleTerms) instance;
+        if (instance instanceof DoubleTerms doubleTerms) {
             String name = doubleTerms.getName();
             BucketOrder order = doubleTerms.order;
             int requiredSize = doubleTerms.requiredSize;
@@ -83,28 +79,14 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             long docCountError = doubleTerms.getDocCountError();
             Map<String, Object> metadata = doubleTerms.getMetadata();
             switch (between(0, 8)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
-                    shardSize += between(1, 100);
-                    break;
-                case 4:
-                    showTermDocCountError = showTermDocCountError == false;
-                    break;
-                case 5:
-                    otherDocCount += between(1, 100);
-                    break;
-                case 6:
-                    docCountError += between(1, 100);
-                    break;
-                case 7:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> shardSize += between(1, 100);
+                case 4 -> showTermDocCountError = showTermDocCountError == false;
+                case 5 -> otherDocCount += between(1, 100);
+                case 6 -> docCountError += between(1, 100);
+                case 7 -> {
                     buckets = new ArrayList<>(buckets);
                     buckets.add(
                         new DoubleTerms.Bucket(
@@ -116,17 +98,16 @@ public class DoubleTermsTests extends InternalTermsTestCase {
                             format
                         )
                     );
-                    break;
-                case 8:
+                }
+                case 8 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             Collections.sort(buckets, doubleTerms.reduceOrder.comparator());
             return new DoubleTerms(
@@ -150,25 +131,18 @@ public class DoubleTermsTests extends InternalTermsTestCase {
             long minDocCount = instance.minDocCount;
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new UnmappedTerms(name, order, requiredSize, minDocCount, metadata);
         }

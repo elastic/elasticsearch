@@ -6,28 +6,28 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,10 +42,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_EVENT_CATEGORY;
 import static org.elasticsearch.xpack.eql.action.RequestDefaults.FIELD_TIMESTAMP;
 
-public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContent {
+public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequest.Replaceable, ToXContent {
 
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
-    public static TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
+    public static final long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static final TimeValue DEFAULT_KEEP_ALIVE = TimeValue.timeValueDays(5);
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(true, true, true, false);
 
     private String[] indices;
@@ -62,6 +62,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
     private Map<String, Object> runtimeMappings = emptyMap();
+    private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
+    private Boolean allowPartialSearchResults;
+    private Boolean allowPartialSequenceResults;
+    private String projectRouting;
+    private ResolvedIndexExpressions resolvedIndexExpressions;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -81,6 +86,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_FETCH_FIELDS = "fields";
     static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
+    static final String KEY_MAX_SAMPLES_PER_KEY = "max_samples_per_key";
+    static final String KEY_ALLOW_PARTIAL_SEARCH_RESULTS = "allow_partial_search_results";
+    static final String KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS = "allow_partial_sequence_results";
+    static final String KEY_PROJECT_ROUTING = "project_routing";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -94,6 +103,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEY_KEEP_ON_COMPLETION);
     static final ParseField RESULT_POSITION = new ParseField(KEY_RESULT_POSITION);
     static final ParseField FETCH_FIELDS_FIELD = SearchSourceBuilder.FETCH_FIELDS_FIELD;
+    static final ParseField MAX_SAMPLES_PER_KEY = new ParseField(KEY_MAX_SAMPLES_PER_KEY);
+    static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEARCH_RESULTS);
+    static final ParseField ALLOW_PARTIAL_SEQUENCE_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS);
+    static final ParseField PROJECT_ROUTING = new ParseField(KEY_PROJECT_ROUTING);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -112,25 +125,28 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         size = in.readVInt();
         fetchSize = in.readVInt();
         query = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_15_0)) {
-            this.ccsMinimizeRoundtrips = in.readBoolean();
+        this.ccsMinimizeRoundtrips = in.readBoolean();
+        this.waitForCompletionTimeout = in.readOptionalTimeValue();
+        this.keepAlive = in.readOptionalTimeValue();
+        this.keepOnCompletion = in.readBoolean();
+        resultPosition = in.readString();
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
-            this.waitForCompletionTimeout = in.readOptionalTimeValue();
-            this.keepAlive = in.readOptionalTimeValue();
-            this.keepOnCompletion = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            resultPosition = in.readString();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
-            runtimeMappings = in.readMap();
-        } else {
-            runtimeMappings = emptyMap();
-        }
+        runtimeMappings = in.readGenericMap();
+        maxSamplesPerKey = in.readInt();
+        allowPartialSearchResults = in.readOptionalBoolean();
+        allowPartialSequenceResults = in.readOptionalBoolean();
+    }
+
+    @Override
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
+    public EqlSearchRequest projectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
+        return this;
     }
 
     @Override
@@ -172,20 +188,28 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             validationException = addValidationError("fetch size must be greater than 1", validationException);
         }
 
-        if (keepAlive != null  && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
-            validationException =
-                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+        if (keepAlive != null && keepAlive.getMillis() < MIN_KEEP_ALIVE) {
+            validationException = addValidationError(
+                "[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(),
+                validationException
+            );
         }
 
         if (runtimeMappings != null) {
             validationException = validateRuntimeMappings(runtimeMappings, validationException);
         }
 
+        if (maxSamplesPerKey < 1) {
+            validationException = addValidationError("max_samples_per_key must be greater than 0", validationException);
+        }
+
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRuntimeMappings(Map<String, Object> runtimeMappings,
-        ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        ActionRequestValidationException validationException
+    ) {
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();
@@ -196,8 +220,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
                     return addValidationError("No type specified for runtime field [" + fieldName + "]", validationException);
                 }
             } else {
-                return addValidationError("Expected map for runtime field [" + fieldName + "] definition but got ["
-                    + fieldName.getClass().getSimpleName() + "]", validationException);
+                return addValidationError(
+                    "Expected map for runtime field [" + fieldName + "] definition but got [" + fieldName.getClass().getSimpleName() + "]",
+                    validationException
+                );
             }
         }
         return validationException;
@@ -217,10 +243,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         builder.field(KEY_FETCH_SIZE, fetchSize());
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
-            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout);
+            builder.field(KEY_WAIT_FOR_COMPLETION_TIMEOUT, waitForCompletionTimeout.getStringRep());
         }
         if (keepAlive != null) {
-            builder.field(KEY_KEEP_ALIVE, keepAlive);
+            builder.field(KEY_KEEP_ALIVE, keepAlive.getStringRep());
         }
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         builder.field(KEY_RESULT_POSITION, resultPosition);
@@ -230,6 +256,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         if (runtimeMappings != null) {
             builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
         }
+        builder.field(KEY_MAX_SAMPLES_PER_KEY, maxSamplesPerKey);
+        builder.field(KEY_ALLOW_PARTIAL_SEARCH_RESULTS, allowPartialSearchResults);
+        builder.field(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS, allowPartialSequenceResults);
 
         return builder;
     }
@@ -240,23 +269,33 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
 
     protected static <R extends EqlSearchRequest> ObjectParser<R, Void> objectParser(Supplier<R> supplier) {
         ObjectParser<R, Void> parser = new ObjectParser<>("eql/search", false, supplier);
-        parser.declareObject(EqlSearchRequest::filter,
-            (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), FILTER);
+        parser.declareObject(EqlSearchRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER);
         parser.declareString(EqlSearchRequest::timestampField, TIMESTAMP_FIELD);
         parser.declareString(EqlSearchRequest::tiebreakerField, TIEBREAKER_FIELD);
         parser.declareString(EqlSearchRequest::eventCategoryField, EVENT_CATEGORY_FIELD);
         parser.declareInt(EqlSearchRequest::size, SIZE);
         parser.declareInt(EqlSearchRequest::fetchSize, FETCH_SIZE);
         parser.declareString(EqlSearchRequest::query, QUERY);
-        parser.declareField(EqlSearchRequest::waitForCompletionTimeout,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT), WAIT_FOR_COMPLETION_TIMEOUT,
-            ObjectParser.ValueType.VALUE);
-        parser.declareField(EqlSearchRequest::keepAlive,
-            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE), KEEP_ALIVE, ObjectParser.ValueType.VALUE);
+        parser.declareField(
+            EqlSearchRequest::waitForCompletionTimeout,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_WAIT_FOR_COMPLETION_TIMEOUT),
+            WAIT_FOR_COMPLETION_TIMEOUT,
+            ValueType.VALUE
+        );
+        parser.declareField(
+            EqlSearchRequest::keepAlive,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), KEY_KEEP_ALIVE),
+            KEEP_ALIVE,
+            ValueType.VALUE
+        );
         parser.declareBoolean(EqlSearchRequest::keepOnCompletion, KEEP_ON_COMPLETION);
         parser.declareString(EqlSearchRequest::resultPosition, RESULT_POSITION);
         parser.declareField(EqlSearchRequest::fetchFields, EqlSearchRequest::parseFetchFields, FETCH_FIELDS_FIELD, ValueType.VALUE_ARRAY);
         parser.declareObject(EqlSearchRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+        parser.declareInt(EqlSearchRequest::maxSamplesPerKey, MAX_SAMPLES_PER_KEY);
+        parser.declareBoolean(EqlSearchRequest::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS);
+        parser.declareBoolean(EqlSearchRequest::allowPartialSequenceResults, ALLOW_PARTIAL_SEQUENCE_RESULTS);
+        parser.declareString(EqlSearchRequest::projectRouting, PROJECT_ROUTING);
         return parser;
     }
 
@@ -266,35 +305,60 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public QueryBuilder filter() { return this.filter; }
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    @Override
+    public void setResolvedIndexExpressions(ResolvedIndexExpressions expressions) {
+        this.resolvedIndexExpressions = expressions;
+    }
+
+    @Override
+    public ResolvedIndexExpressions getResolvedIndexExpressions() {
+        return resolvedIndexExpressions;
+    }
+
+    public QueryBuilder filter() {
+        return this.filter;
+    }
 
     public EqlSearchRequest filter(QueryBuilder filter) {
         this.filter = filter;
         return this;
     }
 
-    public Map<String, Object> runtimeMappings() { return this.runtimeMappings; }
+    public Map<String, Object> runtimeMappings() {
+        return this.runtimeMappings;
+    }
 
     public EqlSearchRequest runtimeMappings(Map<String, Object> runtimeMappings) {
         this.runtimeMappings = runtimeMappings;
         return this;
     }
 
-    public String timestampField() { return this.timestampField; }
+    public String timestampField() {
+        return this.timestampField;
+    }
 
     public EqlSearchRequest timestampField(String timestampField) {
         this.timestampField = timestampField;
         return this;
     }
 
-    public String tiebreakerField() { return this.tiebreakerField; }
+    public String tiebreakerField() {
+        return this.tiebreakerField;
+    }
 
     public EqlSearchRequest tiebreakerField(String tiebreakerField) {
         this.tiebreakerField = tiebreakerField;
         return this;
     }
 
-    public String eventCategoryField() { return this.eventCategoryField; }
+    public String eventCategoryField() {
+        return this.eventCategoryField;
+    }
 
     public EqlSearchRequest eventCategoryField(String eventCategoryField) {
         this.eventCategoryField = eventCategoryField;
@@ -319,7 +383,9 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
-    public String query() { return this.query; }
+    public String query() {
+        return this.query;
+    }
 
     public EqlSearchRequest query(String query) {
         this.query = query;
@@ -384,12 +450,39 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public int maxSamplesPerKey() {
+        return maxSamplesPerKey;
+    }
+
+    public EqlSearchRequest maxSamplesPerKey(int maxSamplesPerKey) {
+        this.maxSamplesPerKey = maxSamplesPerKey;
+        return this;
+    }
+
+    public Boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public EqlSearchRequest allowPartialSearchResults(Boolean val) {
+        this.allowPartialSearchResults = val;
+        return this;
+    }
+
+    public Boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
+    }
+
+    public EqlSearchRequest allowPartialSequenceResults(Boolean val) {
+        this.allowPartialSequenceResults = val;
+        return this;
+    }
+
     private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
         List<FieldAndFormat> result = new ArrayList<>();
         Token token = parser.currentToken();
 
         if (token == Token.START_ARRAY) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            while ((token = parser.nextToken()) != Token.END_ARRAY) {
                 result.add(FieldAndFormat.fromXContent(parser));
             }
         }
@@ -408,25 +501,19 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         out.writeVInt(size);
         out.writeVInt(fetchSize);
         out.writeString(query);
-        if (out.getVersion().onOrAfter(Version.V_7_15_0)) {
-            out.writeBoolean(ccsMinimizeRoundtrips);
+        out.writeBoolean(ccsMinimizeRoundtrips);
+        out.writeOptionalTimeValue(waitForCompletionTimeout);
+        out.writeOptionalTimeValue(keepAlive);
+        out.writeBoolean(keepOnCompletion);
+        out.writeString(resultPosition);
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // TODO: Remove after backport
-            out.writeOptionalTimeValue(waitForCompletionTimeout);
-            out.writeOptionalTimeValue(keepAlive);
-            out.writeBoolean(keepOnCompletion);
-        }
-
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) { // TODO: Remove after backport
-            out.writeString(resultPosition);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
-            out.writeMap(runtimeMappings);
-        }
+        out.writeGenericMap(runtimeMappings);
+        out.writeInt(maxSamplesPerKey);
+        out.writeOptionalBoolean(allowPartialSearchResults);
+        out.writeOptionalBoolean(allowPartialSequenceResults);
     }
 
     @Override
@@ -438,23 +525,25 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             return false;
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
-        return size == that.size &&
-                fetchSize == that.fetchSize &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(filter, that.filter) &&
-                Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(tiebreakerField, that.tiebreakerField) &&
-                Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(query, that.query) &&
-                Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips) &&
-                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(resultPosition, that.resultPosition) &&
-                Objects.equals(fetchFields, that.fetchFields) &&
-                Objects.equals(runtimeMappings, that.runtimeMappings);
+        return size == that.size
+            && fetchSize == that.fetchSize
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Objects.equals(filter, that.filter)
+            && Objects.equals(timestampField, that.timestampField)
+            && Objects.equals(tiebreakerField, that.tiebreakerField)
+            && Objects.equals(eventCategoryField, that.eventCategoryField)
+            && Objects.equals(query, that.query)
+            && Objects.equals(ccsMinimizeRoundtrips, that.ccsMinimizeRoundtrips)
+            && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
+            && Objects.equals(keepAlive, that.keepAlive)
+            && Objects.equals(resultPosition, that.resultPosition)
+            && Objects.equals(fetchFields, that.fetchFields)
+            && Objects.equals(runtimeMappings, that.runtimeMappings)
+            && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(allowPartialSequenceResults, that.allowPartialSequenceResults);
     }
-
 
     @Override
     public int hashCode() {
@@ -473,7 +562,11 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             keepAlive,
             resultPosition,
             fetchFields,
-            runtimeMappings);
+            runtimeMappings,
+            maxSamplesPerKey,
+            allowPartialSearchResults,
+            allowPartialSequenceResults
+        );
     }
 
     @Override

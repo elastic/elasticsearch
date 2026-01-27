@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.hdfs;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.fixtures.hdfs.HdfsClientThreadLeakFilter;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -33,7 +36,8 @@ public class HdfsBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTest
             .put("conf.fs.AbstractFileSystem.hdfs.impl", TestingFs.class.getName())
             .put("path", "foo")
             .put("chunk_size", randomIntBetween(100, 1000) + "k")
-            .put("compress", randomBoolean()).build();
+            .put("compress", randomBoolean())
+            .build();
     }
 
     @Override

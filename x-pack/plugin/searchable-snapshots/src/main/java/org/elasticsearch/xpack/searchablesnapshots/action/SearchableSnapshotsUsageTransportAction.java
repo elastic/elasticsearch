@@ -11,12 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -24,13 +23,13 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotFeatureSetUsage;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     private final XPackLicenseState licenseState;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public SearchableSnapshotsUsageTransportAction(
@@ -38,22 +37,16 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        ProjectResolver projectResolver
     ) {
-        super(
-            XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -61,9 +54,9 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
     ) {
         int numFullCopySnapIndices = 0;
         int numSharedCacheSnapIndices = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
-            if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
-                if (SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING.get(indexMetadata.getSettings())) {
+        for (IndexMetadata indexMetadata : projectResolver.getProjectMetadata(state)) {
+            if (indexMetadata.isSearchableSnapshot()) {
+                if (indexMetadata.isPartialSearchableSnapshot()) {
                     numSharedCacheSnapIndices++;
                 } else {
                     numFullCopySnapIndices++;

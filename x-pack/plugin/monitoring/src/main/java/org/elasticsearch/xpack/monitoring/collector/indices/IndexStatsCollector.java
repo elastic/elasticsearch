@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.monitoring.collector.indices;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -42,9 +44,7 @@ public class IndexStatsCollector extends Collector {
 
     private final Client client;
 
-    public IndexStatsCollector(final ClusterService clusterService,
-                               final XPackLicenseState licenseState,
-                               final Client client) {
+    public IndexStatsCollector(final ClusterService clusterService, final XPackLicenseState licenseState, final Client client) {
         super("index-stats", clusterService, INDEX_STATS_TIMEOUT, licenseState);
         this.client = client;
     }
@@ -55,34 +55,36 @@ public class IndexStatsCollector extends Collector {
     }
 
     @Override
-    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
-                                                  final long interval,
-                                                  final ClusterState clusterState) {
+    protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node, final long interval, final ClusterState clusterState) {
         final List<MonitoringDoc> results = new ArrayList<>();
-        final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats()
-                .setIndices(getCollectionIndices())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .clear()
-                .setDocs(true)
-                .setFieldData(true)
-                .setIndexing(true)
-                .setMerge(true)
-                .setSearch(true)
-                .setSegments(true)
-                .setStore(true)
-                .setRefresh(true)
-                .setQueryCache(true)
-                .setRequestCache(true)
-                .setBulk(true)
-                .setTimeout(getCollectionTimeout())
-                .get();
+        final IndicesStatsResponse indicesStatsResponse = client.admin()
+            .indices()
+            .prepareStats()
+            .setIndices(getCollectionIndices())
+            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+            .clear()
+            .setDocs(true)
+            .setFieldData(true)
+            .setIndexing(true)
+            .setMerge(true)
+            .setSearch(true)
+            .setSegments(true)
+            .setStore(true)
+            .setRefresh(true)
+            .setQueryCache(true)
+            .setRequestCache(true)
+            .setBulk(true)
+            .setTimeout(getCollectionTimeout())
+            .get();
 
         ensureNoTimeouts(getCollectionTimeout(), indicesStatsResponse);
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);
-        final Metadata metadata = clusterState.metadata();
-        final RoutingTable routingTable = clusterState.routingTable();
+        @NotMultiProjectCapable(description = "Monitoring is not available in serverless and will thus not be made project-aware")
+        final var projectId = ProjectId.DEFAULT;
+        final ProjectMetadata metadata = clusterState.metadata().getProject(projectId);
+        final RoutingTable routingTable = clusterState.routingTable(projectId);
 
         // Filters the indices stats to only return the statistics for the indices known by the collector's
         // local cluster state. This way indices/index/shards stats all share a common view of indices state.
@@ -93,8 +95,17 @@ public class IndexStatsCollector extends Collector {
                 // The index appears both in the local cluster state and indices stats response
                 indicesStats.add(indexStats);
 
-                results.add(new IndexStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indexStats,
-                        metadata.index(indexName), routingTable.index(indexName)));
+                results.add(
+                    new IndexStatsMonitoringDoc(
+                        clusterUuid,
+                        timestamp,
+                        interval,
+                        node,
+                        indexStats,
+                        metadata.index(indexName),
+                        routingTable.index(indexName)
+                    )
+                );
             }
         }
         results.add(new IndicesStatsMonitoringDoc(clusterUuid, timestamp, interval, node, indicesStats));

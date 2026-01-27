@@ -1,18 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptContext;
@@ -25,11 +28,7 @@ import org.objectweb.asm.commons.GeneratorAdapter;
 
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Method;
-import java.security.AccessControlContext;
-import java.security.AccessController;
 import java.security.Permissions;
-import java.security.PrivilegedAction;
-import java.security.ProtectionDomain;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,20 +49,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
      */
     public static final String NAME = "painless";
 
-    /**
-     * Permissions context used during compilation.
-     */
-    private static final AccessControlContext COMPILATION_CONTEXT;
-
     /*
      * Setup the allowed permissions.
      */
     static {
         final Permissions none = new Permissions();
         none.setReadOnly();
-        COMPILATION_CONTEXT = new AccessControlContext(new ProtectionDomain[] {
-            new ProtectionDomain(null, none)
-        });
     }
 
     /**
@@ -83,19 +74,23 @@ public final class PainlessScriptEngine implements ScriptEngine {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
-        Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
-        Map<ScriptContext<?>, PainlessLookup> contextsToLookups = new HashMap<>();
+        Map<ScriptContext<?>, Compiler> mutableContextsToCompilers = new HashMap<>();
+        Map<ScriptContext<?>, PainlessLookup> mutableContextsToLookups = new HashMap<>();
 
+        final Map<Object, Object> dedup = new HashMap<>();
+        final Map<PainlessMethod, PainlessMethod> filteredMethodCache = new HashMap<>();
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
-            contextsToCompilers.put(context,
-                    new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup));
-            contextsToLookups.put(context, lookup);
+            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue(), dedup, filteredMethodCache);
+            mutableContextsToCompilers.put(
+                context,
+                new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)
+            );
+            mutableContextsToLookups.put(context, lookup);
         }
 
-        this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
-        this.contextsToLookups = Collections.unmodifiableMap(contextsToLookups);
+        this.contextsToCompilers = Collections.unmodifiableMap(mutableContextsToCompilers);
+        this.contextsToLookups = Collections.unmodifiableMap(mutableContextsToLookups);
     }
 
     public Map<ScriptContext<?>, PainlessLookup> getContextsToLookups() {
@@ -112,24 +107,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public <T> T compile(
-        String scriptName,
-        String scriptSource,
-        ScriptContext<T> context,
-        Map<String, String> params
-    ) {
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         Compiler compiler = contextsToCompilers.get(context);
 
         // Check we ourselves are not being called by unprivileged code.
         SpecialPermission.check();
 
         // Create our loader (which loads compiled code with no permissions).
-        final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
-            @Override
-            public Loader run() {
-                return compiler.createLoader(getClass().getClassLoader());
-            }
-        });
+        final Loader loader = compiler.createLoader(getClass().getClassLoader());
 
         ScriptScope scriptScope = compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
 
@@ -156,11 +141,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> Type generateStatefulFactory(
-        Loader loader,
-        ScriptContext<T> context,
-        ScriptScope scriptScope
-    ) {
+    private static <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, ScriptScope scriptScope) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
@@ -181,17 +162,29 @@ public final class PainlessScriptEngine implements ScriptEngine {
         }
 
         for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
-            writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "$arg" + count,
-                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(), null, null).visitEnd();
+            writer.visitField(
+                Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
+                "$arg" + count,
+                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(),
+                null,
+                null
+            ).visitEnd();
         }
 
-        org.objectweb.asm.commons.Method base =
-            new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
-        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method("<init>",
-            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method base = new org.objectweb.asm.commons.Method(
+            "<init>",
+            MethodType.methodType(void.class).toMethodDescriptorString()
+        );
+        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
+            "<init>",
+            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString()
+        );
 
-        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
-            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+        GeneratorAdapter constructor = new GeneratorAdapter(
+            Opcodes.ASM5,
+            init,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null)
+        );
         constructor.visitCode();
         constructor.loadThis();
         constructor.invokeConstructor(OBJECT_TYPE, base);
@@ -215,18 +208,24 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
-        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(newInstance.getName(),
-            MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(
+            newInstance.getName(),
+            MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString()
+        );
 
         List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
         parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
 
-        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
-            MethodType.methodType(void.class, parameters.toArray(new Class<?>[] {})).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
+            "<init>",
+            MethodType.methodType(void.class, parameters.toArray(new Class<?>[] {})).toMethodDescriptorString()
+        );
 
-        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
-            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                instance.getName(), instance.getDescriptor(), null, null));
+        GeneratorAdapter adapter = new GeneratorAdapter(
+            Opcodes.ASM5,
+            instance,
+            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, instance.getName(), instance.getDescriptor(), null, null)
+        );
         adapter.visitCode();
         adapter.newInstance(WriterConstants.CLASS_TYPE);
         adapter.dup();
@@ -262,14 +261,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> T generateFactory(
-        Loader loader,
-        ScriptContext<T> context,
-        Type classType,
-        ScriptScope scriptScope
-    ) {
+    private static <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType, ScriptScope scriptScope) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
-        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
+        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
         String className = interfaceBase + "$Factory";
         String[] classInterfaces = new String[] { interfaceBase };
@@ -277,11 +271,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
         ClassWriter writer = new ClassWriter(classFrames);
         writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
 
-        org.objectweb.asm.commons.Method init =
-            new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
+            "<init>",
+            MethodType.methodType(void.class).toMethodDescriptorString()
+        );
 
-        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
-                writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+        GeneratorAdapter constructor = new GeneratorAdapter(
+            Opcodes.ASM5,
+            init,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null)
+        );
         constructor.visitCode();
         constructor.loadThis();
         constructor.invokeConstructor(OBJECT_TYPE, init);
@@ -299,14 +298,20 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
-        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(reflect.getName(),
-            MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString());
-        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
-            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(
+            reflect.getName(),
+            MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString()
+        );
+        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
+            "<init>",
+            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
+        );
 
-        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
-                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
-                                   instance.getName(), instance.getDescriptor(), null, null));
+        GeneratorAdapter adapter = new GeneratorAdapter(
+            Opcodes.ASM5,
+            instance,
+            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL, instance.getName(), instance.getDescriptor(), null, null)
+        );
         adapter.visitCode();
         adapter.newInstance(classType);
         adapter.dup();
@@ -318,11 +323,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
         writeNeedsMethods(context.factoryClazz, writer, scriptScope.getUsedVariables());
 
         String methodName = "isResultDeterministic";
-        org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(methodName,
-            MethodType.methodType(boolean.class).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method isResultDeterministic = new org.objectweb.asm.commons.Method(
+            methodName,
+            MethodType.methodType(boolean.class).toMethodDescriptorString()
+        );
 
-        GeneratorAdapter deterAdapter = new GeneratorAdapter(Opcodes.ASM5, isResultDeterministic,
-            writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null));
+        GeneratorAdapter deterAdapter = new GeneratorAdapter(
+            Opcodes.ASM5,
+            isResultDeterministic,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, methodName, isResultDeterministic.getDescriptor(), null, null)
+        );
         deterAdapter.visitCode();
         deterAdapter.push(scriptScope.isDeterministic());
         deterAdapter.returnValue();
@@ -336,23 +346,31 @@ public final class PainlessScriptEngine implements ScriptEngine {
         } catch (Exception exception) {
             // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
-                "An internal error occurred attempting to define the factory class [" + className + "].", exception);
+                "An internal error occurred attempting to define the factory class [" + className + "].",
+                exception
+            );
         }
     }
 
-    private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
+    private static void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
         for (Method method : clazz.getMethods()) {
-            if (method.getName().startsWith("needs") &&
-                method.getReturnType().equals(boolean.class) && method.getParameterTypes().length == 0) {
+            if (method.getName().startsWith("needs")
+                && method.getReturnType().equals(boolean.class)
+                && method.getParameterTypes().length == 0) {
                 String name = method.getName();
                 name = name.substring(5);
                 name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
 
-                org.objectweb.asm.commons.Method needs = new org.objectweb.asm.commons.Method(method.getName(),
-                    MethodType.methodType(boolean.class).toMethodDescriptorString());
+                org.objectweb.asm.commons.Method needs = new org.objectweb.asm.commons.Method(
+                    method.getName(),
+                    MethodType.methodType(boolean.class).toMethodDescriptorString()
+                );
 
-                GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, needs,
-                    writer.visitMethod(Opcodes.ACC_PUBLIC, needs.getName(), needs.getDescriptor(), null, null));
+                GeneratorAdapter adapter = new GeneratorAdapter(
+                    Opcodes.ASM5,
+                    needs,
+                    writer.visitMethod(Opcodes.ACC_PUBLIC, needs.getName(), needs.getDescriptor(), null, null)
+                );
                 adapter.visitCode();
                 adapter.push(extractedVariables.contains(name));
                 adapter.returnValue();
@@ -366,13 +384,8 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<ScriptScope>() {
-                @Override
-                public ScriptScope run() {
-                    String name = scriptName == null ? source : scriptName;
-                    return compiler.compile(loader, name, source, compilerSettings);
-                }
-            }, COMPILATION_CONTEXT);
+            String name = scriptName == null ? source : scriptName;
+            return compiler.compile(loader, name, source, compilerSettings);
             // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | LinkageError | Exception e) {
             throw convertToScriptException(source, e);
@@ -391,7 +404,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             // Except regexes enabled - this is a node level setting and can't be changed in the request.
             compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
 
-            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getRegexLimitFactor());
+            compilerSettings.setRegexLimitFactor(defaultCompilerSettings.getAppliedRegexLimitFactor());
 
             Map<String, String> copy = new HashMap<>(params);
 
@@ -402,7 +415,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.PICKY);
             if (value != null) {
-                compilerSettings.setPicky(Boolean.parseBoolean(value));
+                compilerSettings.setPicky(Booleans.parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
@@ -427,7 +440,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         return compilerSettings;
     }
 
-    private ScriptException convertToScriptException(String scriptSource, Throwable t) {
+    private static ScriptException convertToScriptException(String scriptSource, Throwable t) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         ScriptException.Position pos = null;
@@ -464,15 +477,16 @@ public final class PainlessScriptEngine implements ScriptEngine {
                 break;
             }
         }
-        throw new ScriptException("compile error", t, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
+        Throwable cause = ErrorCauseWrapper.maybeWrap(t);
+        throw new ScriptException("compile error", cause, scriptStack, scriptSource, PainlessScriptEngine.NAME, pos);
     }
 
     // very simple heuristic: +/- 25 chars. can be improved later.
-    private int getPreviousStatement(int offset) {
+    private static int getPreviousStatement(int offset) {
         return Math.max(0, offset - 25);
     }
 
-    private int getNextStatement(String scriptSource, int offset) {
+    private static int getNextStatement(String scriptSource, int offset) {
         return Math.min(scriptSource.length(), offset + 25);
     }
 }

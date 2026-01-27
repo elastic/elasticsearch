@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.ql.planner;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
+import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.util.Check;
@@ -26,8 +28,7 @@ public abstract class ExpressionTranslator<E extends Expression> {
     protected abstract Query asQuery(E e, TranslatorHandler handler);
 
     public static Query wrapIfNested(Query query, Expression exp) {
-        if (query != null && exp instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) exp;
+        if (query != null && exp instanceof FieldAttribute fa) {
             if (fa.isNested()) {
                 return new NestedQuery(fa.source(), fa.nestedParent().name(), query);
             }
@@ -38,5 +39,20 @@ public abstract class ExpressionTranslator<E extends Expression> {
     public static FieldAttribute checkIsFieldAttribute(Expression e) {
         Check.isTrue(e instanceof FieldAttribute, "Expected a FieldAttribute but received [{}]", e);
         return (FieldAttribute) e;
+    }
+
+    public static TypedAttribute checkIsPushableAttribute(Expression e) {
+        Check.isTrue(
+            e instanceof FieldAttribute || e instanceof MetadataAttribute,
+            "Expected a FieldAttribute or MetadataAttribute but received [{}]",
+            e
+        );
+        return (TypedAttribute) e;
+    }
+
+    public static String pushableAttributeName(TypedAttribute attribute) {
+        return attribute instanceof FieldAttribute fa
+            ? fa.exactAttribute().name() // equality should always be against an exact match (which is important for strings)
+            : attribute.name();
     }
 }

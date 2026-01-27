@@ -38,4 +38,3 @@ public class ComputedRef implements FieldExtraction {
         return processor + "(" + processor + ")";
     }
 }
-

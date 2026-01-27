@@ -74,71 +74,63 @@ public class IndexMappingTemplateAsserter {
         assertComposableTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
         assertComposableTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
         // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
-        assertComposableTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000002", ".ml-notifications-000002", true, notificationsIndexExceptions, false);
+        assertComposableTemplateMatchesIndexMappings(
+            client,
+            ".ml-notifications-000002",
+            ".ml-notifications-000002",
+            true,
+            notificationsIndexExceptions,
+            false
+        );
         // .ml-annotations-6 does not use a template
         // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
 
         // Dynamic mappings updates are banned for system indices.
         // The .ml-config and .ml-meta indices have mappings that allow dynamic updates.
         // The effect is instant error if a document containing an unknown field is added
-        // to one of these indices.  Assuming we have some sort of test coverage somewhere
+        // to one of these indices. Assuming we have some sort of test coverage somewhere
         // for new fields, we will very quickly catch any failures to add new fields to
-        // the mappings for the .ml-config and .ml-meta indices.  So there is no need to
+        // the mappings for the .ml-config and .ml-meta indices. So there is no need to
         // test again here.
     }
 
     /**
-     * Compares the mappings from the legacy template and the index and asserts
-     * they are the same. The assertion error message details the differences in
-     * the mappings.
      *
-     * The Mappings, which are maps of maps, are flattened with the keys built
-     * from the keys of the sub-maps appended to the parent key.
-     * This makes diffing the 2 maps easier and diffs more comprehensible.
-     *
-     * The _meta field is not compared as it contains version numbers that
-     * change even when the mappings don't.
-     *
-     * Mistakes happen and some indices may be stuck with the incorrect mappings
-     * that cannot be fixed without re-index. In this case use the {@code exceptions}
-     * parameter to filter out fields in the index mapping that are not in the
-     * template. Each exception should be a '.' separated path to the value
-     * e.g. {@code properties.analysis.analysis_field.type}.
-     *
-     * @param client                        The rest client to use
-     * @param templateName                  The template
-     * @param indexName                     The index
-     * @param notAnErrorIfIndexDoesNotExist The index may or may not have been created from
-     *                                      the template. If {@code true} then the missing
-     *                                      index does not cause an error
-     * @param exceptions                    List of keys to ignore in the index mappings.
-     *                                      Each key is a '.' separated path.
-     * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
+     * @param client The Rest client
+     * @param templateName Template
+     * @param version      Expected template version
+     * @param indexPatterns Expected index patterns
+     * @throws Exception Assertion
      */
     @SuppressWarnings("unchecked")
-    public static void assertLegacyTemplateMatchesIndexMappings(RestClient client,
-                                                                String templateName,
-                                                                String indexName,
-                                                                boolean notAnErrorIfIndexDoesNotExist,
-                                                                Set<String> exceptions,
-                                                                boolean allowSystemIndexWarnings) throws Exception {
+    public static void assertTemplateVersionAndPattern(RestClient client, String templateName, int version, List<String> indexPatterns)
+        throws Exception {
 
         AtomicReference<Response> templateResponse = new AtomicReference<>();
 
         ESRestTestCase.assertBusy(() -> {
-            Request getTemplate = new Request("GET", "_template/" + templateName);
+            Request getTemplate = new Request("GET", "_index_template/" + templateName);
             templateResponse.set(client.performRequest(getTemplate));
             assertEquals("missing template [" + templateName + "]", 200, templateResponse.get().getStatusLine().getStatusCode());
         });
 
-        Map<String, Object> templateMappings = (Map<String, Object>) XContentMapValues.extractValue(
-            ESRestTestCase.entityAsMap(templateResponse.get()),
-            templateName, "mappings");
-        assertNotNull(templateMappings);
+        var responseMap = ESRestTestCase.entityAsMap(templateResponse.get());
+        Integer templateVersion = ((List<Integer>) XContentMapValues.extractValue(
+            responseMap,
+            "index_templates",
+            "index_template",
+            "version"
+        )).getFirst();
+        assertEquals(version, templateVersion.intValue());
 
-        assertTemplateMatchesIndexMappingsCommon(client, templateName, templateMappings,
-            indexName, notAnErrorIfIndexDoesNotExist, exceptions, allowSystemIndexWarnings);
+        var templateIndexPatterns = ((List<String>) XContentMapValues.extractValue(
+            responseMap,
+            "index_templates",
+            "index_template",
+            "index_patterns"
+        ));
+
+        assertEquals(responseMap.toString(), templateIndexPatterns, indexPatterns);
     }
 
     /**
@@ -170,12 +162,14 @@ public class IndexMappingTemplateAsserter {
      * @param allowSystemIndexWarnings      Whether deprecation warnings for system index access should be allowed/expected.
      */
     @SuppressWarnings("unchecked")
-    public static void assertComposableTemplateMatchesIndexMappings(RestClient client,
-                                                                    String templateName,
-                                                                    String indexName,
-                                                                    boolean notAnErrorIfIndexDoesNotExist,
-                                                                    Set<String> exceptions,
-                                                                    boolean allowSystemIndexWarnings) throws Exception {
+    public static void assertComposableTemplateMatchesIndexMappings(
+        RestClient client,
+        String templateName,
+        String indexName,
+        boolean notAnErrorIfIndexDoesNotExist,
+        Set<String> exceptions,
+        boolean allowSystemIndexWarnings
+    ) throws Exception {
 
         AtomicReference<Response> templateResponse = new AtomicReference<>();
 
@@ -187,26 +181,41 @@ public class IndexMappingTemplateAsserter {
 
         Map<String, Object> templateMappings = ((List<Map<String, Object>>) XContentMapValues.extractValue(
             ESRestTestCase.entityAsMap(templateResponse.get()),
-            "index_templates", "index_template", "template", "mappings")).get(0);
+            "index_templates",
+            "index_template",
+            "template",
+            "mappings"
+        )).get(0);
         assertNotNull(templateMappings);
 
-        assertTemplateMatchesIndexMappingsCommon(client, templateName, templateMappings, indexName, notAnErrorIfIndexDoesNotExist,
-            exceptions, allowSystemIndexWarnings);
+        assertTemplateMatchesIndexMappingsCommon(
+            client,
+            templateName,
+            templateMappings,
+            indexName,
+            notAnErrorIfIndexDoesNotExist,
+            exceptions,
+            allowSystemIndexWarnings
+        );
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertTemplateMatchesIndexMappingsCommon(RestClient client,
-                                                                 String templateName,
-                                                                 Map<String, Object> templateMappings,
-                                                                 String indexName,
-                                                                 boolean notAnErrorIfIndexDoesNotExist,
-                                                                 Set<String> exceptions,
-                                                                 boolean allowSystemIndexWarnings) throws IOException {
+    private static void assertTemplateMatchesIndexMappingsCommon(
+        RestClient client,
+        String templateName,
+        Map<String, Object> templateMappings,
+        String indexName,
+        boolean notAnErrorIfIndexDoesNotExist,
+        Set<String> exceptions,
+        boolean allowSystemIndexWarnings
+    ) throws IOException {
 
         Request getIndexMapping = new Request("GET", indexName + "/_mapping");
         if (allowSystemIndexWarnings) {
-            final String systemIndexWarning = "this request accesses system indices: [" + indexName + "], but in a future major version, " +
-                "direct access to system indices will be prevented by default";
+            final String systemIndexWarning = "this request accesses system indices: ["
+                + indexName
+                + "], but in a future major version, "
+                + "direct access to system indices will be prevented by default";
             getIndexMapping.setOptions(ESRestTestCase.expectVersionSpecificWarnings(v -> {
                 v.current(systemIndexWarning);
                 v.compatible(systemIndexWarning);
@@ -222,12 +231,13 @@ public class IndexMappingTemplateAsserter {
                 throw e;
             }
         }
-        assertEquals("error getting mappings for index [" + indexName + "]",
-            200, indexMappingResponse.getStatusLine().getStatusCode());
+        assertEquals("error getting mappings for index [" + indexName + "]", 200, indexMappingResponse.getStatusLine().getStatusCode());
 
         Map<String, Object> indexMappings = (Map<String, Object>) XContentMapValues.extractValue(
             ESRestTestCase.entityAsMap(indexMappingResponse),
-            indexName, "mappings");
+            indexName,
+            "mappings"
+        );
         assertNotNull(indexMappings);
 
         // ignore the _meta field
@@ -260,8 +270,7 @@ public class IndexMappingTemplateAsserter {
         // Remove the exceptions
         keysInIndexMissingFromTemplate.removeAll(exceptions);
 
-        StringBuilder errorMesssage = new StringBuilder("Error the template mappings [")
-            .append(templateName)
+        StringBuilder errorMesssage = new StringBuilder("Error the template mappings [").append(templateName)
             .append("] and index mappings [")
             .append(indexName)
             .append("] are not the same")
@@ -287,7 +296,7 @@ public class IndexMappingTemplateAsserter {
         for (String key : commonKeys) {
             Object template = flatTemplateMap.get(key);
             Object index = flatIndexMap.get(key);
-            if (Objects.equals(template, index) ==  false) {
+            if (Objects.equals(template, index) == false) {
                 // Both maybe be booleans but different representations
                 if (areBooleanObjectsAndEqual(index, template)) {
                     continue;
@@ -296,9 +305,15 @@ public class IndexMappingTemplateAsserter {
                 mappingsAreTheSame = false;
 
                 errorMesssage.append("Values for key [").append(key).append("] are different").append(System.lineSeparator());
-                errorMesssage.append("    template value [").append(template).append("] ").append(template.getClass().getSimpleName())
+                errorMesssage.append("    template value [")
+                    .append(template)
+                    .append("] ")
+                    .append(template.getClass().getSimpleName())
                     .append(System.lineSeparator());
-                errorMesssage.append("    index value [").append(index).append("] ").append(index.getClass().getSimpleName())
+                errorMesssage.append("    index value [")
+                    .append(index)
+                    .append("] ")
+                    .append(index.getClass().getSimpleName())
                     .append(System.lineSeparator());
             }
         }
@@ -313,17 +328,17 @@ public class IndexMappingTemplateAsserter {
         Boolean right;
 
         if (a instanceof Boolean) {
-            left = (Boolean)a;
-        } else if (a instanceof String && isBooleanValueString((String)a)) {
-            left = Boolean.parseBoolean((String)a);
+            left = (Boolean) a;
+        } else if (a instanceof String && isBooleanValueString((String) a)) {
+            left = Boolean.parseBoolean((String) a);
         } else {
             return false;
         }
 
         if (b instanceof Boolean) {
-            right = (Boolean)b;
-        } else if (b instanceof String && isBooleanValueString((String)b)) {
-            right = Boolean.parseBoolean((String)b);
+            right = (Boolean) b;
+        } else if (b instanceof String && isBooleanValueString((String) b)) {
+            right = Boolean.parseBoolean((String) b);
         } else {
             return false;
         }
@@ -344,9 +359,7 @@ public class IndexMappingTemplateAsserter {
     }
 
     private static Stream<Map.Entry<String, Object>> flatten(String path, Map<String, Object> map) {
-        return map.entrySet()
-            .stream()
-            .flatMap((e) -> extractValue(path, e));
+        return map.entrySet().stream().flatMap((e) -> extractValue(path, e));
     }
 
     @SuppressWarnings("unchecked")

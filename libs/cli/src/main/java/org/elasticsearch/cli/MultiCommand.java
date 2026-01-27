@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli;
@@ -13,7 +14,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,12 +35,11 @@ public class MultiCommand extends Command {
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
+     *  @param description the multi-command description
      *
-     * @param description the multi-command description
-     * @param beforeMain the before-main runnable
      */
-    public MultiCommand(final String description, final Runnable beforeMain) {
-        super(description, beforeMain);
+    public MultiCommand(final String description) {
+        super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
         parser.posixlyCorrect(true);
     }
@@ -71,7 +71,7 @@ public class MultiCommand extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
@@ -92,7 +92,7 @@ public class MultiCommand extends Command {
             args.add("-E" + pair);
         }
 
-        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
+        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal, processInfo);
     }
 
     @Override

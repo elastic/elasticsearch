@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.util.FrozenUtilsTests;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.util.Objects;
 
@@ -68,7 +68,7 @@ public class FrozenShardsDeciderServiceTests extends AutoscalingTestCase {
         );
         assertThat(defaultSettingsResult.reason().summary(), equalTo("shard count [" + (shards * (replicas + 1) + "]")));
 
-        ByteSizeValue memoryPerShard = new ByteSizeValue(
+        ByteSizeValue memoryPerShard = ByteSizeValue.of(
             randomLongBetween(0, 1000),
             randomFrom(ByteSizeUnit.BYTES, ByteSizeUnit.KB, ByteSizeUnit.MB)
         );

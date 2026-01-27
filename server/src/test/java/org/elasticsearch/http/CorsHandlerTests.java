@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -55,19 +56,21 @@ public class CorsHandlerTests extends ESTestCase {
     public void testCorsConfig() {
         final Set<String> methods = new HashSet<>(Arrays.asList("get", "options", "post"));
         final Set<String> headers = new HashSet<>(Arrays.asList("Content-Type", "Content-Length"));
-        final String prefix = randomBoolean() ? " " : ""; // sometimes have a leading whitespace between comma delimited elements
+        final String maybeSpace = randomFrom(" ", ""); // sometimes have a leading whitespace between comma delimited elements
         final Settings settings = Settings.builder()
             .put(SETTING_CORS_ENABLED.getKey(), true)
             .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "*")
-            .put(SETTING_CORS_ALLOW_METHODS.getKey(), collectionToDelimitedString(methods, ",", prefix, ""))
-            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), collectionToDelimitedString(headers, ",", prefix, ""))
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), maybeSpace + collectionToDelimitedString(methods, "," + maybeSpace))
+            .put(SETTING_CORS_ALLOW_HEADERS.getKey(), maybeSpace + collectionToDelimitedString(headers, "," + maybeSpace))
             .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
             .build();
         final CorsHandler.Config corsConfig = CorsHandler.buildConfig(settings);
         assertTrue(corsConfig.isAnyOriginSupported());
         assertEquals(headers, corsConfig.allowedRequestHeaders());
-        assertEquals(methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
-            corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet()));
+        assertEquals(
+            methods.stream().map(s -> s.toUpperCase(Locale.ENGLISH)).collect(Collectors.toSet()),
+            corsConfig.allowedRequestMethods().stream().map(RestRequest.Method::name).collect(Collectors.toSet())
+        );
     }
 
     public void testCorsConfigWithDefaults() {
@@ -85,9 +88,7 @@ public class CorsHandlerTests extends ESTestCase {
     }
 
     public void testHandleInboundNonCorsRequest() {
-        Settings settings = Settings.builder()
-            .put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true)
-            .build();
+        Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_CORS_ENABLED.getKey(), true).build();
         CorsHandler corsHandler = CorsHandler.fromSettings(settings);
         TestHttpRequest request = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
         HttpResponse httpResponse = corsHandler.handleInbound(request);
@@ -176,10 +177,8 @@ public class CorsHandlerTests extends ESTestCase {
         assertThat(httpResponse.status(), equalTo(RestStatus.OK));
         Map<String, List<String>> headers = httpResponse.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("*"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS), containsInAnyOrder("Content-Type", "Content-Length"));
         assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));
@@ -203,10 +202,19 @@ public class CorsHandlerTests extends ESTestCase {
         // Since credentials are allowed, we echo the origin
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
+        assertThat(
+            headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
+            containsInAnyOrder(
+                "X-Requested-With",
+                "Content-Type",
+                "Content-Length",
+                "Authorization",
+                "Accept",
+                "User-Agent",
+                "X-Elastic-Client-Meta"
+            )
+        );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));
@@ -230,10 +238,19 @@ public class CorsHandlerTests extends ESTestCase {
         // Since credentials are allowed, we echo the origin
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS),
-            containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
-        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
-            containsInAnyOrder("X-Requested-With", "Content-Type", "Content-Length"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_METHODS), containsInAnyOrder("HEAD", "OPTIONS", "GET", "DELETE", "POST"));
+        assertThat(
+            headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_HEADERS),
+            containsInAnyOrder(
+                "X-Requested-With",
+                "Content-Type",
+                "Content-Length",
+                "Authorization",
+                "Accept",
+                "User-Agent",
+                "X-Elastic-Client-Meta"
+            )
+        );
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_MAX_AGE), containsInAnyOrder("1728000"));
         assertNotNull(headers.get(CorsHandler.DATE));
@@ -254,6 +271,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertNull(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN));
+        assertNull(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS));
     }
 
     public void testSetResponseHeadersWithWildcardOrigin() {
@@ -270,6 +288,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("*"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertNull(headers.get(CorsHandler.VARY));
     }
 
@@ -288,6 +307,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
     }
@@ -308,6 +328,7 @@ public class CorsHandlerTests extends ESTestCase {
 
         Map<String, List<String>> headers = response.headers();
         assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_ORIGIN), containsInAnyOrder("valid-origin"));
+        assertThat(headers.get(CorsHandler.ACCESS_CONTROL_EXPOSE_HEADERS), containsInAnyOrder("X-elastic-product"));
         assertThat(headers.get(CorsHandler.VARY), containsInAnyOrder(CorsHandler.ORIGIN));
         if (allowCredentials) {
             assertThat(headers.get(CorsHandler.ACCESS_CONTROL_ALLOW_CREDENTIALS), containsInAnyOrder("true"));

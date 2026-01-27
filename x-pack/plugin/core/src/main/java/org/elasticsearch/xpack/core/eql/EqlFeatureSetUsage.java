@@ -7,23 +7,23 @@
 
 package org.elasticsearch.xpack.core.eql;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
+public class EqlFeatureSetUsage extends XPackFeatureUsage {
 
     private final Map<String, Object> stats;
 
     public EqlFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
-        stats = in.readMap();
+        stats = in.readGenericMap();
     }
 
     public EqlFeatureSetUsage(Map<String, Object> stats) {
@@ -48,12 +48,12 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(stats);
+        out.writeGenericMap(stats);
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_9_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
 }

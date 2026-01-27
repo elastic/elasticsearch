@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geoip;
 
+import joptsimple.OptionException;
+
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +37,7 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS") // Don't randomly add 'extra' files to directory.
-public class GeoIpCliTests extends LuceneTestCase {
+public class GeoIpCliTests extends CommandTestCase {
 
     private Path source;
     private Path target;
@@ -47,16 +49,14 @@ public class GeoIpCliTests extends LuceneTestCase {
     }
 
     public void testNoSource() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        new GeoIpCli().main(new String[] {}, terminal);
-        assertThat(terminal.getErrorOutput(), containsString("Missing required option(s) [s/source]"));
+        var e = expectThrows(OptionException.class, () -> execute());
+        assertThat(e.getMessage(), containsString("Missing required option(s) [s/source]"));
     }
 
     public void testDifferentDirectories() throws Exception {
         Map<String, byte[]> data = createTestFiles(source);
 
-        GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString() }, new MockTerminal());
+        execute("-t", target.toAbsolutePath().toString(), "-s", source.toAbsolutePath().toString());
 
         try (Stream<Path> list = Files.list(source)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -74,9 +74,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     public void testSameDirectory() throws Exception {
         Map<String, byte[]> data = createTestFiles(target);
-
-        GeoIpCli cli = new GeoIpCli();
-        cli.main(new String[] { "-s", target.toAbsolutePath().toString() }, new MockTerminal());
+        execute("-s", target.toAbsolutePath().toString());
 
         try (Stream<Path> list = Files.list(target)) {
             List<String> files = list.map(p -> p.getFileName().toString()).collect(Collectors.toList());
@@ -92,10 +90,7 @@ public class GeoIpCliTests extends LuceneTestCase {
 
     private void verifyOverview() throws Exception {
         byte[] data = Files.readAllBytes(target.resolve("overview.json"));
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, data)
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, data)) {
             @SuppressWarnings({ "unchecked" })
             List<Map<String, String>> list = (List) parser.list();
             assertThat(list, containsInAnyOrder(hasEntry("name", "a.tgz"), hasEntry("name", "b.tgz"), hasEntry("name", "c.tgz")));
@@ -110,9 +105,7 @@ public class GeoIpCliTests extends LuceneTestCase {
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
         for (String tgz : List.of("a.tgz", "b.tgz")) {
             try (
-                TarArchiveInputStream tis = new TarArchiveInputStream(
-                    new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz))))
-                )
+                TarArchiveInputStream tis = new TarArchiveInputStream(new GZIPInputStream(Files.newInputStream(target.resolve(tgz)), 8192))
             ) {
                 TarArchiveEntry entry = tis.getNextTarEntry();
                 assertNotNull(entry);
@@ -146,5 +139,10 @@ public class GeoIpCliTests extends LuceneTestCase {
         Files.createFile(dir.resolve("c.tgz"));
 
         return data;
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new GeoIpCli();
     }
 }

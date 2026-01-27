@@ -1,24 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.analysis;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
@@ -33,6 +33,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * Serves as a node level registry for hunspell dictionaries. This services expects all dictionaries to be located under
@@ -64,16 +66,24 @@ import java.util.function.Function;
  *
  * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
  */
-public class HunspellService {
+public final class HunspellService {
 
     private static final Logger logger = LogManager.getLogger(HunspellService.class);
 
-    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.lazy", Boolean.FALSE, Property.NodeScope);
-    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE =
-        Setting.boolSetting("indices.analysis.hunspell.dictionary.ignore_case", Boolean.FALSE, Property.NodeScope);
-    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS =
-        Setting.groupSetting("indices.analysis.hunspell.dictionary.", Property.NodeScope);
+    public static final Setting<Boolean> HUNSPELL_LAZY_LOAD = Setting.boolSetting(
+        "indices.analysis.hunspell.dictionary.lazy",
+        Boolean.FALSE,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> HUNSPELL_IGNORE_CASE = Setting.boolSetting(
+        "indices.analysis.hunspell.dictionary.ignore_case",
+        Boolean.FALSE,
+        Property.NodeScope
+    );
+    public static final Setting<Settings> HUNSPELL_DICTIONARY_OPTIONS = Setting.groupSetting(
+        "indices.analysis.hunspell.dictionary.",
+        Property.NodeScope
+    );
     private final ConcurrentHashMap<String, Dictionary> dictionaries = new ConcurrentHashMap<>();
     private final Map<String, Dictionary> knownDictionaries;
     private final boolean defaultIgnoreCase;
@@ -81,7 +91,7 @@ public class HunspellService {
     private final Function<String, Dictionary> loadingFunction;
 
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
-            throws IOException {
+        throws IOException {
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);
         this.hunspellDir = resolveHunspellDirectory(env);
         this.defaultIgnoreCase = HUNSPELL_IGNORE_CASE.get(settings);
@@ -89,7 +99,7 @@ public class HunspellService {
             try {
                 return loadDictionary(locale, settings, env);
             } catch (Exception e) {
-                throw new IllegalStateException("failed to load hunspell dictionary for locale: " + locale, e);
+                throw new IllegalArgumentException("failed to load hunspell dictionary for locale: " + locale, e);
             }
         };
         if (HUNSPELL_LAZY_LOAD.get(settings) == false) {
@@ -111,8 +121,8 @@ public class HunspellService {
         return dictionary;
     }
 
-    private Path resolveHunspellDirectory(Environment env) {
-        return env.configFile().resolve("hunspell");
+    private static Path resolveHunspellDirectory(Environment env) {
+        return env.configDir().resolve("hunspell");
     }
 
     /**
@@ -130,8 +140,7 @@ public class HunspellService {
                                 } catch (Exception e) {
                                     // The cache loader throws unchecked exception (see #loadDictionary()),
                                     // here we simply report the exception and continue loading the dictionaries
-                                    logger.error(() -> new ParameterizedMessage(
-                                            "exception while loading dictionary {}", file.getFileName()), e);
+                                    logger.error(() -> format("exception while loading dictionary %s", file.getFileName()), e);
                                 }
                             }
                         }
@@ -184,12 +193,12 @@ public class HunspellService {
 
             affixStream = Files.newInputStream(affixFiles[0]);
 
-            try (Directory tmp = new NIOFSDirectory(env.tmpFile())) {
+            try (Directory tmp = new NIOFSDirectory(env.tmpDir())) {
                 return new Dictionary(tmp, "hunspell", affixStream, dicStreams, ignoreCase);
             }
 
         } catch (Exception e) {
-            logger.error(() -> new ParameterizedMessage("Could not load hunspell dictionary [{}]", locale), e);
+            logger.error(() -> "Could not load hunspell dictionary [" + locale + "]", e);
             throw e;
         } finally {
             IOUtils.close(affixStream);
@@ -219,4 +228,3 @@ public class HunspellService {
         return defaults;
     }
 }
-

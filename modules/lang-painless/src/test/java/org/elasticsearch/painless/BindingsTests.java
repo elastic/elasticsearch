@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -45,7 +46,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless;
+            return istateless + state + (int) dstateless;
         }
     }
 
@@ -59,7 +60,7 @@ public class BindingsTests extends ScriptTestCase {
         }
 
         public int addThisWithState(int istateless, double dstateless) {
-            return istateless + state + (int)dstateless + bindingsTestScript.getTestValue();
+            return istateless + state + (int) dstateless + bindingsTestScript.getTestValue();
         }
     }
 
@@ -82,8 +83,8 @@ public class BindingsTests extends ScriptTestCase {
             this.value = value;
         }
 
-        public void setInstanceBindingValue(int value) {
-            this.value = value;
+        public void setInstanceBindingValue(int instanceBindingValue) {
+            this.value = instanceBindingValue;
         }
 
         public int getInstanceBindingValue() {
@@ -97,33 +98,62 @@ public class BindingsTests extends ScriptTestCase {
 
     public abstract static class BindingsTestScript {
         public static final String[] PARAMETERS = { "test", "bound" };
-        public int getTestValue() {return 7;}
+
+        public int getTestValue() {
+            return 7;
+        }
+
         public abstract int execute(int test, int bound);
+
         public interface Factory {
             BindingsTestScript newInstance();
         }
+
         public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("bindings_test", Factory.class);
     }
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        List<Whitelist> whitelists = new ArrayList<>(PainlessPlugin.BASE_WHITELISTS);
+        List<Whitelist> whitelists = new ArrayList<>(PAINLESS_BASE_WHITELIST);
         whitelists.add(WhitelistLoader.loadFromResourceFiles(PainlessPlugin.class, "org.elasticsearch.painless.test"));
 
         InstanceBindingTestClass instanceBindingTestClass = new InstanceBindingTestClass(1);
-        WhitelistInstanceBinding getter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "setInstanceBindingValue", "void", Collections.singletonList("int"), Collections.emptyList());
-        WhitelistInstanceBinding setter = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "getInstanceBindingValue", "int", Collections.emptyList(), Collections.emptyList());
-        WhitelistInstanceBinding mul = new WhitelistInstanceBinding("test", instanceBindingTestClass,
-                "instanceMul", "int", List.of("int", "int"), List.of(CompileTimeOnlyAnnotation.INSTANCE));
+        WhitelistInstanceBinding getter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "setInstanceBindingValue",
+            "void",
+            Collections.singletonList("int"),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding setter = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "getInstanceBindingValue",
+            "int",
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+        WhitelistInstanceBinding mul = new WhitelistInstanceBinding(
+            "test",
+            instanceBindingTestClass,
+            "instanceMul",
+            "int",
+            List.of("int", "int"),
+            List.of(CompileTimeOnlyAnnotation.INSTANCE)
+        );
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);
         instanceBindingsList.add(setter);
         instanceBindingsList.add(mul);
-        Whitelist instanceBindingsWhitelist = new Whitelist(instanceBindingTestClass.getClass().getClassLoader(),
-                Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), instanceBindingsList);
+        Whitelist instanceBindingsWhitelist = new Whitelist(
+            instanceBindingTestClass.getClass().getClassLoader(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            instanceBindingsList
+        );
         whitelists.add(instanceBindingsWhitelist);
 
         contexts.put(BindingsTestScript.CONTEXT, whitelists);

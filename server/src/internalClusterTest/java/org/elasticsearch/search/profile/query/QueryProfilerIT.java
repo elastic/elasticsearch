@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
 
-import org.apache.lucene.util.English;
+import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -31,12 +31,12 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.search.profile.query.RandomQueryGenerator.randomQueryBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-
 
 public class QueryProfilerIT extends ESIntegTestCase {
 
@@ -51,10 +51,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         List<String> stringFields = Arrays.asList("field1");
@@ -67,30 +64,30 @@ public class QueryProfilerIT extends ESIntegTestCase {
         for (int i = 0; i < iters; i++) {
             QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
             logger.info("Query: {}", q);
-
-            SearchResponse resp = client().prepareSearch()
-                    .setQuery(q)
-                    .setTrackTotalHits(true)
-                    .setProfile(true)
-                    .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .get();
-
-            assertNotNull("Profile response element should not be null", resp.getProfileResults());
-            assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
-            for (Map.Entry<String, SearchProfileShardResult> shard : resp.getProfileResults().entrySet()) {
-                for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
-                    for (ProfileResult result : searchProfiles.getQueryResults()) {
-                        assertNotNull(result.getQueryName());
-                        assertNotNull(result.getLuceneDescription());
-                        assertThat(result.getTime(), greaterThan(0L));
+            assertResponse(
+                prepareSearch().setQuery(q).setTrackTotalHits(true).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH),
+                response -> {
+                    assertNotNull("Profile response element should not be null", response.getProfileResults());
+                    if (response.getSkippedShards() == response.getSuccessfulShards()) {
+                        assertEquals(0, response.getProfileResults().size());
+                    } else {
+                        assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
                     }
+                    for (Map.Entry<String, SearchProfileShardResult> shard : response.getProfileResults().entrySet()) {
+                        for (QueryProfileShardResult searchProfiles : shard.getValue().getQueryProfileResults()) {
+                            for (ProfileResult result : searchProfiles.getQueryResults()) {
+                                assertNotNull(result.getQueryName());
+                                assertNotNull(result.getLuceneDescription());
+                                assertThat(result.getTime(), greaterThan(0L));
+                            }
 
-                    CollectorResult result = searchProfiles.getCollectorResult();
-                    assertThat(result.getName(), is(not(emptyOrNullString())));
-                    assertThat(result.getTime(), greaterThan(0L));
+                            CollectorResult result = searchProfiles.getCollectorResult();
+                            assertThat(result.getName(), is(not(emptyOrNullString())));
+                            assertThat(result.getTime(), greaterThan(0L));
+                        }
+                    }
                 }
-            }
-
+            );
         }
     }
 
@@ -100,19 +97,14 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * to make sure the profiling doesn't interfere with the hits being returned
      */
     public void testProfileMatchesRegular() throws Exception {
-        createIndex("test", Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 0).build());
+        createIndex("test", 1, 0);
         ensureGreen();
 
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "id", String.valueOf(i),
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i))
+                .setSource("id", String.valueOf(i), "field1", English.intToEnglish(i), "field2", i);
         }
 
         List<String> stringFields = Arrays.asList("field1");
@@ -124,65 +116,64 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = randomQueryBuilder(stringFields, numericFields, numDocs, 3);
         logger.debug("Query: {}", q);
 
-        SearchRequestBuilder vanilla = client().prepareSearch("test")
-            .setQuery(q)
+        SearchRequestBuilder vanilla = prepareSearch("test").setQuery(q)
             .setProfile(false)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        SearchRequestBuilder profile = client().prepareSearch("test")
-            .setQuery(q)
+        SearchRequestBuilder profile = prepareSearch("test").setQuery(q)
             .setProfile(true)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
             .setRequestCache(false);
 
-        MultiSearchResponse.Item[] responses = client().prepareMultiSearch()
-            .add(vanilla)
-            .add(profile)
-            .get().getResponses();
+        assertResponse(client().prepareMultiSearch().add(vanilla).add(profile), response -> {
+            Item[] responses = response.getResponses();
 
-        SearchResponse vanillaResponse = responses[0].getResponse();
-        SearchResponse profileResponse = responses[1].getResponse();
+            SearchResponse vanillaResponse = responses[0].getResponse();
+            SearchResponse profileResponse = responses[1].getResponse();
 
-        assertThat(vanillaResponse.getFailedShards(), equalTo(0));
-        assertThat(profileResponse.getFailedShards(), equalTo(0));
-        assertThat(vanillaResponse.getSuccessfulShards(), equalTo(profileResponse.getSuccessfulShards()));
+            assertThat(vanillaResponse.getFailedShards(), equalTo(0));
+            assertThat(profileResponse.getFailedShards(), equalTo(0));
+            assertThat(vanillaResponse.getSuccessfulShards(), equalTo(profileResponse.getSuccessfulShards()));
 
-        float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
-        float profileMaxScore = profileResponse.getHits().getMaxScore();
-        if (Float.isNaN(vanillaMaxScore)) {
-            assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]",
-                    Float.isNaN(profileMaxScore));
-        } else {
-            assertEquals("Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
-                    vanillaMaxScore, profileMaxScore, 0.001);
-        }
-
-        if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
-            Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
-            Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-            if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
-                vanillaSet.removeAll(profileSet);
-                fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: "
-                    + vanillaSet.toString());
+            float vanillaMaxScore = vanillaResponse.getHits().getMaxScore();
+            float profileMaxScore = profileResponse.getHits().getMaxScore();
+            if (Float.isNaN(vanillaMaxScore)) {
+                assertTrue("Vanilla maxScore is NaN but Profile is not [" + profileMaxScore + "]", Float.isNaN(profileMaxScore));
             } else {
-                profileSet.removeAll(vanillaSet);
-                fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: "
-                    + profileSet.toString());
+                assertEquals(
+                    "Profile maxScore of [" + profileMaxScore + "] is not close to Vanilla maxScore [" + vanillaMaxScore + "]",
+                    vanillaMaxScore,
+                    profileMaxScore,
+                    0.001
+                );
             }
-        }
 
-        SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
-        SearchHit[] profileHits = profileResponse.getHits().getHits();
+            if (vanillaResponse.getHits().getTotalHits().value() != profileResponse.getHits().getTotalHits().value()) {
+                Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
+                Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
+                if (vanillaResponse.getHits().getTotalHits().value() > profileResponse.getHits().getTotalHits().value()) {
+                    vanillaSet.removeAll(profileSet);
+                    fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
+                } else {
+                    profileSet.removeAll(vanillaSet);
+                    fail("Profile hits were larger than vanilla hits.  Non-overlapping elements were: " + profileSet.toString());
+                }
+            }
 
-        for (int j = 0; j < vanillaHits.length; j++) {
-            assertThat("Profile hit #" + j + " has a different ID from Vanilla",
-                vanillaHits[j].getId(), equalTo(profileHits[j].getId()));
-        }
+            SearchHit[] vanillaHits = vanillaResponse.getHits().getHits();
+            SearchHit[] profileHits = profileResponse.getHits().getHits();
 
-
+            for (int j = 0; j < vanillaHits.length; j++) {
+                assertThat(
+                    "Profile hit #" + j + " has a different ID from Vanilla",
+                    vanillaHits[j].getId(),
+                    equalTo(profileHits[j].getId())
+                );
+            }
+        });
     }
 
     /**
@@ -193,10 +184,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -204,30 +192,26 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         QueryBuilder q = QueryBuilders.matchQuery("field1", "one");
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            Map<String, SearchProfileShardResult> p = response.getProfileResults();
+            assertNotNull(p);
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        Map<String, SearchProfileShardResult> p = resp.getProfileResults();
-        assertNotNull(p);
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertEquals(result.getQueryName(), "TermQuery");
+                        assertEquals(result.getLuceneDescription(), "field1:one");
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertEquals(result.getQueryName(), "TermQuery");
-                    assertEquals(result.getLuceneDescription(), "field1:one");
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     /**
@@ -240,61 +224,53 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
 
-        QueryBuilder q = QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))
-                .must(QueryBuilders.matchQuery("field1", "two"));
+        QueryBuilder q = QueryBuilders.boolQuery()
+            .must(QueryBuilders.matchQuery("field1", "one"))
+            .must(QueryBuilders.matchQuery("field1", "two"));
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            Map<String, SearchProfileShardResult> p = response.getProfileResults();
+            assertNotNull(p);
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        Map<String, SearchProfileShardResult> p = resp.getProfileResults();
-        assertNotNull(p);
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertEquals(result.getQueryName(), "BooleanQuery");
+                        assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                        assertEquals(result.getProfiledChildren().size(), 2);
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertEquals(result.getQueryName(), "BooleanQuery");
-                    assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
+                        // Check the children
+                        List<ProfileResult> children = result.getProfiledChildren();
+                        assertEquals(children.size(), 2);
+
+                        ProfileResult childProfile = children.get(0);
+                        assertEquals(childProfile.getQueryName(), "TermQuery");
+                        assertEquals(childProfile.getLuceneDescription(), "field1:one");
+                        assertThat(childProfile.getTime(), greaterThan(0L));
+                        assertNotNull(childProfile.getTimeBreakdown());
+                        assertEquals(childProfile.getProfiledChildren().size(), 0);
+
+                        childProfile = children.get(1);
+                        assertEquals(childProfile.getQueryName(), "TermQuery");
+                        assertEquals(childProfile.getLuceneDescription(), "field1:two");
+                        assertThat(childProfile.getTime(), greaterThan(0L));
+                        assertNotNull(childProfile.getTimeBreakdown());
+                    }
+
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
-                    assertEquals(result.getProfiledChildren().size(), 2);
-
-                    // Check the children
-                    List<ProfileResult> children = result.getProfiledChildren();
-                    assertEquals(children.size(), 2);
-
-                    ProfileResult childProfile = children.get(0);
-                    assertEquals(childProfile.getQueryName(), "TermQuery");
-                    assertEquals(childProfile.getLuceneDescription(), "field1:one");
-                    assertThat(childProfile.getTime(), greaterThan(0L));
-                    assertNotNull(childProfile.getTimeBreakdown());
-                    assertEquals(childProfile.getProfiledChildren().size(), 0);
-
-                    childProfile = children.get(1);
-                    assertEquals(childProfile.getQueryName(), "TermQuery");
-                    assertEquals(childProfile.getLuceneDescription(), "field1:two");
-                    assertThat(childProfile.getTime(), greaterThan(0L));
-                    assertNotNull(childProfile.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
-
-
+        });
     }
 
     /**
@@ -307,10 +283,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -320,29 +293,25 @@ public class QueryProfilerIT extends ESIntegTestCase {
         QueryBuilder q = QueryBuilders.boolQuery();
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            assertNotNull("Profile response element should not be null", response.getProfileResults());
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     /**
@@ -357,10 +326,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -368,33 +334,29 @@ public class QueryProfilerIT extends ESIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.boolQuery()
-                .must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
+            .must(QueryBuilders.boolQuery().must(QueryBuilders.boolQuery().must(QueryBuilders.matchQuery("field1", "one"))));
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            assertNotNull("Profile response element should not be null", response.getProfileResults());
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     public void testBoosting() throws Exception {
@@ -404,10 +366,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -415,33 +374,29 @@ public class QueryProfilerIT extends ESIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.boostingQuery(QueryBuilders.matchQuery("field1", "one"), QueryBuilders.matchQuery("field1", "two"))
-                .boost(randomFloat())
-                .negativeBoost(randomFloat());
+            .boost(randomFloat())
+            .negativeBoost(randomFloat());
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            assertNotNull("Profile response element should not be null", response.getProfileResults());
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     public void testDisMaxRange() throws Exception {
@@ -451,10 +406,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -462,33 +414,29 @@ public class QueryProfilerIT extends ESIntegTestCase {
         refresh();
 
         QueryBuilder q = QueryBuilders.disMaxQuery()
-                .boost(0.33703882f)
-                .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
+            .boost(0.33703882f)
+            .add(QueryBuilders.rangeQuery("field2").from(null).to(73).includeLower(true).includeUpper(true));
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            assertNotNull("Profile response element should not be null", response.getProfileResults());
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     public void testRange() throws Exception {
@@ -498,10 +446,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -512,29 +457,25 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info("Query: {}", q.toString());
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
+        assertResponse(prepareSearch().setQuery(q).setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH), response -> {
+            assertNotNull("Profile response element should not be null", response.getProfileResults());
+            assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
 
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
+            for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                        assertNotNull(result.getTimeBreakdown());
+                    }
 
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), is(not(emptyOrNullString())));
                     assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
                 }
-
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
             }
-        }
+        });
     }
 
     public void testPhrase() throws Exception {
@@ -544,10 +485,8 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i) + " " + English.intToEnglish(i+1),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i))
+                .setSource("field1", English.intToEnglish(i) + " " + English.intToEnglish(i + 1), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -558,37 +497,35 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch()
-                .setQuery(q)
-                .setIndices("test")
-                .setProfile(true)
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .get();
-
-        if (resp.getShardFailures().length > 0) {
-            for (ShardSearchFailure f : resp.getShardFailures()) {
-                logger.error("Shard search failure: {}", f);
-            }
-            fail();
-        }
-
-        assertNotNull("Profile response element should not be null", resp.getProfileResults());
-        assertThat("Profile response should not be an empty array", resp.getProfileResults().size(), not(0));
-
-        for (Map.Entry<String, SearchProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
-                for (ProfileResult result : searchProfiles.getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
-                    assertThat(result.getTime(), greaterThan(0L));
-                    assertNotNull(result.getTimeBreakdown());
+        assertResponse(
+            prepareSearch().setQuery(q).setIndices("test").setProfile(true).setSearchType(SearchType.QUERY_THEN_FETCH),
+            response -> {
+                if (response.getShardFailures().length > 0) {
+                    for (ShardSearchFailure f : response.getShardFailures()) {
+                        logger.error("Shard search failure: {}", f);
+                    }
+                    fail();
                 }
 
-                CollectorResult result = searchProfiles.getCollectorResult();
-                assertThat(result.getName(), is(not(emptyOrNullString())));
-                assertThat(result.getTime(), greaterThan(0L));
+                assertNotNull("Profile response element should not be null", response.getProfileResults());
+                assertThat("Profile response should not be an empty array", response.getProfileResults().size(), not(0));
+
+                for (Map.Entry<String, SearchProfileShardResult> shardResult : response.getProfileResults().entrySet()) {
+                    for (QueryProfileShardResult searchProfiles : shardResult.getValue().getQueryProfileResults()) {
+                        for (ProfileResult result : searchProfiles.getQueryResults()) {
+                            assertNotNull(result.getQueryName());
+                            assertNotNull(result.getLuceneDescription());
+                            assertThat(result.getTime(), greaterThan(0L));
+                            assertNotNull(result.getTimeBreakdown());
+                        }
+
+                        CollectorResult result = searchProfiles.getCollectorResult();
+                        assertThat(result.getName(), is(not(emptyOrNullString())));
+                        assertThat(result.getTime(), greaterThan(0L));
+                    }
+                }
             }
-        }
+        );
     }
 
     /**
@@ -601,10 +538,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test").setId(String.valueOf(i)).setSource(
-                    "field1", English.intToEnglish(i),
-                    "field2", i
-            );
+            docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("field1", English.intToEnglish(i), "field2", i);
         }
 
         indexRandom(true, docs);
@@ -613,9 +547,9 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         logger.info("Query: {}", q);
 
-        SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).get();
-        assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
+        assertResponse(
+            prepareSearch().setQuery(q).setProfile(false),
+            response -> assertThat("Profile response element should be an empty map", response.getProfileResults().size(), equalTo(0))
+        );
     }
-
 }
-

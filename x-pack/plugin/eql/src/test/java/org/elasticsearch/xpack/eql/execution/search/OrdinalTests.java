@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.test.ESTestCase;
 
-@SuppressWarnings({"unchecked", "rawtypes"})
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class OrdinalTests extends ESTestCase {
 
     public void testCompareToDifferentTs() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -13,20 +14,20 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Constructs a query that only match on documents that the field has a value in them.
@@ -66,14 +67,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null) {
-            if (getMappedFields(context, fieldName).isEmpty()) {
-                return new MatchNoneQueryBuilder();
-            }
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) {
+        if (getMappedFields(context, fieldName).isEmpty()) {
+            return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
+        } else {
+            return this;
         }
-        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -102,12 +101,16 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                            "] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "[" + ExistsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]"
+                    );
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(), "[" + ExistsQueryBuilder.NAME +
-                        "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[" + ExistsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                );
             }
         }
 
@@ -127,8 +130,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
-       Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern)
-           .stream().map(context::getFieldType).collect(Collectors.toList());
+        Collection<MappedFieldType> fields = getMappedFields(context, fieldPattern).stream().map(context::getFieldType).toList();
 
         if (fields.isEmpty()) {
             if (checkRewrite) {
@@ -150,7 +152,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Collection<String> getMappedFields(SearchExecutionContext context, String fieldPattern) {
+    private static Collection<String> getMappedFields(QueryRewriteContext context, String fieldPattern) {
         Set<String> matchingFieldNames = context.getMatchingFieldNames(fieldPattern);
         if (matchingFieldNames.isEmpty()) {
             // might be an object field, so try matching it as an object prefix pattern
@@ -172,5 +174,10 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Builder for requests to retrieve a role from the security index
@@ -15,15 +15,16 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class GetRolesRequestBuilder extends ActionRequestBuilder<GetRolesRequest, GetRolesResponse> {
 
     public GetRolesRequestBuilder(ElasticsearchClient client) {
-        this(client, GetRolesAction.INSTANCE);
-    }
-
-    public GetRolesRequestBuilder(ElasticsearchClient client, GetRolesAction action) {
-        super(client, action, new GetRolesRequest());
+        super(client, GetRolesAction.INSTANCE, new GetRolesRequest());
     }
 
     public GetRolesRequestBuilder names(String... names) {
         request.names(names);
+        return this;
+    }
+
+    public GetRolesRequestBuilder nativeOnly(boolean nativeOnly) {
+        request.nativeOnly(nativeOnly);
         return this;
     }
 }

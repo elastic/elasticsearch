@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -25,11 +25,13 @@ public class JobStatsMonitoringDoc extends MonitoringDoc {
 
     private final JobStats jobStats;
 
-    public JobStatsMonitoringDoc(final String cluster,
-                                 final long timestamp,
-                                 final long intervalMillis,
-                                 final MonitoringDoc.Node node,
-                                 final JobStats jobStats) {
+    public JobStatsMonitoringDoc(
+        final String cluster,
+        final long timestamp,
+        final long intervalMillis,
+        final MonitoringDoc.Node node,
+        final JobStats jobStats
+    ) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.jobStats = Objects.requireNonNull(jobStats);
     }

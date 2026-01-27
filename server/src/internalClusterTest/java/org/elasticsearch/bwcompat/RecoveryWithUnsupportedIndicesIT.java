@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.bwcompat;
 
-import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.LuceneTestCase;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -32,8 +33,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     /**
      * Return settings that could be used to start a node that has the given zipped home directory.
      */
-    private Settings prepareBackwardsDataDir(Path backwardsIndex) throws IOException {
-        Path indexDir = createTempDir();
+    private Settings prepareBackwardsDataDir(Path indexDir, Path backwardsIndex) throws IOException {
         Path dataDir = indexDir.resolve("data");
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, indexDir);
@@ -65,8 +65,7 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
         Files.move(src, dest);
         assertFalse(Files.exists(src));
         assertTrue(Files.exists(dest));
-        Settings.Builder builder = Settings.builder()
-            .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
+        Settings.Builder builder = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
         return builder.build();
     }
@@ -74,10 +73,15 @@ public class RecoveryWithUnsupportedIndicesIT extends ESIntegTestCase {
     public void testUpgradeStartClusterOn_2_4_5() throws Exception {
         String indexName = "unsupported-2.4.5";
 
+        Path indexDir = createTempDir();
         logger.info("Checking static index {}", indexName);
-        Settings nodeSettings = prepareBackwardsDataDir(getDataPath("/indices/bwc").resolve(indexName + ".zip"));
-        assertThat(ExceptionsHelper.unwrap(
-            expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)), CorruptStateException.class).getMessage(),
-            containsString("Format version is not supported"));
+        Settings nodeSettings = prepareBackwardsDataDir(indexDir, getDataPath("/indices/bwc").resolve(indexName + ".zip"));
+        assertThat(
+            ExceptionsHelper.unwrap(
+                expectThrows(Exception.class, () -> internalCluster().startNode(nodeSettings)),
+                CorruptStateException.class
+            ).getMessage(),
+            containsString("Format version is not supported")
+        );
     }
 }

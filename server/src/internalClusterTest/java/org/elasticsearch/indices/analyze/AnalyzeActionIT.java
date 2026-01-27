@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.analyze;
 
@@ -44,7 +45,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "this is a test").get();
+            AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze(indexOrAlias(), "this is a test").get();
             assertThat(analyzeResponse.getTokens().size(), equalTo(4));
             AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
             assertThat(token.getTerm(), equalTo("this"));
@@ -77,24 +78,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123").setField("long").get());
-
-        expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareAnalyze(indexOrAlias(), "123.0").setField("double").get());
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123").setField("long"));
+        expectThrows(IllegalArgumentException.class, indicesAdmin().prepareAnalyze(indexOrAlias(), "123.0").setField("double"));
     }
 
     public void testAnalyzeWithNoIndex() throws Exception {
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").addTokenFilter("lowercase")
-            .get();
+        analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase")
-            .get();
+        analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
         AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("this"));
@@ -105,7 +101,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         token = analyzeResponse.getTokens().get(3);
         assertThat(token.getTerm(), equalTo("test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("of course").setTokenizer("standard").addTokenFilter("stop").get();
+        analyzeResponse = indicesAdmin().prepareAnalyze("of course").setTokenizer("standard").addTokenFilter("stop").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("course"));
         assertThat(analyzeResponse.getTokens().get(0).getPosition(), equalTo(1));
@@ -118,11 +114,10 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
-        client().admin().indices().preparePutMapping("test")
-                .setSource("simple", "type=text,analyzer=simple").get();
+        indicesAdmin().preparePutMapping("test").setSource("simple", "type=text,analyzer=simple").get();
 
         for (int i = 0; i < 10; i++) {
-            final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("THIS IS A TEST");
+            final AnalyzeRequestBuilder requestBuilder = indicesAdmin().prepareAnalyze("THIS IS A TEST");
             requestBuilder.setIndex(indexOrAlias());
             requestBuilder.setField("document.simple");
             AnalyzeAction.Response analyzeResponse = requestBuilder.get();
@@ -137,17 +132,17 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     // issue #5974
     public void testThatStandardAndDefaultAnalyzersAreSame() throws Exception {
-        AnalyzeAction.Response response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("standard").get();
+        AnalyzeAction.Response response = indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("standard").get();
         assertTokens(response, "this", "is", "a", "test");
 
-        response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("default").get();
+        response = indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("default").get();
         assertTokens(response, "this", "is", "a", "test");
 
-        response = client().admin().indices().prepareAnalyze("this is a test").get();
+        response = indicesAdmin().prepareAnalyze("this is a test").get();
         assertTokens(response, "this", "is", "a", "test");
     }
 
-    private void assertTokens(AnalyzeAction.Response response, String ... tokens) {
+    private void assertTokens(AnalyzeAction.Response response, String... tokens) {
         assertThat(response.getTokens(), hasSize(tokens.length));
         for (int i = 0; i < tokens.length; i++) {
             assertThat(response.getTokens().get(i).getTerm(), is(tokens[i]));
@@ -162,12 +157,11 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
-        client().admin().indices().preparePutMapping("test")
-            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+        indicesAdmin().preparePutMapping("test").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
-        String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
+        String[] texts = new String[] { "THIS IS A TEST", "THE SECOND TEXT" };
 
-        final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze();
+        final AnalyzeRequestBuilder requestBuilder = indicesAdmin().prepareAnalyze();
         requestBuilder.setText(texts);
         requestBuilder.setIndex(indexOrAlias());
         requestBuilder.setField("simple");
@@ -189,9 +183,11 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testDetailAnalyzeWithNoIndex() throws Exception {
-        //analyzer only
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setAnalyzer("simple").get();
+        // analyzer only
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setAnalyzer("simple")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
         assertThat(analyzeResponse.detail().tokenfilters(), IsNull.nullValue());
@@ -201,9 +197,11 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testDetailAnalyzeCustomAnalyzerWithNoIndex() throws Exception {
-        //analyzer only
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setAnalyzer("simple").get();
+        // analyzer only
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setAnalyzer("simple")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenizer(), IsNull.nullValue());
         assertThat(analyzeResponse.detail().tokenfilters(), IsNull.nullValue());
@@ -211,45 +209,55 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().analyzer().getName(), equalTo("simple"));
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(4));
 
-        //custom analyzer
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST")
-            .setExplain(true).setTokenizer("keyword").addTokenFilter("lowercase").get();
+        // custom analyzer
+        analyzeResponse = indicesAdmin().prepareAnalyze("THIS IS A TEST")
+            .setExplain(true)
+            .setTokenizer("keyword")
+            .addTokenFilter("lowercase")
+            .get();
         assertThat(analyzeResponse.detail().analyzer(), IsNull.nullValue());
-        //tokenizer
+        // tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("keyword"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("THIS IS A TEST"));
-        //tokenfilters
+        // tokenfilters
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[0].getTerm(), equalTo("this is a test"));
 
-        //check other attributes
-        analyzeResponse = client().admin().indices().prepareAnalyze("This is troubled")
-            .setExplain(true).setTokenizer("standard").addTokenFilter("lowercase").get();
+        // check other attributes
+        analyzeResponse = indicesAdmin().prepareAnalyze("This is troubled")
+            .setExplain(true)
+            .setTokenizer("standard")
+            .addTokenFilter("lowercase")
+            .get();
 
         assertThat(analyzeResponse.detail().tokenfilters().length, equalTo(1));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getName(), equalTo("lowercase"));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens().length, equalTo(3));
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubled"));
-        String[] expectedAttributesKey = {
-            "bytes",
-            "termFrequency",
-            "positionLength"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
-                equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey))));
+        String[] expectedAttributesKey = { "bytes", "termFrequency", "positionLength" };
+        assertThat(
+            analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
+            equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey)))
+        );
     }
 
     public void testDetailAnalyzeWithMultiValues() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
-        client().admin().indices().preparePutMapping("test")
-            .setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
+        indicesAdmin().preparePutMapping("test").setSource("simple", "type=text,analyzer=simple,position_increment_gap=100").get();
 
-        String[] texts = new String[]{"THIS IS A TEST", "THE SECOND TEXT"};
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze().setIndex(indexOrAlias()).setText(texts)
-            .setExplain(true).setField("simple").setText(texts).execute().get();
+        String[] texts = new String[] { "THIS IS A TEST", "THE SECOND TEXT" };
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze()
+            .setIndex(indexOrAlias())
+            .setText(texts)
+            .setExplain(true)
+            .setField("simple")
+            .setText(texts)
+            .execute()
+            .get();
 
         assertThat(analyzeResponse.detail().analyzer().getName(), equalTo("simple"));
         assertThat(analyzeResponse.detail().analyzer().getTokens().length, equalTo(7));
@@ -270,11 +278,9 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testNonExistTokenizer() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices()
-                .prepareAnalyze("this is a test")
-                .setAnalyzer("not_exist_analyzer")
-                .get()
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            indicesAdmin().prepareAnalyze("this is a test").setAnalyzer("not_exist_analyzer")
         );
         assertThat(e.getMessage(), startsWith("failed to find global analyzer"));
     }
@@ -282,9 +288,8 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     public void testCustomTokenFilterInRequest() throws Exception {
         Map<String, Object> stopFilterSettings = new HashMap<>();
         stopFilterSettings.put("type", "stop");
-        stopFilterSettings.put("stopwords", new String[]{"foo", "buzz"});
-        AnalyzeAction.Response analyzeResponse = client().admin().indices()
-            .prepareAnalyze()
+        stopFilterSettings.put("stopwords", new String[] { "foo", "buzz" });
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze()
             .setText("Foo buzz test")
             .setTokenizer("standard")
             .addTokenFilter("lowercase")
@@ -292,7 +297,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             .setExplain(true)
             .get();
 
-        //tokenizer
+        // tokenizer
         assertThat(analyzeResponse.detail().tokenizer().getName(), equalTo("standard"));
         assertThat(analyzeResponse.detail().tokenizer().getTokens().length, equalTo(3));
         assertThat(analyzeResponse.detail().tokenizer().getTokens()[0].getTerm(), equalTo("Foo"));
@@ -350,7 +355,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setMapping("keyword", "type=keyword"));
         ensureGreen("test");
 
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("ABC"));
@@ -361,14 +366,19 @@ public class AnalyzeActionIT extends ESIntegTestCase {
     }
 
     public void testAnalyzeNormalizedKeywordField() throws IOException {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-            .setSettings(Settings.builder().put(indexSettings())
-                .put("index.analysis.normalizer.my_normalizer.type", "custom")
-                .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase"))
-            .setMapping("keyword", "type=keyword,normalizer=my_normalizer"));
+        assertAcked(
+            prepareCreate("test").addAlias(new Alias("alias"))
+                .setSettings(
+                    Settings.builder()
+                        .put(indexSettings())
+                        .put("index.analysis.normalizer.my_normalizer.type", "custom")
+                        .putList("index.analysis.normalizer.my_normalizer.filter", "lowercase")
+                )
+                .setMapping("keyword", "type=keyword,normalizer=my_normalizer")
+        );
         ensureGreen("test");
 
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze(indexOrAlias(), "ABC").setField("keyword").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         AnalyzeAction.AnalyzeToken token = analyzeResponse.getTokens().get(0);
         assertThat(token.getTerm(), equalTo("abc"));
@@ -385,7 +395,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         ensureGreen("test");
 
-        AnalyzeAction.Response analyzeResponse = client().admin().indices().prepareAnalyze("test", ".").get();
+        AnalyzeAction.Response analyzeResponse = indicesAdmin().prepareAnalyze("test", ".").get();
         assertNotNull(analyzeResponse.getTokens());
         assertThat(analyzeResponse.getTokens().size(), equalTo(0));
     }

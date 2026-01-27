@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery;
@@ -39,15 +40,23 @@ public class SettingsBasedSeedHostsProviderIT extends ESIntegTestCase {
 
     public void testClusterFormsWithSingleSeedHostInSettings() {
         final String seedNodeName = internalCluster().startNode();
-        final NodesInfoResponse nodesInfoResponse
-            = client(seedNodeName).admin().cluster().nodesInfo(new NodesInfoRequest("_local")).actionGet();
-        final String seedNodeAddress =
-            nodesInfoResponse.getNodes().get(0).getInfo(TransportInfo.class).getAddress().publishAddress().toString();
+        final NodesInfoResponse nodesInfoResponse = client(seedNodeName).admin()
+            .cluster()
+            .nodesInfo(new NodesInfoRequest("_local"))
+            .actionGet();
+        final String seedNodeAddress = nodesInfoResponse.getNodes()
+            .get(0)
+            .getInfo(TransportInfo.class)
+            .getAddress()
+            .publishAddress()
+            .toString();
         logger.info("--> using seed node address {}", seedNodeAddress);
 
         int extraNodes = randomIntBetween(1, 5);
-        internalCluster().startNodes(extraNodes,
-            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build());
+        internalCluster().startNodes(
+            extraNodes,
+            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build()
+        );
 
         ensureStableCluster(extraNodes + 1);
     }

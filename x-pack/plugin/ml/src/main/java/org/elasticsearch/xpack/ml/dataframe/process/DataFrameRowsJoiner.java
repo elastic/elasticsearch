@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractor;
@@ -23,11 +23,9 @@ import org.elasticsearch.xpack.ml.utils.persistence.LimitAwareBulkIndexer;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -48,8 +46,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private volatile String failure;
     private volatile boolean isCancelled;
 
-    DataFrameRowsJoiner(String analyticsId, Settings settings, TaskId parentTaskId, DataFrameDataExtractor dataExtractor,
-                        ResultsPersisterService resultsPersisterService) {
+    DataFrameRowsJoiner(
+        String analyticsId,
+        Settings settings,
+        TaskId parentTaskId,
+        DataFrameDataExtractor dataExtractor,
+        ResultsPersisterService resultsPersisterService
+    ) {
         this.analyticsId = Objects.requireNonNull(analyticsId);
         this.settings = Objects.requireNonNull(settings);
         this.parentTaskId = Objects.requireNonNull(parentTaskId);
@@ -74,7 +77,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             addResultAndJoinIfEndOfBatch(rowResults);
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results ", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results ", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         }
     }
@@ -93,10 +96,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
     private void joinCurrentResults() {
         try (LimitAwareBulkIndexer bulkIndexer = new LimitAwareBulkIndexer(settings, this::executeBulkRequest)) {
             while (currentResults.isEmpty() == false) {
+                if (dataExtractor.isCancelled()) {
+                    break;
+                }
                 RowResults result = currentResults.pop();
                 DataFrameDataExtractor.Row row = dataFrameRowsIterator.next();
                 checkChecksumsMatch(row, result);
-                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row.getHit()));
+                bulkIndexer.addAndExecuteIfNeeded(createIndexRequest(result, row));
             }
         }
 
@@ -110,10 +116,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
             bulkRequest,
             analyticsId,
             () -> isCancelled == false,
-            retryMessage -> {});
+            retryMessage -> {}
+        );
     }
 
-    private void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
+    private static void checkChecksumsMatch(DataFrameDataExtractor.Row row, RowResults result) {
         if (row.getChecksum() != result.getChecksum()) {
             String msg = "Detected checksum mismatch for document with id [" + row.getHit().getId() + "]; ";
             msg += "expected [" + row.getChecksum() + "] but result had [" + result.getChecksum() + "]; ";
@@ -123,11 +130,11 @@ class DataFrameRowsJoiner implements AutoCloseable {
         }
     }
 
-    private IndexRequest createIndexRequest(RowResults result, SearchHit hit) {
-        Map<String, Object> source = new LinkedHashMap<>(hit.getSourceAsMap());
+    private IndexRequest createIndexRequest(RowResults result, DataFrameDataExtractor.Row row) {
+        Map<String, Object> source = new LinkedHashMap<>(row.getSource());
         source.putAll(result.getResults());
-        IndexRequest indexRequest = new IndexRequest(hit.getIndex());
-        indexRequest.id(hit.getId());
+        IndexRequest indexRequest = new IndexRequest(row.getHit().getIndex());
+        indexRequest.id(row.getHit().getId());
         indexRequest.source(source);
         indexRequest.opType(DocWriteRequest.OpType.INDEX);
         indexRequest.setParentTask(parentTaskId);
@@ -139,13 +146,13 @@ class DataFrameRowsJoiner implements AutoCloseable {
         try {
             joinCurrentResults();
         } catch (Exception e) {
-            LOGGER.error(new ParameterizedMessage("[{}] Failed to join results", analyticsId), e);
+            LOGGER.error(() -> "[" + analyticsId + "] Failed to join results", e);
             failure = "[" + analyticsId + "] Failed to join results: " + e.getMessage();
         } finally {
             try {
                 consumeDataExtractor();
             } catch (Exception e) {
-                LOGGER.error(new ParameterizedMessage("[{}] Failed to consume data extractor", analyticsId), e);
+                LOGGER.error(() -> "[" + analyticsId + "] Failed to consume data extractor", e);
             }
         }
     }
@@ -159,12 +166,12 @@ class DataFrameRowsJoiner implements AutoCloseable {
 
     private class ResultMatchingDataFrameRows implements Iterator<DataFrameDataExtractor.Row> {
 
-        private List<DataFrameDataExtractor.Row> currentDataFrameRows = Collections.emptyList();
+        private SearchHit[] currentDataFrameRows = SearchHits.EMPTY;
         private int currentDataFrameRowsIndex;
 
         @Override
         public boolean hasNext() {
-            return dataExtractor.hasNext() || currentDataFrameRowsIndex < currentDataFrameRows.size();
+            return dataExtractor.hasNext() || currentDataFrameRowsIndex < currentDataFrameRows.length;
         }
 
         @Override
@@ -172,7 +179,7 @@ class DataFrameRowsJoiner implements AutoCloseable {
             DataFrameDataExtractor.Row row = null;
             while (hasNoMatch(row) && hasNext()) {
                 advanceToNextBatchIfNecessary();
-                row = currentDataFrameRows.get(currentDataFrameRowsIndex++);
+                row = dataExtractor.createRow(currentDataFrameRows[currentDataFrameRowsIndex++]);
             }
 
             if (hasNoMatch(row)) {
@@ -181,18 +188,18 @@ class DataFrameRowsJoiner implements AutoCloseable {
             return row;
         }
 
-        private boolean hasNoMatch(DataFrameDataExtractor.Row row) {
+        private static boolean hasNoMatch(DataFrameDataExtractor.Row row) {
             return row == null || row.shouldSkip() || row.isTraining() == false;
         }
 
         private void advanceToNextBatchIfNecessary() {
-            if (currentDataFrameRowsIndex >= currentDataFrameRows.size()) {
-                currentDataFrameRows = getNextDataRowsBatch().orElse(Collections.emptyList());
+            if (currentDataFrameRowsIndex >= currentDataFrameRows.length) {
+                currentDataFrameRows = getNextDataRowsBatch().orElse(SearchHits.EMPTY);
                 currentDataFrameRowsIndex = 0;
             }
         }
 
-        private Optional<List<DataFrameDataExtractor.Row>> getNextDataRowsBatch() {
+        private Optional<SearchHit[]> getNextDataRowsBatch() {
             try {
                 return dataExtractor.next();
             } catch (IOException e) {

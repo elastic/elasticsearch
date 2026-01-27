@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.store;
@@ -51,18 +52,13 @@ public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
             randomReadAndSlice(indexInput, firstReadLen);
             try {
                 switch (randomIntBetween(0, 2)) {
-                    case 0:
-                        indexInput.seek(Integer.MAX_VALUE + 4L);
-                        break;
-                    case 1:
-                        indexInput.seek(-randomIntBetween(1, 10));
-                        break;
-                    case 2:
+                    case 0 -> indexInput.seek(Integer.MAX_VALUE + 4L);
+                    case 1 -> indexInput.seek(-randomIntBetween(1, 10));
+                    case 2 -> {
                         int seek = input.length + randomIntBetween(1, 100);
                         indexInput.seek(seek);
-                        break;
-                    default:
-                        fail();
+                    }
+                    default -> fail();
                 }
                 fail();
             } catch (IOException ex) {
@@ -74,4 +70,3 @@ public class ByteArrayIndexInputTests extends ESIndexInputTestCase {
     }
 
 }
-

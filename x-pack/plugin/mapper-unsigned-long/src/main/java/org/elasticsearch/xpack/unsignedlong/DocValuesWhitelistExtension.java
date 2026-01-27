@@ -18,12 +18,14 @@ import org.elasticsearch.script.LongSortScript;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.script.StringSortScript;
 
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static java.util.Map.entry;
 
 public class DocValuesWhitelistExtension implements PainlessExtension {
 
@@ -35,23 +37,19 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
     @Override
     public Map<ScriptContext<?>, List<Whitelist>> getContextWhitelists() {
         List<Whitelist> whitelist = singletonList(WHITELIST);
-        return Map.of(
-            FieldScript.CONTEXT,
-            whitelist,
-            ScoreScript.CONTEXT,
-            whitelist,
-            FilterScript.CONTEXT,
-            whitelist,
-            AggregationScript.CONTEXT,
-            whitelist,
-            NumberSortScript.CONTEXT,
-            whitelist,
-            LongSortScript.CONTEXT,
-            whitelist,
-            StringSortScript.CONTEXT,
-            whitelist,
-            BucketAggregationSelectorScript.CONTEXT,
-            whitelist
+        return Map.ofEntries(
+            entry(FieldScript.CONTEXT, whitelist),
+            entry(ScoreScript.CONTEXT, whitelist),
+            entry(FilterScript.CONTEXT, whitelist),
+            entry(AggregationScript.CONTEXT, whitelist),
+            entry(NumberSortScript.CONTEXT, whitelist),
+            entry(StringSortScript.CONTEXT, whitelist),
+            entry(LongSortScript.CONTEXT, whitelist),
+            entry(BucketAggregationSelectorScript.CONTEXT, whitelist),
+            entry(ScriptedMetricAggContexts.InitScript.CONTEXT, whitelist),
+            entry(ScriptedMetricAggContexts.MapScript.CONTEXT, whitelist),
+            entry(ScriptedMetricAggContexts.CombineScript.CONTEXT, whitelist),
+            entry(ScriptedMetricAggContexts.ReduceScript.CONTEXT, whitelist)
         );
     }
 }

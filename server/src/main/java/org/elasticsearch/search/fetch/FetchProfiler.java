@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
+import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.profile.AbstractProfileBreakdown;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -58,11 +61,51 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void visitor(FieldsVisitor fieldsVisitor) {
-        current.debug.put(
-            "stored_fields",
-            fieldsVisitor == null ? List.of() : fieldsVisitor.getFieldNames().stream().sorted().collect(toList())
-        );
+    public StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader) {
+        current.debug.put("stored_fields", storedFieldLoader.fieldsToLoad());
+        return new StoredFieldLoader() {
+            @Override
+            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
+                LeafStoredFieldLoader in = storedFieldLoader.getLoader(ctx, docs);
+                return new LeafStoredFieldLoader() {
+                    @Override
+                    public void advanceTo(int doc) throws IOException {
+                        final Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_STORED_FIELDS);
+                        timer.start();
+                        try {
+                            in.advanceTo(doc);
+                        } finally {
+                            timer.stop();
+                        }
+                    }
+
+                    @Override
+                    public BytesReference source() {
+                        return in.source();
+                    }
+
+                    @Override
+                    public String id() {
+                        return in.id();
+                    }
+
+                    @Override
+                    public String routing() {
+                        return in.routing();
+                    }
+
+                    @Override
+                    public Map<String, List<Object>> storedFields() {
+                        return in.storedFields();
+                    }
+                };
+            }
+
+            @Override
+            public List<String> fieldsToLoad() {
+                return storedFieldLoader.fieldsToLoad();
+            }
+        };
     }
 
     @Override
@@ -72,7 +115,7 @@ public class FetchProfiler implements FetchPhase.Profiler {
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.NEXT_READER);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.NEXT_READER);
                 timer.start();
                 try {
                     delegate.setNextReader(readerContext);
@@ -82,8 +125,13 @@ public class FetchProfiler implements FetchPhase.Profiler {
             }
 
             @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return delegate.storedFieldsSpec();
+            }
+
+            @Override
             public void process(HitContext hitContext) throws IOException {
-                Timer timer = breakdown.getTimer(FetchSubPhaseTiming.PROCESS);
+                Timer timer = breakdown.getNewTimer(FetchSubPhaseTiming.PROCESS);
                 timer.start();
                 try {
                     delegate.process(hitContext);
@@ -95,23 +143,17 @@ public class FetchProfiler implements FetchPhase.Profiler {
     }
 
     @Override
-    public void startLoadingStoredFields() {
-        current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).start();
+    public Timer startLoadingSource() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.LOAD_SOURCE);
+        timer.start();
+        return timer;
     }
 
     @Override
-    public void stopLoadingStoredFields() {
-        current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).stop();
-    }
-
-    @Override
-    public void startNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).start();
-    }
-
-    @Override
-    public void stopNextReader() {
-        current.getTimer(FetchPhaseTiming.NEXT_READER).stop();
+    public Timer startNextReader() {
+        Timer timer = current.getNewTimer(FetchPhaseTiming.NEXT_READER);
+        timer.start();
+        return timer;
     }
 
     static class FetchProfileBreakdown extends AbstractProfileBreakdown<FetchPhaseTiming> {
@@ -138,9 +180,28 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
     }
 
+    /**
+     * Actions within the "main" fetch phase that are explicitly profiled.
+     * See also {@link FetchSubPhaseProfileBreakdown}.
+     */
     enum FetchPhaseTiming {
+        /**
+         * Time spent setting up infrastructure for each segment. This is
+         * called once per segment that has a matching document.
+         */
         NEXT_READER,
-        LOAD_STORED_FIELDS;
+        /**
+         * Time spent loading stored fields for each document. This is called
+         * once per document if the fetch needs stored fields. Most do.
+         */
+        LOAD_STORED_FIELDS,
+        /**
+         * Time spent computing the {@code _source}. This is called once per
+         * document that needs to fetch source. This may be as fast as reading
+         * {@code _source} from the stored fields or as slow as loading doc
+         * values for all fields.
+         */
+        LOAD_SOURCE;
 
         @Override
         public String toString() {
@@ -148,6 +209,9 @@ public class FetchProfiler implements FetchPhase.Profiler {
         }
     }
 
+    /**
+     * Timings from an optional sub-phase of fetch.
+     */
     static class FetchSubPhaseProfileBreakdown extends AbstractProfileBreakdown<FetchSubPhaseTiming> {
         private final String type;
         private final String description;

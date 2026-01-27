@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.security.auth.login.LoginException;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -28,8 +29,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -47,7 +48,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
@@ -58,9 +59,13 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final User user2 = authenticateAndAssertResult(kerberosRealm, expectedUser, kerberosAuthenticationToken, outToken);
 
         assertThat(user1, sameInstance(user2));
-        verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                anyActionListener());
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockKerberosTicketValidator, times(2)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
@@ -69,11 +74,11 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final String outToken = randomAlphaOfLength(10);
         final List<String> userNames = Arrays.asList(randomPrincipalName(), randomPrincipalName());
         final KerberosRealm kerberosRealm = createKerberosRealm(userNames.toArray(new String[0]));
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
 
         final String authNUsername = randomFrom(userNames);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(authNUsername, outToken), null);
         final String expectedUsername = maybeRemoveRealmName(authNUsername);
@@ -102,16 +107,26 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
             assertThat(user1, sameInstance(user2));
             verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         }
-        verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                anyActionListener());
+        verify(mockKerberosTicketValidator, times(2)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
-    public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled()
-            throws LoginException, GSSException, IOException {
+    public void testAuthenticateWithValidTicketSucessAuthnWithUserDetailsWhenCacheDisabled() throws LoginException, GSSException,
+        IOException {
         // if cache.ttl <= 0 then the cache is disabled
-        settings = buildKerberosRealmSettings(REALM_NAME,
-            writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(), 100, "0m", true, randomBoolean());
+        settings = buildKerberosRealmSettings(
+            REALM_NAME,
+            writeKeyTab(dir.resolve("key.keytab"), randomAlphaOfLength(4)).toString(),
+            100,
+            "0m",
+            true,
+            randomBoolean()
+        );
         final String username = randomPrincipalName();
         final String outToken = randomAlphaOfLength(10);
         final KerberosRealm kerberosRealm = createKerberosRealm(username);
@@ -122,7 +137,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         metadata.put(KerberosRealm.KRB_METADATA_UPN_KEY, username);
         final User expectedUser = new User(expectedUsername, roles.toArray(new String[0]), null, null, metadata, true);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
-        final Path keytabPath = config.env().configFile().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
+        final Path keytabPath = config.env().configDir().resolve(config.getSetting(KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH));
         final boolean krbDebug = config.getSetting(KerberosRealmSettings.SETTING_KRB_DEBUG_ENABLE);
         mockKerberosTicketValidator(decodedTicket, keytabPath, krbDebug, new Tuple<>(username, outToken), null);
         final KerberosAuthenticationToken kerberosAuthenticationToken = new KerberosAuthenticationToken(decodedTicket);
@@ -133,19 +148,27 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final User user2 = authenticateAndAssertResult(kerberosRealm, expectedUser, kerberosAuthenticationToken, outToken);
 
         assertThat(user1, not(sameInstance(user2)));
-        verify(mockKerberosTicketValidator, times(2)).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug),
-                anyActionListener());
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockKerberosTicketValidator, times(2)).validateTicket(
+            aryEq(decodedTicket),
+            eq(keytabPath),
+            eq(krbDebug),
+            anyActionListener()
+        );
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
 
-    private User authenticateAndAssertResult(final KerberosRealm kerberosRealm, final User expectedUser,
-            final KerberosAuthenticationToken kerberosAuthenticationToken, String outToken) {
-        final PlainActionFuture<AuthenticationResult> future = PlainActionFuture.newFuture();
+    private User authenticateAndAssertResult(
+        final KerberosRealm kerberosRealm,
+        final User expectedUser,
+        final KerberosAuthenticationToken kerberosAuthenticationToken,
+        String outToken
+    ) {
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         kerberosRealm.authenticate(kerberosAuthenticationToken, future);
-        final AuthenticationResult result = future.actionGet();
+        final AuthenticationResult<User> result = future.actionGet();
         assertSuccessAuthenticationResult(expectedUser, outToken, result);
-        return result.getUser();
+        return result.getValue();
     }
 }

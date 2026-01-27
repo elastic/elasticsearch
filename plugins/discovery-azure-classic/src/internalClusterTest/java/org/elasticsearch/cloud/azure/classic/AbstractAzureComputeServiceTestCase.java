@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.azure.classic;
@@ -14,6 +15,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
 import com.microsoft.windowsazure.management.compute.models.RoleInstance;
 import com.microsoft.windowsazure.management.compute.models.RoleInstancePowerState;
+
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService.Discovery;
@@ -85,7 +87,7 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
     }
 
     protected void assertNumberOfNodes(int expected) {
-        NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().clear().execute().actionGet();
+        NodesInfoResponse nodeInfos = clusterAdmin().prepareNodesInfo().clear().get();
         assertNotNull(nodeInfos);
         assertNotNull(nodeInfos.getNodes());
         assertEquals(expected, nodeInfos.getNodes().size());
@@ -145,21 +147,23 @@ public abstract class AbstractAzureComputeServiceTestCase extends ESIntegTestCas
          * network addresses for Azure instances running on the same host but different ports.
          */
         @Override
-        protected AzureSeedHostsProvider createSeedHostsProvider(final Settings settings,
-                                                                 final AzureComputeService azureComputeService,
-                                                                 final TransportService transportService,
-                                                                 final NetworkService networkService) {
-            return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService) {
+        protected AzureSeedHostsProvider createSeedHostsProvider(
+            final Settings settingsToUse,
+            final AzureComputeService azureComputeService,
+            final TransportService transportService,
+            final NetworkService networkService
+        ) {
+            return new AzureSeedHostsProvider(settingsToUse, azureComputeService, transportService, networkService) {
                 @Override
-                protected String resolveInstanceAddress(final HostType hostType, final RoleInstance instance) {
-                    if (hostType == HostType.PRIVATE_IP) {
+                protected String resolveInstanceAddress(final HostType hostTypeValue, final RoleInstance instance) {
+                    if (hostTypeValue == HostType.PRIVATE_IP) {
                         DiscoveryNode discoveryNode = nodes.get(instance.getInstanceName());
                         if (discoveryNode != null) {
                             // Format the InetSocketAddress to a format that contains the port number
                             return NetworkAddress.format(discoveryNode.getAddress().address());
                         }
                     }
-                    return super.resolveInstanceAddress(hostType, instance);
+                    return super.resolveInstanceAddress(hostTypeValue, instance);
                 }
             };
         }

@@ -1,6 +1,9 @@
 setup:
   - skip:
-      features: headers
+      features:
+        - "warnings"
+        - "headers"
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -36,6 +39,8 @@ setup:
           }
 
   - do:
+      warnings:
+        - 'bucket_span 17m [1020s] is not an integral divisor of the number of seconds in 1d [86400s]. This is now deprecated.'
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       ml.put_job:
@@ -45,7 +50,8 @@ setup:
             "groups": [ "jobs-get-result-overall-buckets-group"],
             "analysis_config" : {
                 "bucket_span": "17m",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "model_prune_window":"34d"
             },
             "data_description" : {
                 "time_field":"time"
@@ -63,7 +69,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_1"
         body:
           {
@@ -79,7 +85,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_2"
         body:
           {
@@ -95,7 +101,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-60_3"
         body:
           {
@@ -110,7 +116,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_1"
         body:
           {
@@ -126,7 +132,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_2"
         body:
           {
@@ -142,7 +148,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-30_3"
         body:
           {
@@ -158,7 +164,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_1"
         body:
           {
@@ -174,7 +180,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_2"
         body:
           {
@@ -190,7 +196,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_3"
         body:
           {
@@ -206,7 +212,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       index:
-        index:  .ml-anomalies-shared
+        index:  .ml-anomalies-shared-000001
         id:     "jobs-get-result-overall-buckets-17_4"
         body:
           {
@@ -222,7 +228,7 @@ setup:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       indices.refresh:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
 ---
 "Test overall buckets given missing job":
@@ -249,14 +255,6 @@ setup:
       ml.get_overall_buckets:
         job_id: "none-matching-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_overall_buckets:
-        job_id: "none-matching-*"
-        allow_no_jobs: false
 
 ---
 "Test overall buckets given top_n is 0":
@@ -604,7 +602,7 @@ setup:
       ml.get_overall_buckets:
         job_id: "jobs-get-result-overall-buckets-*"
         bucket_span: "2h"
-        overall_score: "41.0"
+        overall_score: 41.0
 
   - match: { count: 1 }
   - match: { overall_buckets.0.timestamp: 1464746400000 }
@@ -626,7 +624,7 @@ setup:
       ml.get_overall_buckets:
         job_id: "jobs-that-do-not-exist-*"
         bucket_span: "2h"
-        overall_score: "41.0"
+        overall_score: 41.0
         allow_no_match: true
 
   - match: { count: 0 }

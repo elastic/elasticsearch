@@ -1,44 +1,47 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.action.search.SearchParamsParser;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -49,19 +52,18 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in search requests is deprecated.";
-    public static final String FIRST_LINE_EMPTY_DEPRECATION_MESSAGE =
-        "support for empty first line before any action metadata in msearch API is deprecated " +
-            "and will be removed in the next major version";
+public class MultiSearchRequest extends LegacyActionRequest implements CompositeIndicesRequest, IndicesRequest.CrossProjectCandidate {
     public static final int MAX_CONCURRENT_SEARCH_REQUESTS_DEFAULT = 0;
 
     private int maxConcurrentSearchRequests = 0;
     private final List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    @Nullable
+    private String projectRouting;
+
+    private static final TransportVersion MSEARCH_PROJECT_ROUTING = TransportVersion.fromName("msearch_project_routing");
 
     public MultiSearchRequest() {}
 
@@ -134,7 +136,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return this;
     }
 
-
     public MultiSearchRequest(StreamInput in) throws IOException {
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
@@ -143,15 +144,20 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             SearchRequest request = new SearchRequest(in);
             requests.add(request);
         }
+        if (in.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
-        out.writeVInt(requests.size());
-        for (SearchRequest request : requests) {
-            request.writeTo(out);
+        out.writeCollection(requests);
+        if (out.getTransportVersion().supports(MSEARCH_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
         }
     }
 
@@ -160,9 +166,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MultiSearchRequest that = (MultiSearchRequest) o;
-        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests &&
-                Objects.equals(requests, that.requests) &&
-                Objects.equals(indicesOptions, that.indicesOptions);
+        return maxConcurrentSearchRequests == that.maxConcurrentSearchRequests
+            && Objects.equals(requests, that.requests)
+            && Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
@@ -170,28 +176,68 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return Objects.hash(maxConcurrentSearchRequests, requests, indicesOptions);
     }
 
-    public static void readMultiLineFormat(BytesReference data,
-                                           XContent xContent,
-                                           CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
-                                           String[] indices,
-                                           IndicesOptions indicesOptions,
-                                           String routing,
-                                           String searchType,
-                                           Boolean ccsMinimizeRoundtrips,
-                                           NamedXContentRegistry registry,
-                                           boolean allowExplicitIndex, RestApiVersion restApiVersion) throws IOException {
+    public static void readMultiLineFormat(
+        XContent xContent,
+        XContentParserConfiguration parserConfig,
+        BytesReference data,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        String routing,
+        String searchType,
+        Boolean ccsMinimizeRoundtrips,
+        boolean allowExplicitIndex,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
+    ) throws IOException {
+        readMultiLineFormat(
+            xContent,
+            parserConfig,
+            data,
+            consumer,
+            indices,
+            indicesOptions,
+            routing,
+            searchType,
+            ccsMinimizeRoundtrips,
+            allowExplicitIndex,
+            (s, o, r) -> false,
+            crossProjectEnabled,
+            projectRouting
+        );
+
+    }
+
+    public static void readMultiLineFormat(
+        XContent xContent,
+        XContentParserConfiguration parserConfig,
+        BytesReference data,
+        CheckedBiConsumer<SearchRequest, XContentParser, IOException> consumer,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        String routing,
+        String searchType,
+        Boolean ccsMinimizeRoundtrips,
+        boolean allowExplicitIndex,
+        TriFunction<String, Object, SearchRequest, Boolean> extraParamParser,
+        /*
+         * Refer to RestSearchAction#parseSearchRequest()'s JavaDoc to understand why this is an Optional
+         * and what its values mean with respect to an endpoint's Cross Project Search status/support.
+         */
+        Optional<Boolean> crossProjectEnabled,
+        @Nullable String projectRouting
+    ) throws IOException {
         int from = 0;
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
+        boolean warnedMrtForCps = false;
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
                 break;
-            }
-            // support first line with \n
-            if (restApiVersion == RestApiVersion.V_7 && nextMarker == 0) {
-                deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
-                from = nextMarker + 1;
-                continue;
             }
 
             SearchRequest searchRequest = new SearchRequest();
@@ -207,23 +253,38 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (searchType != null) {
                 searchRequest.searchType(searchType);
             }
+            /*
+             * This `ccsMinimizeRoundtrips` refers to the value specified as the query parameter and is extracted in
+             * `RestMultiSearchAction#parseMultiLineRequest()`. If in a Cross Project Search environment, it is
+             * guaranteed to be `true`. Otherwise, its value is whatever that the user is provided.
+             */
             if (ccsMinimizeRoundtrips != null) {
                 searchRequest.setCcsMinimizeRoundtrips(ccsMinimizeRoundtrips);
             }
             IndicesOptions defaultOptions = searchRequest.indicesOptions();
             // now parse the action
             if (nextMarker - from > 0) {
-                try (InputStream stream = data.slice(from, nextMarker - from).streamInput();
-                     XContentParser parser = xContent
-                         .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
+                try (
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        parserConfig,
+                        data.slice(from, nextMarker - from),
+                        xContent.type()
+                    )
+                ) {
                     Map<String, Object> source = parser.map();
+                    if (parser.nextToken() != null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                    }
                     Object expandWildcards = null;
                     Object ignoreUnavailable = null;
                     Object ignoreThrottled = null;
                     Object allowNoIndices = null;
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
-                        if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
+                        if (crossProjectEnabled.orElse(false)
+                            && ("project_routing".equals(entry.getKey()) || "projectRouting".equals(entry.getKey()))) {
+                            searchRequest.setProjectRouting(nodeStringValue(value));
+                        } else if ("index".equals(entry.getKey()) || "indices".equals(entry.getKey())) {
                             if (allowExplicitIndex == false) {
                                 throw new IllegalArgumentException("explicit index in multi search is not allowed");
                             }
@@ -231,7 +292,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                         } else if ("search_type".equals(entry.getKey()) || "searchType".equals(entry.getKey())) {
                             searchRequest.searchType(nodeStringValue(value, null));
                         } else if ("ccs_minimize_roundtrips".equals(entry.getKey()) || "ccsMinimizeRoundtrips".equals(entry.getKey())) {
-                            searchRequest.setCcsMinimizeRoundtrips(nodeBooleanValue(value));
+                            searchRequest.setCcsMinimizeRoundtrips(crossProjectEnabled.orElse(false) || nodeBooleanValue(value));
+                            if (crossProjectEnabled.orElse(false) && warnedMrtForCps == false) {
+                                HeaderWarning.addWarning(SearchParamsParser.MRT_SET_IN_CPS_WARN);
+                                warnedMrtForCps = true;
+                            }
                         } else if ("request_cache".equals(entry.getKey()) || "requestCache".equals(entry.getKey())) {
                             searchRequest.requestCache(nodeBooleanValue(value, entry.getKey()));
                         } else if ("preference".equals(entry.getKey())) {
@@ -248,18 +313,37 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if(restApiVersion == RestApiVersion.V_7 &&
-                            ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                            deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
                         } else {
                             throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                         }
                     }
-                    defaultOptions = IndicesOptions.fromParameters(expandWildcards, ignoreUnavailable, allowNoIndices, ignoreThrottled,
-                        defaultOptions);
+                    defaultOptions = IndicesOptions.fromParameters(
+                        expandWildcards,
+                        ignoreUnavailable,
+                        allowNoIndices,
+                        ignoreThrottled,
+                        defaultOptions
+                    );
                 }
             }
             searchRequest.indicesOptions(defaultOptions);
+
+            /*
+             * There are 2 different places where project_routing can appear:
+             * 1. As a query parameter, i.e. top-level, and,
+             * 2. Within the request's body.
+             *
+             * When it appears within the request's body, we override the query parameter: this is how msearch options and params
+             * work.
+             *
+             * At this point, if search#getProjectRouting() returns `null`, it means that we did not see any specific value within
+             * the request's body. So we'll pick up whatever that was provided in the top-level.
+             */
+            if (crossProjectEnabled.orElse(false) && searchRequest.getProjectRouting() == null && projectRouting != null) {
+                searchRequest.setProjectRouting(projectRouting);
+            }
 
             // move pointers
             from = nextMarker + 1;
@@ -268,11 +352,17 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             if (nextMarker == -1) {
                 break;
             }
-            BytesReference bytes = data.slice(from, nextMarker - from);
-            try (InputStream stream = bytes.streamInput();
-                 XContentParser parser = xContent
-                     .createParserForCompatibility(registry, LoggingDeprecationHandler.INSTANCE, stream, restApiVersion)) {
+            try (
+                XContentParser parser = XContentHelper.createParserNotCompressed(
+                    parserConfig,
+                    data.slice(from, nextMarker - from),
+                    xContent.type()
+                )
+            ) {
                 consumer.accept(searchRequest, parser);
+                if (parser.nextToken() != null) {
+                    throw new XContentParseException(parser.getTokenLocation(), "Unexpected token after end of object");
+                }
             }
             // move pointers
             from = nextMarker + 1;
@@ -298,7 +388,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 writeSearchRequestParams(request, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 if (request.source() != null) {
                     request.source().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -308,7 +398,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 }
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }
@@ -319,9 +409,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().getExpandWildcards(), xContentBuilder);
-            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
+            request.indicesOptions().concreteTargetOptions().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));
@@ -347,10 +436,28 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         return new CancellableTask(id, type, action, "", parentTaskId, headers) {
             @Override
             public String getDescription() {
-                return requests.stream()
-                    .map(SearchRequest::buildDescription)
-                    .collect(Collectors.joining(action + "[", ",", "]"));
+                return "requests["
+                    + requests.size()
+                    + "]: "
+                    + requests.stream().map(SearchRequest::buildDescription).collect(Collectors.joining(" | "));
             }
         };
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
+    }
+
+    public void setProjectRouting(String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing is already set to [" + this.projectRouting + "]");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    public String getProjectRouting() {
+        return projectRouting;
     }
 }

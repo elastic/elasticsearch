@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -31,15 +32,15 @@ public class ListTests extends ArrayLikeObjectTestCase {
     }
 
     private String fillValue(String valueType) {
-        switch (valueType) {
-        case "int":    return "0";
-        case "long":   return "0L";
-        case "short":  return "(short) 0";
-        case "byte":   return "(byte) 0";
-        case "float":  return "0.0f";
-        case "double": return "0.0"; // Double is implicit for decimal constants
-        default:       return null;
-        }
+        return switch (valueType) {
+            case "int" -> "0";
+            case "long" -> "0L";
+            case "short" -> "(short) 0";
+            case "byte" -> "(byte) 0";
+            case "float" -> "0.0f";
+            case "double" -> "0.0"; // Double is implicit for decimal constants
+            default -> null;
+        };
     }
 
     @Override

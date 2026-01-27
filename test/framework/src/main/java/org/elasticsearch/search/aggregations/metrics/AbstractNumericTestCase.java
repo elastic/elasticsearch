@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -13,7 +14,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractNumericTestCase extends ESIntegTestCase {
@@ -28,11 +29,18 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) { // TODO randomize the size and the params in here?
-            builders.add(client().prepareIndex("idx").setId(String.valueOf(i)).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i+1)
-                    .startArray("values").value(i+2).value(i+3).endArray()
-                    .endObject()));
+            builders.add(
+                prepareIndex("idx").setId(String.valueOf(i))
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("value", i + 1)
+                            .startArray("values")
+                            .value(i + 2)
+                            .value(i + 3)
+                            .endArray()
+                            .endObject()
+                    )
+            );
         }
         minValue = 1;
         minValues = 2;
@@ -44,13 +52,13 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
         // two docs {value: 0} and {value : 2}, then building a histogram agg with interval 1 and with empty
         // buckets computed.. the empty bucket is the one associated with key "1". then each test will have
         // to check that this bucket exists with the appropriate sub aggregations.
-        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").execute().actionGet();
+        prepareCreate("empty_bucket_idx").setMapping("value", "type=integer").get();
         builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
-            builders.add(client().prepareIndex("empty_bucket_idx").setId(String.valueOf(i)).setSource(jsonBuilder()
-                    .startObject()
-                    .field("value", i*2)
-                    .endObject()));
+            builders.add(
+                prepareIndex("empty_bucket_idx").setId(String.valueOf(i))
+                    .setSource(jsonBuilder().startObject().field("value", i * 2).endObject())
+            );
         }
         indexRandom(true, builders);
         ensureSearchable();

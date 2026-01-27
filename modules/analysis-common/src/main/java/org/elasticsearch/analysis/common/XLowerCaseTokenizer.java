@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -61,8 +62,8 @@ class XLowerCaseTokenizer extends Tokenizer {
                     assert start == -1;
                     start = offset + bufferIndex - charCount;
                     end = start;
-                } else if (length >= buffer.length-1) { // check if a supplementary could run out of bounds
-                    buffer = termAtt.resizeBuffer(2+length); // make sure a supplementary fits in the buffer
+                } else if (length >= buffer.length - 1) { // check if a supplementary could run out of bounds
+                    buffer = termAtt.resizeBuffer(2 + length); // make sure a supplementary fits in the buffer
                 }
                 end += charCount;
                 length += Character.toChars(Character.toLowerCase(c), buffer, length); // buffer it, normalized

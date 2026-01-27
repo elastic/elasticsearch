@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.action.cache;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -30,10 +31,10 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
     public static final FrozenCacheInfoAction INSTANCE = new FrozenCacheInfoAction();
 
     private FrozenCacheInfoAction() {
-        super(NAME, FrozenCacheInfoResponse::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final DiscoveryNode discoveryNode;
 
@@ -57,31 +58,27 @@ public class FrozenCacheInfoAction extends ActionType<FrozenCacheInfoResponse> {
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<FrozenCacheInfoAction.Request, FrozenCacheInfoResponse> {
+    public static class TransportAction extends HandledTransportAction<Request, FrozenCacheInfoResponse> {
 
         private final FrozenCacheInfoNodeAction.Request nodeRequest = new FrozenCacheInfoNodeAction.Request();
         private final TransportService transportService;
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters) {
-            super(NAME, transportService, actionFilters, FrozenCacheInfoAction.Request::new);
+            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.transportService = transportService;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<FrozenCacheInfoResponse> listener) {
-            if (request.discoveryNode.getVersion().onOrAfter(Version.V_7_12_0)) {
-                transportService.sendChildRequest(
-                    request.discoveryNode,
-                    FrozenCacheInfoNodeAction.NAME,
-                    nodeRequest,
-                    task,
-                    TransportRequestOptions.EMPTY,
-                    new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new)
-                );
-            } else {
-                listener.onResponse(new FrozenCacheInfoResponse(false));
-            }
+            transportService.sendChildRequest(
+                request.discoveryNode,
+                FrozenCacheInfoNodeAction.NAME,
+                nodeRequest,
+                task,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, FrozenCacheInfoResponse::new, TransportResponseHandler.TRANSPORT_WORKER)
+            );
         }
 
     }

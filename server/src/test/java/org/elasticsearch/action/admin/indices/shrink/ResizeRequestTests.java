@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -21,19 +22,22 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.admin.indices.create.CreateIndexRequestTests.assertAliasesEqual;
+import static org.elasticsearch.action.admin.indices.shrink.ResizeRequest.MAX_PRIMARY_SHARD_SIZE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 
@@ -51,7 +55,13 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
 
     private void runTestCopySettingsValidation(final Boolean copySettings, final Consumer<Supplier<ResizeRequest>> consumer) {
         consumer.accept(() -> {
-            final ResizeRequest request = new ResizeRequest();
+            final ResizeRequest request = new ResizeRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                randomFrom(ResizeType.values()),
+                randomIdentifier(),
+                randomIdentifier()
+            );
             request.setCopySettings(copySettings);
             return request;
         });
@@ -59,32 +69,57 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
 
     public void testToXContent() throws IOException {
         {
-            ResizeRequest request = new ResizeRequest("target", "source");
-            String actualRequestBody = Strings.toString(request);
+            ResizeRequest request = new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "source", "target");
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
             assertEquals("{\"settings\":{},\"aliases\":{}}", actualRequestBody);
         }
         {
-            ResizeRequest request = new ResizeRequest("target", "source");
-            request.setMaxPrimaryShardSize(new ByteSizeValue(100, ByteSizeUnit.MB));
-            String actualRequestBody = Strings.toString(request);
-            assertEquals("{\"settings\":{},\"aliases\":{},\"max_primary_shard_size\":\"100mb\"}", actualRequestBody);
+            ResizeRequest request = new ResizeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, ResizeType.SPLIT, "source", "target");
+            request.setMaxPrimaryShardSize(ByteSizeValue.of(100, ByteSizeUnit.MB));
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
+            assertEquals("""
+                {"settings":{},"aliases":{},"max_primary_shard_size":"100mb"}""", actualRequestBody);
         }
         {
-            ResizeRequest request = new ResizeRequest();
+            ResizeRequest request = new ResizeRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                randomFrom(ResizeType.values()),
+                randomIdentifier(),
+                randomIdentifier()
+            );
             CreateIndexRequest target = new CreateIndexRequest("target");
             Alias alias = new Alias("test_alias");
             alias.routing("1");
-            alias.filter("{\"term\":{\"year\":2016}}");
+            alias.filter("""
+                {"term":{"year":2016}}""");
             alias.writeIndex(true);
             target.alias(alias);
             Settings.Builder settings = Settings.builder();
             settings.put(SETTING_NUMBER_OF_SHARDS, 10);
             target.settings(settings);
             request.setTargetIndex(target);
-            String actualRequestBody = Strings.toString(request);
-            String expectedRequestBody = "{\"settings\":{\"index\":{\"number_of_shards\":\"10\"}}," +
-                    "\"aliases\":{\"test_alias\":{\"filter\":{\"term\":{\"year\":2016}},\"routing\":\"1\",\"is_write_index\":true}}}";
-            assertEquals(expectedRequestBody, actualRequestBody);
+            String actualRequestBody = Strings.toString(resizeRequestToXContent(request));
+            String expectedRequestBody = """
+                {
+                  "settings": {
+                    "index": {
+                      "number_of_shards": "10"
+                    }
+                  },
+                  "aliases": {
+                    "test_alias": {
+                      "filter": {
+                        "term": {
+                          "year": 2016
+                        }
+                      },
+                      "routing": "1",
+                      "is_write_index": true
+                    }
+                  }
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expectedRequestBody), actualRequestBody);
         }
     }
 
@@ -93,11 +128,19 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
 
         boolean humanReadable = randomBoolean();
         final XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference originalBytes = toShuffledXContent(resizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(
+            resizeRequestToXContent(resizeRequest),
+            xContentType,
+            EMPTY_PARAMS,
+            humanReadable
+        );
 
         ResizeRequest parsedResizeRequest = new ResizeRequest(
-            randomValueOtherThan(resizeRequest.getTargetIndexRequest().index(), () -> randomAlphaOfLength(5)),
-            randomValueOtherThan(resizeRequest.getSourceIndex(), () -> randomAlphaOfLength(5))
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            randomFrom(ResizeType.values()),
+            randomValueOtherThan(resizeRequest.getSourceIndex(), () -> randomAlphaOfLength(5)),
+            randomValueOtherThan(resizeRequest.getTargetIndexRequest().index(), () -> randomAlphaOfLength(5))
         );
         try (XContentParser xParser = createParser(xContentType.xContent(), originalBytes)) {
             parsedResizeRequest.fromXContent(xParser);
@@ -114,7 +157,12 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
         assertEquals(resizeRequest.getTargetIndexRequest().settings(), parsedResizeRequest.getTargetIndexRequest().settings());
         assertEquals(resizeRequest.getMaxPrimaryShardSize(), parsedResizeRequest.getMaxPrimaryShardSize());
 
-        BytesReference finalBytes = toShuffledXContent(parsedResizeRequest, xContentType, EMPTY_PARAMS, humanReadable);
+        BytesReference finalBytes = toShuffledXContent(
+            resizeRequestToXContent(parsedResizeRequest),
+            xContentType,
+            EMPTY_PARAMS,
+            humanReadable
+        );
         ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
@@ -136,17 +184,55 @@ public class ResizeRequestTests extends AbstractWireSerializingTestCase<ResizeRe
     }
 
     @Override
-    protected Writeable.Reader<ResizeRequest> instanceReader() { return ResizeRequest::new; }
+    protected Writeable.Reader<ResizeRequest> instanceReader() {
+        return ResizeRequest::new;
+    }
 
     @Override
     protected ResizeRequest createTestInstance() {
-        ResizeRequest resizeRequest = new ResizeRequest(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10));
+        ResizeRequest resizeRequest = new ResizeRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            randomFrom(ResizeType.values()),
+            randomAlphaOfLengthBetween(3, 10),
+            randomAlphaOfLengthBetween(3, 10)
+        );
         if (randomBoolean()) {
             resizeRequest.setTargetIndex(RandomCreateIndexGenerator.randomCreateIndexRequest());
         }
         if (randomBoolean()) {
-            resizeRequest.setMaxPrimaryShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+            resizeRequest.setMaxPrimaryShardSize(ByteSizeValue.ofBytes(randomIntBetween(1, 100)));
         }
         return resizeRequest;
+    }
+
+    @Override
+    protected ResizeRequest mutateInstance(ResizeRequest instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    private static ToXContentObject resizeRequestToXContent(ResizeRequest resizeRequest) {
+        return (builder, params) -> {
+            builder.startObject();
+            {
+                builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
+                {
+                    resizeRequest.getTargetIndexRequest().settings().toXContent(builder, params);
+                }
+                builder.endObject();
+                builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
+                {
+                    for (Alias alias : resizeRequest.getTargetIndexRequest().aliases()) {
+                        alias.toXContent(builder, params);
+                    }
+                }
+                builder.endObject();
+                if (resizeRequest.getMaxPrimaryShardSize() != null) {
+                    builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), resizeRequest.getMaxPrimaryShardSize());
+                }
+            }
+            builder.endObject();
+            return builder;
+        };
     }
 }

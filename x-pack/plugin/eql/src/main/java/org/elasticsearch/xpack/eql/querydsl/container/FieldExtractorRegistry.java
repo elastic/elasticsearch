@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.querydsl.container;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -29,13 +30,34 @@ public class FieldExtractorRegistry {
         return cache.computeIfAbsent(Expressions.id(expression), k -> createFieldExtractionFor(expression));
     }
 
-    private FieldExtraction createFieldExtractionFor(Expression expression) {
-        if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = ((FieldAttribute) expression).exactAttribute();
+    public FieldExtraction compositeKeyExtraction(Expression expression) {
+        return cache.computeIfAbsent(Expressions.id(expression), k -> createKeyExtractionFor(expression));
+    }
+
+    private static FieldExtraction createKeyExtractionFor(Expression expression) {
+        if (expression instanceof FieldAttribute fieldAttribute) {
+            FieldAttribute fa = fieldAttribute.exactAttribute();
+            if (fa.isNested()) {
+                throw new UnsupportedOperationException("Nested not yet supported");
+            }
+            return new CompositeAggRef(fa.name());
+        }
+        if (expression instanceof OptionalMissingAttribute) {
+            return new ComputedRef(new ConstantInput(expression.source(), expression, null));
+        }
+        throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
+    }
+
+    private static FieldExtraction createFieldExtractionFor(Expression expression) {
+        if (expression instanceof FieldAttribute fieldAttribute) {
+            FieldAttribute fa = fieldAttribute.exactAttribute();
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
             return topHitFieldExtractor(fa);
+        }
+        if (expression instanceof OptionalMissingAttribute) {
+            return new ComputedRef(new ConstantInput(expression.source(), expression, null));
         }
         if (expression.foldable()) {
             return new ComputedRef(new ConstantInput(expression.source(), expression, expression.fold()));
@@ -44,7 +66,7 @@ public class FieldExtractorRegistry {
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }
 
-    private FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
+    private static FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
         return new SearchHitFieldRef(fieldAttr.name(), fieldAttr.field().getDataType(), fieldAttr.field().isAlias());
     }
 }

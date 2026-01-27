@@ -13,18 +13,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class MonitoringBulkResponse extends ActionResponse {
 
-    private long tookInMillis;
+    private final long tookInMillis;
     private Error error;
-    private boolean ignored;
+    private final boolean ignored;
 
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;
@@ -37,7 +37,6 @@ public class MonitoringBulkResponse extends ActionResponse {
     }
 
     public MonitoringBulkResponse(StreamInput in) throws IOException {
-        super(in);
         tookInMillis = in.readVLong();
         error = in.readOptionalWriteable(Error::new);
         ignored = in.readBoolean();

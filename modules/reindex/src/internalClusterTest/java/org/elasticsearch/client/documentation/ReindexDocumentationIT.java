@@ -1,36 +1,36 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.documentation;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.CancelTests;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
-import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
-import org.elasticsearch.index.reindex.RethrottleAction;
-import org.elasticsearch.index.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.index.reindex.UpdateByQueryRequestBuilder;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.CancelTests;
+import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.sort.SortOrder;
@@ -58,18 +58,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
     private static final String INDEX_NAME = "source_index";
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(ReindexPlugin.class, ReindexCancellationPlugin.class);
     }
 
     @Before
     public void setup() {
-        client().admin().indices().prepareCreate(INDEX_NAME).get();
+        indicesAdmin().prepareCreate(INDEX_NAME).get();
     }
 
     @SuppressWarnings("unused")
@@ -77,7 +72,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         Client client = client();
         // tag::reindex1
         BulkByScrollResponse response =
-          new ReindexRequestBuilder(client, ReindexAction.INSTANCE)
+          new ReindexRequestBuilder(client)
             .source("source_index")
             .destination("target_index")
             .filter(QueryBuilders.matchQuery("category", "xzy")) // <1>
@@ -94,7 +89,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index").abortOnVersionConflict(false);
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query
@@ -102,7 +97,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-filter
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index")
                 .filter(QueryBuilders.termQuery("level", "awesome"))
                 .maxDocs(1000)
@@ -119,7 +114,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-size
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index")
                 .source()
                 .setSize(500);
@@ -129,7 +124,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-sort
             UpdateByQueryRequestBuilder updateByQuery =
-               new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+               new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index")
                 .maxDocs(100)
                 .source()
@@ -140,7 +135,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-script
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("source_index")
                 .script(new Script(
                     ScriptType.INLINE,
@@ -161,7 +156,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-multi-index
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source("foo", "bar");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-multi-index
@@ -169,7 +164,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-routing
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.source().setRouting("cat");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-routing
@@ -177,7 +172,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         {
             // tag::update-by-query-pipeline
             UpdateByQueryRequestBuilder updateByQuery =
-              new UpdateByQueryRequestBuilder(client, UpdateByQueryAction.INSTANCE);
+              new UpdateByQueryRequestBuilder(client);
             updateByQuery.setPipeline("hurray");
             BulkByScrollResponse response = updateByQuery.get();
             // end::update-by-query-pipeline
@@ -193,18 +188,18 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
             ListTasksResponse tasksList = client.admin().cluster().prepareListTasks()
                 .setActions(UpdateByQueryAction.NAME).setDetailed(true).get();
             for (TaskInfo info: tasksList.getTasks()) {
-                TaskId taskId = info.getTaskId();
+                TaskId taskId = info.taskId();
                 BulkByScrollTask.Status status =
-                    (BulkByScrollTask.Status) info.getStatus();
+                    (BulkByScrollTask.Status) info.status();
                 // do stuff
             }
             // end::update-by-query-list-tasks
         }
 
         TaskInfo mainTask = CancelTests.findTaskToCancel(ReindexAction.NAME, builder.request().getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
+        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
-        TaskId taskId = mainTask.getTaskId();
+        TaskId taskId = mainTask.taskId();
         {
             // tag::update-by-query-get-task
             GetTaskResponse get = client.admin().cluster().prepareGetTask(taskId).get();
@@ -217,13 +212,13 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .setActions(UpdateByQueryAction.NAME).get().getTasks();
             // Cancel a specific update-by-query request
             client.admin().cluster().prepareCancelTasks()
-                .setTaskId(taskId).get().getTasks();
+                .setTargetTaskId(taskId).get().getTasks();
             // end::update-by-query-cancel-task
         }
         {
             // tag::update-by-query-rethrottle
-            new RethrottleRequestBuilder(client, RethrottleAction.INSTANCE)
-                .setTaskId(taskId)
+            new RethrottleRequestBuilder(client)
+                .setTargetTaskId(taskId)
                 .setRequestsPerSecond(2.0f)
                 .get();
             // end::update-by-query-rethrottle
@@ -240,7 +235,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
         // tag::delete-by-query-sync
         BulkByScrollResponse response =
-          new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE)
+          new DeleteByQueryRequestBuilder(client)
             .filter(QueryBuilders.matchQuery("gender", "male")) // <1>
             .source("persons")                                  // <2>
             .get();                                             // <3>
@@ -248,7 +243,7 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         // end::delete-by-query-sync
 
         // tag::delete-by-query-async
-        new DeleteByQueryRequestBuilder(client, DeleteByQueryAction.INSTANCE)
+        new DeleteByQueryRequestBuilder(client)
             .filter(QueryBuilders.matchQuery("gender", "male"))     // <1>
             .source("persons")                                      // <2>
             .execute(new ActionListener<BulkByScrollResponse>() {   // <3>
@@ -266,23 +261,27 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
 
     /**
      * Similar to what CancelTests does: blocks some operations to be able to catch some tasks in running state
-     * @see CancelTests#testCancel(String, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
+     * @see CancelTests#testCancel(ActionType, AbstractBulkByScrollRequestBuilder, CancelTests.CancelAssertion, Matcher)
      */
     private ReindexRequestBuilder reindexAndPartiallyBlock() throws Exception {
         final Client client = client();
         final int numDocs = randomIntBetween(10, 100);
         ALLOWED_OPERATIONS.release(numDocs);
 
-        indexRandom(true, false, true, IntStream.range(0, numDocs)
-            .mapToObj(i -> client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
-            .collect(Collectors.toList()));
+        indexRandom(
+            true,
+            false,
+            true,
+            IntStream.range(0, numDocs)
+                .mapToObj(i -> prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("n", Integer.toString(i)))
+                .collect(Collectors.toList())
+        );
 
         // Checks that the all documents have been indexed and correctly counted
-        assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), numDocs);
+        assertHitCount(prepareSearch(INDEX_NAME).setSize(0), numDocs);
         assertThat(ALLOWED_OPERATIONS.drainPermits(), equalTo(0));
 
-        ReindexRequestBuilder builder = new ReindexRequestBuilder(client, ReindexAction.INSTANCE).source(INDEX_NAME)
-            .destination("target_index");
+        ReindexRequestBuilder builder = new ReindexRequestBuilder(client).source(INDEX_NAME).destination("target_index");
         // Scroll by 1 so that cancellation is easier to control
         builder.source().setSize(1);
 
@@ -294,12 +293,10 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
         builder.execute();
 
         // 10 seconds is usually fine but on heavily loaded machines this can take a while
-        assertBusy(
-            () -> {
-                assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
-                assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
-            },
-            1, TimeUnit.MINUTES);
+        assertBusy(() -> {
+            assertTrue("Expected some queued threads", ALLOWED_OPERATIONS.hasQueuedThreads());
+            assertEquals("Expected that no permits are available", 0, ALLOWED_OPERATIONS.availablePermits());
+        }, 1, TimeUnit.MINUTES);
         return builder;
     }
 

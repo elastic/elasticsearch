@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction.Request;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.ClassificationTests;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection.OutlierDetectionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression.RegressionTests;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTestCase<Request> {
+public class EvaluateDataFrameActionRequestTests extends AbstractXContentSerializingTestCase<Request> {
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -62,22 +62,22 @@ public class EvaluateDataFrameActionRequestTests extends AbstractSerializingTest
                 throw new UncheckedIOException(e);
             }
         }
-        Evaluation evaluation =
-            randomFrom(OutlierDetectionTests.createRandom(), ClassificationTests.createRandom(), RegressionTests.createRandom());
-        return new Request()
-            .setIndices(indices)
-            .setQueryProvider(queryProvider)
-            .setEvaluation(evaluation);
+        Evaluation evaluation = randomFrom(
+            OutlierDetectionTests.createRandom(),
+            ClassificationTests.createRandom(),
+            RegressionTests.createRandom()
+        );
+        return new Request().setIndices(indices).setQueryProvider(queryProvider).setEvaluation(evaluation);
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
     protected Writeable.Reader<Request> instanceReader() {
         return Request::new;
-    }
-
-    @Override
-    protected boolean supportsUnknownFields() {
-        return false;
     }
 
     @Override

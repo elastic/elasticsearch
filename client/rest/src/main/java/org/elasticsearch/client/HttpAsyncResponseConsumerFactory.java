@@ -48,7 +48,7 @@ public interface HttpAsyncResponseConsumerFactory {
      */
     class HeapBufferedResponseConsumerFactory implements HttpAsyncResponseConsumerFactory {
 
-        //default buffer limit is 100MB
+        // default buffer limit is 100MB
         static final int DEFAULT_BUFFER_LIMIT = 100 * 1024 * 1024;
 
         private final int bufferLimit;

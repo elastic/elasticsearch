@@ -6,14 +6,14 @@
  */
 package org.elasticsearch.xpack.core.graph;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 
-public class GraphFeatureSetUsage extends XPackFeatureSet.Usage {
+public class GraphFeatureSetUsage extends XPackFeatureUsage {
 
     public GraphFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
@@ -24,8 +24,8 @@ public class GraphFeatureSetUsage extends XPackFeatureSet.Usage {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_7_0_0;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 
 }

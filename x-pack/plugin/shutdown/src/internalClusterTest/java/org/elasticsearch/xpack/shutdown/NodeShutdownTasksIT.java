@@ -10,15 +10,15 @@ package org.elasticsearch.xpack.shutdown;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -26,10 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -38,11 +34,13 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -51,7 +49,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -81,21 +78,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         final String shutdownNode;
         final String candidateNode;
-        NodesInfoResponse nodes = client().admin().cluster().prepareNodesInfo().clear().get();
-        final String node1Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node1))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
-        final String node2Id = nodes.getNodes()
-            .stream()
-            .map(NodeInfo::getNode)
-            .filter(node -> node.getName().equals(node2))
-            .map(DiscoveryNode::getId)
-            .findFirst()
-            .orElseThrow();
+        final String node1Id = getNodeId(node1);
+        final String node2Id = getNodeId(node2);
 
         if (randomBoolean()) {
             shutdownNode = node1Id;
@@ -109,13 +93,22 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         // Tell the persistent task executor it can start allocating the task
         startTask.set(true);
         // Issue a new cluster state update to force task assignment
-        client().admin().cluster().prepareReroute().get();
+        ClusterRerouteUtils.reroute(client());
         // Wait until the task has been assigned to a node
         assertBusy(() -> assertNotNull("expected to have candidate nodes chosen for task", candidates.get()));
         // Check that the node that is not shut down is the only candidate
@@ -128,20 +121,8 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         TaskExecutor taskExecutor;
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier
-        ) {
-            taskExecutor = new TaskExecutor(client, clusterService, threadPool);
+        public Collection<?> createComponents(PluginServices services) {
+            taskExecutor = new TaskExecutor(services.client(), services.clusterService(), services.threadPool());
             return Collections.singletonList(taskExecutor);
         }
 
@@ -162,26 +143,38 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
                 new NamedWriteableRegistry.Entry(PersistentTaskParams.class, "task_name", TestTaskParams::new)
             );
         }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return Collections.singletonList(
+                new NamedXContentRegistry.Entry(
+                    PersistentTaskParams.class,
+                    TestTaskParams.TASK_NAME,
+                    (p, c) -> TestTaskParams.fromXContent(p)
+                )
+            );
+        }
     }
 
-    public static class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
+    public static final class TaskExecutor extends PersistentTasksExecutor<TestTaskParams> implements ClusterStateListener {
 
         private final PersistentTasksService persistentTasksService;
 
         protected TaskExecutor(Client client, ClusterService clusterService, ThreadPool threadPool) {
-            super("task_name", ThreadPool.Names.GENERIC);
+            super("task_name", threadPool.generic());
             persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
             clusterService.addListener(this);
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TestTaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            ProjectId projectId
         ) {
             candidates.set(candidateNodes);
-            return super.getAssignment(params, candidateNodes, clusterState);
+            return super.doGetAssignment(params, candidateNodes, clusterState, projectId);
         }
 
         @Override
@@ -192,12 +185,18 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
 
         private void startTask() {
             logger.info("--> sending start request");
-            persistentTasksService.sendStartRequest("task_id", "task_name", new TestTaskParams(), ActionListener.wrap(r -> {}, e -> {
-                if (e instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create task", e);
-                    fail("failed to create task");
-                }
-            }));
+            persistentTasksService.sendStartRequest(
+                "task_id",
+                "task_name",
+                new TestTaskParams(),
+                TEST_REQUEST_TIMEOUT,
+                ActionListener.wrap(r -> {}, e -> {
+                    if (e instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("failed to create task", e);
+                        fail("failed to create task");
+                    }
+                })
+            );
         }
 
         @Override
@@ -218,18 +217,29 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
             return builder;
         }
 
+        public static final ParseField TASK_NAME = new ParseField("task_name");
+        public static final ObjectParser<TestTaskParams, Void> PARSER = new ObjectParser<TestTaskParams, Void>(
+            TASK_NAME.getPreferredName(),
+            true,
+            () -> new TestTaskParams()
+        );
+
+        public static TestTaskParams fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
+        }
+
         public TestTaskParams() {}
 
         public TestTaskParams(StreamInput in) {}
 
         @Override
         public String getWriteableName() {
-            return "task_name";
+            return TASK_NAME.getPreferredName();
         }
 
         @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
         }
 
         @Override

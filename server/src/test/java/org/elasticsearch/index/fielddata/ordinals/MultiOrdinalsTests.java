@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
@@ -107,7 +108,6 @@ public class MultiOrdinalsTests extends ESTestCase {
                     for (Long ord : docOrds) {
                         assertThat(docs.nextOrd(), equalTo(ord));
                     }
-                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, docs.nextOrd());
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertFalse(singleOrds.advanceExact(i));
@@ -183,15 +183,14 @@ public class MultiOrdinalsTests extends ESTestCase {
             builder.addDoc(5).addDoc(6);
         }
 
-        long[][] ordinalPlan = new long[][]{
-                {1, 3},
-                {0},
-                {2},
-                {},
-                {0, 2, 3, 4, 5},
-                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31},
-                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31}
-        };
+        long[][] ordinalPlan = new long[][] {
+            { 1, 3 },
+            { 0 },
+            { 2 },
+            {},
+            { 0, 2, 3, 4, 5 },
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 },
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 } };
 
         Ordinals ordinals = creationMultiOrdinals(builder);
         SortedSetDocValues docs = ordinals.ordinals();
@@ -227,15 +226,14 @@ public class MultiOrdinalsTests extends ESTestCase {
             }
         }
 
-        long[][] ordinalPlan = new long[][]{
-                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
-                {0,1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14},
-                {0},
-                {0, 1, 2, 3, 4},
-                {0, 1, 2, 3, 4, 5},
-                {1},
-                {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
-        };
+        long[][] ordinalPlan = new long[][] {
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14 },
+            { 0 },
+            { 0, 1, 2, 3, 4 },
+            { 0, 1, 2, 3, 4, 5 },
+            { 1 },
+            { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 } };
 
         Ordinals ordinals = new MultiOrdinals(builder, PackedInts.FASTEST);
         SortedSetDocValues docs = ordinals.ordinals();
@@ -258,7 +256,6 @@ public class MultiOrdinalsTests extends ESTestCase {
                 for (long ord : ords) {
                     assertThat(docs.nextOrd(), equalTo(ord));
                 }
-                assertThat(docs.nextOrd(), equalTo(SortedSetDocValues.NO_MORE_ORDS));
             }
         }
     }

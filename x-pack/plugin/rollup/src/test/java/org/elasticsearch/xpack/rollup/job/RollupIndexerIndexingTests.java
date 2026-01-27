@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.rollup.job;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -14,12 +13,12 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -28,8 +27,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
@@ -42,11 +39,14 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,12 +59,12 @@ import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -78,7 +78,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -90,27 +89,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     @Before
     private void setup() {
         settings = createIndexSettings();
-        searchExecutionContext = new SearchExecutionContext(
-            0,
-            0,
-            settings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> 0L,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        searchExecutionContext = SearchExecutionContextHelper.createSimple(settings, null, null);
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -137,7 +116,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -158,7 +137,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         1,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -221,7 +200,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         50.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -252,7 +231,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         141.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -283,7 +262,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         275.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -314,7 +293,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         270.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -345,7 +324,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "counter.sum.value",
                         440.0,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -398,7 +377,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -419,7 +398,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         2,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -440,7 +419,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         1,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -493,7 +472,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         3,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -514,7 +493,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                         "the_histo.date_histogram._count",
                         4,
                         "the_histo.date_histogram.time_zone",
-                        DateTimeZone.UTC.toString(),
+                        ZoneId.of("UTC").getId(),
                         "_rollup.id",
                         job.getId()
                     )
@@ -538,7 +517,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             )
         );
 
-        String timeZone = DateTimeZone.forOffsetHours(-3).getID();
+        String timeZone = ZoneOffset.ofHours(-3).getId();
         String rollupIndex = randomAlphaOfLengthBetween(5, 10);
         String field = "the_histo";
         DateHistogramGroupConfig dateHistoConfig = new CalendarInterval(field, new DateHistogramInterval("1d"), null, timeZone);
@@ -633,7 +612,11 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             // Make sure the timestamp is sufficiently in the past that we don't get bitten
             // by internal rounding, causing no docs to match
-            long timestamp = new DateTime().minusDays(2).minusHours(randomIntBetween(11, 100)).getMillis();
+            long timestamp = ZonedDateTime.now(ZoneOffset.UTC)
+                .minusDays(2)
+                .minusHours(randomIntBetween(11, 100))
+                .toInstant()
+                .toEpochMilli();
             dataset.add(asMap(timestampField, timestamp, valueField, randomLongBetween(1, 100)));
         }
         executeTestCase(dataset, job, System.currentTimeMillis(), (resp) -> {
@@ -697,24 +680,21 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         Map<String, MappedFieldType> fieldTypeLookup = createFieldTypes(config);
         Directory dir = index(docs, fieldTypeLookup);
         IndexReader reader = DirectoryReader.open(dir);
-        IndexSearcher searcher = new IndexSearcher(reader);
         String dateHistoField = config.getGroupConfig().getDateHistogram().getField();
         final ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (dir; reader) {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
             final SyncRollupIndexer action = new SyncRollupIndexer(
                 threadPool,
                 job,
-                searcher,
+                reader,
                 fieldTypeLookup.values().toArray(new MappedFieldType[0]),
                 fieldTypeLookup.get(dateHistoField)
             );
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-            reader.close();
-            dir.close();
         }
     }
 
@@ -732,25 +712,30 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, false, false).build(
-                    MapperBuilderContext.ROOT
-                ).fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberType.LONG, ScriptCompiler.NONE, defaultIndexSettings())
+                    .build(MapperBuilderContext.root(false, false))
+                    .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
-                MappedFieldType ft = new KeywordFieldMapper.Builder(field).build(MapperBuilderContext.ROOT).fieldType();
+                MappedFieldType ft = new KeywordFieldMapper.Builder(field, defaultIndexSettings()).build(
+                    MapperBuilderContext.root(false, false)
+                ).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
 
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
-                MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberType.LONG, ScriptCompiler.NONE, false, false)
-                    .build(MapperBuilderContext.ROOT)
-                    .fieldType();
+                MappedFieldType ft = new NumberFieldMapper.Builder(
+                    metric.getField(),
+                    NumberType.LONG,
+                    ScriptCompiler.NONE,
+                    defaultIndexSettings()
+                ).build(MapperBuilderContext.root(false, false)).fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
         }
@@ -796,7 +781,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     }
 
     class SyncRollupIndexer extends RollupIndexer {
-        private final IndexSearcher searcher;
+        private final IndexReader reader;
         private final MappedFieldType[] fieldTypes;
         private final MappedFieldType timestampField;
         private final List<IndexRequest> documents = new ArrayList<>();
@@ -806,12 +791,12 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         SyncRollupIndexer(
             ThreadPool threadPool,
             RollupJob job,
-            IndexSearcher searcher,
+            IndexReader reader,
             MappedFieldType[] fieldTypes,
             MappedFieldType timestampField
         ) {
             super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
-            this.searcher = searcher;
+            this.reader = reader;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;
         }
@@ -865,23 +850,16 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
                 .iterator()
                 .next();
 
-            CompositeAggregation result = null;
+            InternalComposite result = null;
             try {
-                result = searchAndReduce(searcher, query, aggBuilder, fieldTypes);
+                result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldTypes).withQuery(query));
             } catch (IOException e) {
                 listener.onFailure(e);
             }
-            SearchResponseSections sections = new SearchResponseSections(
-                null,
-                new Aggregations(Collections.singletonList(result)),
-                null,
-                false,
-                null,
-                null,
-                1
+            ActionListener.respondAndRelease(
+                listener,
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(result)).build()
             );
-            SearchResponse response = new SearchResponse(sections, null, 1, 1, 0, 0, ShardSearchFailure.EMPTY_ARRAY, null);
-            listener.onResponse(response);
         }
 
         @Override
@@ -904,11 +882,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         public List<IndexRequest> triggerAndWaitForCompletion(long now) throws Exception {
             assertTrue(maybeTriggerAsyncJob(now));
-            try {
-                latch.await(10, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(latch);
             if (exc != null) {
                 throw exc;
             }

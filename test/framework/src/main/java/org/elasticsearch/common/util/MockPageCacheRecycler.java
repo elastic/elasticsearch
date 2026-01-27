@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -31,28 +32,20 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     private <T> V<T> wrap(final V<T> v) {
         return new V<T>() {
 
-            private final LeakTracker.Leak<V<T>> leak = LeakTracker.INSTANCE.track(v);
+            private final LeakTracker.Leak leak = LeakTracker.INSTANCE.track(v);
 
             @Override
             public void close() {
-                boolean leakReleased = leak.close(v);
+                boolean leakReleased = leak.close();
                 assert leakReleased : "leak should not have been released already";
                 final T ref = v();
                 if (ref instanceof Object[]) {
-                    Arrays.fill((Object[])ref, 0, Array.getLength(ref), null);
+                    Arrays.fill((Object[]) ref, 0, Array.getLength(ref), null);
                 } else if (ref instanceof byte[]) {
-                    Arrays.fill((byte[])ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
-                } else if (ref instanceof long[]) {
-                    Arrays.fill((long[])ref, 0, Array.getLength(ref), random.nextLong());
-                } else if (ref instanceof int[]) {
-                    Arrays.fill((int[])ref, 0, Array.getLength(ref), random.nextInt());
-                } else if (ref instanceof double[]) {
-                    Arrays.fill((double[])ref, 0, Array.getLength(ref), random.nextDouble() - 0.5);
-                } else if (ref instanceof float[]) {
-                    Arrays.fill((float[])ref, 0, Array.getLength(ref), random.nextFloat() - 0.5f);
+                    Arrays.fill((byte[]) ref, 0, Array.getLength(ref), (byte) random.nextInt(256));
                 } else {
                     for (int i = 0; i < Array.getLength(ref); ++i) {
-                            Array.set(ref, i, (byte) random.nextInt(256));
+                        Array.set(ref, i, (byte) random.nextInt(256));
                     }
                 }
                 v.close();
@@ -75,25 +68,7 @@ public class MockPageCacheRecycler extends PageCacheRecycler {
     public V<byte[]> bytePage(boolean clear) {
         final V<byte[]> page = super.bytePage(clear);
         if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, (byte)random.nextInt(1<<8));
-        }
-        return wrap(page);
-    }
-
-    @Override
-    public V<int[]> intPage(boolean clear) {
-        final V<int[]> page = super.intPage(clear);
-        if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, random.nextInt());
-        }
-        return wrap(page);
-    }
-
-    @Override
-    public V<long[]> longPage(boolean clear) {
-        final V<long[]> page = super.longPage(clear);
-        if (clear == false) {
-            Arrays.fill(page.v(), 0, page.v().length, random.nextLong());
+            Arrays.fill(page.v(), 0, page.v().length, (byte) random.nextInt(1 << 8));
         }
         return wrap(page);
     }

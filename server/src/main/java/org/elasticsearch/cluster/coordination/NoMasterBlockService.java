@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -19,16 +20,41 @@ import java.util.EnumSet;
 
 public class NoMasterBlockService {
     public static final int NO_MASTER_BLOCK_ID = 2;
-    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, false,
-        RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
-    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, true, false,
-        RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL);
-    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(NO_MASTER_BLOCK_ID, "no master", true, false, false,
-        RestStatus.SERVICE_UNAVAILABLE, EnumSet.of(ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock NO_MASTER_BLOCK_WRITES = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
+    );
+    public static final ClusterBlock NO_MASTER_BLOCK_ALL = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        true,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        ClusterBlockLevel.ALL
+    );
+    public static final ClusterBlock NO_MASTER_BLOCK_METADATA_WRITES = new ClusterBlock(
+        NO_MASTER_BLOCK_ID,
+        "no master",
+        true,
+        false,
+        false,
+        RestStatus.SERVICE_UNAVAILABLE,
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE)
+    );
 
-    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING =
-        new Setting<>("cluster.no_master_block", "write", NoMasterBlockService::parseNoMasterBlock,
-            Property.Dynamic, Property.NodeScope);
+    public static final Setting<ClusterBlock> NO_MASTER_BLOCK_SETTING = new Setting<>(
+        "cluster.no_master_block",
+        "write",
+        NoMasterBlockService::parseNoMasterBlock,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
     private volatile ClusterBlock noMasterBlock;
 
@@ -38,16 +64,14 @@ public class NoMasterBlockService {
     }
 
     private static ClusterBlock parseNoMasterBlock(String value) {
-        switch (value) {
-            case "all":
-                return NO_MASTER_BLOCK_ALL;
-            case "write":
-                return NO_MASTER_BLOCK_WRITES;
-            case "metadata_write":
-                return NO_MASTER_BLOCK_METADATA_WRITES;
-            default:
-                throw new IllegalArgumentException("invalid no-master block [" + value + "], must be one of [all, write, metadata_write]");
-        }
+        return switch (value) {
+            case "all" -> NO_MASTER_BLOCK_ALL;
+            case "write" -> NO_MASTER_BLOCK_WRITES;
+            case "metadata_write" -> NO_MASTER_BLOCK_METADATA_WRITES;
+            default -> throw new IllegalArgumentException(
+                "invalid no-master block [" + value + "], must be one of [all, write, metadata_write]"
+            );
+        };
     }
 
     public ClusterBlock getNoMasterBlock() {

@@ -1,11 +1,11 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
 
 package org.elasticsearch.action.bulk;
 
@@ -16,29 +16,39 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -47,7 +57,8 @@ import org.junit.BeforeClass;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Map;
+import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -56,6 +67,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.Mockito.mock;
 
 public class TransportBulkActionTookTests extends ESTestCase {
 
@@ -76,8 +88,13 @@ public class TransportBulkActionTookTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.roles(), VersionUtils.randomCompatibleVersion(random(), Version.CURRENT));
+        DiscoveryNode discoveryNode = DiscoveryNodeUtils.builder("node")
+            .version(
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
+                IndexVersions.MINIMUM_COMPATIBLE,
+                IndexVersionUtils.randomCompatibleVersion()
+            )
+            .build();
         clusterService = createClusterService(threadPool, discoveryNode);
     }
 
@@ -89,67 +106,80 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     private TransportBulkAction createAction(boolean controlled, AtomicLong expected) {
         CapturingTransport capturingTransport = new CapturingTransport();
-        TransportService transportService = capturingTransport.createTransportService(clusterService.getSettings(), threadPool,
+        TransportService transportService = capturingTransport.createTransportService(
+            clusterService.getSettings(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> clusterService.localNode(), null, Collections.emptySet());
+            boundAddress -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         IndexNameExpressionResolver resolver = new Resolver();
         ActionFilters actionFilters = new ActionFilters(new HashSet<>());
 
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
             @Override
             @SuppressWarnings("unchecked")
-            public <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
-                listener.onResponse((Response)new CreateIndexResponse(false, false, null));
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                CreateIndexRequest createIndexRequest = (CreateIndexRequest) request;
+                listener.onResponse((Response) new CreateIndexResponse(false, false, createIndexRequest.index()));
             }
         };
 
         if (controlled) {
 
             return new TestTransportBulkAction(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    client,
-                    actionFilters,
-                    resolver,
-                    expected::get) {
+                threadPool,
+                transportService,
+                clusterService,
+                client,
+                actionFilters,
+                resolver,
+                expected::get
+            ) {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    Executor executor,
+                    AtomicArray<BulkItemResponse> responses
+                ) {
                     expected.set(1000000);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
                 }
             };
         } else {
             return new TestTransportBulkAction(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    client,
-                    actionFilters,
-                    resolver,
-                    System::nanoTime) {
+                threadPool,
+                transportService,
+                clusterService,
+                client,
+                actionFilters,
+                resolver,
+                System::nanoTime
+            ) {
 
                 @Override
                 void executeBulk(
-                        Task task,
-                        BulkRequest bulkRequest,
-                        long startTimeNanos,
-                        ActionListener<BulkResponse> listener,
-                        AtomicArray<BulkItemResponse> responses,
-                        Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
+                    Task task,
+                    BulkRequest bulkRequest,
+                    long startTimeNanos,
+                    ActionListener<BulkResponse> listener,
+                    Executor executor,
+                    AtomicArray<BulkItemResponse> responses
+                ) {
                     long elapsed = spinForAtLeastOneMillisecond();
                     expected.set(elapsed);
-                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, responses, indicesThatCannotBeCreated);
+                    super.executeBulk(task, bulkRequest, startTimeNanos, listener, executor, responses);
                 }
             };
         }
@@ -180,12 +210,14 @@ public class TransportBulkActionTookTests extends ESTestCase {
             public void onResponse(BulkResponse bulkItemResponses) {
                 if (controlled) {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
-                            equalTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                        bulkItemResponses.getTook().getMillis(),
+                        equalTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 } else {
                     assertThat(
-                            bulkItemResponses.getTook().getMillis(),
-                            greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS)));
+                        bulkItemResponses.getTook().getMillis(),
+                        greaterThanOrEqualTo(TimeUnit.MILLISECONDS.convert(expected.get(), TimeUnit.NANOSECONDS))
+                    );
                 }
             }
 
@@ -198,11 +230,11 @@ public class TransportBulkActionTookTests extends ESTestCase {
 
     static class Resolver extends IndexNameExpressionResolver {
         Resolver() {
-            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE, TestProjectResolvers.DEFAULT_PROJECT_ONLY);
         }
 
         @Override
-        public String[] concreteIndexNames(ClusterState state, IndicesRequest request) {
+        public String[] concreteIndexNames(ProjectMetadata project, IndicesRequest request) {
             return request.indices();
         }
     }
@@ -210,24 +242,36 @@ public class TransportBulkActionTookTests extends ESTestCase {
     static class TestTransportBulkAction extends TransportBulkAction {
 
         TestTransportBulkAction(
-                ThreadPool threadPool,
-                TransportService transportService,
-                ClusterService clusterService,
-                NodeClient client,
-                ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                LongSupplier relativeTimeProvider) {
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            NodeClient client,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            LongSupplier relativeTimeProvider
+        ) {
             super(
-                    threadPool,
-                    transportService,
-                    clusterService,
-                    null,
-                    client,
-                    actionFilters,
-                    indexNameExpressionResolver,
-                    new IndexingPressure(Settings.EMPTY),
-                    EmptySystemIndices.INSTANCE,
-                    relativeTimeProvider);
+                threadPool,
+                transportService,
+                clusterService,
+                null,
+                client,
+                actionFilters,
+                indexNameExpressionResolver,
+                new IndexingPressure(Settings.EMPTY),
+                EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
+                relativeTimeProvider,
+                FailureStoreMetrics.NOOP,
+                DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+                new FeatureService(List.of()) {
+                    @Override
+                    public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
+                        return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
+                    }
+                },
+                mock(SamplingService.class)
+            );
         }
     }
 }

@@ -8,40 +8,62 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
-public class TransportGetModelSnapshotsAction extends HandledTransportAction<GetModelSnapshotsAction.Request,
-        GetModelSnapshotsAction.Response> {
+import static org.elasticsearch.core.Strings.format;
+
+public class TransportGetModelSnapshotsAction extends HandledTransportAction<
+    GetModelSnapshotsAction.Request,
+    GetModelSnapshotsAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportGetModelSnapshotsAction.class);
 
     private final JobResultsProvider jobResultsProvider;
     private final JobManager jobManager;
+    private final ClusterService clusterService;
 
     @Inject
-    public TransportGetModelSnapshotsAction(TransportService transportService, ActionFilters actionFilters,
-                                            JobResultsProvider jobResultsProvider, JobManager jobManager) {
-        super(GetModelSnapshotsAction.NAME, transportService, actionFilters, GetModelSnapshotsAction.Request::new);
+    public TransportGetModelSnapshotsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        JobManager jobManager,
+        ClusterService clusterService
+    ) {
+        super(
+            GetModelSnapshotsAction.NAME,
+            transportService,
+            actionFilters,
+            GetModelSnapshotsAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.jobResultsProvider = jobResultsProvider;
         this.jobManager = jobManager;
+        this.clusterService = clusterService;
     }
 
     @Override
-    protected void doExecute(Task task, GetModelSnapshotsAction.Request request,
-                             ActionListener<GetModelSnapshotsAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        GetModelSnapshotsAction.Request request,
+        ActionListener<GetModelSnapshotsAction.Response> listener
+    ) {
+        TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         logger.debug(
-            () -> new ParameterizedMessage(
-                "Get model snapshots for job {} snapshot ID {}. from = {}, size = {} start = '{}', end='{}', sort={} descending={}",
+            () -> format(
+                "Get model snapshots for job %s snapshot ID %s. from = %s, size = %s start = '%s', end='%s', sort=%s descending=%s",
                 request.getJobId(),
                 request.getSnapshotId(),
                 request.getPageParams().getFrom(),
@@ -49,20 +71,28 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
                 request.getStart(),
                 request.getEnd(),
                 request.getSort(),
-                request.getDescOrder()));
+                request.getDescOrder()
+            )
+        );
 
         if (Strings.isAllOrWildcard(request.getJobId())) {
-            getModelSnapshots(request, listener);
+            getModelSnapshots(request, parentTaskId, listener);
             return;
         }
-        jobManager.jobExists(request.getJobId(), ActionListener.wrap(
-            ok -> getModelSnapshots(request, listener),
-            listener::onFailure
-        ));
+        jobManager.jobExists(
+            request.getJobId(),
+            parentTaskId,
+            listener.delegateFailureAndWrap((l, ok) -> getModelSnapshots(request, parentTaskId, l))
+        );
     }
 
-    private void getModelSnapshots(GetModelSnapshotsAction.Request request, ActionListener<GetModelSnapshotsAction.Response> listener) {
-        jobResultsProvider.modelSnapshots(request.getJobId(),
+    private void getModelSnapshots(
+        GetModelSnapshotsAction.Request request,
+        TaskId parentTaskId,
+        ActionListener<GetModelSnapshotsAction.Response> listener
+    ) {
+        jobResultsProvider.modelSnapshots(
+            request.getJobId(),
             request.getPageParams().getFrom(),
             request.getPageParams().getSize(),
             request.getStart(),
@@ -70,7 +100,9 @@ public class TransportGetModelSnapshotsAction extends HandledTransportAction<Get
             request.getSort(),
             request.getDescOrder(),
             request.getSnapshotId(),
+            parentTaskId,
             page -> listener.onResponse(new GetModelSnapshotsAction.Response(page)),
-            listener::onFailure);
+            listener::onFailure
+        );
     }
 }

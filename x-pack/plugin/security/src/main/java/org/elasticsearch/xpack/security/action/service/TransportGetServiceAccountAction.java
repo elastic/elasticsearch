@@ -10,47 +10,48 @@ package org.elasticsearch.xpack.security.action.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountAction;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountRequest;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse;
 import org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.function.Predicate;
 
 public class TransportGetServiceAccountAction extends HandledTransportAction<GetServiceAccountRequest, GetServiceAccountResponse> {
 
-    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
-
     @Inject
-    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters,
-                                            HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
-        super(GetServiceAccountAction.NAME, transportService, actionFilters, GetServiceAccountRequest::new);
-        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
+    public TransportGetServiceAccountAction(TransportService transportService, ActionFilters actionFilters) {
+        super(
+            GetServiceAccountAction.NAME,
+            transportService,
+            actionFilters,
+            GetServiceAccountRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override
     protected void doExecute(Task task, GetServiceAccountRequest request, ActionListener<GetServiceAccountResponse> listener) {
-        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "get service accounts", () -> {
-            Predicate<ServiceAccount> filter = v -> true;
-            if (request.getNamespace() != null) {
-                filter = filter.and( v -> v.id().namespace().equals(request.getNamespace()) );
-            } 
-            if (request.getServiceName() != null) {
-                filter = filter.and( v -> v.id().serviceName().equals(request.getServiceName()) );
-            }
-            final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
-                .values()
-                .stream()
-                .filter(filter)
-                .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
-                .toArray(ServiceAccountInfo[]::new);
-            listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
-        });
+        Predicate<ServiceAccount> filter = Predicates.always();
+        if (request.getNamespace() != null) {
+            filter = filter.and(v -> v.id().namespace().equals(request.getNamespace()));
+        }
+        if (request.getServiceName() != null) {
+            filter = filter.and(v -> v.id().serviceName().equals(request.getServiceName()));
+        }
+        final ServiceAccountInfo[] serviceAccountInfos = ServiceAccountService.getServiceAccounts()
+            .values()
+            .stream()
+            .filter(filter)
+            .map(v -> new ServiceAccountInfo(v.id().asPrincipal(), v.roleDescriptor()))
+            .toArray(ServiceAccountInfo[]::new);
+        listener.onResponse(new GetServiceAccountResponse(serviceAccountInfos));
     }
 }

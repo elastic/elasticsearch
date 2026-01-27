@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -137,28 +138,18 @@ public final class GeometryIO {
 
     public static Geometry readGeometry(StreamInput in) throws IOException {
         String type = in.readString();
-        switch (type) {
-            case "geometrycollection":
-                return readGeometryCollection(in);
-            case "polygon":
-                return readPolygon(in);
-            case "point":
-                return readPoint(in);
-            case "linestring":
-                return readLine(in);
-            case "multilinestring":
-                return readMultiLine(in);
-            case "multipoint":
-                return readMultiPoint(in);
-            case "multipolygon":
-                return readMultiPolygon(in);
-            case "envelope":
-                return readRectangle(in);
-            case "circle":
-                return readCircle(in);
-            default:
-                throw new UnsupportedOperationException("unsupported shape type " + type);
-        }
+        return switch (type) {
+            case "geometrycollection" -> readGeometryCollection(in);
+            case "polygon" -> readPolygon(in);
+            case "point" -> readPoint(in);
+            case "linestring" -> readLine(in);
+            case "multilinestring" -> readMultiLine(in);
+            case "multipoint" -> readMultiPoint(in);
+            case "multipolygon" -> readMultiPolygon(in);
+            case "envelope" -> readRectangle(in);
+            case "circle" -> readCircle(in);
+            default -> throw new UnsupportedOperationException("unsupported shape type " + type);
+        };
     }
 
     private static GeometryCollection<Geometry> readGeometryCollection(StreamInput in) throws IOException {
@@ -197,9 +188,9 @@ public final class GeometryIO {
             alt[i] = readAlt(in);
         }
         if (Double.isNaN(alt[0])) {
-            return new double[][]{lat, lon};
+            return new double[][] { lat, lon };
         } else {
-            return new double[][]{lat, lon, alt};
+            return new double[][] { lat, lon, alt };
         }
     }
 
@@ -265,7 +256,6 @@ public final class GeometryIO {
         }
         return new MultiPoint(points);
     }
-
 
     private static MultiPolygon readMultiPolygon(StreamInput in) throws IOException {
         in.readBoolean(); // orientation for BWC

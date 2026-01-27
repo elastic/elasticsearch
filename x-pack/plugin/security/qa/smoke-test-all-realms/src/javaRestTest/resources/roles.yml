@@ -6,3 +6,17 @@ security_test_role:
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "create_index" ]
+
+all_index_privileges:
+  cluster:
+    - "cluster:admin/xpack/security/realm/cache/clear"
+  indices:
+    - names: [ '*' ]
+      privileges: [ 'all' ]
+      allow_restricted_indices: true
+
+all_application_privileges:
+  applications:
+    - application: "*"
+      privileges: [ "*" ]
+      resources: [ "*" ]

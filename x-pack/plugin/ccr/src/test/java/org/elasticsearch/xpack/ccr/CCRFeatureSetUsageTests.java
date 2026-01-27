@@ -14,8 +14,18 @@ public class CCRFeatureSetUsageTests extends AbstractWireSerializingTestCase<CCR
 
     @Override
     protected CCRInfoTransportAction.Usage createTestInstance() {
-        return new CCRInfoTransportAction.Usage(randomBoolean(), randomBoolean(), randomIntBetween(0, Integer.MAX_VALUE),
-            randomIntBetween(0, Integer.MAX_VALUE), randomNonNegativeLong());
+        return new CCRInfoTransportAction.Usage(
+            randomBoolean(),
+            randomBoolean(),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomIntBetween(0, Integer.MAX_VALUE),
+            randomNonNegativeLong()
+        );
+    }
+
+    @Override
+    protected CCRInfoTransportAction.Usage mutateInstance(CCRInfoTransportAction.Usage instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

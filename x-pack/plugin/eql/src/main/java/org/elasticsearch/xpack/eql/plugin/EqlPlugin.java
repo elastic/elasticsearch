@@ -7,12 +7,9 @@
 package org.elasticsearch.xpack.eql.plugin;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -20,21 +17,16 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -43,39 +35,68 @@ import org.elasticsearch.xpack.eql.EqlUsageTransportAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.index.RemoteClusterResolver;
 import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlugin {
 
-    private static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
-    private static final long CIRCUIT_BREAKER_LIMIT = (long)((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
-    private static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
+    public static final String CIRCUIT_BREAKER_NAME = "eql_sequence";
+    public static final long CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
+    public static final double CIRCUIT_BREAKER_OVERHEAD = 1.0D;
     private final SetOnce<CircuitBreaker> circuitBreaker = new SetOnce<>();
 
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
         "xpack.eql.enabled",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
-    public EqlPlugin() {
-    }
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_results",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS = Setting.boolSetting(
+        "xpack.eql.default_allow_partial_sequence_results",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public EqlPlugin() {}
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-            Environment environment, NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver, Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        return createComponents(client, clusterService.getClusterName().value());
+    public Collection<?> createComponents(PluginServices services) {
+        return createComponents(
+            services.client(),
+            services.environment().settings(),
+            services.clusterService().getClusterName().value(),
+            services.linkedProjectConfigService()
+        );
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName) {
-        IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
+    private Collection<Object> createComponents(
+        Client client,
+        Settings settings,
+        String clusterName,
+        LinkedProjectConfigService linkedProjectConfigService
+    ) {
+        RemoteClusterResolver remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
+        IndexResolver indexResolver = new IndexResolver(
+            client,
+            clusterName,
+            DefaultDataTypeRegistry.INSTANCE,
+            remoteClusterResolver::remoteClusters
+        );
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, circuitBreaker.get());
         return Collections.singletonList(planExecutor);
     }
@@ -87,32 +108,36 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
      */
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(EQL_ENABLED_SETTING);
+        return List.of(EQL_ENABLED_SETTING, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
-            new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
+            new ActionHandler(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
+            new ActionHandler(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
+            new ActionHandler(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)
         );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings,
-                                             RestController restController,
-                                             ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings,
-                                             SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
 
         return List.of(
-            new RestEqlSearchAction(),
+            new RestEqlSearchAction(settings),
             new RestEqlStatsAction(),
             new RestEqlGetAsyncResultAction(),
             new RestEqlGetAsyncStatusAction(),
@@ -128,14 +153,15 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
     @Override
     public BreakerSettings getCircuitBreaker(Settings settings) {
         return BreakerSettings.updateFromSettings(
-                new BreakerSettings(
-                        CIRCUIT_BREAKER_NAME,
-                        CIRCUIT_BREAKER_LIMIT,
-                        CIRCUIT_BREAKER_OVERHEAD,
-                        CircuitBreaker.Type.MEMORY,
-                        CircuitBreaker.Durability.TRANSIENT
-                ),
-                settings);
+            new BreakerSettings(
+                CIRCUIT_BREAKER_NAME,
+                CIRCUIT_BREAKER_LIMIT,
+                CIRCUIT_BREAKER_OVERHEAD,
+                CircuitBreaker.Type.MEMORY,
+                CircuitBreaker.Durability.TRANSIENT
+            ),
+            settings
+        );
     }
 
     @Override

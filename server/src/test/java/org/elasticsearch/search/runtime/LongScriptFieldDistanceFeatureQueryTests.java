@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -11,16 +12,20 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.OnScriptError;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,20 +57,11 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
         long origin = orig.origin();
         long pivot = orig.pivot();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                origin = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
-                break;
-            case 3:
-                pivot = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> origin = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
+            case 3 -> pivot = randomValueOtherThan(origin, () -> randomValueOtherThan(orig.pivot(), ESTestCase::randomLong));
+            default -> fail();
         }
         return new LongScriptFieldDistanceFeatureQuery(script, leafFactory, fieldName, origin, pivot);
     }
@@ -77,17 +73,24 @@ public class LongScriptFieldDistanceFeatureQueryTests extends AbstractScriptFiel
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                SearchLookup searchLookup = new SearchLookup(null, null);
+                SearchLookup searchLookup = new SearchLookup(
+                    null,
+                    null,
+                    SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
+                );
                 Function<LeafReaderContext, AbstractLongFieldScript> leafFactory = ctx -> new DateFieldScript(
                     "test",
                     Map.of(),
                     searchLookup,
                     null,
+                    OnScriptError.FAIL,
                     ctx
                 ) {
                     @Override
+                    @SuppressWarnings("unchecked")
                     public void execute() {
-                        for (Object timestamp : (List<?>) searchLookup.source().get("timestamp")) {
+                        Map<String, Object> source = (Map<String, Object>) this.getParams().get("_source");
+                        for (Object timestamp : (List<?>) source.get("timestamp")) {
                             emit(((Number) timestamp).longValue());
                         }
                     }

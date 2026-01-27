@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.translog;
@@ -11,11 +12,11 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.engine.TranslogOperationAsserter;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -77,17 +79,35 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
                 readers.add(reader);
             }
-            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
-                tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder(), seqNo -> {}, BigArrays.NON_RECYCLING_INSTANCE);
+            writer = TranslogWriter.create(
+                new ShardId("index", "uuid", 0),
+                translogUUID,
+                gen,
+                tempDir.resolve(Translog.getFilename(gen)),
+                FileChannel::open,
+                TranslogConfig.DEFAULT_BUFFER_SIZE,
+                1L,
+                1L,
+                () -> 1L,
+                () -> 1L,
+                randomNonNegativeLong(),
+                new TragicExceptionHolder(),
+                seqNo -> {},
+                BigArrays.NON_RECYCLING_INSTANCE,
+                TranslogTests.RANDOMIZING_IO_BUFFERS,
+                TranslogConfig.NOOP_OPERATION_LISTENER,
+                TranslogOperationAsserter.DEFAULT,
+                true
+            );
             writer = Mockito.spy(writer);
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
 
+            BytesArray header = new BytesArray(new byte[] { 'h', 'e', 'a', 'd', 'e', 'r' });
             for (int ops = randomIntBetween(0, 20); ops > 0; ops--) {
                 out.reset(bytes);
                 out.writeInt(ops);
-                writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), ops);
+                writer.add(Translog.Serialized.create(header, new BytesArray(bytes), new CRC32()), ops);
             }
         }
         return new Tuple<>(readers, writer);

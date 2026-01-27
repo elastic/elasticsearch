@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -55,7 +55,7 @@ public class OverallBucket implements ToXContentObject, Writeable {
         timestamp = new Date(in.readLong());
         bucketSpan = in.readLong();
         overallScore = in.readDouble();
-        jobs = in.readList(JobInfo::new);
+        jobs = in.readCollectionAsList(JobInfo::new);
         isInterim = in.readBoolean();
     }
 
@@ -64,14 +64,18 @@ public class OverallBucket implements ToXContentObject, Writeable {
         out.writeLong(timestamp.getTime());
         out.writeLong(bucketSpan);
         out.writeDouble(overallScore);
-        out.writeList(jobs);
+        out.writeCollection(jobs);
         out.writeBoolean(isInterim);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.timeField(Result.TIMESTAMP.getPreferredName(), Result.TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            Result.TIMESTAMP.getPreferredName(),
+            Result.TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         builder.field(BUCKET_SPAN.getPreferredName(), bucketSpan);
         builder.field(OVERALL_SCORE.getPreferredName(), overallScore);
         builder.field(JOBS.getPreferredName(), jobs);
@@ -125,10 +129,10 @@ public class OverallBucket implements ToXContentObject, Writeable {
         OverallBucket that = (OverallBucket) other;
 
         return Objects.equals(this.timestamp, that.timestamp)
-                && this.bucketSpan == that.bucketSpan
-                && this.overallScore == that.overallScore
-                && Objects.equals(this.jobs, that.jobs)
-                && this.isInterim == that.isInterim;
+            && this.bucketSpan == that.bucketSpan
+            && this.overallScore == that.overallScore
+            && Objects.equals(this.jobs, that.jobs)
+            && this.isInterim == that.isInterim;
     }
 
     public static class JobInfo implements ToXContentObject, Writeable, Comparable<JobInfo> {

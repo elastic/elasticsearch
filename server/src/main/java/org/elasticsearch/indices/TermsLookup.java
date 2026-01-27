@@ -1,31 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.core.RestApiVersion.equalTo;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Encapsulates the parameters needed to fetch terms.
@@ -56,9 +53,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
      * Read from a stream.
      */
     public TermsLookup(StreamInput in) throws IOException {
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            in.readOptionalString();
-        }
         id = in.readString();
         path = in.readString();
         index = in.readString();
@@ -67,9 +61,6 @@ public class TermsLookup implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeString(path);
         out.writeString(index);
@@ -97,20 +88,17 @@ public class TermsLookup implements Writeable, ToXContentFragment {
         return this;
     }
 
-    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup",
-        args -> {
-            String index = (String) args[0];
-            String id = (String) args[1];
-            String path = (String) args[2];
-            return new TermsLookup(index, id, path);
-        });
+    private static final ConstructingObjectParser<TermsLookup, Void> PARSER = new ConstructingObjectParser<>("terms_lookup", args -> {
+        String index = (String) args[0];
+        String id = (String) args[1];
+        String path = (String) args[2];
+        return new TermsLookup(index, id, path);
+    });
     static {
         PARSER.declareString(constructorArg(), new ParseField("index"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
         PARSER.declareString(constructorArg(), new ParseField("path"));
         PARSER.declareString(TermsLookup::routing, new ParseField("routing"));
-        PARSER.declareString((termLookup,type)-> {}, new ParseField("type")
-            .forRestApiVersion(equalTo(RestApiVersion.V_7)));
     }
 
     public static TermsLookup parseTermsLookup(XContentParser parser) throws IOException {
@@ -147,9 +135,9 @@ public class TermsLookup implements Writeable, ToXContentFragment {
             return false;
         }
         TermsLookup other = (TermsLookup) obj;
-        return Objects.equals(index, other.index) &&
-                Objects.equals(id, other.id) &&
-                Objects.equals(path, other.path) &&
-                Objects.equals(routing, other.routing);
+        return Objects.equals(index, other.index)
+            && Objects.equals(id, other.id)
+            && Objects.equals(path, other.path)
+            && Objects.equals(routing, other.routing);
     }
 }

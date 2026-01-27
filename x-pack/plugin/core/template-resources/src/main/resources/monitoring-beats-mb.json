@@ -1,0 +1,3181 @@
+{
+  "index_patterns": [
+    ".monitoring-beats-${xpack.stack.monitoring.template.version}-*"
+  ],
+  "version": ${xpack.stack.monitoring.template.release.version},
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "beat": {
+          "properties": {
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "state": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "host": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "type": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "uuid": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "version": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "cluster": {
+                  "properties": {
+                    "uuid": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "containerized": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "os": {
+                      "properties": {
+                        "kernel": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "name": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "platform": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "version": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "management": {
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "module": {
+                  "properties": {
+                    "count": {
+                      "type": "long"
+                    },
+                    "names": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "queue": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "version": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                }
+              }
+            },
+            "stats": {
+              "properties": {
+                "apm_server": {
+                  "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "agentcfg": {
+                      "properties": {
+                        "elasticsearch": {
+                          "properties": {
+                            "cache": {
+                              "properties": {
+                                "entries": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "refresh": {
+                                  "properties": {
+                                    "failures": {
+                                      "type": "long"
+                                    },
+                                    "successes": {
+                                      "type": "long"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "fetch": {
+                              "properties": {
+                                "es": {
+                                  "type": "long"
+                                },
+                                "fallback": {
+                                  "type": "long"
+                                },
+                                "invalid": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jaeger": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "collect": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sampling": {
+                              "properties": {
+                                "event": {
+                                  "properties": {
+                                    "received": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "http": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "long"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        },
+                                        "ratelimit": {
+                                          "type": "long"
+                                        },
+                                        "timeout": {
+                                          "type": "long"
+                                        },
+                                        "unauthorized": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "long"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "processor": {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "metric": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "stream": {
+                          "properties": {
+                            "accepted": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "invalid": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transaction": {
+                          "properties": {
+                            "transformations": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "root": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "failed_writes": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                },
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transactions_dropped": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "long"
+                                },
+                                "concurrency": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "decode": {
+                                  "type": "long"
+                                },
+                                "forbidden": {
+                                  "type": "long"
+                                },
+                                "internal": {
+                                  "type": "long"
+                                },
+                                "invalidquery": {
+                                  "type": "long"
+                                },
+                                "method": {
+                                  "type": "long"
+                                },
+                                "notfound": {
+                                  "type": "long"
+                                },
+                                "queue": {
+                                  "type": "long"
+                                },
+                                "ratelimit": {
+                                  "type": "long"
+                                },
+                                "timeout": {
+                                  "type": "long"
+                                },
+                                "toolarge": {
+                                  "type": "long"
+                                },
+                                "unauthorized": {
+                                  "type": "long"
+                                },
+                                "unavailable": {
+                                  "type": "long"
+                                },
+                                "validate": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "long"
+                                },
+                                "count": {
+                                  "type": "long"
+                                },
+                                "notmodified": {
+                                  "type": "long"
+                                },
+                                "ok": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "beat": {
+                  "properties": {
+                    "host": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "type": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "uuid": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "version": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "cgroup": {
+                  "properties": {
+                    "cpu": {
+                      "properties": {
+                        "cfs": {
+                          "properties": {
+                            "period": {
+                              "properties": {
+                                "us": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "quota": {
+                              "properties": {
+                                "us": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "id": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "stats": {
+                          "properties": {
+                            "periods": {
+                              "type": "long"
+                            },
+                            "throttled": {
+                              "properties": {
+                                "ns": {
+                                  "type": "long"
+                                },
+                                "periods": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "cpuacct": {
+                      "properties": {
+                        "id": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "total": {
+                          "properties": {
+                            "ns": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "memory": {
+                      "properties": {
+                        "id": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "mem": {
+                          "properties": {
+                            "limit": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "usage": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "cpu": {
+                  "properties": {
+                    "system": {
+                      "properties": {
+                        "ticks": {
+                          "type": "long"
+                        },
+                        "time": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "properties": {
+                        "ticks": {
+                          "type": "long"
+                        },
+                        "time": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "value": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "user": {
+                      "properties": {
+                        "ticks": {
+                          "type": "long"
+                        },
+                        "time": {
+                          "properties": {
+                            "ms": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "handles": {
+                  "properties": {
+                    "limit": {
+                      "properties": {
+                        "hard": {
+                          "type": "long"
+                        },
+                        "soft": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "open": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "info": {
+                  "properties": {
+                    "ephemeral_id": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "host": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "type": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "uptime": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "uuid": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    },
+                    "version": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "libbeat": {
+                  "properties": {
+                    "config": {
+                      "properties": {
+                        "running": {
+                          "type": "long"
+                        },
+                        "starts": {
+                          "type": "long"
+                        },
+                        "stops": {
+                          "type": "long"
+                        },
+                        "reloads": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "output": {
+                      "properties": {
+                        "events": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            },
+                            "active": {
+                              "type": "long"
+                            },
+                            "batches": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "duplicates": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "toomany": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "read": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "type": {
+                          "type": "keyword",
+                          "ignore_above": 1024
+                        },
+                        "write": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            },
+                            "errors": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pipeline": {
+                      "properties": {
+                        "clients": {
+                          "type": "long"
+                        },
+                        "events": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "dropped": {
+                              "type": "long"
+                            },
+                            "failed": {
+                              "type": "long"
+                            },
+                            "filtered": {
+                              "type": "long"
+                            },
+                            "published": {
+                              "type": "long"
+                            },
+                            "retry": {
+                              "type": "long"
+                            },
+                            "total": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "queue": {
+                          "properties": {
+                            "acked": {
+                              "type": "long"
+                            },
+                            "max_events": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "memstats": {
+                  "properties": {
+                    "gc_next": {
+                      "type": "long"
+                    },
+                    "memory": {
+                      "properties": {
+                        "alloc": {
+                          "type": "long"
+                        },
+                        "total": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "rss": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "runtime": {
+                  "properties": {
+                    "goroutines": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "system": {
+                  "properties": {
+                    "cpu": {
+                      "properties": {
+                        "cores": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "load": {
+                      "properties": {
+                        "1": {
+                          "type": "double"
+                        },
+                        "5": {
+                          "type": "double"
+                        },
+                        "15": {
+                          "type": "double"
+                        },
+                        "norm": {
+                          "properties": {
+                            "1": {
+                              "type": "double"
+                            },
+                            "5": {
+                              "type": "double"
+                            },
+                            "15": {
+                              "type": "double"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "uptime": {
+                  "properties": {
+                    "ms": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "elasticsearch": {
+                      "properties": {
+                        "bulk_requests": {
+                          "properties": {
+                            "available": {
+                              "type": "long"
+                            },
+                            "completed": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "indexers": {
+                          "properties": {
+                            "active": {
+                              "type": "long"
+                            },
+                            "created": {
+                              "type": "long"
+                            },
+                            "destroyed": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "beats_state": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "alias",
+                  "path": "beat.state.beat.host"
+                },
+                "name": {
+                  "type": "alias",
+                  "path": "beat.state.beat.name"
+                },
+                "type": {
+                  "type": "alias",
+                  "path": "beat.state.beat.type"
+                },
+                "uuid": {
+                  "type": "alias",
+                  "path": "beat.state.beat.uuid"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "beat.state.beat.version"
+                }
+              }
+            },
+            "state": {
+              "properties": {
+                "beat": {
+                  "properties": {
+                    "name": {
+                      "type": "alias",
+                      "path": "beat.state.beat.name"
+                    }
+                  }
+                },
+                "host": {
+                  "properties": {
+                    "architecture": {
+                      "type": "alias",
+                      "path": "host.architecture"
+                    },
+                    "hostname": {
+                      "type": "alias",
+                      "path": "host.hostname"
+                    },
+                    "name": {
+                      "type": "alias",
+                      "path": "host.name"
+                    },
+                    "os": {
+                      "properties": {
+                        "platform": {
+                          "type": "alias",
+                          "path": "beat.state.host.os.platform"
+                        },
+                        "version": {
+                          "type": "alias",
+                          "path": "beat.state.host.os.version"
+                        }
+                      }
+                    }
+                  }
+                },
+                "input": {
+                  "properties": {
+                    "count": {
+                      "type": "alias",
+                      "path": "beat.state.input.count"
+                    },
+                    "names": {
+                      "type": "alias",
+                      "path": "beat.state.input.names"
+                    }
+                  }
+                },
+                "module": {
+                  "properties": {
+                    "count": {
+                      "type": "alias",
+                      "path": "beat.state.module.count"
+                    },
+                    "names": {
+                      "type": "alias",
+                      "path": "beat.state.module.names"
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "name": {
+                      "type": "alias",
+                      "path": "beat.state.output.name"
+                    }
+                  }
+                },
+                "service": {
+                  "properties": {
+                    "id": {
+                      "type": "alias",
+                      "path": "beat.state.service.id"
+                    },
+                    "name": {
+                      "type": "alias",
+                      "path": "beat.state.service.name"
+                    },
+                    "version": {
+                      "type": "alias",
+                      "path": "beat.state.service.version"
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "beats_stats": {
+          "properties": {
+            "beat": {
+              "properties": {
+                "host": {
+                  "type": "alias",
+                  "path": "beat.stats.beat.host"
+                },
+                "name": {
+                  "type": "alias",
+                  "path": "beat.stats.beat.name"
+                },
+                "type": {
+                  "type": "alias",
+                  "path": "beat.stats.beat.type"
+                },
+                "uuid": {
+                  "type": "alias",
+                  "path": "beat.stats.beat.uuid"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "beat.stats.beat.version"
+                }
+              }
+            },
+            "metrics": {
+              "properties": {
+                "apm-server": {
+                  "properties": {
+                    "acm": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.acm.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.acm.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.closed"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.internal"
+                                },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.invalidquery"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.notfound"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.ratelimit"
+                                },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.timeout"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.unavailable"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.errors.validate"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.count"
+                                },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.notmodified"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.acm.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.acm.unset"
+                        }
+                      }
+                    },
+                    "agentcfg": {
+                      "properties": {
+                        "elasticsearch": {
+                          "properties": {
+                            "cache": {
+                              "properties": {
+                                "entries": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.entries.count"
+                                    }
+                                  }
+                                },
+                                "refresh": {
+                                  "properties": {
+                                    "failures": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.refresh.failures"
+                                    },
+                                    "successes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.agentcfg.elasticsearch.cache.refresh.successes"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "fetch": {
+                              "properties": {
+                                "es": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.es"
+                                },
+                                "fallback": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.fallback"
+                                },
+                                "invalid": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.invalid"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.agentcfg.elasticsearch.fetch.unavailable"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "jaeger": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "collect": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.collect.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.collect.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.collect.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "sampling": {
+                              "properties": {
+                                "event": {
+                                  "properties": {
+                                    "received": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.event.received.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.sampling.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.errors.count"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.jaeger.grpc.sampling.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "otlp": {
+                      "properties": {
+                        "grpc": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.logs.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.logs.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.logs.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.consumer.unsupported_dropped"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.metrics.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.metrics.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.traces.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.grpc.traces.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.grpc.traces.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "http": {
+                          "properties": {
+                            "logs": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.logs.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.logs.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.logs.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "metrics": {
+                              "properties": {
+                                "consumer": {
+                                  "properties": {
+                                    "unsupported_dropped": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.consumer.unsupported_dropped"
+                                    }
+                                  }
+                                },
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.metrics.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.metrics.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "traces": {
+                              "properties": {
+                                "request": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.traces.request.count"
+                                    }
+                                  }
+                                },
+                                "response": {
+                                  "properties": {
+                                    "count": {
+                                      "type": "alias",
+                                      "path": "beat.stats.apm_server.otlp.http.traces.response.count"
+                                    },
+                                    "errors": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.count"
+                                        },
+                                        "ratelimit": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.ratelimit"
+                                        },
+                                        "timeout": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.timeout"
+                                        },
+                                        "unauthorized": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.errors.unauthorized"
+                                        }
+                                      }
+                                    },
+                                    "valid": {
+                                      "properties": {
+                                        "count": {
+                                          "type": "alias",
+                                          "path": "beat.stats.apm_server.otlp.http.traces.response.valid.count"
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "processor": {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.error.transformations"
+                            }
+                          }
+                        },
+                        "metric": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.metric.transformations"
+                            }
+                          }
+                        },
+                        "span": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.span.transformations"
+                            }
+                          }
+                        },
+                        "stream": {
+                          "properties": {
+                            "accepted": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.stream.accepted"
+                            },
+                            "errors": {
+                              "properties": {
+                                "invalid": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.stream.errors.invalid"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.processor.stream.errors.toolarge"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transaction": {
+                          "properties": {
+                            "transformations": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.processor.transaction.transformations"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "root": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.root.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.root.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.closed"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.internal"
+                                },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.invalidquery"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.notfound"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.ratelimit"
+                                },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.timeout"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.unavailable"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.errors.validate"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.count"
+                                },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.notmodified"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.root.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.root.unset"
+                        }
+                      }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.sampling.tail.dynamic_service_groups"
+                            },
+                            "events": {
+                              "properties": {
+                                "dropped": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.dropped"
+                                },
+                                "failed_writes": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.failed_writes"
+                                },
+                                "head_unsampled": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.head_unsampled"
+                                },
+                                "processed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.processed"
+                                },
+                                "sampled": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.sampled"
+                                },
+                                "stored": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.events.stored"
+                                }
+                              }
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.lsm_size"
+                                },
+                                "value_log_size": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.sampling.tail.storage.value_log_size"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "transactions_dropped": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.sampling.transactions_dropped"
+                        }
+                      }
+                    },
+                    "server": {
+                      "properties": {
+                        "request": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.server.request.count"
+                            }
+                          }
+                        },
+                        "response": {
+                          "properties": {
+                            "count": {
+                              "type": "alias",
+                              "path": "beat.stats.apm_server.server.response.count"
+                            },
+                            "errors": {
+                              "properties": {
+                                "closed": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.closed"
+                                },
+                                "concurrency": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.concurrency"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.count"
+                                },
+                                "decode": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.decode"
+                                },
+                                "forbidden": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.forbidden"
+                                },
+                                "internal": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.internal"
+                                },
+                                "invalidquery": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.invalidquery"
+                                },
+                                "method": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.method"
+                                },
+                                "notfound": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.notfound"
+                                },
+                                "queue": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.queue"
+                                },
+                                "ratelimit": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.ratelimit"
+                                },
+                                "timeout": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.timeout"
+                                },
+                                "toolarge": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.toolarge"
+                                },
+                                "unauthorized": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.unauthorized"
+                                },
+                                "unavailable": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.unavailable"
+                                },
+                                "validate": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.errors.validate"
+                                }
+                              }
+                            },
+                            "valid": {
+                              "properties": {
+                                "accepted": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.accepted"
+                                },
+                                "count": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.count"
+                                },
+                                "notmodified": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.notmodified"
+                                },
+                                "ok": {
+                                  "type": "alias",
+                                  "path": "beat.stats.apm_server.server.response.valid.ok"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "unset": {
+                          "type": "alias",
+                          "path": "beat.stats.apm_server.server.unset"
+                        }
+                      }
+                    }
+                  }
+                },
+                "beat": {
+                  "properties": {
+                    "cgroup": {
+                      "properties": {
+                        "cpu": {
+                          "properties": {
+                            "cfs": {
+                              "properties": {
+                                "period": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.cpu.cfs.period.us"
+                                    }
+                                  }
+                                },
+                                "quota": {
+                                  "properties": {
+                                    "us": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.cpu.cfs.quota.us"
+                                    }
+                                  }
+                                }
+                              }
+                            },
+                            "id": {
+                              "type": "alias",
+                              "path": "beat.stats.cgroup.cpu.id"
+                            },
+                            "stats": {
+                              "properties": {
+                                "periods": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cgroup.cpu.stats.periods"
+                                },
+                                "throttled": {
+                                  "properties": {
+                                    "ns": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.cpu.stats.throttled.ns"
+                                    },
+                                    "periods": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.cpu.stats.throttled.periods"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "cpuacct": {
+                          "properties": {
+                            "id": {
+                              "type": "alias",
+                              "path": "beat.stats.cgroup.cpuacct.id"
+                            },
+                            "total": {
+                              "properties": {
+                                "ns": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cgroup.cpuacct.total.ns"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "mem": {
+                          "properties": {
+                            "limit": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cgroup.memory.mem.limit.bytes"
+                                }
+                              }
+                            },
+                            "usage": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cgroup.memory.mem.usage.bytes"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "memory": {
+                          "properties": {
+                            "id": {
+                              "type": "alias",
+                              "path": "beat.stats.cgroup.memory.id"
+                            },
+                            "mem": {
+                              "properties": {
+                                "usage": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.usage.bytes"
+                                    }
+                                  }
+                                },
+                                "limit": {
+                                  "properties": {
+                                    "bytes": {
+                                      "type": "alias",
+                                      "path": "beat.stats.cgroup.memory.mem.limit.bytes"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "system": {
+                          "properties": {
+                            "ticks": {
+                              "type": "alias",
+                              "path": "beat.stats.cpu.system.ticks"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cpu.system.time.ms"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "properties": {
+                            "ticks": {
+                              "type": "alias",
+                              "path": "beat.stats.cpu.total.ticks"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cpu.total.time.ms"
+                                }
+                              }
+                            },
+                            "value": {
+                              "type": "alias",
+                              "path": "beat.stats.cpu.total.value"
+                            }
+                          }
+                        },
+                        "user": {
+                          "properties": {
+                            "ticks": {
+                              "type": "alias",
+                              "path": "beat.stats.cpu.user.ticks"
+                            },
+                            "time": {
+                              "properties": {
+                                "ms": {
+                                  "type": "alias",
+                                  "path": "beat.stats.cpu.user.time.ms"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "handles": {
+                      "properties": {
+                        "limit": {
+                          "properties": {
+                            "hard": {
+                              "type": "alias",
+                              "path": "beat.stats.handles.limit.hard"
+                            },
+                            "soft": {
+                              "type": "alias",
+                              "path": "beat.stats.handles.limit.soft"
+                            }
+                          }
+                        },
+                        "open": {
+                          "type": "alias",
+                          "path": "beat.stats.handles.open"
+                        }
+                      }
+                    },
+                    "info": {
+                      "properties": {
+                        "ephemeral_id": {
+                          "type": "alias",
+                          "path": "beat.stats.info.ephemeral_id"
+                        },
+                        "uptime": {
+                          "properties": {
+                            "ms": {
+                              "type": "alias",
+                              "path": "beat.stats.info.uptime.ms"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "memstats": {
+                      "properties": {
+                        "gc_next": {
+                          "type": "alias",
+                          "path": "beat.stats.memstats.gc_next"
+                        },
+                        "memory_alloc": {
+                          "type": "alias",
+                          "path": "beat.stats.memstats.memory.alloc"
+                        },
+                        "memory_total": {
+                          "type": "alias",
+                          "path": "beat.stats.memstats.memory.total"
+                        },
+                        "rss": {
+                          "type": "alias",
+                          "path": "beat.stats.memstats.rss"
+                        }
+                      }
+                    }
+                  }
+                },
+                "libbeat": {
+                  "properties": {
+                    "config": {
+                      "properties": {
+                        "module": {
+                          "properties": {
+                            "running": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.config.running"
+                            },
+                            "starts": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.config.starts"
+                            },
+                            "stops": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.config.stops"
+                            }
+                          }
+                        },
+                        "reloads": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.config.reloads"
+                        }
+                      }
+                    },
+                    "output": {
+                      "properties": {
+                        "events": {
+                          "properties": {
+                            "acked": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.acked"
+                            },
+                            "active": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.active"
+                            },
+                            "batches": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.batches"
+                            },
+                            "dropped": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.dropped"
+                            },
+                            "duplicated": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.duplicates"
+                            },
+                            "failed": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.failed"
+                            },
+                            "toomany": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.toomany"
+                            },
+                            "total": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.events.total"
+                            }
+                          }
+                        },
+                        "read": {
+                          "properties": {
+                            "bytes": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.read.bytes"
+                            },
+                            "errors": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.read.errors"
+                            }
+                          }
+                        },
+                        "type": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.output.type"
+                        },
+                        "write": {
+                          "properties": {
+                            "bytes": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.write.bytes"
+                            },
+                            "errors": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.output.write.errors"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "pipeline": {
+                      "properties": {
+                        "clients": {
+                          "type": "alias",
+                          "path": "beat.stats.libbeat.pipeline.clients"
+                        },
+                        "events": {
+                          "properties": {
+                            "active": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.active"
+                            },
+                            "dropped": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.dropped"
+                            },
+                            "failed": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.failed"
+                            },
+                            "filtered": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.filtered"
+                            },
+                            "published": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.published"
+                            },
+                            "retry": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.retry"
+                            },
+                            "total": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.events.total"
+                            }
+                          }
+                        },
+                        "queue": {
+                          "properties": {
+                            "acked": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.queue.acked"
+                            },
+                            "max_events": {
+                              "type": "alias",
+                              "path": "beat.stats.libbeat.pipeline.queue.max_events"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "system": {
+                  "properties": {
+                    "cpu": {
+                      "properties": {
+                        "cores": {
+                          "type": "alias",
+                          "path": "beat.stats.system.cpu.cores"
+                        }
+                      }
+                    },
+                    "load": {
+                      "properties": {
+                        "1": {
+                          "type": "alias",
+                          "path": "beat.stats.system.load.1"
+                        },
+                        "5": {
+                          "type": "alias",
+                          "path": "beat.stats.system.load.5"
+                        },
+                        "15": {
+                          "type": "alias",
+                          "path": "beat.stats.system.load.15"
+                        },
+                        "norm": {
+                          "properties": {
+                            "1": {
+                              "type": "alias",
+                              "path": "beat.stats.system.load.norm.1"
+                            },
+                            "5": {
+                              "type": "alias",
+                              "path": "beat.stats.system.load.norm.5"
+                            },
+                            "15": {
+                              "type": "alias",
+                              "path": "beat.stats.system.load.norm.15"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "output": {
+                  "properties": {
+                    "elasticsearch": {
+                      "properties": {
+                        "bulk_requests": {
+                          "properties": {
+                            "available": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.bulk_requests.available"
+                            },
+                            "completed": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.bulk_requests.completed"
+                            }
+                          }
+                        },
+                        "indexers": {
+                          "properties": {
+                            "active": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.active"
+                            },
+                            "created": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.created"
+                            },
+                            "destroyed": {
+                              "type": "alias",
+                              "path": "beat.stats.output.elasticsearch.indexers.destroyed"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "@timestamp": {
+          "type": "date"
+        },
+        "timestamp": {
+          "type": "alias",
+          "path": "@timestamp"
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "architecture": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "metricset": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "period": {
+              "type": "long"
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "address": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "environment": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ephemeral_id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "origin": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "state": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "target": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "version": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "action": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "agent_id_status": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "category": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "code": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "created": {
+              "type": "date"
+            },
+            "dataset": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "duration": {
+              "type": "long"
+            },
+            "end": {
+              "type": "date"
+            },
+            "hash": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ingested": {
+              "type": "date"
+            },
+            "kind": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "module": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "original": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false,
+              "ignore_above": 1024
+            },
+            "outcome": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "provider": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reason": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reference": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "risk_score": {
+              "type": "float"
+            },
+            "risk_score_norm": {
+              "type": "float"
+            },
+            "sequence": {
+              "type": "long"
+            },
+            "severity": {
+              "type": "long"
+            },
+            "start": {
+              "type": "date"
+            },
+            "timezone": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "url": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "cluster_uuid": {
+          "type": "alias",
+          "path": "beat.elasticsearch.cluster.id"
+        }
+      }
+    },
+    "settings": {
+      "index.auto_expand_replicas": "0-1",
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
+    }
+  },
+  "data_stream": {}
+}

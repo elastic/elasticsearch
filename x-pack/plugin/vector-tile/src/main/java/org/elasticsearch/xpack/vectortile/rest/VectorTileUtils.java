@@ -12,9 +12,9 @@ import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
 import com.wdtinc.mapbox_vector_tile.encoding.MvtValue;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -60,8 +60,20 @@ class VectorTileUtils {
      * Adds the provided key / value pair into the feature as tags.
      */
     public static void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {
+        if (value == null) {
+            // guard for null values
+            return;
+        }
+        if (value instanceof Byte || value instanceof Short) {
+            // mvt does not support byte and short data types
+            value = ((Number) value).intValue();
+        }
         feature.addTags(layerProps.addKey(key));
-        feature.addTags(layerProps.addValue(value));
+        int valIndex = layerProps.addValue(value);
+        if (valIndex < 0) {
+            throw new IllegalArgumentException("Unsupported vector tile type for field [" + key + "] : " + value.getClass().getName());
+        }
+        feature.addTags(valIndex);
     }
 
     /**

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
@@ -34,7 +34,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
     public void testUnfollow() {
         final long settingsVersion = randomNonNegativeLong();
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .settingsVersion(settingsVersion)
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -42,13 +42,11 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         ClusterState result = TransportUnfollowAction.unfollow("follow_index", current);
 
-        IndexMetadata resultIMD = result.metadata().index("follow_index");
+        IndexMetadata resultIMD = result.metadata().getProject().index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
         assertThat(resultIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY), nullValue());
         assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));
@@ -56,29 +54,28 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
     public void testUnfollowIndexOpen() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(),
-            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been closed"));
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been closed")
+        );
     }
 
     public void testUnfollowRunningShardFollowTasks() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
-
 
         ShardFollowTask params = new ShardFollowTask(
             null,
@@ -91,52 +88,60 @@ public class TransportUnfollowActionTests extends ESTestCase {
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             TransportResumeFollowAction.DEFAULT_MAX_READ_REQUEST_SIZE,
             10240,
-            new ByteSizeValue(512, ByteSizeUnit.MB),
+            ByteSizeValue.of(512, ByteSizeUnit.MB),
             TimeValue.timeValueMillis(10),
             TimeValue.timeValueMillis(10),
             Collections.emptyMap()
         );
-        PersistentTasksCustomMetadata.PersistentTask<?> task =
-            new PersistentTasksCustomMetadata.PersistentTask<>("id", ShardFollowTask.NAME, params, 0, null);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = new PersistentTasksCustomMetadata.PersistentTask<>(
+            "id",
+            ShardFollowTask.NAME,
+            params,
+            0,
+            null
+        );
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .putCustom(PersistentTasksCustomMetadata.TYPE, new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task)))
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .put(followerIndex)
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        new PersistentTasksCustomMetadata(0, Collections.singletonMap("id", task))
+                    )
+                    .build()
+            )
             .build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
-        assertThat(e.getMessage(),
-            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been paused"));
+        assertThat(
+            e.getMessage(),
+            equalTo("cannot convert the follower index [follow_index] to a non-follower, because it has not been paused")
+        );
     }
 
     public void testUnfollowMissingIndex() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
             .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         expectThrows(IndexNotFoundException.class, () -> TransportUnfollowAction.unfollow("another_index", current));
     }
 
     public void testUnfollowNoneFollowIndex() {
         IndexMetadata.Builder followerIndex = IndexMetadata.builder("follow_index")
-            .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
+            .settings(settings(IndexVersion.current()).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE);
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
-            .metadata(Metadata.builder()
-                .put(followerIndex)
-                .build())
+            .metadata(Metadata.builder().put(followerIndex).build())
             .build();
         expectThrows(IllegalArgumentException.class, () -> TransportUnfollowAction.unfollow("follow_index", current));
     }

@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: "The bug was corrected from 7.6.0"
 
   - do:
@@ -18,27 +18,27 @@ setup:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body: { "join_field": { "name": "question" }, "entity_type": "question" }
 
   - do:
       index:
         index: test
-        id: 2
+        id: "2"
         routing: "1"
         body: { "join_field": { "name": "answer", "parent": 1} , "entity_type": "answer" }
 
   - do:
       index:
         index: test
-        id: 3
+        id: "3"
         body: { "join_field": { "name": "person" }, "entity_type": "person" }
 
   - do:
       index:
         index: test
         routing: "3"
-        id: 4
+        id: "4"
         body: { "join_field": { "name": "address", "parent": 3 }, "entity_type": "address" }
 
   - do:
@@ -46,20 +46,20 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: null
 
 ---
 "Test two sub-queries with only one having inner_hits":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "The bug was corrected from 7.7.0"
 
   - do:
@@ -87,19 +87,19 @@ teardown:
 
 ---
 "HasParent disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Update setting to false
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.allow_expensive_queries: "false"}}
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
 
   - do:
       catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./
@@ -119,9 +119,9 @@ teardown:
 
 ---
 profile fetch:
-  - skip:
-      version: ' - 7.15.99'
-      reason:  fetch profiling implemented in 7.16.0
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "fetch fields and stored_fields using ValueFetcher"
 
   - do:
       search:
@@ -141,14 +141,20 @@ profile fetch:
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
   - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
   - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
-  - length: { profile.shards.0.fetch.children: 2 }
-  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - length: { profile.shards.0.fetch.children: 4 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
-  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - match: { profile.shards.0.fetch.children.1.type: FetchSourcePhase }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
   - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.2.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.2.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.3.type: StoredFieldsPhase }

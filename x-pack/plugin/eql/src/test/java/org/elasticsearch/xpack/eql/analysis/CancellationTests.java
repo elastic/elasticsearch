@@ -6,17 +6,18 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -42,15 +43,15 @@ import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -67,7 +68,12 @@ public class CancellationTests extends ESTestCase {
     public void mockTransportService() {
         threadPool = new TestThreadPool(getClass().getName());
         // The TransportService needs to be able to return a valid RemoteClusterServices object down the stream, required by the Verifier.
-        transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
+        transportService = MockTransportService.createNewService(
+            Settings.EMPTY,
+            VersionInformation.CURRENT,
+            TransportVersion.current(),
+            threadPool
+        );
     }
 
     @After
@@ -84,8 +90,14 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices(Strings.EMPTY_ARRAY).query("foo where blah"),
-            "", transportService, mockClusterService, new ActionListener<>() {
+        TransportEqlSearchAction.operation(
+            planExecutor,
+            task,
+            new EqlSearchRequest().indices(Strings.EMPTY_ARRAY).query("foo where blah"),
+            "",
+            transportService,
+            mockClusterService,
+            new ActionListener<>() {
                 @Override
                 public void onResponse(EqlSearchResponse eqlSearchResponse) {
                     fail("Shouldn't be here");
@@ -97,20 +109,19 @@ public class CancellationTests extends ESTestCase {
                     assertThat(e, instanceOf(TaskCancelledException.class));
                     countDownLatch.countDown();
                 }
-            });
+            }
+        );
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField =
-            new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities categoryField =
-            new FieldCapabilities("event.category", "keyword", false, true, true, indices, null, null, emptyMap());
-        FieldCapabilities timestampField =
-            new FieldCapabilities("@timestamp", "date", false, true, true, indices, null, null, emptyMap());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities categoryField = new FieldCapabilitiesBuilder("event.category", "keyword").indices(indices).build();
+        FieldCapabilities timestampField = new FieldCapabilitiesBuilder("@timestamp", "date").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), singletonMap(fooField.getName(), fooField));
         fields.put(categoryField.getName(), singletonMap(categoryField.getName(), categoryField));
@@ -124,7 +135,7 @@ public class CancellationTests extends ESTestCase {
         EqlSearchTask task = EqlTestUtils.randomTask();
         ClusterService mockClusterService = mockClusterService();
 
-        String[] indices = new String[]{"endgame"};
+        String[] indices = new String[] { "endgame" };
 
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -137,28 +148,35 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).fieldCaps(any(), any());
 
-
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
-            @Override
-            public void onResponse(EqlSearchResponse eqlSearchResponse) {
-                fail("Shouldn't be here");
-                countDownLatch.countDown();
-            }
+        TransportEqlSearchAction.operation(
+            planExecutor,
+            task,
+            new EqlSearchRequest().indices("endgame").query("process where foo==3"),
+            "",
+            transportService,
+            mockClusterService,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(EqlSearchResponse eqlSearchResponse) {
+                    fail("Shouldn't be here");
+                    countDownLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(TaskCancelledException.class));
-                countDownLatch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(TaskCancelledException.class));
+                    countDownLatch.countDown();
+                }
             }
-        });
+        );
         countDownLatch.await();
         verify(client).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -169,7 +187,7 @@ public class CancellationTests extends ESTestCase {
         String nodeId = randomAlphaOfLength(10);
         ClusterService mockClusterService = mockClusterService(nodeId);
 
-        String[] indices = new String[]{"endgame"};
+        String[] indices = new String[] { "endgame" };
 
         // Emulation of field capabilities
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
@@ -184,7 +202,7 @@ public class CancellationTests extends ESTestCase {
 
         // Emulation of search cancellation
         ArgumentCaptor<SearchRequest> searchRequestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
-        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(indices));
+        when(client.prepareSearch(any())).thenReturn(new SearchRequestBuilder(client).setIndices(indices));
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             SearchRequest request = (SearchRequest) invocation.getArguments()[1];
@@ -201,26 +219,34 @@ public class CancellationTests extends ESTestCase {
         IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
-        TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
-            .query("process where foo==3"), "", transportService, mockClusterService, new ActionListener<>() {
-            @Override
-            public void onResponse(EqlSearchResponse eqlSearchResponse) {
-                fail("Shouldn't be here");
-                countDownLatch.countDown();
-            }
+        TransportEqlSearchAction.operation(
+            planExecutor,
+            task,
+            new EqlSearchRequest().indices("endgame").query("process where foo==3"),
+            "",
+            transportService,
+            mockClusterService,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(EqlSearchResponse eqlSearchResponse) {
+                    fail("Shouldn't be here");
+                    countDownLatch.countDown();
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertThat(e, instanceOf(TaskCancelledException.class));
-                countDownLatch.countDown();
+                @Override
+                public void onFailure(Exception e) {
+                    assertThat(e, instanceOf(TaskCancelledException.class));
+                    countDownLatch.countDown();
+                }
             }
-        });
+        );
         countDownLatch.await();
         // Final verification to ensure no more interaction
         verify(client).fieldCaps(any(), any());
         verify(client).execute(any(), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -244,6 +270,6 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static IndexResolver indexResolver(Client client) {
-        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE, Collections::emptySet);
     }
 }

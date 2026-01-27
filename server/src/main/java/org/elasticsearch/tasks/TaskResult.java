@@ -1,28 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,9 +31,9 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Information about a running task or a task that stored its result. Running tasks just have a {@link #getTask()} while
@@ -80,7 +81,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
      */
     public TaskResult(StreamInput in) throws IOException {
         completed = in.readBoolean();
-        task = new TaskInfo(in);
+        task = TaskInfo.from(in);
         error = in.readOptionalBytesReference();
         response = in.readOptionalBytesReference();
     }
@@ -167,12 +168,14 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     static {
         InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
-            "stored_task_result", true, TaskResult.class);
+            "stored_task_result",
+            true,
+            TaskResult.class
+        );
         parser.declareBoolean(constructorArg(), new ParseField("completed"));
         parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
-        ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
-        parserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("error"));
+        ObjectParserHelper.declareRawObject(parser, optionalConstructorArg(), new ParseField("response"));
         PARSER = parser.build();
     }
 
@@ -193,9 +196,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
          * differences so perfect for testing.
          */
         return Objects.equals(completed, other.completed)
-                && Objects.equals(task, other.task)
-                && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
-                && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
+            && Objects.equals(task, other.task)
+            && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
+            && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
     }
 
     @Override

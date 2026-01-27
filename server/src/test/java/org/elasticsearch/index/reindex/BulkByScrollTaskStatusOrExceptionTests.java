@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.index.reindex.BulkByScrollTask.StatusOrException;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -41,11 +42,15 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
 
     @Override
     protected StatusOrException doParseInstance(XContentParser parser) throws IOException {
-        return StatusOrException.fromXContent(parser);
+        return BulkByScrollTaskStatusTests.parseStatusOrException(parser);
     }
 
-    public static void assertEqualStatusOrException(StatusOrException expected, StatusOrException actual,
-                                                    boolean includeUpdated, boolean includeCreated) {
+    public static void assertEqualStatusOrException(
+        StatusOrException expected,
+        StatusOrException actual,
+        boolean includeUpdated,
+        boolean includeCreated
+    ) {
         if (expected != null && actual != null) {
             assertNotSame(expected, actual);
             if (expected.getException() == null) {
@@ -53,10 +58,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
                     // we test includeCreated params in the Status tests
                     .assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
             } else {
-                assertThat(
-                    actual.getException().getMessage(),
-                    containsString(expected.getException().getMessage())
-                );
+                assertThat(actual.getException().getMessage(), containsString(expected.getException().getMessage()));
             }
         } else {
             // If one of them is null both of them should be null
@@ -81,13 +83,22 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<StatusOrException> instanceSupplier = BulkByScrollTaskStatusOrExceptionTests::createTestInstanceWithExceptions;
-        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, as we only want to test that we don't break.
+        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields, Strings.EMPTY_ARRAY,
-            getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-            this::assertEqualInstances, assertToXContentEquivalence, ToXContent.EMPTY_PARAMS);
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields,
+            Strings.EMPTY_ARRAY,
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            ToXContent.EMPTY_PARAMS
+        );
     }
 }

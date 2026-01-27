@@ -6,15 +6,14 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
@@ -26,13 +25,13 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/update";
 
     private UpdateJobAction() {
-        super(NAME, PutJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<UpdateJobAction.Request> implements ToXContentObject {
 
         public static UpdateJobAction.Request parseRequest(String jobId, XContentParser parser) {
-            JobUpdate update = JobUpdate.EXTERNAL_PARSER.apply(parser, null).setJobId(jobId).build();
+            JobUpdate update = JobUpdate.PARSER.apply(parser, null).setJobId(jobId).build();
             return new UpdateJobAction.Request(jobId, update);
         }
 
@@ -47,6 +46,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
         }
 
         private Request(String jobId, JobUpdate update, boolean isInternal) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = jobId;
             this.update = update;
             this.isInternal = isInternal;
@@ -79,11 +79,6 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
@@ -103,9 +98,7 @@ public class UpdateJobAction extends ActionType<PutJobAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             UpdateJobAction.Request that = (UpdateJobAction.Request) o;
-            return Objects.equals(jobId, that.jobId) &&
-                    Objects.equals(update, that.update) &&
-                    isInternal == that.isInternal;
+            return Objects.equals(jobId, that.jobId) && Objects.equals(update, that.update) && isInternal == that.isInternal;
         }
 
         @Override

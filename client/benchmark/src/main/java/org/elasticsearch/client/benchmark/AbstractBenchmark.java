@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.client.benchmark;
 
@@ -18,7 +19,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public abstract class AbstractBenchmark<T extends Closeable> {
     private static final int SEARCH_BENCHMARK_ITERATIONS = 10_000;
@@ -36,16 +36,12 @@ public abstract class AbstractBenchmark<T extends Closeable> {
             System.exit(1);
         }
         switch (args[0]) {
-            case "search":
-                runSearchBenchmark(args);
-                break;
-            case "bulk":
-                runBulkIndexBenchmark(args);
-                break;
-            default:
+            case "search" -> runSearchBenchmark(args);
+            case "bulk" -> runBulkIndexBenchmark(args);
+            default -> {
                 System.err.println("Unknown benchmark type [" + args[0] + "]");
                 System.exit(1);
-
+            }
         }
 
     }
@@ -53,8 +49,7 @@ public abstract class AbstractBenchmark<T extends Closeable> {
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     private void runBulkIndexBenchmark(String[] args) throws Exception {
         if (args.length != 7) {
-            System.err.println(
-                "usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize");
+            System.err.println("usage: 'bulk' benchmarkTargetHostIp indexFilePath indexName typeName numberOfDocuments bulkSize");
             System.exit(1);
         }
         String benchmarkTargetHost = args[1];
@@ -71,9 +66,11 @@ public abstract class AbstractBenchmark<T extends Closeable> {
 
         T client = client(benchmarkTargetHost);
 
-        BenchmarkRunner benchmark = new BenchmarkRunner(warmupIterations, iterations,
-            new BulkBenchmarkTask(
-                bulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations, iterations, bulkSize));
+        BenchmarkRunner benchmark = new BenchmarkRunner(
+            warmupIterations,
+            iterations,
+            new BulkBenchmarkTask(bulkRequestExecutor(client, indexName, typeName), indexFilePath, warmupIterations, iterations, bulkSize)
+        );
 
         try {
             runTrials(() -> {
@@ -89,26 +86,32 @@ public abstract class AbstractBenchmark<T extends Closeable> {
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     private void runSearchBenchmark(String[] args) throws Exception {
         if (args.length != 5) {
-            System.err.println(
-                "usage: 'search' benchmarkTargetHostIp indexName searchRequestBody throughputRates");
+            System.err.println("usage: 'search' benchmarkTargetHostIp indexName searchRequestBody throughputRates");
             System.exit(1);
         }
         String benchmarkTargetHost = args[1];
         String indexName = args[2];
         String searchBody = args[3];
-        List<Integer> throughputRates = Arrays.asList(args[4].split(",")).stream().map(Integer::valueOf).collect(Collectors.toList());
+        List<Integer> throughputRates = Arrays.stream(args[4].split(",")).map(Integer::valueOf).toList();
 
         T client = client(benchmarkTargetHost);
 
         try {
             runTrials(() -> {
                 for (int throughput : throughputRates) {
-                    //GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
+                    // GC between trials to reduce the likelihood of a GC occurring in the middle of a trial.
                     runGc();
-                    BenchmarkRunner benchmark = new BenchmarkRunner(SEARCH_BENCHMARK_ITERATIONS, SEARCH_BENCHMARK_ITERATIONS,
+                    BenchmarkRunner benchmark = new BenchmarkRunner(
+                        SEARCH_BENCHMARK_ITERATIONS,
+                        SEARCH_BENCHMARK_ITERATIONS,
                         new SearchBenchmarkTask(
-                            searchRequestExecutor(client, indexName), searchBody, SEARCH_BENCHMARK_ITERATIONS,
-                            SEARCH_BENCHMARK_ITERATIONS, throughput));
+                            searchRequestExecutor(client, indexName),
+                            searchBody,
+                            SEARCH_BENCHMARK_ITERATIONS,
+                            SEARCH_BENCHMARK_ITERATIONS,
+                            throughput
+                        )
+                    );
                     System.out.printf("Target throughput = %d ops / s%n", throughput);
                     benchmark.run();
                 }

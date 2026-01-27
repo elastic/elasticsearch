@@ -6,63 +6,113 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DeprecationInfoActionResponseTests extends AbstractWireSerializingTestCase<DeprecationInfoAction.Response> {
 
     @Override
     protected DeprecationInfoAction.Response createTestInstance() {
-        List<DeprecationIssue> clusterIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
-        List<DeprecationIssue> nodeIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-            .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
-        Map<String, List<DeprecationIssue>> indexIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perIndexIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
-            indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
+        List<DeprecationIssue> clusterIssues = randomDeprecationIssues();
+        List<DeprecationIssue> nodeIssues = randomDeprecationIssues();
+        Map<String, List<DeprecationIssue>> indexIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> dataStreamIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> templateIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> ilmPolicyIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        Map<String, List<DeprecationIssue>> pluginIssues = randomMap(
+            0,
+            10,
+            () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues())
+        );
+        return new DeprecationInfoAction.Response(
+            clusterIssues,
+            nodeIssues,
+            Map.of(
+                "data_streams",
+                dataStreamIssues,
+                "index_settings",
+                indexIssues,
+                "templates",
+                templateIssues,
+                "ilm_policies",
+                ilmPolicyIssues
+            ),
+            pluginIssues
+        );
+    }
+
+    @Override
+    protected DeprecationInfoAction.Response mutateInstance(DeprecationInfoAction.Response instance) {
+        List<DeprecationIssue> clusterIssues = instance.getClusterSettingsIssues();
+        List<DeprecationIssue> nodeIssues = instance.getNodeSettingsIssues();
+        Map<String, List<DeprecationIssue>> indexIssues = instance.getIndexSettingsIssues();
+        Map<String, List<DeprecationIssue>> dataStreamIssues = instance.getDataStreamDeprecationIssues();
+        Map<String, List<DeprecationIssue>> templateIssues = instance.getTemplateDeprecationIssues();
+        Map<String, List<DeprecationIssue>> ilmPolicyIssues = instance.getIlmPolicyDeprecationIssues();
+        Map<String, List<DeprecationIssue>> pluginIssues = instance.getPluginSettingsIssues();
+        switch (randomIntBetween(1, 7)) {
+            case 1 -> clusterIssues = randomValueOtherThan(clusterIssues, DeprecationInfoActionResponseTests::randomDeprecationIssues);
+            case 2 -> nodeIssues = randomValueOtherThan(nodeIssues, DeprecationInfoActionResponseTests::randomDeprecationIssues);
+            case 3 -> indexIssues = randomValueOtherThan(
+                indexIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 4 -> dataStreamIssues = randomValueOtherThan(
+                dataStreamIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 5 -> templateIssues = randomValueOtherThan(
+                templateIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 6 -> ilmPolicyIssues = randomValueOtherThan(
+                ilmPolicyIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
+            case 7 -> pluginIssues = randomValueOtherThan(
+                pluginIssues,
+                () -> randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomDeprecationIssues()))
+            );
         }
-        Map<String, List<DeprecationIssue>> pluginIssues = new HashMap<>();
-        for (int i = 0; i < randomIntBetween(0, 10); i++) {
-            List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
-                .limit(randomIntBetween(0, 10)).collect(Collectors.toList());
-            pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
-        }
-        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, pluginIssues);
+        return new DeprecationInfoAction.Response(
+            clusterIssues,
+            nodeIssues,
+            Map.of(
+                "data_streams",
+                dataStreamIssues,
+                "index_settings",
+                indexIssues,
+                "templates",
+                templateIssues,
+                "ilm_policies",
+                ilmPolicyIssues
+            ),
+            pluginIssues
+        );
     }
 
     @Override
@@ -70,87 +120,11 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         return DeprecationInfoAction.Response::new;
     }
 
-    public void testFrom() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_all");
-        mapping.field("enabled", false);
-        mapping.endObject().endObject();
-
-        Metadata metadata = Metadata.builder().put(IndexMetadata.builder("test")
-            .putMapping(Strings.toString(mapping))
-            .settings(settings(Version.CURRENT))
-            .numberOfShards(1)
-            .numberOfReplicas(0))
-            .build();
-
-        DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        boolean clusterIssueFound = randomBoolean();
-        boolean nodeIssueFound = randomBoolean();
-        boolean indexIssueFound = randomBoolean();
-        DeprecationIssue foundIssue = createTestDeprecationIssue();
-        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
-        List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks = List.of((idx) -> indexIssueFound ? foundIssue : null);
-
-        NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
-            new ClusterName(randomAlphaOfLength(5)),
-            nodeIssueFound
-                ? Collections.singletonList(
-                    new NodesDeprecationCheckAction.NodeResponse(discoveryNode, Collections.singletonList(foundIssue)))
-                : emptyList(),
-            emptyList());
-
-        DeprecationInfoAction.Request request = new DeprecationInfoAction.Request(Strings.EMPTY_ARRAY);
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(state,
-            resolver,
-            request,
-            nodeDeprecationIssues,
-            indexSettingsChecks,
-            clusterSettingsChecks,
-            Collections.emptyMap());
-
-        if (clusterIssueFound) {
-            assertThat(response.getClusterSettingsIssues(), equalTo(Collections.singletonList(foundIssue)));
-        } else {
-            assertThat(response.getClusterSettingsIssues(), empty());
-        }
-
-        if (nodeIssueFound) {
-            String details = foundIssue.getDetails() != null ? foundIssue.getDetails() + " " : "";
-            DeprecationIssue mergedFoundIssue = new DeprecationIssue(foundIssue.getLevel(), foundIssue.getMessage(), foundIssue.getUrl(),
-                details + "(nodes impacted: [" + discoveryNode.getName() + "])", foundIssue.isResolveDuringRollingUpgrade(),
-                foundIssue.getMeta());
-            assertThat(response.getNodeSettingsIssues(), equalTo(Collections.singletonList(mergedFoundIssue)));
-        } else {
-            assertTrue(response.getNodeSettingsIssues().isEmpty());
-        }
-
-        if (indexIssueFound) {
-            assertThat(response.getIndexSettingsIssues(), equalTo(Collections.singletonMap("test",
-                Collections.singletonList(foundIssue))));
-        } else {
-            assertTrue(response.getIndexSettingsIssues().isEmpty());
-        }
+    static DeprecationIssue createTestDeprecationIssue() {
+        return createTestDeprecationIssue(randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 
-    public void testCtorFailure() {
-        Map<String, List<DeprecationIssue>> indexNames = Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(10)
-            .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
-        Set<String> shouldCauseFailure = new HashSet<>(RESERVED_NAMES);
-        for(int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
-            Map<String, List<DeprecationIssue>> pluginSettingsIssues = randomSubsetOf(3, shouldCauseFailure)
-                .stream()
-                .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> new DeprecationInfoAction.Response(Collections.emptyList(), Collections.emptyList(), indexNames, pluginSettingsIssues)
-            );
-        }
-    }
-
-    private static DeprecationIssue createTestDeprecationIssue() {
+    static DeprecationIssue createTestDeprecationIssue(Map<String, Object> metaMap) {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(
             randomFrom(Level.values()),
@@ -158,7 +132,24 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             randomAlphaOfLength(10),
             details,
             randomBoolean(),
-            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)))
+            metaMap
         );
+    }
+
+    static DeprecationIssue createTestDeprecationIssue(DeprecationIssue seedIssue, Map<String, Object> metaMap) {
+        return new DeprecationIssue(
+            seedIssue.getLevel(),
+            seedIssue.getMessage(),
+            seedIssue.getUrl(),
+            seedIssue.getDetails(),
+            seedIssue.isResolveDuringRollingUpgrade(),
+            metaMap
+        );
+    }
+
+    static List<DeprecationIssue> randomDeprecationIssues() {
+        return Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
+            .limit(randomIntBetween(0, 10))
+            .collect(Collectors.toList());
     }
 }

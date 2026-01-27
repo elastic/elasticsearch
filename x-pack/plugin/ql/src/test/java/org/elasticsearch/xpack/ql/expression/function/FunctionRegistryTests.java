@@ -10,9 +10,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.tree.SourceTests;
@@ -49,13 +51,14 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
 
         // Multiple children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class)).buildResolved(randomConfiguration(), def)
+        );
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
@@ -77,40 +80,50 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT).buildResolved(randomConfiguration(), def));
+        ParsingException e = expectThrows(ParsingException.class, () -> uf(DEFAULT).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // One child isn't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
+        e = expectThrows(ParsingException.class, () -> uf(DEFAULT, mock(Expression.class)).buildResolved(randomConfiguration(), def));
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
 
         // Many children aren't supported
-        e = expectThrows(ParsingException.class, () ->
-            uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class))
-                .buildResolved(randomConfiguration(), def));
+        e = expectThrows(
+            ParsingException.class,
+            () -> uf(DEFAULT, mock(Expression.class), mock(Expression.class), mock(Expression.class)).buildResolved(
+                randomConfiguration(),
+                def
+            )
+        );
         assertThat(e.getMessage(), endsWith("expects exactly two arguments"));
     }
 
     public void testAliasNameIsTheSameAsAFunctionName() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "DUMMY_FUNCTION"))
+        );
         assertEquals("alias [DUMMY_FUNCTION] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTheSameBatch() {
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
-                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> new FunctionRegistry(
+                def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"),
+                def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")
+            )
+        );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION(ALIAS)] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
     public void testDuplicateAliasInTwoDifferentFunctionsFromTwoDifferentBatches() {
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION", "ALIAS"));
-        QlIllegalArgumentException iae = expectThrows(QlIllegalArgumentException.class, () ->
-            r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS")));
+        QlIllegalArgumentException iae = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.register(def(DummyFunction2.class, DummyFunction2::new, "DUMMY_FUNCTION2", "ALIAS"))
+        );
         assertEquals("alias [ALIAS] is used by [DUMMY_FUNCTION] and [DUMMY_FUNCTION2]", iae.getMessage());
     }
 
@@ -145,15 +158,26 @@ public class FunctionRegistryTests extends ESTestCase {
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Not resolved
-        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.resolveAlias("DummyFunction")));
-        assertThat(e.getMessage(),
-            is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        QlIllegalArgumentException e = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> r.resolveFunction(r.resolveAlias("DummyFunction"))
+        );
+        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
 
-        e = expectThrows(QlIllegalArgumentException.class,
-            () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
-        assertThat(e.getMessage(),
-            is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+        e = expectThrows(QlIllegalArgumentException.class, () -> r.resolveFunction(r.resolveAlias("dummyFunction")));
+        assertThat(e.getMessage(), is("Cannot find function DUMMYFUNCTION; this should have been caught during analysis"));
+    }
+
+    public void testConfigurationOptionalFunction() {
+        UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
+        FunctionRegistry r = new FunctionRegistry(
+            def(DummyConfigurationOptionalArgumentFunction.class, (Source l, Expression e, Configuration c) -> {
+                assertSame(e, ur.children().get(0));
+                return new DummyConfigurationOptionalArgumentFunction(l, List.of(ur), c);
+            }, "DUMMY")
+        );
+        FunctionDefinition def = r.resolveFunction(r.resolveAlias("DUMMY"));
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
     public static UnresolvedFunction uf(FunctionResolutionStrategy resolutionStrategy, Expression... children) {
@@ -194,6 +218,33 @@ public class FunctionRegistryTests extends ESTestCase {
     public static class DummyFunction2 extends DummyFunction {
         public DummyFunction2(Source source) {
             super(source);
+        }
+    }
+
+    public static class DummyConfigurationOptionalArgumentFunction extends ConfigurationFunction implements OptionalArgument {
+
+        public DummyConfigurationOptionalArgumentFunction(Source source, List<Expression> fields, Configuration configuration) {
+            super(source, fields, configuration);
+        }
+
+        @Override
+        public DataType dataType() {
+            return null;
+        }
+
+        @Override
+        public ScriptTemplate asScript() {
+            return null;
+        }
+
+        @Override
+        public Expression replaceChildren(List<Expression> newChildren) {
+            return new DummyConfigurationOptionalArgumentFunction(source(), newChildren, configuration());
+        }
+
+        @Override
+        protected NodeInfo<? extends Expression> info() {
+            return NodeInfo.create(this, DummyConfigurationOptionalArgumentFunction::new, children(), configuration());
         }
     }
 }

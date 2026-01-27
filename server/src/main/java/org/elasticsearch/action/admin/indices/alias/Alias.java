@@ -1,33 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Represents an alias, to be associated with an index
@@ -40,6 +42,14 @@ public class Alias implements Writeable, ToXContentFragment {
     private static final ParseField SEARCH_ROUTING = new ParseField("search_routing", "searchRouting", "search-routing");
     private static final ParseField IS_WRITE_INDEX = new ParseField("is_write_index");
     private static final ParseField IS_HIDDEN = new ParseField("is_hidden");
+    private static final Set<String> KNOWN_FIELDS = Set.of(
+        FILTER.getPreferredName(),
+        ROUTING.getPreferredName(),
+        INDEX_ROUTING.getPreferredName(),
+        SEARCH_ROUTING.getPreferredName(),
+        IS_WRITE_INDEX.getPreferredName(),
+        IS_HIDDEN.getPreferredName()
+    );
 
     private String name;
 
@@ -81,7 +91,7 @@ public class Alias implements Writeable, ToXContentFragment {
     /**
       Modify the alias name only
      */
-    public Alias name(String name){
+    public Alias name(String name) {
         this.name = name;
         return this;
     }
@@ -231,6 +241,10 @@ public class Alias implements Writeable, ToXContentFragment {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
+                // check if there are any unknown fields
+                if (KNOWN_FIELDS.contains(currentFieldName) == false) {
+                    throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
+                }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (FILTER.match(currentFieldName, parser.getDeprecationHandler())) {
                     Map<String, Object> filter = parser.mapOrdered();
@@ -243,13 +257,35 @@ public class Alias implements Writeable, ToXContentFragment {
                     alias.indexRouting(parser.text());
                 } else if (SEARCH_ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.searchRouting(parser.text());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported String type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if (IS_WRITE_INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.writeIndex(parser.booleanValue());
                 } else if (IS_HIDDEN.match(currentFieldName, parser.getDeprecationHandler())) {
                     alias.isHidden(parser.booleanValue());
+                } else {
+                    throw new IllegalArgumentException(
+                        "Unsupported boolean type value ["
+                            + parser.text()
+                            + "] for field ["
+                            + currentFieldName
+                            + "] in alias ["
+                            + alias.name
+                            + "]"
+                    );
                 }
+            } else {
+                throw new IllegalArgumentException("Unknown token [" + token + "] in alias [" + alias.name + "]");
             }
         }
         return alias;
@@ -276,7 +312,9 @@ public class Alias implements Writeable, ToXContentFragment {
             }
         }
 
-        builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        if (writeIndex != null) {
+            builder.field(IS_WRITE_INDEX.getPreferredName(), writeIndex);
+        }
 
         if (isHidden != null) {
             builder.field(IS_HIDDEN.getPreferredName(), isHidden);

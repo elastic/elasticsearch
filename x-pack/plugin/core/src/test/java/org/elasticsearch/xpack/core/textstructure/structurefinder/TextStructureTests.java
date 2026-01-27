@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.nio.charset.Charset;
 import java.util.Arrays;
@@ -20,11 +20,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class TextStructureTests extends AbstractSerializingTestCase<TextStructure> {
+public class TextStructureTests extends AbstractXContentSerializingTestCase<TextStructure> {
 
     @Override
     protected TextStructure createTestInstance() {
         return createTestFileStructure();
+    }
+
+    @Override
+    protected TextStructure mutateInstance(TextStructure instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static TextStructure createTestFileStructure() {

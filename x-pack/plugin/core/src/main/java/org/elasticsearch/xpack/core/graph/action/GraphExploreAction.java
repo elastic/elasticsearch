@@ -15,6 +15,6 @@ public class GraphExploreAction extends ActionType<GraphExploreResponse> {
     public static final String NAME = "indices:data/read/xpack/graph/explore";
 
     private GraphExploreAction() {
-        super(NAME, GraphExploreResponse::new);
+        super(NAME);
     }
 }

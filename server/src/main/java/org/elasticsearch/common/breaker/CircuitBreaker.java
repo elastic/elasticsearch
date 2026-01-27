@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.breaker;
-
 
 import java.util.Locale;
 
@@ -39,8 +39,8 @@ public interface CircuitBreaker {
      */
     String REQUEST = "request";
     /**
-     * The in-flight request breaker tracks bytes allocated for reading and
-     * writing requests on the network layer.
+     * The in-flight request breaker tracks bytes allocated for reading requests
+     * on the network layer.
      */
     String IN_FLIGHT_REQUESTS = "inflight_requests";
 
@@ -53,16 +53,12 @@ public interface CircuitBreaker {
         NOOP;
 
         public static Type parseValue(String value) {
-            switch(value.toLowerCase(Locale.ROOT)) {
-                case "noop":
-                    return Type.NOOP;
-                case "parent":
-                    return Type.PARENT;
-                case "memory":
-                    return Type.MEMORY;
-                default:
-                    throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
-            }
+            return switch (value.toLowerCase(Locale.ROOT)) {
+                case "noop" -> Type.NOOP;
+                case "parent" -> Type.PARENT;
+                case "memory" -> Type.MEMORY;
+                default -> throw new IllegalArgumentException("No CircuitBreaker with type: " + value);
+            };
         }
     }
 

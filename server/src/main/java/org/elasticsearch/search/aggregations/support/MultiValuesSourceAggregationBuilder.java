@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -39,12 +40,11 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             super(name);
         }
 
+        @SuppressWarnings("this-escape")
         protected LeafOnly(LeafOnly<AB> clone, Builder factoriesBuilder, Map<String, Object> metadata) {
             super(clone, factoriesBuilder, metadata);
             if (factoriesBuilder.count() > 0) {
-                throw new AggregationInitializationException(
-                    "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-                );
+                throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
             }
         }
 
@@ -57,9 +57,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException(
-                "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-            );
+            throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
         }
     }
 
@@ -94,16 +92,15 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     /**
      * Read from a stream.
      */
-    @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
-        fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
+        fields = in.readMap(MultiValuesSourceFieldConfig::new);
         userValueTypeHint = in.readOptionalWriteable(ValueType::readFromStream);
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
+        out.writeMap(fields, StreamOutput::writeWriteable);
         out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         innerWriteTo(out);
@@ -161,8 +158,8 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
         AggregatorFactory parent,
         Builder subFactoriesBuilder
     ) throws IOException {
-        Map<String, ValuesSourceConfig> configs = new HashMap<>(fields.size());
-        Map<String, QueryBuilder> filters = new HashMap<>(fields.size());
+        Map<String, ValuesSourceConfig> configs = Maps.newMapWithExpectedSize(fields.size());
+        Map<String, QueryBuilder> filters = Maps.newMapWithExpectedSize(fields.size());
         fields.forEach((key, value) -> {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(
                 context,

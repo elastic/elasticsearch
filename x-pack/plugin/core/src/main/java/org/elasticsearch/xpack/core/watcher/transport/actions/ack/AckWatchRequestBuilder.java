@@ -7,16 +7,12 @@
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * A ack watch action request builder.
  */
 public class AckWatchRequestBuilder extends ActionRequestBuilder<AckWatchRequest, AckWatchResponse> {
-
-    public AckWatchRequestBuilder(ElasticsearchClient client) {
-        super(client, AckWatchAction.INSTANCE, new AckWatchRequest());
-    }
 
     public AckWatchRequestBuilder(ElasticsearchClient client, String id) {
         super(client, AckWatchAction.INSTANCE, new AckWatchRequest(id));

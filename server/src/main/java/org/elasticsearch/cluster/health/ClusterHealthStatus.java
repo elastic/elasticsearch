@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.health;
-
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +20,7 @@ public enum ClusterHealthStatus implements Writeable {
     YELLOW((byte) 1),
     RED((byte) 2);
 
-    private byte value;
+    private final byte value;
 
     ClusterHealthStatus(byte value) {
         this.value = value;
@@ -42,16 +42,12 @@ public enum ClusterHealthStatus implements Writeable {
      */
     public static ClusterHealthStatus readFrom(StreamInput in) throws IOException {
         byte value = in.readByte();
-        switch (value) {
-            case 0:
-                return GREEN;
-            case 1:
-                return YELLOW;
-            case 2:
-                return RED;
-            default:
-                throw new IllegalArgumentException("No cluster health status for value [" + value + "]");
-        }
+        return switch (value) {
+            case 0 -> GREEN;
+            case 1 -> YELLOW;
+            case 2 -> RED;
+            default -> throw new IllegalArgumentException("No cluster health status for value [" + value + "]");
+        };
     }
 
     public static ClusterHealthStatus fromString(String status) {

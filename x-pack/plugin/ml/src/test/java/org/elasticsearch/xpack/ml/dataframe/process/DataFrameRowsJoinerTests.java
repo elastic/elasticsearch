@@ -33,8 +33,8 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -67,7 +67,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row row = newTrainingRow(newHit(dataDoc), dataValues, 1);
         givenDataFrameBatches(List.of(Arrays.asList(row)));
 
@@ -94,7 +94,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         List<DataFrameDataExtractor.Row> firstBatch = new ArrayList<>(1000);
         IntStream.range(0, 1000).forEach(i -> firstBatch.add(newTrainingRow(newHit(dataDoc), dataValues, i)));
         List<DataFrameDataExtractor.Row> secondBatch = new ArrayList<>(1);
@@ -118,7 +118,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row row = newTrainingRow(newHit(dataDoc), dataValues, 1);
         givenDataFrameBatches(List.of(Arrays.asList(row)));
 
@@ -136,7 +136,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
 
         DataFrameDataExtractor.Row skippedRow = newTrainingRow(newHit("{}"), null, 1);
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row normalRow = newTrainingRow(newHit(dataDoc), dataValues, 2);
         givenDataFrameBatches(List.of(Arrays.asList(skippedRow, normalRow)));
 
@@ -163,7 +163,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row normalRow1 = newTrainingRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row normalRow2 = newTrainingRow(newHit(dataDoc), dataValues, 2);
         DataFrameDataExtractor.Row skippedRow = newTrainingRow(newHit("{}"), null, 3);
@@ -195,7 +195,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row testRow = newTestRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row normalRow = newTrainingRow(newHit(dataDoc), dataValues, 2);
         givenDataFrameBatches(Arrays.asList(Arrays.asList(testRow, normalRow)));
@@ -223,7 +223,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row normalRow1 = newTrainingRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row normalRow2 = newTrainingRow(newHit(dataDoc), dataValues, 2);
         DataFrameDataExtractor.Row testRow = newTestRow(newHit(dataDoc), dataValues, 3);
@@ -255,7 +255,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row row = newTrainingRow(newHit(dataDoc), dataValues, 1);
         givenDataFrameBatches(List.of(List.of(row)));
 
@@ -276,7 +276,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         givenClientHasNoFailures();
 
         String dataDoc = "{\"f_1\": \"foo\", \"f_2\": 42.0}";
-        String[] dataValues = {"42.0"};
+        String[] dataValues = { "42.0" };
         DataFrameDataExtractor.Row row1 = newTrainingRow(newHit(dataDoc), dataValues, 1);
         DataFrameDataExtractor.Row row2 = newTrainingRow(newHit(dataDoc), dataValues, 1);
         givenDataFrameBatches(List.of(List.of(row1), List.of(row2)));
@@ -289,8 +289,15 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenProcessResults(List<RowResults> results) {
-        try (DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(ANALYTICS_ID, Settings.EMPTY, new TaskId(""), dataExtractor,
-            resultsPersisterService)) {
+        try (
+            DataFrameRowsJoiner joiner = new DataFrameRowsJoiner(
+                ANALYTICS_ID,
+                Settings.EMPTY,
+                new TaskId(""),
+                dataExtractor,
+                resultsPersisterService
+            )
+        ) {
             results.forEach(joiner::processRowResults);
         }
     }
@@ -299,10 +306,11 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
         DelegateStubDataExtractor delegateStubDataExtractor = new DelegateStubDataExtractor(batches);
         when(dataExtractor.hasNext()).thenAnswer(a -> delegateStubDataExtractor.hasNext());
         when(dataExtractor.next()).thenAnswer(a -> delegateStubDataExtractor.next());
+        when(dataExtractor.createRow(any(SearchHit.class))).thenAnswer(a -> delegateStubDataExtractor.makeRow(a.getArgument(0)));
     }
 
     private static SearchHit newHit(String json) {
-        SearchHit hit = new SearchHit(randomInt(), randomAlphaOfLength(10), Collections.emptyMap(), Collections.emptyMap());
+        SearchHit hit = SearchHit.unpooled(randomInt(), randomAlphaOfLength(10));
         hit.sourceRef(new BytesArray(json));
         return hit;
     }
@@ -318,6 +326,7 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     private static DataFrameDataExtractor.Row newRow(SearchHit hit, String[] values, boolean isTraining, int checksum) {
         DataFrameDataExtractor.Row row = mock(DataFrameDataExtractor.Row.class);
         when(row.getHit()).thenReturn(hit);
+        when(row.getSource()).thenReturn(hit.getSourceAsMap());
         when(row.getValues()).thenReturn(values);
         when(row.isTraining()).thenReturn(isTraining);
         when(row.getChecksum()).thenReturn(checksum);
@@ -326,26 +335,39 @@ public class DataFrameRowsJoinerTests extends ESTestCase {
     }
 
     private void givenClientHasNoFailures() {
-        when(resultsPersisterService.bulkIndexWithHeadersWithRetry(
-            eq(HEADERS), bulkRequestCaptor.capture(), eq(ANALYTICS_ID), any(), any()))
-            .thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
+        when(
+            resultsPersisterService.bulkIndexWithHeadersWithRetry(eq(HEADERS), bulkRequestCaptor.capture(), eq(ANALYTICS_ID), any(), any())
+        ).thenReturn(new BulkResponse(new BulkItemResponse[0], 0));
     }
 
     private static class DelegateStubDataExtractor {
 
-        private final List<List<DataFrameDataExtractor.Row>> batches;
+        private final List<SearchHit[]> batches;
+        private final Map<SearchHit, DataFrameDataExtractor.Row> rows = new HashMap<>();
         private int batchIndex;
 
-        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> batches) {
-            this.batches = batches;
+        private DelegateStubDataExtractor(List<List<DataFrameDataExtractor.Row>> rows) {
+            batches = new ArrayList<>(rows.size());
+            for (List<DataFrameDataExtractor.Row> batch : rows) {
+                List<SearchHit> batchHits = new ArrayList<>(batch.size());
+                for (DataFrameDataExtractor.Row row : batch) {
+                    this.rows.put(row.getHit(), row);
+                    batchHits.add(row.getHit());
+                }
+                batches.add(batchHits.toArray(new SearchHit[0]));
+            }
         }
 
         public boolean hasNext() {
             return batchIndex < batches.size();
         }
 
-        public Optional<List<DataFrameDataExtractor.Row>> next() {
+        public Optional<SearchHit[]> next() {
             return Optional.of(batches.get(batchIndex++));
+        }
+
+        public DataFrameDataExtractor.Row makeRow(SearchHit hit) {
+            return rows.get(hit);
         }
     }
 }

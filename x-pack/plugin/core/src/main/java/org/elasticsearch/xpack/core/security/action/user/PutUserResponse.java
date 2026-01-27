@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -21,12 +20,7 @@ import java.io.IOException;
  */
 public class PutUserResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean created;
-
-    public PutUserResponse(StreamInput in) throws IOException {
-        super(in);
-        this.created = in.readBoolean();
-    }
+    private final boolean created;
 
     public PutUserResponse(boolean created) {
         this.created = created;
@@ -43,8 +37,6 @@ public class PutUserResponse extends ActionResponse implements ToXContentObject 
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-            .field("created", created)
-            .endObject();
+        return builder.startObject().field("created", created).endObject();
     }
 }

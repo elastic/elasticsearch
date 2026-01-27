@@ -7,21 +7,21 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.xpack.sql.proto.Protocol;
 
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.SQL_STATS_REST_ENDPOINT;
 
 public class RestSqlStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, Protocol.SQL_STATS_REST_ENDPOINT));
+        return List.of(new Route(GET, SQL_STATS_REST_ENDPOINT));
     }
 
     @Override

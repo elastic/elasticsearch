@@ -6,19 +6,14 @@
  */
 package org.elasticsearch.protocol.xpack.graph;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A vertex in a graph response represents a single term (a field and value pair)
@@ -41,7 +36,6 @@ public class Vertex implements ToXContentFragment {
     private static final ParseField DEPTH = new ParseField("depth");
     private static final ParseField FG = new ParseField("fg");
     private static final ParseField BG = new ParseField("bg");
-
 
     public Vertex(String field, String term, double weight, int depth, long bg, long fg) {
         super();
@@ -73,19 +67,16 @@ public class Vertex implements ToXContentFragment {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         Vertex other = (Vertex) obj;
-        return depth == other.depth &&
-               weight == other.weight &&
-               bg == other.bg &&
-               fg == other.fg &&
-               Objects.equals(field, other.field) &&
-               Objects.equals(term, other.term);
+        return depth == other.depth
+            && weight == other.weight
+            && bg == other.bg
+            && fg == other.fg
+            && Objects.equals(field, other.field)
+            && Objects.equals(term, other.term);
 
     }
 
@@ -103,35 +94,6 @@ public class Vertex implements ToXContentFragment {
         return builder;
     }
 
-
-    private static final ConstructingObjectParser<Vertex, Void> PARSER = new ConstructingObjectParser<>(
-            "VertexParser", true,
-            args -> {
-                String field = (String) args[0];
-                String term = (String) args[1];
-                double weight = (Double) args[2];
-                int depth = (Integer) args[3];
-                Long optionalBg = (Long) args[4];
-                Long optionalFg = (Long) args[5];
-                long bg = optionalBg == null ? 0 : optionalBg;
-                long fg = optionalFg == null ? 0 : optionalFg;
-                return new Vertex(field, term, weight, depth, bg, fg);
-            });
-
-    static {
-        PARSER.declareString(constructorArg(), FIELD);
-        PARSER.declareString(constructorArg(), TERM);
-        PARSER.declareDouble(constructorArg(), WEIGHT);
-        PARSER.declareInt(constructorArg(), DEPTH);
-        PARSER.declareLong(optionalConstructorArg(), BG);
-        PARSER.declareLong(optionalConstructorArg(), FG);
-    }
-
-    static Vertex fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
-    }
-
-
     /**
      * @return a {@link VertexId} object that uniquely identifies this Vertex
      */
@@ -146,7 +108,7 @@ public class Vertex implements ToXContentFragment {
      * @return a {@link VertexId} that can be used for looking up vertices
      */
     public static VertexId createId(String field, String term) {
-        return new VertexId(field,term);
+        return new VertexId(field, term);
     }
 
     @Override
@@ -176,7 +138,7 @@ public class Vertex implements ToXContentFragment {
         this.weight = weight;
     }
 
-    // @formatter:off
+    // tag::noformat
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
@@ -185,12 +147,12 @@ public class Vertex implements ToXContentFragment {
      * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
      * >the significant_terms aggregation</a>)
      */
-    // @formatter:on
+    // end::noformat
     public long getBg() {
         return bg;
     }
 
-    // @formatter:off
+    // tag::noformat
     /**
      * If the {@link GraphExploreRequest#useSignificance(boolean)} is true (the default)
      * this statistic is available.
@@ -200,7 +162,7 @@ public class Vertex implements ToXContentFragment {
      * href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-aggregations-bucket-significantterms-aggregation.html"
      * >the significant_terms aggregation</a>)
      */
-    // @formatter:on
+    // end::noformat
     public long getFg() {
         return fg;
     }

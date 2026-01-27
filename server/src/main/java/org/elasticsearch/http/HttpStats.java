@@ -1,49 +1,51 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
-public class HttpStats implements Writeable, ToXContentFragment {
+public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats, Map<String, HttpRouteStats> httpRouteStats)
+    implements
+        Writeable,
+        ChunkedToXContent {
 
-    private final long serverOpen;
-    private final long totalOpen;
-    private final List<ClientStats> clientStats;
-
-    public HttpStats(List<ClientStats> clientStats, long serverOpen, long totalOpened) {
-        this.clientStats = clientStats;
-        this.serverOpen = serverOpen;
-        this.totalOpen = totalOpened;
-    }
+    public static final HttpStats IDENTITY = new HttpStats(0, 0, List.of(), Map.of());
 
     public HttpStats(long serverOpen, long totalOpened) {
-        this(List.of(), serverOpen, totalOpened);
+        this(serverOpen, totalOpened, List.of(), Map.of());
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        serverOpen = in.readVLong();
-        totalOpen = in.readVLong();
-        clientStats = in.readList(ClientStats::new);
+        this(in.readVLong(), in.readVLong(), in.readCollectionAsList(ClientStats::new), in.readMap(HttpRouteStats::new));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
-        out.writeList(clientStats);
+        out.writeCollection(clientStats);
+        out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
     }
 
     public long getServerOpen() {
@@ -58,6 +60,16 @@ public class HttpStats implements Writeable, ToXContentFragment {
         return this.clientStats;
     }
 
+    public static HttpStats merge(HttpStats first, HttpStats second) {
+        return new HttpStats(
+            first.serverOpen + second.serverOpen,
+            first.totalOpen + second.totalOpen,
+            Stream.concat(first.clientStats.stream(), second.clientStats.stream()).toList(),
+            Stream.concat(first.httpRouteStats.entrySet().stream(), second.httpRouteStats.entrySet().stream())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue, HttpRouteStats::merge))
+        );
+    }
+
     static final class Fields {
         static final String HTTP = "http";
         static final String CURRENT_OPEN = "current_open";
@@ -68,89 +80,79 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String CLIENT_LOCAL_ADDRESS = "local_address";
         static final String CLIENT_REMOTE_ADDRESS = "remote_address";
         static final String CLIENT_LAST_URI = "last_uri";
+        static final String CLIENT_OPENED_TIME = "opened_time";
         static final String CLIENT_OPENED_TIME_MILLIS = "opened_time_millis";
+        static final String CLIENT_CLOSED_TIME = "closed_time";
         static final String CLIENT_CLOSED_TIME_MILLIS = "closed_time_millis";
+        static final String CLIENT_LAST_REQUEST_TIME = "last_request_time";
         static final String CLIENT_LAST_REQUEST_TIME_MILLIS = "last_request_time_millis";
         static final String CLIENT_REQUEST_COUNT = "request_count";
         static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
         static final String CLIENT_FORWARDED_FOR = "x_forwarded_for";
         static final String CLIENT_OPAQUE_ID = "x_opaque_id";
+        static final String ROUTES = "routes";
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.HTTP);
-        builder.field(Fields.CURRENT_OPEN, serverOpen);
-        builder.field(Fields.TOTAL_OPENED, totalOpen);
-        builder.startArray(Fields.CLIENTS);
-        for (ClientStats clientStats : this.clientStats) {
-            clientStats.toXContent(builder, params);
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+        return Iterators.<ToXContent>concat(
+            Iterators.single(
+                (builder, params) -> builder.startObject(Fields.HTTP)
+                    .field(Fields.CURRENT_OPEN, serverOpen)
+                    .field(Fields.TOTAL_OPENED, totalOpen)
+                    .startArray(Fields.CLIENTS)
+            ),
+            clientStats.iterator(),
+            Iterators.single((builder, params) -> {
+                builder.endArray();
+                builder.startObject(Fields.ROUTES);
+                return builder;
+            }),
+            Iterators.map(httpRouteStats.entrySet().iterator(), entry -> (builder, params) -> {
+                builder.field(entry.getKey());
+                entry.getValue().toXContent(builder, params);
+                return builder;
+            }),
+            Iterators.single((builder, params) -> builder.endObject().endObject())
+        );
     }
 
-    public static class ClientStats implements Writeable, ToXContentFragment {
+    public record ClientStats(
+        int id,
+        String agent,
+        String localAddress,
+        String remoteAddress,
+        String lastUri,
+        String forwardedFor,
+        String opaqueId,
+        long openedTimeMillis,
+        long closedTimeMillis,
+        long lastRequestTimeMillis,
+        long requestCount,
+        long requestSizeBytes
+    ) implements Writeable, ToXContentObject {
+
         public static final long NOT_CLOSED = -1L;
 
-        final int id;
-        final String agent;
-        final String localAddress;
-        final String remoteAddress;
-        final String lastUri;
-        final String forwardedFor;
-        final String opaqueId;
-        final long openedTimeMillis;
-        final long closedTimeMillis;
-        final long lastRequestTimeMillis;
-        final long requestCount;
-        final long requestSizeBytes;
-
-        public ClientStats(
-            int id,
-            String agent,
-            String localAddress,
-            String remoteAddress,
-            String lastUri,
-            String forwardedFor,
-            String opaqueId,
-            long openedTimeMillis,
-            long closedTimeMillis,
-            long lastRequestTimeMillis,
-            long requestCount,
-            long requestSizeBytes
-        ) {
-            this.id = id;
-            this.agent = agent;
-            this.localAddress = localAddress;
-            this.remoteAddress = remoteAddress;
-            this.lastUri = lastUri;
-            this.forwardedFor = forwardedFor;
-            this.opaqueId = opaqueId;
-            this.openedTimeMillis = openedTimeMillis;
-            this.closedTimeMillis = closedTimeMillis;
-            this.lastRequestTimeMillis = lastRequestTimeMillis;
-            this.requestCount = requestCount;
-            this.requestSizeBytes = requestSizeBytes;
-        }
-
         ClientStats(StreamInput in) throws IOException {
-            this.id = in.readInt();
-            this.agent = in.readOptionalString();
-            this.localAddress = in.readOptionalString();
-            this.remoteAddress = in.readOptionalString();
-            this.lastUri = in.readOptionalString();
-            this.forwardedFor = in.readOptionalString();
-            this.opaqueId = in.readOptionalString();
-            this.openedTimeMillis = in.readLong();
-            this.closedTimeMillis = in.readLong();
-            this.lastRequestTimeMillis = in.readLong();
-            this.requestCount = in.readLong();
-            this.requestSizeBytes = in.readLong();
+            this(
+                in.readInt(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong(),
+                in.readLong()
+            );
         }
 
-        @Override public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.CLIENT_ID, id);
             if (agent != null) {
@@ -171,11 +173,15 @@ public class HttpStats implements Writeable, ToXContentFragment {
             if (opaqueId != null) {
                 builder.field(Fields.CLIENT_OPAQUE_ID, opaqueId);
             }
-            builder.field(Fields.CLIENT_OPENED_TIME_MILLIS, openedTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.CLIENT_OPENED_TIME_MILLIS, Fields.CLIENT_OPENED_TIME, openedTimeMillis);
             if (closedTimeMillis != NOT_CLOSED) {
-                builder.field(Fields.CLIENT_CLOSED_TIME_MILLIS, closedTimeMillis);
+                builder.timestampFieldsFromUnixEpochMillis(Fields.CLIENT_CLOSED_TIME_MILLIS, Fields.CLIENT_CLOSED_TIME, closedTimeMillis);
             }
-            builder.field(Fields.CLIENT_LAST_REQUEST_TIME_MILLIS, lastRequestTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis(
+                Fields.CLIENT_LAST_REQUEST_TIME_MILLIS,
+                Fields.CLIENT_LAST_REQUEST_TIME,
+                lastRequestTimeMillis
+            );
             builder.field(Fields.CLIENT_REQUEST_COUNT, requestCount);
             builder.field(Fields.CLIENT_REQUEST_SIZE_BYTES, requestSizeBytes);
             builder.endObject();

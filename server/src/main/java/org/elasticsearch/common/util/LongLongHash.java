@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -20,7 +21,7 @@ import org.elasticsearch.core.Releasables;
  * This class is not thread-safe.
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
-public final class LongLongHash extends AbstractHash {
+public final class LongLongHash extends AbstractHash implements LongLongHashTable {
     /**
      * The keys of the hash, stored one after another. So the keys for an id
      * are stored in {@code 2 * id} and {@code 2 * id + 1}. This arrangement
@@ -34,12 +35,12 @@ public final class LongLongHash extends AbstractHash {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    //Constructor with configurable capacity and load factor.
+    // Constructor with configurable capacity and load factor.
     public LongLongHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(2 * capacity, false);
+            keys = bigArrays.newLongArray(2 * maxSize, false);
         } finally {
             if (keys == null) {
                 close();
@@ -48,9 +49,10 @@ public final class LongLongHash extends AbstractHash {
     }
 
     /**
-     * Return the first key at {@code 0 &lt;= index &lt;= capacity()}. The
+     * Return the first key at {@code 0 <= index <= capacity()}. The
      * result is undefined if the slot is unused.
      */
+    @Override
     public long getKey1(long id) {
         return keys.get(2 * id);
     }
@@ -59,6 +61,7 @@ public final class LongLongHash extends AbstractHash {
      * Return the second key at {@code 0 &lt;= index &lt;= capacity()}. The
      * result is undefined if the slot is unused.
      */
+    @Override
     public long getKey2(long id) {
         return keys.get(2 * id + 1);
     }
@@ -66,9 +69,10 @@ public final class LongLongHash extends AbstractHash {
     /**
      * Get the id associated with <code>key</code> or -1 if the key is not contained in the hash.
      */
+    @Override
     public long find(long key1, long key2) {
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             long keyOffset = 2 * id;
             if (id == -1 || (keys.get(keyOffset) == key1 && keys.get(keyOffset + 1) == key2)) {
@@ -80,10 +84,10 @@ public final class LongLongHash extends AbstractHash {
     private long set(long key1, long key2, long id) {
         assert size < maxSize;
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
+                setId(index, id);
                 append(id, key1, key2);
                 ++size;
                 return id;
@@ -98,18 +102,20 @@ public final class LongLongHash extends AbstractHash {
 
     private void append(long id, long key1, long key2) {
         long keyOffset = 2 * id;
-        keys = bigArrays.grow(keys, keyOffset + 2);
         keys.set(keyOffset, key1);
         keys.set(keyOffset + 1, key2);
     }
 
-    private void reset(long key1, long key2, long id) {
+    private void reset(long id) {
+        final LongArray keys = this.keys;
+        final long keyOffset = id * 2;
+        final long key1 = keys.get(keyOffset);
+        final long key2 = keys.get(keyOffset + 1);
         final long slot = slot(hash(key1, key2), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
-                id(index, id);
-                append(id, key1, key2);
+                setId(index, id);
                 break;
             }
         }
@@ -120,10 +126,12 @@ public final class LongLongHash extends AbstractHash {
      * the hash table yet, or {@code -1-id} if it was already present in
      * the hash table.
      */
+    @Override
     public long add(long key1, long key2) {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize * 2);
         }
         assert size < maxSize;
         return set(key1, key2, size);
@@ -131,12 +139,9 @@ public final class LongLongHash extends AbstractHash {
 
     @Override
     protected void removeAndAdd(long index) {
-        final long id = id(index, -1);
+        final long id = getAndSetId(index, -1);
         assert id >= 0;
-        long keyOffset = id * 2;
-        final long key1 = keys.set(keyOffset, 0);
-        final long key2 = keys.set(keyOffset + 1, 0);
-        reset(key1, key2, id);
+        reset(id);
     }
 
     @Override
@@ -145,6 +150,6 @@ public final class LongLongHash extends AbstractHash {
     }
 
     static long hash(long key1, long key2) {
-        return 31 * BitMixer.mix(key1) +  BitMixer.mix(key2);
+        return 31 * BitMixer.mix(key1) + BitMixer.mix(key2);
     }
 }

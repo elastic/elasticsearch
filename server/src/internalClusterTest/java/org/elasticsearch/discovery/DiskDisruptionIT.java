@@ -1,19 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
+
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.BackgroundIndexer;
@@ -91,12 +93,14 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         startCluster(rarely() ? 5 : 3);
 
         final int numberOfShards = 1 + randomInt(2);
-        assertAcked(prepareCreate("test")
-            .setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-            ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+            )
+        );
         ensureGreen();
 
         AtomicBoolean stopGlobalCheckpointFetcher = new AtomicBoolean();
@@ -108,7 +112,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         final Thread globalCheckpointSampler = new Thread(() -> {
             while (stopGlobalCheckpointFetcher.get() == false) {
                 try {
-                    for (ShardStats shardStats : client().admin().indices().prepareStats("test").clear().get().getShards()) {
+                    for (ShardStats shardStats : indicesAdmin().prepareStats("test").clear().get().getShards()) {
                         final int shardId = shardStats.getShardRouting().id();
                         final long globalCheckpoint = shardStats.getSeqNoStats().getGlobalCheckpoint();
                         shardToGcp.compute(shardId, (i, v) -> Math.max(v, globalCheckpoint));
@@ -122,8 +126,16 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
 
         globalCheckpointSampler.start();
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "_doc", client(), -1, RandomizedTest.scaledRandomIntBetween(2, 5),
-            false, random())) {
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                "test",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
             indexer.setRequestTimeout(TimeValue.ZERO);
             indexer.setIgnoreIndexingFailures(true);
             indexer.setFailureAssertion(e -> {});
@@ -155,7 +167,7 @@ public class DiskDisruptionIT extends AbstractDisruptionTestCase {
         logger.info("waiting for green");
         ensureGreen("test");
 
-        for (ShardStats shardStats : client().admin().indices().prepareStats("test").clear().get().getShards()) {
+        for (ShardStats shardStats : indicesAdmin().prepareStats("test").clear().get().getShards()) {
             final int shardId = shardStats.getShardRouting().id();
             final long maxSeqNo = shardStats.getSeqNoStats().getMaxSeqNo();
             if (shardStats.getShardRouting().active()) {

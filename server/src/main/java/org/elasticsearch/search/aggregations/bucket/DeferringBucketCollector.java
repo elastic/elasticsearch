@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -36,18 +39,18 @@ public abstract class DeferringBucketCollector extends BucketCollector {
     /**
      * Replay the deferred hits on the selected buckets.
      */
-    public abstract void prepareSelectedBuckets(long... selectedBuckets) throws IOException;
+    public abstract void prepareSelectedBuckets(LongArray selectedBuckets) throws IOException;
 
     /**
      * Wrap the provided aggregator so that it behaves (almost) as if it had
      * been collected directly.
      */
-    public Aggregator wrap(final Aggregator in) {
+    public Aggregator wrap(final Aggregator in, BigArrays bigArrays) {
         return new WrappedAggregator(in);
     }
 
-    protected class WrappedAggregator extends Aggregator {
-        private Aggregator in;
+    protected static class WrappedAggregator extends Aggregator {
+        private final Aggregator in;
 
         WrappedAggregator(Aggregator in) {
             this.in = in;
@@ -79,8 +82,13 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             return in.buildAggregations(owningBucketOrds);
+        }
+
+        @Override
+        public void releaseAggregations() {
+            in.releaseAggregations();
         }
 
         @Override
@@ -95,7 +103,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
             throw new IllegalStateException(
                 "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
             );

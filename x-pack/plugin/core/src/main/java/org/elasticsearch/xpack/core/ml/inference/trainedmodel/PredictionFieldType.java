@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -49,7 +50,7 @@ public enum PredictionFieldType implements Writeable {
         if (value == null) {
             return null;
         }
-        switch(this) {
+        switch (this) {
             case STRING:
                 return stringRep == null ? value.toString() : stringRep;
             case BOOLEAN:
@@ -61,7 +62,7 @@ public enum PredictionFieldType implements Writeable {
                         // do nothing, allow fall through to final fromDouble
                     }
                 } else if (isBoolQuickCheck(stringRep)) { // if we start with t/f case insensitive, it indicates boolean string
-                    return Boolean.parseBoolean(stringRep);
+                    return Booleans.parseBooleanLenient(stringRep, false);
                 }
                 return fromDouble(value);
             case NUMBER:
@@ -83,7 +84,8 @@ public enum PredictionFieldType implements Writeable {
     private static boolean fromDouble(double value) {
         if ((areClose(value, 1.0D) || areClose(value, 0.0D)) == false) {
             throw new IllegalArgumentException(
-                "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
+                "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]"
+            );
         }
         return areClose(value, 1.0D);
     }

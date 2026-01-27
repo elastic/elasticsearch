@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.script.ScriptContextInfo;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -21,7 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCase<ScriptContextInfo> {
+public class ScriptContextInfoSerializingTests extends AbstractXContentSerializingTestCase<ScriptContextInfo> {
     private static final int MIN_LENGTH = 1;
     private static final int MAX_LENGTH = 16;
 
@@ -36,11 +38,12 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     }
 
     @Override
-    protected Writeable.Reader<ScriptContextInfo> instanceReader() { return ScriptContextInfo::new; }
-
+    protected Writeable.Reader<ScriptContextInfo> instanceReader() {
+        return ScriptContextInfo::new;
+    }
 
     @Override
-    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) throws IOException {
+    protected ScriptContextInfo mutateInstance(ScriptContextInfo instance) {
         return mutate(instance, null);
     }
 
@@ -49,31 +52,24 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
             names = new HashSet<>();
             names.add(instance.name);
         }
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                return new ScriptContextInfo(
-                    randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
-                    instance.execute,
-                    instance.getters
-                );
-            case 1:
-                return new ScriptContextInfo(
-                    instance.name,
-                    ScriptMethodInfoSerializingTests.mutate(instance.execute),
-                    instance.getters
-                );
-            default:
-                return new ScriptContextInfo(
-                    instance.name,
-                    instance.execute,
-                    ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
-                );
-        }
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> new ScriptContextInfo(
+                randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH)),
+                instance.execute,
+                instance.getters
+            );
+            case 1 -> new ScriptContextInfo(instance.name, ScriptMethodInfoSerializingTests.mutate(instance.execute), instance.getters);
+            default -> new ScriptContextInfo(
+                instance.name,
+                instance.execute,
+                ScriptMethodInfoSerializingTests.mutateOneGetter(instance.getters)
+            );
+        };
     }
 
     static Set<ScriptContextInfo> mutateOne(Collection<ScriptContextInfo> instances) {
-        if (instances.size() == 0) {
-            return Collections.unmodifiableSet(Set.of(randomInstance()));
+        if (instances.isEmpty()) {
+            return Set.of(randomInstance());
         }
         ArrayList<ScriptContextInfo> mutated = new ArrayList<>(instances);
         int mutateIndex = randomIntBetween(0, instances.size() - 1);
@@ -92,15 +88,17 @@ public class ScriptContextInfoSerializingTests extends AbstractSerializingTestCa
     static Set<ScriptContextInfo> randomInstances() {
         Set<String> names = new HashSet<>();
         int size = randomIntBetween(0, MAX_LENGTH);
-        HashSet<ScriptContextInfo> instances = new HashSet<>(size);
+        Set<ScriptContextInfo> instances = Sets.newHashSetWithExpectedSize(size);
         for (int i = 0; i < size; i++) {
             String name = randomValueOtherThanMany(names::contains, () -> randomAlphaOfLengthBetween(MIN_LENGTH, MAX_LENGTH));
             names.add(name);
-            instances.add(new ScriptContextInfo(
-                name,
-                ScriptMethodInfoSerializingTests.randomInstance(ScriptMethodInfoSerializingTests.NameType.EXECUTE),
-                ScriptMethodInfoSerializingTests.randomGetterInstances()
-            ));
+            instances.add(
+                new ScriptContextInfo(
+                    name,
+                    ScriptMethodInfoSerializingTests.randomInstance(ScriptMethodInfoSerializingTests.NameType.EXECUTE),
+                    ScriptMethodInfoSerializingTests.randomGetterInstances()
+                )
+            );
         }
         return Collections.unmodifiableSet(instances);
     }

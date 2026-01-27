@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -24,14 +25,22 @@ public final class CompilerSettings {
      * disabled. If {@code use-limit}, the default, regexes are enabled but limited in complexity according to the
      * {@code script.painless.regex.limit-factor} setting.
      */
-    public static final Setting<RegexEnabled> REGEX_ENABLED =
-        new Setting<>("script.painless.regex.enabled", RegexEnabled.LIMITED.value, RegexEnabled::parse, Property.NodeScope);
+    public static final Setting<RegexEnabled> REGEX_ENABLED = new Setting<>(
+        "script.painless.regex.enabled",
+        RegexEnabled.LIMITED.value,
+        RegexEnabled::parse,
+        Property.NodeScope
+    );
 
     /**
      * How complex can a regex be?  This is the number of characters that can be considered expressed as a multiple of string length.
      */
-    public static final Setting<Integer> REGEX_LIMIT_FACTOR =
-        Setting.intSetting("script.painless.regex.limit-factor", 6, 1, Property.NodeScope);
+    public static final Setting<Integer> REGEX_LIMIT_FACTOR = Setting.intSetting(
+        "script.painless.regex.limit-factor",
+        6,
+        1,
+        Property.NodeScope
+    );
 
     /**
      * Constant to be used when specifying the maximum loop counter when compiling a script.
@@ -75,7 +84,6 @@ public final class CompilerSettings {
      */
     private RegexEnabled regexesEnabled = RegexEnabled.LIMITED;
 
-
     /**
      * How complex can regexes be?  Expressed as a multiple of the input string.
      */
@@ -104,7 +112,7 @@ public final class CompilerSettings {
      * parsing problems.
      */
     public boolean isPicky() {
-      return picky;
+        return picky;
     }
 
     /**
@@ -112,7 +120,7 @@ public final class CompilerSettings {
      * @see #isPicky
      */
     public void setPicky(boolean picky) {
-      this.picky = picky;
+        this.picky = picky;
     }
 
     /**
@@ -153,10 +161,14 @@ public final class CompilerSettings {
     }
 
     /**
-     * What is the limit factor for regexes?
+     * What is the effective limit factor for regexes?
      */
-    public int getRegexLimitFactor() {
-        return regexLimitFactor;
+    public int getAppliedRegexLimitFactor() {
+        return switch (regexesEnabled) {
+            case TRUE -> Augmentation.UNLIMITED_PATTERN_FACTOR;
+            case FALSE -> Augmentation.DISABLED_PATTERN_FACTOR;
+            case LIMITED -> regexLimitFactor;
+        };
     }
 
     /**
@@ -164,14 +176,8 @@ public final class CompilerSettings {
      * annotation.
      */
     public Map<String, Object> asMap() {
-        int regexLimitFactor = this.regexLimitFactor;
-        if (regexesEnabled == RegexEnabled.TRUE) {
-            regexLimitFactor = Augmentation.UNLIMITED_PATTERN_FACTOR;
-        } else if (regexesEnabled == RegexEnabled.FALSE) {
-            regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
-        }
         Map<String, Object> map = new HashMap<>();
-        map.put("regex_limit_factor", regexLimitFactor);
+        map.put("regex_limit_factor", getAppliedRegexLimitFactor());
 
         // for testing only
         map.put("testInject0", testInject0);
@@ -188,6 +194,7 @@ public final class CompilerSettings {
         TRUE("true"),
         FALSE("false"),
         LIMITED("limited");
+
         final String value;
 
         RegexEnabled(String value) {

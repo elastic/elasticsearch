@@ -45,13 +45,17 @@ setup:
                       type: keyword
                 text:
                   type: text
+                text_stored_not_indexed:
+                  type: text
+                  store: true
+                  index: false
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     1
+          id:     "1"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: true
@@ -70,13 +74,14 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     2
+          id:     "2"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: false
@@ -94,13 +99,14 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test"
-          id:     3
+          id:     "3"
           routing: "route_me"
           body:
             binary: "YWJjZGUxMjM0"
@@ -119,11 +125,12 @@ setup:
             object:
               inner2: "bar"
             text: "foo bar"
+            text_stored_not_indexed: "foo bar"
 
   - do:
       index:
           index:  "test"
-          id:     4
+          id:     "4"
           body: {}
 
   - do:
@@ -184,13 +191,19 @@ setup:
                       doc_values: false
                 text:
                   type: text
+                keyword_stored_norms_not_indexed:
+                  type: keyword
+                  doc_values: false
+                  index: false
+                  store: true
+                  norms: true
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     1
+          id:     "1"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: true
@@ -209,13 +222,14 @@ setup:
               inner1: "foo"
               inner2: "bar"
             text: "foo bar"
+            keyword_stored_norms_not_indexed: "foo bar"
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     2
+          id:     "2"
           body:
             binary: "YWJjZGUxMjM0"
             boolean: false
@@ -233,13 +247,14 @@ setup:
             object:
               inner1: "foo"
             text: "foo bar"
+            keyword_stored_norms_not_indexed: "foo bar"
 
   - do:
       headers:
         Content-Type: application/json
       index:
           index:  "test-no-dv"
-          id:     3
+          id:     "3"
           routing: "route_me"
           body:
             binary: "YWJjZGUxMjM0"
@@ -258,11 +273,12 @@ setup:
             object:
               inner2: "bar"
             text: "foo bar"
+            keyword_stored_norms_not_indexed: "foo bar"
 
   - do:
       index:
           index:  "test-no-dv"
-          id:     4
+          id:     "4"
           body: {}
 
   - do:
@@ -278,7 +294,7 @@ setup:
   - do:
       index:
           index:  "test-unmapped"
-          id:     1
+          id:     "1"
           body:
             unrelated: "foo"
 
@@ -1238,3 +1254,78 @@ setup:
                 field: text
 
   - match: {hits.total: 3}
+
+---
+"Test exists query on text field with empty values":
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.4.0"
+          fixed_by: "gte_v8.5.1"
+      reason: "Regression introduced in 8.4.0, fixed in 8.5.1"
+
+  - do:
+      index:
+          index:  "empty_text"
+          id:     "999"
+          body:
+            text: ""
+
+  - do:
+      indices.refresh:
+          index: [empty_text]
+
+  - do:
+      search:
+          rest_total_hits_as_int: true
+          index: empty_text
+          body:
+            query:
+              exists:
+                field: text
+
+  - match: {hits.total: 1}
+
+---
+"Test exists query on text field with no dv, that is stored but not indexed":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ field_exists_query_for_text_fields_no_index_or_dv ]
+      test_runner_features: capabilities
+      reason: "Before the fix, this query would throw an ISE because the field is not indexed and has no doc values."
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            exists:
+              field: text_stored_not_indexed
+
+  # this should not throw, but rather return 0 hits, as the field is not indexed nor it has doc values
+  - match: {hits.total: 0}
+
+
+---
+"Test exists query on keyword field with no dv, that is stored, with norms, but not indexed":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ field_exists_query_for_text_fields_no_index_or_dv ]
+      test_runner_features: capabilities
+      reason: "Before the fix, this query would throw an ISE because the field is not indexed and has no doc values."
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test-no-dv
+        body:
+          query:
+            exists:
+              field: keyword_stored_norms_not_indexed
+
+  # this should not throw, but rather return 0 hits, as the field is not indexed nor it has doc values
+  - match: {hits.total: 0}

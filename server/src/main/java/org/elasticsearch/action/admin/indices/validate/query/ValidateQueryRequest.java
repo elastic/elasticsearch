@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,9 +29,9 @@ import java.util.Arrays;
  * <p>
  * The request requires the query to be set using {@link #query(QueryBuilder)}
  */
-public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
+public final class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
 
-    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
     private QueryBuilder query = new MatchAllQueryBuilder();
 
@@ -48,14 +48,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     public ValidateQueryRequest(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            int typesSize = in.readVInt();
-            if (typesSize > 0) {
-                for (int i = 0; i < typesSize; i++) {
-                    in.readString();
-                }
-            }
-        }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
         allShards = in.readBoolean();
@@ -137,9 +129,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeVInt(0);   // no types to filter
-        }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
         out.writeBoolean(allShards);
@@ -147,8 +136,16 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "] query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite + ", all_shards:" + allShards;
+        return "["
+            + Arrays.toString(indices)
+            + "] query["
+            + query
+            + "], explain:"
+            + explain
+            + ", rewrite:"
+            + rewrite
+            + ", all_shards:"
+            + allShards;
     }
 
     @Override

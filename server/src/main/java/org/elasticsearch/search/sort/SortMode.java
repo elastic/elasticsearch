@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -50,20 +51,14 @@ public enum SortMode implements Writeable {
 
     public static SortMode fromString(final String str) {
         Objects.requireNonNull(str, "input string is null");
-        switch (str.toLowerCase(Locale.ROOT)) {
-            case ("min"):
-                return MIN;
-            case ("max"):
-                return MAX;
-            case ("sum"):
-                return SUM;
-            case ("avg"):
-                return AVG;
-            case ("median"):
-                return MEDIAN;
-            default:
-                throw new IllegalArgumentException("Unknown SortMode [" + str + "]");
-        }
+        return switch (str.toLowerCase(Locale.ROOT)) {
+            case "min" -> MIN;
+            case "max" -> MAX;
+            case "sum" -> SUM;
+            case "avg" -> AVG;
+            case "median" -> MEDIAN;
+            default -> throw new IllegalArgumentException("Unknown SortMode [" + str + "]");
+        };
     }
 
     @Override

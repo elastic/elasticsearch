@@ -6,21 +6,24 @@
  */
 package org.elasticsearch.xpack.core.ml.notifications;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.util.Date;
-
+import java.util.Optional;
 
 public class InferenceAuditMessage extends AbstractAuditMessage {
 
-    //TODO this should be MODEL_ID...
+    // TODO this should be MODEL_ID...
     private static final ParseField JOB_ID = Job.ID;
-    public static final ConstructingObjectParser<InferenceAuditMessage, Void> PARSER =
-        createParser("ml_inference_audit_message", InferenceAuditMessage::new, JOB_ID);
+    public static final ConstructingObjectParser<InferenceAuditMessage, Void> PARSER = createParser(
+        "ml_inference_audit_message",
+        InferenceAuditMessage::new,
+        JOB_ID
+    );
 
     public InferenceAuditMessage(String resourceId, String message, Level level, Date timestamp, String nodeName) {
         super(resourceId, message, level, timestamp, nodeName);
@@ -32,7 +35,7 @@ public class InferenceAuditMessage extends AbstractAuditMessage {
     }
 
     @Override
-    protected String getResourceField() {
-        return JOB_ID.getPreferredName();
+    protected Optional<String> getResourceField() {
+        return Optional.of(JOB_ID.getPreferredName());
     }
 }

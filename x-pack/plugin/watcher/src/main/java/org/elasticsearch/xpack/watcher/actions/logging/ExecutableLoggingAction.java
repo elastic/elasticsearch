@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.actions.logging;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -40,7 +40,7 @@ public class ExecutableLoggingAction extends ExecutableAction<LoggingAction> {
     }
 
     @Override
-    public  Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
+    public Action.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws Exception {
         Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
 
         String loggedText = templateEngine.render(action.text, model);

@@ -1,25 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -29,12 +25,21 @@ import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -43,6 +48,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Supplier;
+import java.util.function.ToLongFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -231,7 +237,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         BucketScriptPipelineAggregationBuilder pipelineAgg = new BucketScriptPipelineAggregationBuilder("const", new Script("1"));
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
             .addPipelineAggregator(pipelineAgg);
-        AggregatorFactories.Builder rewritten = builder.rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
+        AggregatorFactories.Builder rewritten = builder.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertNotSame(builder, rewritten);
         Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
         assertEquals(1, aggregatorFactories.size());
@@ -244,7 +250,7 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertThat(rewrittenFilter, instanceOf(TermsQueryBuilder.class));
 
         // Check that a further rewrite returns the same aggregation factories builder
-        AggregatorFactories.Builder secondRewritten = rewritten.rewrite(new QueryRewriteContext(xContentRegistry, null, null, () -> 0L));
+        AggregatorFactories.Builder secondRewritten = rewritten.rewrite(new QueryRewriteContext(parserConfig(), null, () -> 0L));
         assertSame(rewritten, secondRewritten);
     }
 
@@ -253,12 +259,12 @@ public class AggregatorFactoriesTests extends ESTestCase {
             new RewrittenPipelineAggregationBuilder()
         );
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder);
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry, null, null, () -> 0L);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 Collection<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
                 assertEquals(1, aggregatorFactories.size());
@@ -280,12 +286,12 @@ public class AggregatorFactoriesTests extends ESTestCase {
         FilterAggregationBuilder filterAggBuilder = new FilterAggregationBuilder("titles", new MatchAllQueryBuilder());
         AggregatorFactories.Builder builder = new AggregatorFactories.Builder().addAggregator(filterAggBuilder)
             .addPipelineAggregator(new RewrittenPipelineAggregationBuilder());
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry, null, null, () -> 0L);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), null, () -> 0L);
         AggregatorFactories.Builder rewritten = builder.rewrite(context);
         CountDownLatch latch = new CountDownLatch(1);
-        context.executeAsyncActions(new ActionListener<Object>() {
+        context.executeAsyncActions(new ActionListener<>() {
             @Override
-            public void onResponse(Object response) {
+            public void onResponse(Void aVoid) {
                 assertNotSame(builder, rewritten);
                 PipelineAggregationBuilder rewrittenPipeline = rewritten.getPipelineAggregatorFactories().iterator().next();
                 assertThat(((RewrittenPipelineAggregationBuilder) rewrittenPipeline).setOnRewrite.get(), equalTo("rewritten"));
@@ -307,6 +313,41 @@ public class AggregatorFactoriesTests extends ESTestCase {
         builder.addAggregator(AggregationBuilders.avg("real").field("target"));
         PipelineTree tree = builder.buildPipelineTree();
         assertThat(tree.aggregators().stream().map(PipelineAggregator::name).collect(toList()), equalTo(List.of("foo", "bar")));
+    }
+
+    public void testSupportsParallelCollection() {
+        ToLongFunction<String> randomCardinality = name -> randomLongBetween(1, 200);
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+            builder.addAggregator(new FilterAggregationBuilder("name", new MatchAllQueryBuilder()));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new CardinalityAggregationBuilder("cardinality"));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new NestedAggregationBuilder("nested", "path"));
+            assertTrue(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new SignificantTermsAggregationBuilder("name"));
+            assertFalse(builder.supportsParallelCollection(randomCardinality));
+        }
+        {
+            AggregatorFactories.Builder builder = new AggregatorFactories.Builder();
+            builder.addAggregator(new FilterAggregationBuilder("terms", new MatchAllQueryBuilder()) {
+                @Override
+                public boolean isInSortOrderExecutionRequired() {
+                    return true;
+                }
+            });
+            assertFalse(builder.supportsParallelCollection(randomCardinality));
+        }
     }
 
     @Override
@@ -343,6 +384,11 @@ public class AggregatorFactoriesTests extends ESTestCase {
         @Override
         public String getWriteableName() {
             return "rewritten";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.zero();
         }
 
         @Override

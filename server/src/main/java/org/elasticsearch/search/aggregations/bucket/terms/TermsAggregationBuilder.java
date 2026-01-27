@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -29,13 +27,19 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.ToLongFunction;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
+    public static final int KEY_ORDER_CONCURRENCY_THRESHOLD = 50;
+
     public static final String NAME = "terms";
     public static final ValuesSourceRegistry.RegistryKey<TermsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -48,12 +52,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     public static final ParseField SHARD_MIN_DOC_COUNT_FIELD_NAME = new ParseField("shard_min_doc_count");
     public static final ParseField REQUIRED_SIZE_FIELD_NAME = new ParseField("size");
 
-    static final TermsAggregator.BucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS = new TermsAggregator.BucketCountThresholds(
-        1,
-        0,
-        10,
-        -1
-    );
+    static final TermsAggregator.ConstantBucketCountThresholds DEFAULT_BUCKET_COUNT_THRESHOLDS =
+        new TermsAggregator.ConstantBucketCountThresholds(1, 0, 10, -1);
     public static final ParseField SHOW_TERM_DOC_COUNT_ERROR = new ParseField("show_term_doc_count_error");
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
@@ -109,13 +109,14 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
     private SubAggCollectionMode collectMode = null;
-    private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
-        DEFAULT_BUCKET_COUNT_THRESHOLDS
-    );
+    private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
+
     private boolean showTermDocCountError = false;
+    private boolean excludeDeletedDocs = false;
 
     public TermsAggregationBuilder(String name) {
         super(name);
+        this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }
 
     protected TermsAggregationBuilder(
@@ -130,6 +131,49 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         this.collectMode = clone.collectMode;
         this.bucketCountThresholds = new BucketCountThresholds(clone.bucketCountThresholds);
         this.showTermDocCountError = clone.showTermDocCountError;
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (minDocCount() == 0) {
+            // if minDocCount os zero, we collect the zero buckets looking into all segments in the index. to avoid
+            // looking into the same segment for each thread we disable concurrency
+            return false;
+        }
+        /*
+         * we parallelize only if the cardinality of the field is lower than shard size, this is to minimize precision issues.
+         * When ordered by term, we still take cardinality into account to avoid overhead that concurrency may cause against
+         * high cardinality fields.
+         */
+        if (script() == null
+            && (executionHint == null || executionHint.equals(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString()))) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(field());
+            if (supportsParallelCollection(cardinality, order, bucketCountThresholds)) {
+                return super.supportsParallelCollection(fieldCardinalityResolver);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Whether a terms aggregation with the provided order and bucket count thresholds against a field
+     * with the given cardinality should be executed concurrency.
+     */
+    public static boolean supportsParallelCollection(long cardinality, BucketOrder order, BucketCountThresholds bucketCountThresholds) {
+        if (cardinality != -1) {
+            if (InternalOrder.isKeyOrder(order)) {
+                return cardinality <= KEY_ORDER_CONCURRENCY_THRESHOLD;
+            }
+            BucketCountThresholds adjusted = TermsAggregatorFactory.adjustBucketCountThresholds(bucketCountThresholds, order);
+            // for cardinality equal to shard size, we don't know if there were more terms when merging.
+            return cardinality < adjusted.getShardSize();
+        }
+        return false;
     }
 
     @Override
@@ -153,10 +197,11 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
+        excludeDeletedDocs = in.readBoolean();
     }
 
     @Override
-    protected boolean serializeTargetValueType(Version version) {
+    protected boolean serializeTargetValueType(TransportVersion version) {
         return true;
     }
 
@@ -168,6 +213,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
+        out.writeBoolean(excludeDeletedDocs);
     }
 
     /**
@@ -349,6 +395,18 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         return this;
     }
 
+    /**
+     * Set whether deleted documents should be explicitly excluded from the aggregation results
+     */
+    public TermsAggregationBuilder excludeDeletedDocs(boolean excludeDeletedDocs) {
+        this.excludeDeletedDocs = excludeDeletedDocs;
+        return this;
+    }
+
+    public boolean excludeDeletedDocs() {
+        return excludeDeletedDocs;
+    }
+
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.MANY;
@@ -375,7 +433,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             parent,
             subFactoriesBuilder,
             metadata,
-            aggregatorSupplier
+            aggregatorSupplier,
+            excludeDeletedDocs
         );
     }
 
@@ -406,7 +465,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             executionHint,
             includeExclude,
             order,
-            showTermDocCountError
+            showTermDocCountError,
+            excludeDeletedDocs
         );
     }
 
@@ -421,7 +481,8 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
             && Objects.equals(executionHint, other.executionHint)
             && Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(order, other.order)
-            && Objects.equals(showTermDocCountError, other.showTermDocCountError);
+            && Objects.equals(showTermDocCountError, other.showTermDocCountError)
+            && Objects.equals(excludeDeletedDocs, other.excludeDeletedDocs);
     }
 
     @Override
@@ -430,7 +491,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

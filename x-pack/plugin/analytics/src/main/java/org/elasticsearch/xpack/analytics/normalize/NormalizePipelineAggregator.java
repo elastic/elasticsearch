@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.analytics.normalize;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -21,8 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleUnaryOperator;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
@@ -43,11 +41,10 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        @SuppressWarnings("unchecked")
-        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = (InternalMultiBucketAggregation<
-            ?,
-            InternalMultiBucketAggregation.InternalBucket>) aggregation;
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
+        InternalMultiBucketAggregation<?, InternalMultiBucketAggregation.InternalBucket> originalAgg = asMultiBucketAggregation(
+            aggregation
+        );
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>(buckets.size());
 
@@ -70,12 +67,15 @@ public class NormalizePipelineAggregator extends PipelineAggregator {
                 normalizedBucketValue = method.applyAsDouble(values[i]);
             }
 
-            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                .map((p) -> (InternalAggregation) p)
-                .collect(Collectors.toList());
-            aggs.add(new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata()));
-            InternalMultiBucketAggregation.InternalBucket newBucket = originalAgg.createBucket(InternalAggregations.from(aggs), bucket);
-            newBuckets.add(newBucket);
+            newBuckets.add(
+                originalAgg.createBucket(
+                    InternalAggregations.append(
+                        bucket.getAggregations(),
+                        new InternalSimpleValue(name(), normalizedBucketValue, formatter, metadata())
+                    ),
+                    bucket
+                )
+            );
         }
 
         return originalAgg.create(newBuckets);

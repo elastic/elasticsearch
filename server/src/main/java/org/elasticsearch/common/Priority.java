@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -31,16 +32,15 @@ public enum Priority {
     }
 
     public static Priority fromByte(byte b) {
-        switch (b) {
-            case 0: return IMMEDIATE;
-            case 1: return URGENT;
-            case 2: return HIGH;
-            case 3: return NORMAL;
-            case 4: return LOW;
-            case 5: return LANGUID;
-            default:
-                throw new IllegalArgumentException("can't find priority for [" + b + "]");
-        }
+        return switch (b) {
+            case 0 -> IMMEDIATE;
+            case 1 -> URGENT;
+            case 2 -> HIGH;
+            case 3 -> NORMAL;
+            case 4 -> LOW;
+            case 5 -> LANGUID;
+            default -> throw new IllegalArgumentException("can't find priority for [" + b + "]");
+        };
     }
 
     private final byte value;

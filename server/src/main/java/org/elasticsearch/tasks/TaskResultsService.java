@@ -1,44 +1,45 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BackoffPolicy;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * Service that can store task results.
@@ -58,7 +59,6 @@ public class TaskResultsService {
         .setDescription("Task Result Index")
         .setSettings(getTaskResultIndexSettings())
         .setMappings(getTaskResultIndexMappings())
-        .setVersionMetaKey(TASK_RESULT_MAPPING_VERSION_META_FIELD)
         .setOrigin(TASKS_ORIGIN)
         .build();
 
@@ -66,8 +66,8 @@ public class TaskResultsService {
      * The backoff policy to use when saving a task result fails. The total wait
      * time is 600000 milliseconds, ten minutes.
      */
-    static final BackoffPolicy STORE_BACKOFF_POLICY =
-            BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
+    static final BackoffPolicy STORE_BACKOFF_POLICY = BackoffPolicy.exponentialBackoff(timeValueMillis(250), 14);
+    private static final int TASK_RESULTS_INDEX_MAPPINGS_VERSION = 0;
 
     private final Client client;
 
@@ -80,7 +80,7 @@ public class TaskResultsService {
     }
 
     public void storeResult(TaskResult taskResult, ActionListener<Void> listener) {
-        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
+        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().taskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, new ToXContent.MapParams(Map.of(INCLUDE_CANCELLED_PARAM, "false")));
             index.setSource(builder);
@@ -91,21 +91,20 @@ public class TaskResultsService {
     }
 
     private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {
-        index.execute(new ActionListener<IndexResponse>() {
+        index.execute(new ActionListener<DocWriteResponse>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 listener.onResponse(null);
             }
 
             @Override
             public void onFailure(Exception e) {
-                if (false == (e instanceof EsRejectedExecutionException)
-                        || false == backoff.hasNext()) {
+                if (false == (e instanceof EsRejectedExecutionException) || false == backoff.hasNext()) {
                     listener.onFailure(e);
                 } else {
                     TimeValue wait = backoff.next();
-                    logger.warn(() -> new ParameterizedMessage("failed to store task result, retrying in [{}]", wait), e);
-                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, ThreadPool.Names.SAME);
+                    logger.warn(() -> "failed to store task result, retrying in [" + wait + "]", e);
+                    threadPool.schedule(() -> doStoreResult(backoff, index, listener), wait, EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 }
             }
         });
@@ -127,6 +126,7 @@ public class TaskResultsService {
             {
                 builder.startObject("_meta");
                 builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, TASK_RESULTS_INDEX_MAPPINGS_VERSION);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");

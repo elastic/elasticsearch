@@ -5,15 +5,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.filtering.FilterPath;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,8 +38,7 @@ public class FetchSourcePhaseBenchmark {
     private FetchSourceContext fetchContext;
     private Set<String> includesSet;
     private Set<String> excludesSet;
-    private FilterPath[] includesFilters;
-    private FilterPath[] excludesFilters;
+    private XContentParserConfiguration parserConfig;
 
     @Param({ "tiny", "short", "one_4k_field", "one_4m_field" })
     private String source;
@@ -53,31 +49,21 @@ public class FetchSourcePhaseBenchmark {
 
     @Setup
     public void setup() throws IOException {
-        switch (source) {
-            case "tiny":
-                sourceBytes = new BytesArray("{\"message\": \"short\"}");
-                break;
-            case "short":
-                sourceBytes = read300BytesExample();
-                break;
-            case "one_4k_field":
-                sourceBytes = buildBigExample("huge".repeat(1024));
-                break;
-            case "one_4m_field":
-                sourceBytes = buildBigExample("huge".repeat(1024 * 1024));
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown source [" + source + "]");
-        }
-        fetchContext = new FetchSourceContext(
+        sourceBytes = switch (source) {
+            case "tiny" -> new BytesArray("{\"message\": \"short\"}");
+            case "short" -> read300BytesExample();
+            case "one_4k_field" -> buildBigExample("huge".repeat(1024));
+            case "one_4m_field" -> buildBigExample("huge".repeat(1024 * 1024));
+            default -> throw new IllegalArgumentException("Unknown source [" + source + "]");
+        };
+        fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)
         );
         includesSet = Set.of(fetchContext.includes());
         excludesSet = Set.of(fetchContext.excludes());
-        includesFilters = FilterPath.compile(Set.of(fetchContext.includes()));
-        excludesFilters = FilterPath.compile(Set.of(fetchContext.excludes()));
+        parserConfig = XContentParserConfiguration.EMPTY.withFiltering(null, includesSet, excludesSet, false);
     }
 
     private BytesReference read300BytesExample() throws IOException {
@@ -91,27 +77,22 @@ public class FetchSourcePhaseBenchmark {
     }
 
     @Benchmark
-    public BytesReference filterObjects() throws IOException {
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(sourceBytes);
-        Object value = lookup.filter(fetchContext);
-        return FetchSourcePhase.objectToBytes(value, XContentType.JSON, Math.min(1024, lookup.internalSourceRef().length()));
+    public BytesReference filterSourceMap() {
+        Source bytesSource = Source.fromBytes(sourceBytes);
+        return fetchContext.filter().filterMap(bytesSource).internalSourceRef();
+    }
+
+    @Benchmark
+    public BytesReference filterSourceBytes() {
+        Source bytesSource = Source.fromBytes(sourceBytes);
+        return fetchContext.filter().filterBytes(bytesSource).internalSourceRef();
     }
 
     @Benchmark
     public BytesReference filterXContentOnParser() throws IOException {
         BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    sourceBytes.streamInput(),
-                    includesFilters,
-                    excludesFilters
-                )
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, sourceBytes.streamInput())) {
             builder.copyCurrentStructure(parser);
             return BytesReference.bytes(builder);
         }
@@ -128,8 +109,7 @@ public class FetchSourcePhaseBenchmark {
             XContentType.JSON.toParsedMediaType()
         );
         try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, sourceBytes.streamInput())
+            XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, sourceBytes.streamInput())
         ) {
             builder.copyCurrentStructure(parser);
             return BytesReference.bytes(builder);

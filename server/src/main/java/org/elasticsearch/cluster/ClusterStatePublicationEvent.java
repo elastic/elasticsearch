@@ -1,12 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
+
+import org.elasticsearch.cluster.service.BatchSummary;
+import org.elasticsearch.tasks.Task;
 
 /**
  * Represents a cluster state update computed by the {@link org.elasticsearch.cluster.service.MasterService} for publication to the cluster.
@@ -19,9 +23,10 @@ public class ClusterStatePublicationEvent {
      */
     private static final long NOT_SET = -1L;
 
-    private final String summary;
+    private final BatchSummary summary;
     private final ClusterState oldState;
     private final ClusterState newState;
+    private final Task task;
     private final long computationTimeMillis;
     private final long publicationStartTimeMillis;
     private volatile long publicationContextConstructionElapsedMillis = NOT_SET;
@@ -30,20 +35,22 @@ public class ClusterStatePublicationEvent {
     private volatile long masterApplyElapsedMillis = NOT_SET;
 
     public ClusterStatePublicationEvent(
-        String summary,
+        BatchSummary summary,
         ClusterState oldState,
         ClusterState newState,
+        Task task,
         long computationTimeMillis,
         long publicationStartTimeMillis
     ) {
         this.summary = summary;
         this.oldState = oldState;
         this.newState = newState;
+        this.task = task;
         this.computationTimeMillis = computationTimeMillis;
         this.publicationStartTimeMillis = publicationStartTimeMillis;
     }
 
-    public String getSummary() {
+    public BatchSummary getSummary() {
         return summary;
     }
 
@@ -53,6 +60,10 @@ public class ClusterStatePublicationEvent {
 
     public ClusterState getNewState() {
         return newState;
+    }
+
+    public Task getTask() {
+        return task;
     }
 
     public long getComputationTimeMillis() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
@@ -12,16 +13,17 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.FloatComparator;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.DenseDoubleValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -35,10 +37,14 @@ import java.io.IOException;
  */
 public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    final IndexNumericFieldData indexFieldData;
 
-    public FloatValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested) {
+    public FloatValuesComparatorSource(
+        IndexNumericFieldData indexFieldData,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested
+    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
     }
@@ -48,7 +54,7 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
         return SortField.Type.FLOAT;
     }
 
-    private NumericDoubleValues getNumericDocValues(LeafReaderContext context, float missingValue) throws IOException {
+    DenseDoubleValues getDenseDoubleValues(LeafReaderContext context, double missingValue) throws IOException {
         final SortedNumericDoubleValues values = indexFieldData.load(context).getDoubleValues();
         if (nested == null) {
             return FieldData.replaceMissing(sortMode.select(values), missingValue);
@@ -56,24 +62,28 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             final BitSet rootDocs = nested.rootDocs(context);
             final DocIdSetIterator innerDocs = nested.innerDocs(context);
             final int maxChildren = nested.getNestedSort() != null ? nested.getNestedSort().getMaxChildren() : Integer.MAX_VALUE;
-            return sortMode.select(values, missingValue, rootDocs, innerDocs, context.reader().maxDoc(), maxChildren);
+            return sortMode.select(values, missingValue, rootDocs, innerDocs, maxChildren);
         }
     }
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final float fMissingValue = (Float) missingObject(missingValue, reversed);
         // NOTE: it's important to pass null as a missing value in the constructor so that
         // the comparator doesn't check docsWithField since we replace missing values in select()
-        return new FloatComparator(numHits, null, null, reversed, sortPos) {
+        return new FloatComparator(numHits, fieldname, fMissingValue, reversed, enableSkipping) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new FloatLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return FloatValuesComparatorSource.this.getNumericDocValues(context, fMissingValue).getRawFloatValues();
+                        return DenseDoubleValues.asNumericDocValues(
+                            getDenseDoubleValues(context, fMissingValue),
+                            context.reader().maxDoc(),
+                            v -> Float.floatToRawIntBits((float) v)
+                        );
                     }
                 };
             }
@@ -81,18 +91,25 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         return new BucketedSort.ForFloats(bigArrays, sortOrder, format, bucketSize, extra) {
             private final float dMissingValue = (Float) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
-            public boolean needsScores() { return false; }
+            public boolean needsScores() {
+                return false;
+            }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDoubleValues docValues = getNumericDocValues(ctx, dMissingValue);
+                    private final DenseDoubleValues docValues = getDenseDoubleValues(ctx, dMissingValue);
                     private float docValue;
 
                     @Override

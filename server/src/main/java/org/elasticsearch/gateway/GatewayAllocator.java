@@ -1,22 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -27,21 +25,24 @@ import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.gateway.AsyncShardFetch.Lister;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.injection.guice.Inject;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.util.set.Sets.difference;
+import static org.elasticsearch.core.Strings.format;
 
 public class GatewayAllocator implements ExistingShardsAllocator {
 
@@ -50,14 +51,13 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private static final Logger logger = LogManager.getLogger(GatewayAllocator.class);
 
     private final RerouteService rerouteService;
-
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
 
-    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeGatewayStartedShards>>
-        asyncFetchStarted = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetadata>>
-        asyncFetchStore = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeGatewayStartedShards>> asyncFetchStarted = ConcurrentCollections
+        .newConcurrentMap();
+    private final ConcurrentMap<ShardId, AsyncShardFetch<NodeStoreFilesMetadata>> asyncFetchStore = ConcurrentCollections
+        .newConcurrentMap();
     private Set<String> lastSeenEphemeralIds = Collections.emptySet();
 
     @Inject
@@ -105,8 +105,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     @Override
     public void applyFailedShards(final List<FailedShard> failedShards, final RoutingAllocation allocation) {
         for (FailedShard failedShard : failedShards) {
-            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
-            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStarted.remove(failedShard.routingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.routingEntry().shardId()));
         }
     }
 
@@ -118,28 +118,33 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     @Override
-    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+    public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
         assert replicaShardAllocator != null;
         if (allocation.routingNodes().hasInactiveReplicas()) {
             // cancel existing recoveries if we have a better match
-            replicaShardAllocator.processExistingRecoveries(allocation);
+            replicaShardAllocator.processExistingRecoveries(allocation, isRelevantShardPredicate);
         }
     }
 
     @Override
-    public void allocateUnassigned(ShardRouting shardRouting, final RoutingAllocation allocation,
-                                   UnassignedAllocationHandler unassignedAllocationHandler) {
+    public void allocateUnassigned(
+        ShardRouting shardRouting,
+        final RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
         innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     // allow for testing infra to change shard allocators implementation
-    protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
-                                                   PrimaryShardAllocator primaryShardAllocator,
-                                                   ReplicaShardAllocator replicaShardAllocator,
-                                                   ShardRouting shardRouting,
-                                                   ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler) {
+    protected static void innerAllocatedUnassigned(
+        RoutingAllocation allocation,
+        PrimaryShardAllocator primaryShardAllocator,
+        ReplicaShardAllocator replicaShardAllocator,
+        ShardRouting shardRouting,
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
+    ) {
         assert shardRouting.unassigned();
         if (shardRouting.primary()) {
             primaryShardAllocator.allocateUnassigned(shardRouting, allocation, unassignedAllocationHandler);
@@ -167,22 +172,31 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     private void ensureAsyncFetchStorePrimaryRecency(RoutingAllocation allocation) {
         DiscoveryNodes nodes = allocation.nodes();
         if (hasNewNodes(nodes)) {
-            final Set<String> newEphemeralIds = nodes.getDataNodes().stream()
-                .map(node -> node.getValue().getEphemeralId()).collect(Collectors.toSet());
+            final Set<String> newEphemeralIds = nodes.getDataNodes()
+                .values()
+                .stream()
+                .map(DiscoveryNode::getEphemeralId)
+                .collect(Collectors.toSet());
             // Invalidate the cache if a data node has been added to the cluster. This ensures that we do not cancel a recovery if a node
             // drops out, we fetch the shard data, then some indexing happens and then the node rejoins the cluster again. There are other
             // ways we could decide to cancel a recovery based on stale data (e.g. changing allocation filters or a primary failure) but
             // making the wrong decision here is not catastrophic so we only need to cover the common case.
-            logger.trace(() -> new ParameterizedMessage(
-                "new nodes {} found, clearing primary async-fetch-store cache", Sets.difference(newEphemeralIds, lastSeenEphemeralIds)));
+            logger.trace(
+                () -> format(
+                    "new nodes %s found, clearing primary async-fetch-store cache",
+                    difference(newEphemeralIds, lastSeenEphemeralIds)
+                )
+            );
             asyncFetchStore.values().forEach(fetch -> clearCacheForPrimary(fetch, allocation));
             // recalc to also (lazily) clear out old nodes.
             this.lastSeenEphemeralIds = newEphemeralIds;
         }
     }
 
-    private static void clearCacheForPrimary(AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
-                                             RoutingAllocation allocation) {
+    private static void clearCacheForPrimary(
+        AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
+        RoutingAllocation allocation
+    ) {
         ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
         if (primary != null) {
             fetch.clearCacheForNode(primary.currentNodeId());
@@ -190,28 +204,32 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+        for (Map.Entry<String, DiscoveryNode> node : nodes.getDataNodes().entrySet()) {
+            if (lastSeenEphemeralIds.contains(node.getValue().getEphemeralId()) == false) {
                 return true;
             }
         }
         return false;
     }
 
-    class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
+    abstract class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath,
-                           Lister<? extends BaseNodesResponse<T>, T> action) {
-            super(logger, type, shardId, customDataPath, action);
+        InternalAsyncFetch(Logger logger, String type, ShardId shardId, String customDataPath, int expectedSize) {
+            super(logger, type, shardId, customDataPath, expectedSize);
         }
 
         @Override
         protected void reroute(ShardId shardId, String reason) {
             logger.trace("{} scheduling reroute for {}", shardId, reason);
             assert rerouteService != null;
-            rerouteService.reroute("async_shard_fetch", Priority.HIGH, ActionListener.wrap(
-                r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)));
+            rerouteService.reroute(
+                "async_shard_fetch",
+                Priority.HIGH,
+                ActionListener.wrap(
+                    r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
+                    e -> logger.debug(() -> format("%s scheduled reroute failed for %s", shardId, reason), e)
+                )
+            );
         }
     }
 
@@ -225,15 +243,35 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-            Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
-            AsyncShardFetch<NodeGatewayStartedShards> fetch =
-                asyncFetchStarted.computeIfAbsent(shard.shardId(),
-                            shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId,
-                                IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                                lister));
-            AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState =
-                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
+            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
+                shard.shardId(),
+                shardId -> new InternalAsyncFetch<>(
+                    logger,
+                    "shard_started",
+                    shardId,
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
+                    allocation.routingNodes().size()
+                ) {
+                    @Override
+                    protected void list(
+                        ShardId shardId,
+                        String customDataPath,
+                        DiscoveryNode[] nodes,
+                        ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener
+                    ) {
+                        client.executeLocally(
+                            TransportNodesListGatewayStartedShards.TYPE,
+                            new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes),
+                            listener.safeMap(r -> r) // weaken type
+                        );
+                    }
+                }
+            );
+            AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetch.fetchData(
+                allocation.nodes(),
+                allocation.getIgnoreNodes(shard.shardId())
+            );
 
             if (shardState.hasData()) {
                 shardState.processAllocation(allocation);
@@ -241,12 +279,6 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             return shardState;
         }
 
-        private void listStartedShards(ShardId shardId, String customDataPath, DiscoveryNode[] nodes,
-                                       ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener) {
-            var request = new TransportNodesListGatewayStartedShards.Request(shardId, customDataPath, nodes);
-            client.executeLocally(TransportNodesListGatewayStartedShards.TYPE, request,
-                ActionListener.wrap(listener::onResponse, listener::onFailure));
-        }
     }
 
     class InternalReplicaShardAllocator extends ReplicaShardAllocator {
@@ -259,24 +291,38 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
-            Lister<BaseNodesResponse<NodeStoreFilesMetadata>, NodeStoreFilesMetadata> lister = this::listStoreFilesMetadata;
-            AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(shard.shardId(),
-                    shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(),
-                        IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()), lister));
-            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores =
-                    fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
+            AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(
+                shard.shardId(),
+                shardId -> new InternalAsyncFetch<>(
+                    logger,
+                    "shard_store",
+                    shard.shardId(),
+                    IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().indexMetadata(shard.index()).getSettings()),
+                    allocation.routingNodes().size()
+                ) {
+                    @Override
+                    protected void list(
+                        ShardId shardId,
+                        String customDataPath,
+                        DiscoveryNode[] nodes,
+                        ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener
+                    ) {
+                        client.executeLocally(
+                            TransportNodesListShardStoreMetadata.TYPE,
+                            new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes),
+                            listener.safeMap(r -> r) // weaken type
+                        );
+                    }
+                }
+            );
+            AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetch.fetchData(
+                allocation.nodes(),
+                allocation.getIgnoreNodes(shard.shardId())
+            );
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);
             }
             return shardStores;
-        }
-
-        private void listStoreFilesMetadata(ShardId shardId, String customDataPath, DiscoveryNode[] nodes,
-                                            ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener) {
-            var request = new TransportNodesListShardStoreMetadata.Request(shardId, customDataPath, nodes);
-            client.executeLocally(TransportNodesListShardStoreMetadata.TYPE, request,
-                ActionListener.wrap(listener::onResponse, listener::onFailure));
         }
 
         @Override

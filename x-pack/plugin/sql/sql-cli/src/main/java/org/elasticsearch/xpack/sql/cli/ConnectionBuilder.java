@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 
 import java.net.URI;
@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  * Connection Builder. Can interactively ask users for the password if it is not provided
  */
 public class ConnectionBuilder {
-    public static String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
-    public static URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
+    public static final String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
+    public static final URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
 
     private CliTerminal cliTerminal;
 
@@ -41,8 +41,8 @@ public class ConnectionBuilder {
      * @param binaryCommunication should the communication between the CLI and server be binary (CBOR)
      * @throws UserException if there is a problem with the information provided by the user
      */
-    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation,
-                                                   boolean binaryCommunication) throws UserException {
+    public ConnectionConfiguration buildConnection(String connectionStringArg, String keystoreLocation, boolean binaryCommunication)
+        throws UserException {
         final URI uri;
         final String connectionString;
         Properties properties = new Properties();
@@ -101,7 +101,7 @@ public class ConnectionBuilder {
     }
 
     @SuppressForbidden(reason = "cli application shouldn't depend on ES")
-    private Path getKeystorePath(String keystoreLocation) {
+    private static Path getKeystorePath(String keystoreLocation) {
         return Paths.get(keystoreLocation);
     }
 
@@ -112,10 +112,10 @@ public class ConnectionBuilder {
     protected void checkIfExists(String name, Path p) throws UserException {
         if (false == Files.exists(p)) {
             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] doesn't exist");
-         }
-         if (false == Files.isRegularFile(p)) {
-             throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
-         }
+        }
+        if (false == Files.isRegularFile(p)) {
+            throw new UserException(ExitCodes.USAGE, name + " [" + p + "] isn't a regular file");
+        }
     }
 
 }

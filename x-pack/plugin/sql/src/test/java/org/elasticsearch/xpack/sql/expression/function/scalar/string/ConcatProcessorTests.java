@@ -16,14 +16,22 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class ConcatProcessorTests extends AbstractWireSerializingTestCase<ConcatFunctionProcessor> {
 
     @Override
     protected ConcatFunctionProcessor createTestInstance() {
         return new ConcatFunctionProcessor(
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
-                new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)));
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128)),
+            new ConstantProcessor(randomRealisticUnicodeOfLengthBetween(0, 128))
+        );
+    }
+
+    @Override
+    protected ConcatFunctionProcessor mutateInstance(ConcatFunctionProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -48,11 +56,22 @@ public class ConcatProcessorTests extends AbstractWireSerializingTestCase<Concat
     }
 
     public void testConcatFunctionInputsValidation() {
-        SqlIllegalArgumentException siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Concat(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null));
+        SqlIllegalArgumentException siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Concat(EMPTY, l(5), l("foo")).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(SqlIllegalArgumentException.class,
-                () -> new Concat(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null));
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
+            () -> new Concat(EMPTY, l("foo bar"), l(3)).makePipe().asProcessor().process(null)
+        );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
+    }
+
+    public void testMaxResultLength() {
+        String str = "a".repeat((int) MAX_RESULT_LENGTH - 1);
+        assertEquals(MAX_RESULT_LENGTH, new Concat(EMPTY, l(str), l("b")).makePipe().asProcessor().process(null).toString().length());
+
+        maxResultLengthTest(MAX_RESULT_LENGTH + 1, () -> new Concat(EMPTY, l(str), l("bb")).makePipe().asProcessor().process(null));
     }
 }

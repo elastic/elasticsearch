@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.api;
@@ -15,14 +16,10 @@ import java.util.regex.Pattern;
 
 public class LimitedCharSequenceTests extends ESTestCase {
     public void testBadFactor() {
-        IllegalArgumentException badArg = expectThrows(IllegalArgumentException.class,
-            () -> new LimitedCharSequence("abc", null, -1)
-        );
+        IllegalArgumentException badArg = expectThrows(IllegalArgumentException.class, () -> new LimitedCharSequence("abc", null, -1));
         assertEquals("limitFactor must be positive", badArg.getMessage());
 
-        badArg = expectThrows(IllegalArgumentException.class,
-            () -> new LimitedCharSequence("abc", null, 0)
-        );
+        badArg = expectThrows(IllegalArgumentException.class, () -> new LimitedCharSequence("abc", null, 0));
         assertEquals("limitFactor must be positive", badArg.getMessage());
     }
 
@@ -33,9 +30,9 @@ public class LimitedCharSequenceTests extends ESTestCase {
 
     public void testCharAtEqualLimit() {
         String str = "abc";
-        for (int limitFactor=1; limitFactor < 4; limitFactor++){
+        for (int limitFactor = 1; limitFactor < 4; limitFactor++) {
             CharSequence seq = new LimitedCharSequence(str, null, limitFactor);
-            for (int i=0; i<str.length() * limitFactor; i++) {
+            for (int i = 0; i < str.length() * limitFactor; i++) {
                 seq.charAt(0);
             }
         }
@@ -51,14 +48,15 @@ public class LimitedCharSequenceTests extends ESTestCase {
         }
         CircuitBreakingException circuitBreakingException = expectThrows(CircuitBreakingException.class, () -> seq.charAt(0));
         assertEquals(
-            "[scripting] Regular expression considered too many characters, " +
-                "pattern: [a.*bc], " +
-                "limit factor: [2], " +
-                "char limit: [6], " +
-                "count: [7], " +
-                "wrapped: [abc], " +
-                "this limit can be changed by changed by the [script.painless.regex.limit-factor] setting",
-            circuitBreakingException.getMessage());
+            "[scripting] Regular expression considered too many characters, "
+                + "pattern: [a.*bc], "
+                + "limit factor: [2], "
+                + "char limit: [6], "
+                + "count: [7], "
+                + "wrapped: [abc], "
+                + "this limit can be changed by changed by the [script.painless.regex.limit-factor] setting",
+            circuitBreakingException.getMessage()
+        );
 
         final CharSequence seqNullPattern = new LimitedCharSequence(str, null, 2);
         for (int i = 0; i < 6; i++) {
@@ -66,13 +64,14 @@ public class LimitedCharSequenceTests extends ESTestCase {
         }
         circuitBreakingException = expectThrows(CircuitBreakingException.class, () -> seqNullPattern.charAt(0));
         assertEquals(
-            "[scripting] Regular expression considered too many characters, " +
-                "limit factor: [2], " +
-                "char limit: [6], " +
-                "count: [7], " +
-                "wrapped: [abc], " +
-                "this limit can be changed by changed by the [script.painless.regex.limit-factor] setting",
-            circuitBreakingException.getMessage());
+            "[scripting] Regular expression considered too many characters, "
+                + "limit factor: [2], "
+                + "char limit: [6], "
+                + "count: [7], "
+                + "wrapped: [abc], "
+                + "this limit can be changed by changed by the [script.painless.regex.limit-factor] setting",
+            circuitBreakingException.getMessage()
+        );
     }
 
     public void testSubSequence() {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -13,11 +14,12 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 
-import javax.net.ssl.SSLContext;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.common.ssl.SslConfigurationLoader.DEFAULT_CIPHERS;
 import static org.hamcrest.Matchers.containsString;
@@ -37,15 +39,26 @@ public class SslConfigurationTests extends ESTestCase {
         final SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.values());
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size()), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, 4), VALID_PROTOCOLS);
-        final SslConfiguration configuration =
-            new SslConfiguration(true, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        final long handshakeTimeoutMillis = randomHandshakeTimeoutMillis();
+        final SslConfiguration configuration = new SslConfiguration(
+            "test.ssl",
+            true,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            protocols,
+            handshakeTimeoutMillis
+        );
 
-        assertThat(configuration.getTrustConfig(), is(trustConfig));
-        assertThat(configuration.getKeyConfig(), is(keyConfig));
-        assertThat(configuration.getVerificationMode(), is(verificationMode));
-        assertThat(configuration.getClientAuth(), is(clientAuth));
+        assertThat(configuration.trustConfig(), is(trustConfig));
+        assertThat(configuration.keyConfig(), is(keyConfig));
+        assertThat(configuration.verificationMode(), is(verificationMode));
+        assertThat(configuration.clientAuth(), is(clientAuth));
         assertThat(configuration.getCipherSuites(), is(ciphers));
-        assertThat(configuration.getSupportedProtocols(), is(protocols));
+        assertThat(configuration.supportedProtocols(), is(protocols));
+        assertThat(configuration.handshakeTimeoutMillis(), is(handshakeTimeoutMillis));
 
         assertThat(configuration.toString(), containsString("TEST-TRUST"));
         assertThat(configuration.toString(), containsString("TEST-KEY"));
@@ -53,6 +66,7 @@ public class SslConfigurationTests extends ESTestCase {
         assertThat(configuration.toString(), containsString(clientAuth.toString()));
         assertThat(configuration.toString(), containsString(randomFrom(ciphers)));
         assertThat(configuration.toString(), containsString(randomFrom(protocols)));
+        assertThat(configuration.toString(), containsString("handshakeTimeoutMillis=" + handshakeTimeoutMillis));
     }
 
     public void testEqualsAndHashCode() {
@@ -62,39 +76,114 @@ public class SslConfigurationTests extends ESTestCase {
         final SslClientAuthenticationMode clientAuth = randomFrom(SslClientAuthenticationMode.values());
         final List<String> ciphers = randomSubsetOf(randomIntBetween(1, DEFAULT_CIPHERS.size() - 1), DEFAULT_CIPHERS);
         final List<String> protocols = randomSubsetOf(randomIntBetween(1, VALID_PROTOCOLS.length - 1), VALID_PROTOCOLS);
-        final SslConfiguration configuration =
-            new SslConfiguration(true, trustConfig, keyConfig, verificationMode, clientAuth, ciphers, protocols);
+        final long handshakeTimeoutMillis = randomHandshakeTimeoutMillis();
+        final SslConfiguration configuration = new SslConfiguration(
+            "test.ssl",
+            true,
+            trustConfig,
+            keyConfig,
+            verificationMode,
+            clientAuth,
+            ciphers,
+            protocols,
+            handshakeTimeoutMillis
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(configuration,
-            orig -> new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(), orig.getClientAuth(),
-                orig.getCipherSuites(), orig.getSupportedProtocols()),
-            orig -> {
-                switch (randomIntBetween(1, 4)) {
-                    case 1:
-                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(),
-                            randomValueOtherThan(orig.getVerificationMode(), () -> randomFrom(SslVerificationMode.values())),
-                            orig.getClientAuth(), orig.getCipherSuites(), orig.getSupportedProtocols());
-                    case 2:
-                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
-                            randomValueOtherThan(orig.getClientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
-                            orig.getCipherSuites(), orig.getSupportedProtocols());
-                    case 3:
-                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(),
-                            orig.getVerificationMode(), orig.getClientAuth(), DEFAULT_CIPHERS, orig.getSupportedProtocols());
-                    case 4:
-                    default:
-                        return new SslConfiguration(true, orig.getTrustConfig(), orig.getKeyConfig(), orig.getVerificationMode(),
-                            orig.getClientAuth(), orig.getCipherSuites(), Arrays.asList(VALID_PROTOCOLS));
-                }
-            });
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            configuration,
+            orig -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
+                orig.getCipherSuites(),
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
+            ),
+            this::mutateSslConfiguration
+        );
+    }
+
+    private SslConfiguration mutateSslConfiguration(SslConfiguration orig) {
+        return switch (randomIntBetween(1, 5)) {
+            case 1 -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                randomValueOtherThan(orig.verificationMode(), () -> randomFrom(SslVerificationMode.values())),
+                orig.clientAuth(),
+                orig.getCipherSuites(),
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
+            );
+            case 2 -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                randomValueOtherThan(orig.clientAuth(), () -> randomFrom(SslClientAuthenticationMode.values())),
+                orig.getCipherSuites(),
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
+            );
+            case 3 -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
+                DEFAULT_CIPHERS,
+                orig.supportedProtocols(),
+                orig.handshakeTimeoutMillis()
+            );
+            case 4 -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
+                orig.getCipherSuites(),
+                Arrays.asList(VALID_PROTOCOLS),
+                orig.handshakeTimeoutMillis()
+            );
+            default -> new SslConfiguration(
+                "test.ssl",
+                true,
+                orig.trustConfig(),
+                orig.keyConfig(),
+                orig.verificationMode(),
+                orig.clientAuth(),
+                orig.getCipherSuites(),
+                orig.supportedProtocols(),
+                randomValueOtherThan(orig.handshakeTimeoutMillis(), SslConfigurationTests::randomHandshakeTimeoutMillis)
+            );
+        };
+    }
+
+    private static long randomHandshakeTimeoutMillis() {
+        return randomLongBetween(1, 100000);
     }
 
     public void testDependentFiles() {
         final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
         final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
-        final SslConfiguration configuration = new SslConfiguration(true, trustConfig, keyConfig,
-            randomFrom(SslVerificationMode.values()), randomFrom(SslClientAuthenticationMode.values()),
-            DEFAULT_CIPHERS, SslConfigurationLoader.DEFAULT_PROTOCOLS);
+        final SslConfiguration configuration = new SslConfiguration(
+            "test.ssl",
+            true,
+            trustConfig,
+            keyConfig,
+            randomFrom(SslVerificationMode.values()),
+            randomFrom(SslClientAuthenticationMode.values()),
+            DEFAULT_CIPHERS,
+            SslConfigurationLoader.DEFAULT_PROTOCOLS,
+            randomHandshakeTimeoutMillis()
+        );
 
         final Path dir = createTempDir();
         final Path file1 = dir.resolve(randomAlphaOfLength(1) + ".pem");
@@ -112,9 +201,17 @@ public class SslConfigurationTests extends ESTestCase {
         final SslTrustConfig trustConfig = Mockito.mock(SslTrustConfig.class);
         final SslKeyConfig keyConfig = Mockito.mock(SslKeyConfig.class);
         final String protocol = randomFrom(SslConfigurationLoader.DEFAULT_PROTOCOLS);
-        final SslConfiguration configuration = new SslConfiguration(true, trustConfig, keyConfig,
-            randomFrom(SslVerificationMode.values()), randomFrom(SslClientAuthenticationMode.values()),
-            DEFAULT_CIPHERS, Collections.singletonList(protocol));
+        final SslConfiguration configuration = new SslConfiguration(
+            "test.ssl",
+            true,
+            trustConfig,
+            keyConfig,
+            randomFrom(SslVerificationMode.values()),
+            randomFrom(SslClientAuthenticationMode.values()),
+            DEFAULT_CIPHERS,
+            Collections.singletonList(protocol),
+            randomHandshakeTimeoutMillis()
+        );
 
         Mockito.when(trustConfig.createTrustManager()).thenReturn(null);
         Mockito.when(keyConfig.createKeyManager()).thenReturn(null);

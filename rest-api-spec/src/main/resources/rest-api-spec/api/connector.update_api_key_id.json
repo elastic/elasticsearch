@@ -1,0 +1,38 @@
+{
+  "connector.update_api_key_id": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-api-key-id",
+      "description": "Update the connector API key ID"
+    },
+    "stability": "beta",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/{connector_id}/_api_key_id",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector to be updated."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "An object containing the connector's API key id and/or Connector Secret document id for that API key.",
+      "required": true
+    }
+  }
+}

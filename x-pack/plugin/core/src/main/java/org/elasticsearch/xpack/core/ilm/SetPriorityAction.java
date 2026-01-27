@@ -6,23 +6,23 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * A {@link LifecycleAction} which sets the index's priority. The higher the priority, the faster the recovery.
@@ -31,17 +31,25 @@ public class SetPriorityAction implements LifecycleAction {
     public static final String NAME = "set_priority";
     public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
-    @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new SetPriorityAction((Integer) a[0]));
+    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new SetPriorityAction((Integer) a[0])
+    );
 
-    //package private for testing
+    private static final Settings NULL_PRIORITY_SETTINGS = Settings.builder()
+        .putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey())
+        .build();
+
+    // package private for testing
     final Integer recoveryPriority;
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue()
-            , RECOVERY_PRIORITY_FIELD, ObjectParser.ValueType.INT_OR_NULL);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            RECOVERY_PRIORITY_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
     }
 
     public static SetPriorityAction parse(XContentParser parser) {
@@ -89,25 +97,23 @@ public class SetPriorityAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
-        Settings indexPriority = recoveryPriority == null ?
-            Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build()
+        Settings indexPriority = recoveryPriority == null
+            ? NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
-        return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
+        return List.of(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         SetPriorityAction that = (SetPriorityAction) o;
-
-        return recoveryPriority != null ? recoveryPriority.equals(that.recoveryPriority) : that.recoveryPriority == null;
+        return Objects.equals(recoveryPriority, that.recoveryPriority);
     }
 
     @Override
     public int hashCode() {
-        return recoveryPriority != null ? recoveryPriority.hashCode() : 0;
+        return Objects.hash(recoveryPriority);
     }
 
     @Override

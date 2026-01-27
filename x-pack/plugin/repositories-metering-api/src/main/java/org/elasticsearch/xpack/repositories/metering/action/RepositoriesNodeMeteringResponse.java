@@ -11,10 +11,10 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.repositories.RepositoryStatsSnapshot;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +30,7 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
 
     public RepositoriesNodeMeteringResponse(StreamInput in) throws IOException {
         super(in);
-        this.repositoryStatsSnapshots = in.readList(RepositoryStatsSnapshot::new);
+        this.repositoryStatsSnapshots = in.readCollectionAsList(RepositoryStatsSnapshot::new);
     }
 
     @Override
@@ -46,6 +46,6 @@ public final class RepositoriesNodeMeteringResponse extends BaseNodeResponse imp
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeList(repositoryStatsSnapshots);
+        out.writeCollection(repositoryStatsSnapshots);
     }
 }

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -16,16 +16,18 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 
 import java.io.IOException;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalyticsAction.Response> {
 
     public static final GetDataFrameAnalyticsAction INSTANCE = new GetDataFrameAnalyticsAction();
     public static final String NAME = "cluster:monitor/xpack/ml/data_frame/analytics/get";
 
     private GetDataFrameAnalyticsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
@@ -45,6 +47,11 @@ public class GetDataFrameAnalyticsAction extends ActionType<GetDataFrameAnalytic
         @Override
         public String getResourceIdField() {
             return DataFrameAnalyticsConfig.ID.getPreferredName();
+        }
+
+        @Override
+        public String getCancelableTaskDescription() {
+            return format("get_data_frame_analytics[%s]", getResourceId());
         }
     }
 

@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Copyright (C) 2008 The Guava Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,80 +19,83 @@ package org.elasticsearch.common.network;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.Text;
 import org.hamcrest.Matchers;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class InetAddressesTests extends ESTestCase {
     public void testForStringBogusInput() {
         String[] bogusInputs = {
-                "",
-                "016.016.016.016",
-                "016.016.016",
-                "016.016",
-                "016",
-                "000.000.000.000",
-                "000",
-                "0x0a.0x0a.0x0a.0x0a",
-                "0x0a.0x0a.0x0a",
-                "0x0a.0x0a",
-                "0x0a",
-                "42.42.42.42.42",
-                "42.42.42",
-                "42.42",
-                "42",
-                "42..42.42",
-                "42..42.42.42",
-                "42.42.42.42.",
-                "42.42.42.42...",
-                ".42.42.42.42",
-                "...42.42.42.42",
-                "42.42.42.-0",
-                "42.42.42.+0",
-                ".",
-                "...",
-                "bogus",
-                "bogus.com",
-                "192.168.0.1.com",
-                "12345.67899.-54321.-98765",
-                "257.0.0.0",
-                "42.42.42.-42",
-                "3ffe::1.net",
-                "3ffe::1::1",
-                "1::2::3::4:5",
-                "::7:6:5:4:3:2:",  // should end with ":0"
-                ":6:5:4:3:2:1::",  // should begin with "0:"
-                "2001::db:::1",
-                "FEDC:9878",
-                "+1.+2.+3.4",
-                "1.2.3.4e0",
-                "::7:6:5:4:3:2:1:0",  // too many parts
-                "7:6:5:4:3:2:1:0::",  // too many parts
-                "9:8:7:6:5:4:3::2:1",  // too many parts
-                "0:1:2:3::4:5:6:7",  // :: must remove at least one 0.
-                "3ffe:0:0:0:0:0:0:0:1",  // too many parts (9 instead of 8)
-                "3ffe::10000",  // hextet exceeds 16 bits
-                "3ffe::goog",
-                "3ffe::-0",
-                "3ffe::+0",
-                "3ffe::-1",
-                ":",
-                ":::",
-                "::1.2.3",
-                "::1.2.3.4.5",
-                "::1.2.3.4:",
-                "1.2.3.4::",
-                "2001:db8::1:",
-                ":2001:db8::1",
-                ":1:2:3:4:5:6:7",
-                "1:2:3:4:5:6:7:",
-                ":1:2:3:4:5:6:"
-        };
+            "",
+            "016.016.016.016",
+            "016.016.016",
+            "016.016",
+            "016",
+            "000.000.000.000",
+            "000",
+            "0x0a.0x0a.0x0a.0x0a",
+            "0x0a.0x0a.0x0a",
+            "0x0a.0x0a",
+            "0x0a",
+            "42.42.42.42.42",
+            "42.42.42",
+            "42.42",
+            "42",
+            "42..42.42",
+            "42..42.42.42",
+            "42.42.42.42.",
+            "42.42.42.42...",
+            ".42.42.42.42",
+            "...42.42.42.42",
+            "42.42.42.-0",
+            "42.42.42.+0",
+            ".",
+            "...",
+            "bogus",
+            "bogus.com",
+            "192.168.0.1.com",
+            "12345.67899.-54321.-98765",
+            "257.0.0.0",
+            "42.42.42.-42",
+            "3ffe::1.net",
+            "3ffe::1::1",
+            "1::2::3::4:5",
+            "::7:6:5:4:3:2:",  // should end with ":0"
+            ":6:5:4:3:2:1::",  // should begin with "0:"
+            "2001::db:::1",
+            "FEDC:9878",
+            "+1.+2.+3.4",
+            "1.2.3.4e0",
+            "::7:6:5:4:3:2:1:0",  // too many parts
+            "7:6:5:4:3:2:1:0::",  // too many parts
+            "9:8:7:6:5:4:3::2:1",  // too many parts
+            "0:1:2:3::4:5:6:7",  // :: must remove at least one 0.
+            "3ffe:0:0:0:0:0:0:0:1",  // too many parts (9 instead of 8)
+            "3ffe::10000",  // hextet exceeds 16 bits
+            "3ffe::goog",
+            "3ffe::-0",
+            "3ffe::+0",
+            "3ffe::-1",
+            ":",
+            ":::",
+            "::1.2.3",
+            "::1.2.3.4.5",
+            "::1.2.3.4:",
+            "1.2.3.4::",
+            "2001:db8::1:",
+            ":2001:db8::1",
+            ":1:2:3:4:5:6:7",
+            "1:2:3:4:5:6:7:",
+            ":1:2:3:4:5:6:" };
 
         for (int i = 0; i < bogusInputs.length; i++) {
             try {
@@ -115,8 +119,7 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testIpv6WithZeroScopeIdIsEqualToIpv6AddressWithOptionalScopeId() {
-        assertThat(InetAddresses.forString("fdbd:dc00:111:222:0:0:0:333"),
-            equalTo(InetAddresses.forString("fdbd:dc00:111:222::333")));
+        assertThat(InetAddresses.forString("fdbd:dc00:111:222:0:0:0:333"), equalTo(InetAddresses.forString("fdbd:dc00:111:222::333")));
     }
 
     public void testForStringIPv4Input() throws UnknownHostException {
@@ -160,12 +163,7 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testForStringIPv6EightColons() throws UnknownHostException {
-        String[] eightColons = {
-                "::7:6:5:4:3:2:1",
-                "::7:6:5:4:3:2:0",
-                "7:6:5:4:3:2:1::",
-                "0:6:5:4:3:2:1::",
-        };
+        String[] eightColons = { "::7:6:5:4:3:2:1", "::7:6:5:4:3:2:0", "7:6:5:4:3:2:1::", "0:6:5:4:3:2:1::", };
 
         for (int i = 0; i < eightColons.length; i++) {
             InetAddress ipv6Addr = null;
@@ -177,61 +175,84 @@ public class InetAddressesTests extends ESTestCase {
     }
 
     public void testConvertDottedQuadToHex() throws UnknownHostException {
-        String[] ipStrings = {"7::0.128.0.127", "7::0.128.0.128",
-                "7::128.128.0.127", "7::0.128.128.127"};
+        String[] ipStrings = { "7::0.128.0.127", "7::0.128.0.128", "7::128.128.0.127", "7::0.128.128.127", "::ffff:10.10.1.1" };
 
         for (String ipString : ipStrings) {
             // Shouldn't hit DNS, because it's an IP string literal.
             InetAddress ipv6Addr = InetAddress.getByName(ipString);
             assertEquals(ipv6Addr, InetAddresses.forString(ipString));
+            int extraLength = randomInt(8);
+            int offset = randomInt(extraLength);
+            byte[] asBytes = ipString.getBytes(StandardCharsets.UTF_8);
+            byte[] bytes = new byte[asBytes.length + extraLength];
+            System.arraycopy(asBytes, 0, bytes, offset, asBytes.length);
+            assertEquals(ipv6Addr, InetAddresses.forString(bytes, offset, asBytes.length));
             assertTrue(InetAddresses.isInetAddress(ipString));
         }
     }
 
     public void testToAddrStringIPv4() {
         // Don't need to test IPv4 much; it just calls getHostAddress().
-        assertEquals("1.2.3.4",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("1.2.3.4")));
+        assertEquals("1.2.3.4", InetAddresses.toAddrString(InetAddresses.forString("1.2.3.4")));
     }
 
     public void testToAddrStringIPv6() {
-        assertEquals("1:2:3:4:5:6:7:8",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("1:2:3:4:5:6:7:8")));
-        assertEquals("2001:0:0:4::8",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("2001:0:0:4:0:0:0:8")));
-        assertEquals("2001::4:5:6:7:8",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("2001:0:0:4:5:6:7:8")));
-        assertEquals("2001:0:3:4:5:6:7:8",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("2001:0:3:4:5:6:7:8")));
-        assertEquals("0:0:3::ffff",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("0:0:3:0:0:0:0:ffff")));
-        assertEquals("::4:0:0:0:ffff",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("0:0:0:4:0:0:0:ffff")));
-        assertEquals("::5:0:0:ffff",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("0:0:0:0:5:0:0:ffff")));
-        assertEquals("1::4:0:0:7:8",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("1:0:0:4:0:0:7:8")));
-        assertEquals("::",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("0:0:0:0:0:0:0:0")));
-        assertEquals("::1",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("0:0:0:0:0:0:0:1")));
-        assertEquals("2001:658:22a:cafe::",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("2001:0658:022a:cafe::")));
-        assertEquals("::102:304",
-                InetAddresses.toAddrString(
-                        InetAddresses.forString("::1.2.3.4")));
+        assertEquals("1:2:3:4:5:6:7:8", InetAddresses.toAddrString(InetAddresses.forString("1:2:3:4:5:6:7:8")));
+        assertEquals("2001:0:0:4::8", InetAddresses.toAddrString(InetAddresses.forString("2001:0:0:4:0:0:0:8")));
+        assertEquals("2001::4:5:6:7:8", InetAddresses.toAddrString(InetAddresses.forString("2001:0:0:4:5:6:7:8")));
+        assertEquals("2001:0:3:4:5:6:7:8", InetAddresses.toAddrString(InetAddresses.forString("2001:0:3:4:5:6:7:8")));
+        assertEquals("0:0:3::ffff", InetAddresses.toAddrString(InetAddresses.forString("0:0:3:0:0:0:0:ffff")));
+        assertEquals("::4:0:0:0:ffff", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:4:0:0:0:ffff")));
+        assertEquals("::5:0:0:ffff", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:0:5:0:0:ffff")));
+        assertEquals("1::4:0:0:7:8", InetAddresses.toAddrString(InetAddresses.forString("1:0:0:4:0:0:7:8")));
+        assertEquals("::", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:0:0:0:0:0")));
+        assertEquals("::1", InetAddresses.toAddrString(InetAddresses.forString("0:0:0:0:0:0:0:1")));
+        assertEquals("2001:658:22a:cafe::", InetAddresses.toAddrString(InetAddresses.forString("2001:0658:022a:cafe::")));
+        assertEquals("::102:304", InetAddresses.toAddrString(InetAddresses.forString("::1.2.3.4")));
+        assertEquals("2001:db8::1:0:0:1", InetAddresses.toAddrString(InetAddresses.forString("2001:db8::1:0:0:1")));
+    }
+
+    public void testWithOffsets() throws UnknownHostException {
+        List<String> ipStrings = List.of(
+            "1:2:3:4:5:6:7:8",
+            "2001:0:0:4::8",
+            "2001::4:5:6:7:8",
+            "2001:0:3:4:5:6:7:8",
+            "0:0:3::ffff",
+            "::4:0:0:0:ffff",
+            "::5:0:0:ffff",
+            "1::4:0:0:7:8",
+            "::",
+            "::1",
+            "2001:658:22a:cafe::",
+            "::102:304",
+            "2001:db8::1:0:0:1",
+            "2001:db8::1:0:1:0",
+            // Addresses starting with "::" followed by exactly 7 hextets (max allowed 8).
+            "::1:2:3:4:5:6:7",
+            "::ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+        );
+        for (String ipString : ipStrings) {
+            final InetAddress expected = InetAddress.getByName(ipString);
+            byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
+            int extraLength = randomInt(8);
+            int offset = randomIntBetween(0, extraLength);
+            byte[] bytesWithPadding = new byte[bytes.length + extraLength];
+            System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
+            InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
+            assertEquals(expected, addr);
+        }
+    }
+
+    public void testScopeIDWithOffsets() {
+        String ipString = "2001:db8::1:0:1:0%5";
+        byte[] bytes = ipString.getBytes(StandardCharsets.UTF_8);
+        int offset = randomInt(8);
+        byte[] bytesWithPadding = new byte[bytes.length + offset];
+        System.arraycopy(bytes, 0, bytesWithPadding, offset, bytes.length);
+        InetAddress addr = InetAddresses.forString(bytesWithPadding, offset, bytes.length);
+        // scope id is ignored
+        assertEquals("2001:db8::1:0:1:0", InetAddresses.toAddrString(addr));
     }
 
     public void testToUriStringIPv4() {
@@ -276,5 +297,27 @@ public class InetAddressesTests extends ESTestCase {
         cidr = InetAddresses.parseCidr("::fffe:0:0/128");
         assertEquals(InetAddresses.forString("::fffe:0:0"), cidr.v1());
         assertEquals(Integer.valueOf(128), cidr.v2());
+    }
+
+    public void testEncodeAsIpv6() throws Exception {
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("::1")).length);
+        assertEquals(16, InetAddresses.encodeAsIpv6(new Text("192.168.0.0")).length);
+        assertEquals(
+            "192.168.0.0",
+            InetAddresses.toAddrString(InetAddress.getByAddress(InetAddresses.encodeAsIpv6(new Text("192.168.0.0"))))
+        );
+    }
+
+    public void testAppendHexBytes() {
+        for (int i = 0; i < 256; i++) {
+            byte b1 = randomByte();
+            byte b2 = randomByte();
+            // The expected string is the hex representation of the two bytes, padded to 4 characters
+            String expected = String.format(Locale.ROOT, "%1$04x", (b1 & 0xFF) << 8 | b2 & 0xFF);
+            byte[] hex = new byte[4];
+            InetAddresses.appendHexBytes(hex, 0, b1, b2);
+            String actual = new String(hex, StandardCharsets.US_ASCII);
+            assertEquals(expected, actual);
+        }
     }
 }

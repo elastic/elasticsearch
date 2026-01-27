@@ -1,31 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Information about a currently running task and all its subtasks.
  */
-public class TaskGroup implements ToXContentObject {
-
-    private final TaskInfo task;
-
-    private final List<TaskGroup> childTasks;
-
+public record TaskGroup(TaskInfo task, List<TaskGroup> childTasks) implements ToXContentObject {
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;
@@ -54,16 +49,12 @@ public class TaskGroup implements ToXContentObject {
         }
 
         public TaskGroup build() {
-            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).collect(Collectors.toList()));
+            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).toList());
         }
     }
 
-    public TaskInfo getTaskInfo() {
+    public TaskInfo taskInfo() {
         return task;
-    }
-
-    public List<TaskGroup> getChildTasks() {
-        return childTasks;
     }
 
     @Override

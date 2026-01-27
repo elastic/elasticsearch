@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.watcher;
 
@@ -13,9 +14,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
-import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -58,12 +58,21 @@ public class ResourceWatcherService implements Closeable {
     }
 
     public static final Setting<Boolean> ENABLED = Setting.boolSetting("resource.reload.enabled", true, Property.NodeScope);
-    public static final Setting<TimeValue> RELOAD_INTERVAL_HIGH =
-        Setting.timeSetting("resource.reload.interval.high", Frequency.HIGH.interval, Property.NodeScope);
-    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM = Setting.timeSetting("resource.reload.interval.medium",
-        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval), Property.NodeScope);
-    public static final Setting<TimeValue> RELOAD_INTERVAL_LOW =
-        Setting.timeSetting("resource.reload.interval.low", Frequency.LOW.interval, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_HIGH = Setting.timeSetting(
+        "resource.reload.interval.high",
+        Frequency.HIGH.interval,
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM = Setting.timeSetting(
+        "resource.reload.interval.medium",
+        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval),
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> RELOAD_INTERVAL_LOW = Setting.timeSetting(
+        "resource.reload.interval.low",
+        Frequency.LOW.interval,
+        Property.NodeScope
+    );
 
     private final boolean enabled;
 
@@ -85,9 +94,10 @@ public class ResourceWatcherService implements Closeable {
         interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
         if (enabled) {
-            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
-            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
-            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
+            final var executor = threadPool.generic();
+            lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, executor);
+            mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, executor);
+            highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, executor);
         } else {
             lowFuture = null;
             mediumFuture = null;
@@ -116,31 +126,19 @@ public class ResourceWatcherService implements Closeable {
      */
     public <W extends ResourceWatcher> WatcherHandle<W> add(W watcher, Frequency frequency) throws IOException {
         watcher.init();
-        switch (frequency) {
-            case LOW:
-                return lowMonitor.add(watcher);
-            case MEDIUM:
-                return mediumMonitor.add(watcher);
-            case HIGH:
-                return highMonitor.add(watcher);
-            default:
-                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
-        }
+        return switch (frequency) {
+            case LOW -> lowMonitor.add(watcher);
+            case MEDIUM -> mediumMonitor.add(watcher);
+            case HIGH -> highMonitor.add(watcher);
+        };
     }
 
     public void notifyNow(Frequency frequency) {
         switch (frequency) {
-            case LOW:
-                lowMonitor.run();
-                break;
-            case MEDIUM:
-                mediumMonitor.run();
-                break;
-            case HIGH:
-                highMonitor.run();
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
+            case LOW -> lowMonitor.run();
+            case MEDIUM -> mediumMonitor.run();
+            case HIGH -> highMonitor.run();
+            default -> throw new IllegalArgumentException("Unknown frequency [" + frequency + "]");
         }
     }
 

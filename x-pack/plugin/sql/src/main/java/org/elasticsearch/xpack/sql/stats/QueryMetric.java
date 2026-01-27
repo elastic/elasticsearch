@@ -15,7 +15,13 @@ import java.util.Locale;
 import static org.elasticsearch.xpack.sql.proto.RequestInfo.ODBC_CLIENT_IDS;
 
 public enum QueryMetric {
-    CANVAS, CLI, JDBC, ODBC, ODBC32, ODBC64, REST;
+    CANVAS,
+    CLI,
+    JDBC,
+    ODBC,
+    ODBC32,
+    ODBC64,
+    REST;
 
     public static QueryMetric fromString(String metric) {
         try {

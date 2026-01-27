@@ -1,29 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public abstract class SmoothingModel implements NamedWriteable, ToXContentFragment {
+public abstract class SmoothingModel implements VersionedNamedWriteable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getWriteableName());
-        innerToXContent(builder,params);
+        innerToXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -71,8 +71,10 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContentFragme
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "[smoothing] unknown token [" + token + "] after [" + fieldName + "]");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[smoothing] unknown token [" + token + "] after [" + fieldName + "]"
+                );
             }
         }
         return model;

@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.usage;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
@@ -44,7 +45,8 @@ public class UsageServiceTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(horse));
         assertThat(
             e.getMessage(),
-            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
+            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name")
+        );
     }
 
     /**
@@ -94,7 +96,8 @@ public class UsageServiceTests extends ESTestCase {
         usageService.addRestHandler(handlerD);
         usageService.addRestHandler(handlerE);
         usageService.addRestHandler(handlerF);
-        try (NodeClient client = new NoOpNodeClient(this.getClass().getSimpleName() + "TestClient")) {
+        try (var threadPool = createThreadPool()) {
+            final var client = new NoOpNodeClient(threadPool);
             handlerA.handleRequest(restRequest, null, client);
             handlerB.handleRequest(restRequest, null, client);
             handlerA.handleRequest(restRequest, null, client);
@@ -151,7 +154,6 @@ public class UsageServiceTests extends ESTestCase {
             usageService.incAggregationUsage("c", OTHER_SUBTYPE);
         }
 
-
         Map<String, Object> aggsUsage = usageService.getUsageStats();
         assertThat(aggsUsage, notNullValue());
         assertThat(aggsUsage.size(), equalTo(3));
@@ -183,8 +185,7 @@ public class UsageServiceTests extends ESTestCase {
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> {
-            };
+            return channel -> {};
         }
 
     }

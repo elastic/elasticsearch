@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;
@@ -25,13 +25,18 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 public class TransformCheckpointTests extends AbstractSerializingTransformTestCase<TransformCheckpoint> {
 
     public static TransformCheckpoint randomTransformCheckpoint() {
+        return randomTransformCheckpoint(randomAlphaOfLengthBetween(1, 10));
+    }
+
+    public static TransformCheckpoint randomTransformCheckpoint(String transformId) {
         return new TransformCheckpoint(
-            randomAlphaOfLengthBetween(1, 10),
+            transformId,
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomCheckpointsByIndex(),
@@ -47,6 +52,11 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
     @Override
     protected TransformCheckpoint createTestInstance() {
         return randomTransformCheckpoint();
+    }
+
+    @Override
+    protected TransformCheckpoint mutateInstance(TransformCheckpoint instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -108,7 +118,18 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
 
     public void testEmpty() {
         assertTrue(TransformCheckpoint.EMPTY.isEmpty());
+        assertTrue(new TransformCheckpoint("_empty", 123L, -1, Collections.emptyMap(), 456L).isEmpty());
         assertFalse(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isEmpty());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isEmpty());
+    }
+
+    public void testTransient() {
+        assertTrue(TransformCheckpoint.EMPTY.isTransient());
+        assertTrue(new TransformCheckpoint("_empty", 123L, -1, Collections.emptyMap(), 456L).isTransient());
+        assertTrue(new TransformCheckpoint("some_id", 0L, -1, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 0, Collections.emptyMap(), 0L).isTransient());
+        assertFalse(new TransformCheckpoint("some_id", 0L, 1, Collections.emptyMap(), 0L).isTransient());
     }
 
     public void testGetBehind() {
@@ -261,6 +282,14 @@ public class TransformCheckpointTests extends AbstractSerializingTransformTestCa
             TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, checkpointNew),
             equalTo(checkpointNew.getIndicesCheckpoints().keySet())
         );
+    }
+
+    public void testDocumentId() {
+        assertThat(TransformCheckpoint.documentId("my-transform", 0), is(equalTo("data_frame_transform_checkpoint-my-transform-0")));
+        assertThat(TransformCheckpoint.documentId("my-transform", 1), is(equalTo("data_frame_transform_checkpoint-my-transform-1")));
+        assertThat(TransformCheckpoint.documentId("my-transform", 2), is(equalTo("data_frame_transform_checkpoint-my-transform-2")));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> TransformCheckpoint.documentId("my-transform", -1));
+        assertThat(e.getMessage(), is(equalTo("checkpoint must be a non-negative number")));
     }
 
     private static Map<String, long[]> randomCheckpointsByIndex() {

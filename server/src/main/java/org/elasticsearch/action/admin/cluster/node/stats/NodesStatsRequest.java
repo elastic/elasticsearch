@@ -1,48 +1,37 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
-import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.stream.Collectors;
 
 /**
  * A request to get node (cluster) level stats.
  */
-public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
+public class NodesStatsRequest extends BaseNodesRequest {
 
-    private CommonStatsFlags indices = new CommonStatsFlags();
-    private final Set<String> requestedMetrics = new HashSet<>();
+    private final NodesStatsRequestParameters nodesStatsRequestParameters;
 
     public NodesStatsRequest() {
         super((String[]) null);
-    }
-
-    public NodesStatsRequest(StreamInput in) throws IOException {
-        super(in);
-
-        indices = new CommonStatsFlags(in);
-        requestedMetrics.clear();
-        requestedMetrics.addAll(in.readStringList());
+        nodesStatsRequestParameters = new NodesStatsRequestParameters();
     }
 
     /**
@@ -50,15 +39,20 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
+        this(new NodesStatsRequestParameters(), nodesIds);
+    }
+
+    public NodesStatsRequest(NodesStatsRequestParameters nodesStatsRequestParameters, String... nodesIds) {
         super(nodesIds);
+        this.nodesStatsRequestParameters = nodesStatsRequestParameters;
     }
 
     /**
      * Sets all the request flags.
      */
     public NodesStatsRequest all() {
-        this.indices.all();
-        this.requestedMetrics.addAll(Metric.allMetrics());
+        this.nodesStatsRequestParameters.indices().all();
+        this.nodesStatsRequestParameters.requestedMetrics().addAll(Metric.ALL);
         return this;
     }
 
@@ -66,28 +60,28 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Clears all the request flags.
      */
     public NodesStatsRequest clear() {
-        this.indices.clear();
-        this.requestedMetrics.clear();
+        this.nodesStatsRequestParameters.indices().clear();
+        this.nodesStatsRequestParameters.requestedMetrics().clear();
         return this;
     }
 
     /**
-     * Get indices. Handles separately from other metrics because it may or
+     * Get nodesStatsMetrics.indices(). Handles separately from other metrics because it may or
      * may not have submetrics.
      * @return flags indicating which indices stats to return
      */
     public CommonStatsFlags indices() {
-        return indices;
+        return nodesStatsRequestParameters.indices();
     }
 
     /**
-     * Set indices. Handles separately from other metrics because it may or
+     * Set nodesStatsMetrics.indices(). Handles separately from other metrics because it may or
      * may not involve submetrics.
      * @param indices flags indicating which indices stats to return
      * @return This object, for request chaining.
      */
     public NodesStatsRequest indices(CommonStatsFlags indices) {
-        this.indices = indices;
+        nodesStatsRequestParameters.setIndices(indices);
         return this;
     }
 
@@ -96,9 +90,9 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      */
     public NodesStatsRequest indices(boolean indices) {
         if (indices) {
-            this.indices.all();
+            this.nodesStatsRequestParameters.indices().all();
         } else {
-            this.indices.clear();
+            this.nodesStatsRequestParameters.indices().clear();
         }
         return this;
     }
@@ -107,106 +101,70 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * Get the names of requested metrics, excluding indices, which are
      * handled separately.
      */
-    public Set<String> requestedMetrics() {
-        return Set.copyOf(requestedMetrics);
+    public Set<Metric> requestedMetrics() {
+        return Set.copyOf(nodesStatsRequestParameters.requestedMetrics());
     }
 
     /**
      * Add metric
      */
-    public NodesStatsRequest addMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.add(metric);
+    public NodesStatsRequest addMetric(Metric metric) {
+        nodesStatsRequestParameters.requestedMetrics().add(metric);
         return this;
     }
 
     /**
      * Add an array of metric names
      */
-    public NodesStatsRequest addMetrics(String... metrics) {
-        // use sorted set for reliable ordering in error messages
-        SortedSet<String> metricsSet = new TreeSet<>(Set.of(metrics));
-        if (Metric.allMetrics().containsAll(metricsSet) == false) {
-            metricsSet.removeAll(Metric.allMetrics());
-            String plural = metricsSet.size() == 1 ? "" : "s";
-            throw new IllegalStateException("Used illegal metric" + plural + ": " + metricsSet);
+    public NodesStatsRequest addMetrics(Metric... metrics) {
+        for (var metric : metrics) {
+            nodesStatsRequestParameters.requestedMetrics().add(metric);
         }
-        requestedMetrics.addAll(metricsSet);
+        return this;
+    }
+
+    public NodesStatsRequest addMetrics(List<Metric> metrics) {
+        nodesStatsRequestParameters.requestedMetrics().addAll(metrics);
         return this;
     }
 
     /**
      * Remove metric
      */
-    public NodesStatsRequest removeMetric(String metric) {
-        if (Metric.allMetrics().contains(metric) == false) {
-            throw new IllegalStateException("Used an illegal metric: " + metric);
-        }
-        requestedMetrics.remove(metric);
+    public NodesStatsRequest removeMetric(Metric metric) {
+        nodesStatsRequestParameters.requestedMetrics().remove(metric);
         return this;
     }
 
-    /**
-     * Helper method for adding metrics during deserialization.
-     * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
-     */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
-            requestedMetrics.add(metricName);
-        }
+    @Override
+    public String getDescription() {
+        return Strings.format(
+            "nodes=%s, metrics=%s, flags=%s",
+            Arrays.toString(nodesIds()),
+            nodesStatsRequestParameters.requestedMetrics().toString(),
+            Arrays.toString(nodesStatsRequestParameters.indices().getFlags())
+        );
     }
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+        return new CancellableTask(id, type, action, "", parentTaskId, headers) {
+            @Override
+            public String getDescription() {
+                return NodesStatsRequest.this.getDescription();
+            }
+        };
     }
 
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        indices.writeTo(out);
-        out.writeStringArray(requestedMetrics.toArray(String[]::new));
+    public boolean includeShardsStats() {
+        return nodesStatsRequestParameters.includeShardsStats();
     }
 
-    /**
-     * An enumeration of the "core" sections of metrics that may be requested
-     * from the nodes stats endpoint. Eventually this list will be pluggable.
-     */
-    public enum Metric {
-        OS("os"),
-        PROCESS("process"),
-        JVM("jvm"),
-        THREAD_POOL("thread_pool"),
-        FS("fs"),
-        TRANSPORT("transport"),
-        HTTP("http"),
-        BREAKER("breaker"),
-        SCRIPT("script"),
-        DISCOVERY("discovery"),
-        INGEST("ingest"),
-        ADAPTIVE_SELECTION("adaptive_selection"),
-        SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+    public void setIncludeShardsStats(boolean includeShardsStats) {
+        nodesStatsRequestParameters.setIncludeShardsStats(includeShardsStats);
+    }
 
-        private String metricName;
-
-        Metric(String name) {
-            this.metricName = name;
-        }
-
-        public String metricName() {
-            return this.metricName;
-        }
-
-        boolean containedIn(Set<String> metricNames) {
-            return metricNames.contains(this.metricName());
-        }
-
-        static Set<String> allMetrics() {
-            return Arrays.stream(values()).map(Metric::metricName).collect(Collectors.toSet());
-        }
+    public NodesStatsRequestParameters getNodesStatsRequestParameters() {
+        return nodesStatsRequestParameters;
     }
 }

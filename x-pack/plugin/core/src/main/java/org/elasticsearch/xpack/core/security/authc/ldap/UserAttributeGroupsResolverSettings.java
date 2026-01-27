@@ -11,15 +11,15 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.Collections;
 import java.util.Set;
-import java.util.function.Function;
 
 public final class UserAttributeGroupsResolverSettings {
     public static final Setting.AffixSetting<String> ATTRIBUTE = Setting.affixKeySetting(
-            RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE), "user_group_attribute",
-            key -> new Setting<>(key, "memberOf", Function.identity(), Setting.Property.NodeScope));
+        RealmSettings.realmSettingPrefix(LdapRealmSettings.LDAP_TYPE),
+        "user_group_attribute",
+        key -> Setting.simpleString(key, "memberOf", Setting.Property.NodeScope)
+    );
 
-    private UserAttributeGroupsResolverSettings() {
-    }
+    private UserAttributeGroupsResolverSettings() {}
 
     public static Set<Setting.AffixSetting<?>> getSettings() {
         return Collections.singleton(ATTRIBUTE);

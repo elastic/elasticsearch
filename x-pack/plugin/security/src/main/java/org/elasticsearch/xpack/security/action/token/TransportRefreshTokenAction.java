@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security.action.token;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest;
@@ -25,7 +26,7 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
 
     @Inject
     public TransportRefreshTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new);
+        super(RefreshTokenAction.NAME, transportService, actionFilters, CreateTokenRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.tokenService = tokenService;
     }
 
@@ -33,9 +34,14 @@ public class TransportRefreshTokenAction extends HandledTransportAction<CreateTo
     protected void doExecute(Task task, CreateTokenRequest request, ActionListener<CreateTokenResponse> listener) {
         tokenService.refreshToken(request.getRefreshToken(), ActionListener.wrap(tokenResult -> {
             final String scope = getResponseScopeValue(request.getScope());
-            final CreateTokenResponse response =
-                new CreateTokenResponse(tokenResult.getAccessToken(), tokenService.getExpirationDelay(), scope,
-                    tokenResult.getRefreshToken(), null, tokenResult.getAuthentication());
+            final CreateTokenResponse response = new CreateTokenResponse(
+                tokenResult.getAccessToken(),
+                tokenService.getExpirationDelay(),
+                scope,
+                tokenResult.getRefreshToken(),
+                null,
+                tokenResult.getAuthentication()
+            );
             listener.onResponse(response);
         }, listener::onFailure));
     }

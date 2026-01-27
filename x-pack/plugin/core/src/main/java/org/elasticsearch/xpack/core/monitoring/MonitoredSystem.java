@@ -29,22 +29,18 @@ public enum MonitoredSystem {
     }
 
     public static MonitoredSystem fromSystem(String system) {
-        switch (system.toLowerCase(Locale.ROOT)) {
-            case "es":
-                return ES;
-            case "kibana":
-                return KIBANA;
-            case "logstash":
-                return LOGSTASH;
-            case "beats":
-                return BEATS;
-            default:
+        return switch (system.toLowerCase(Locale.ROOT)) {
+            case "es" -> ES;
+            case "kibana" -> KIBANA;
+            case "logstash" -> LOGSTASH;
+            case "beats" -> BEATS;
+            default ->
                 // Return an "unknown" monitored system
                 // that can easily be filtered out if
                 // a node receives documents for a new
                 // system it does not know yet
-                return UNKNOWN;
-        }
+                UNKNOWN;
+        };
     }
 
     /**

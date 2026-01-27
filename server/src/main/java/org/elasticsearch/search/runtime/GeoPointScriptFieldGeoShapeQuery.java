@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -38,8 +39,8 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
     }
 
     @Override
-    protected boolean matches(long[] values, int count) {
-        return predicate.matches(values, count);
+    protected boolean matches(double[] lats, double[] lons, int count) {
+        return predicate.matches(lats, lons, count);
     }
 
     @Override
@@ -66,20 +67,19 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
 
     @FunctionalInterface
     private interface SpatialPredicate {
-        boolean matches(long[] values, int count);
+        boolean matches(double[] lats, double[] lons, int count);
     }
 
     private static SpatialPredicate getPredicate(ShapeRelation relation, LatLonGeometry... geometries) {
         switch (relation) {
-            case INTERSECTS: {
+            case INTERSECTS -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon)) {
                             return true;
                         }
@@ -87,15 +87,14 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return false;
                 };
             }
-            case DISJOINT: {
+            case DISJOINT -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon)) {
                             return false;
                         }
@@ -104,15 +103,14 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return count > 0;
                 };
             }
-            case WITHIN: {
+            case WITHIN -> {
                 final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
                     LatLonGeometry.create(geometries)
                 );
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final int lat = (int) (value >>> 32);
-                        final int lon = (int) (value & 0xFFFFFFFF);
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         if (predicate.test(lat, lon) == false) {
                             return false;
                         }
@@ -121,17 +119,16 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return count > 0;
                 };
             }
-            case CONTAINS: {
+            case CONTAINS -> {
                 final Component2D[] component2DS = new Component2D[geometries.length];
                 for (int i = 0; i < geometries.length; i++) {
                     component2DS[i] = LatLonGeometry.create(geometries[i]);
                 }
-                return (values, count) -> {
+                return (lats, lons, count) -> {
                     Component2D.WithinRelation answer = Component2D.WithinRelation.DISJOINT;
                     for (int i = 0; i < count; i++) {
-                        final long value = values[i];
-                        final double lat = GeoEncodingUtils.decodeLatitude((int) (value >>> 32));
-                        final double lon = GeoEncodingUtils.decodeLongitude((int) (value & 0xFFFFFFFF));
+                        final int lat = GeoEncodingUtils.encodeLatitude(lats[i]);
+                        final int lon = GeoEncodingUtils.encodeLongitude(lons[i]);
                         for (Component2D component2D : component2DS) {
                             Component2D.WithinRelation withinRelation = component2D.withinPoint(lon, lat);
                             if (withinRelation == Component2D.WithinRelation.NOTWITHIN) {
@@ -144,8 +141,7 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                     return answer == Component2D.WithinRelation.CANDIDATE;
                 };
             }
-            default:
-                throw new IllegalArgumentException("Unknown spatial relationship [" + relation.getRelationName() + "]");
+            default -> throw new IllegalArgumentException("Unknown spatial relationship [" + relation.getRelationName() + "]");
         }
     }
 }

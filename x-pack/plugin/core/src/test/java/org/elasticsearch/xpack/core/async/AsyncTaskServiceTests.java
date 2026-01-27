@@ -6,17 +6,15 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -24,15 +22,15 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.is;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
@@ -45,9 +43,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
         BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
-        indexService = new AsyncTaskIndexService<>(index, clusterService,
+        indexService = new AsyncTaskIndexService<>(
+            index,
+            clusterService,
             transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", AsyncSearchResponse::new, writableRegistry(), bigArrays);
+            client(),
+            "test_origin",
+            AsyncSearchResponse::new,
+            writableRegistry(),
+            bigArrays
+        );
     }
 
     @Override
@@ -77,88 +82,32 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testEnsuredAuthenticatedUserIsSame() throws IOException {
-        Authentication original =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        Authentication current = randomBoolean() ? original :
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        assertTrue(original.canAccessResourcesOf(current));
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // original is not set
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(Collections.emptyMap(), current));
-        // current is not set
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), null));
-
-        // original user being run as
-        User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        assertTrue(original.canAccessResourcesOf(current));
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // both user are run as
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
-        Authentication runAs = current;
-        assertTrue(runAs.canAccessResourcesOf(current));
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
-
-        // different authenticated by type
-        Authentication differentRealmType =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"), null);
-        threadContext = new ThreadContext(Settings.EMPTY);
-        original.writeToContext(threadContext);
-        assertFalse(original.canAccessResourcesOf(differentRealmType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), differentRealmType));
-
-        // wrong user
-        Authentication differentUser =
-            new Authentication(new User("test2", "role"), new Authentication.RealmRef("realm", "realm", "node"), null);
-        assertFalse(original.canAccessResourcesOf(differentUser));
-
-        // run as different user
-        Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
-            new Authentication.RealmRef("realm", "file", "node1"), new Authentication.RealmRef("realm", "file", "node1"));
-        assertFalse(original.canAccessResourcesOf(diffRunAs));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), diffRunAs));
-
-        // run as different looked up by type
-        Authentication runAsDiffType = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
-        assertFalse(original.canAccessResourcesOf(runAsDiffType));
-        assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
-    }
-
     public void testAutoCreateIndex() throws Exception {
         // To begin with, the results index should be auto-created.
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
-        {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+        try {
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
+        } finally {
+            resp.decRef();
         }
 
         // Delete the index, so we can test subsequent auto-create behaviour
-        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
+        assertAcked(client().admin().indices().prepareDelete(index));
 
         // Subsequent response deletes throw a (wrapped) index not found exception
         {
-            PlainActionFuture<DeleteResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
             indexService.deleteResponse(id, future);
             expectThrows(Exception.class, future::get);
         }
 
         // So do updates
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -166,7 +115,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // And so does updating the expiration time
         {
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             indexService.updateExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
@@ -174,7 +123,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // But the index is still auto-created
         {
-            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
             indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
             future.get();
             assertSettings();
@@ -182,10 +131,13 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertSettings() {
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(index)).actionGet();
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
+            .actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
         Settings expected = AsyncTaskIndexService.settings();
-        assertEquals(expected, settings.filter(expected::hasValue));
+        assertThat(expected, is(settings.filter(expected::hasValue)));
     }
+
 }

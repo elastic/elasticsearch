@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.mapper;
@@ -54,6 +55,7 @@ public final class Joiner {
         Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
         return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
+
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
@@ -65,12 +67,12 @@ public final class Joiner {
     Joiner(String joinField, List<Relations> relations) {
         this.joinField = joinField;
         for (Relations r : relations) {
-            for (String child : r.children) {
-                parentsToChildren.put(r.parent, r.children);
+            for (String child : r.children()) {
+                parentsToChildren.put(r.parent(), r.children());
                 if (childrenToParents.containsKey(child)) {
                     throw new IllegalArgumentException("[" + child + "] cannot have multiple parents");
                 }
-                childrenToParents.put(child, r.parent);
+                childrenToParents.put(child, r.parent());
             }
         }
     }

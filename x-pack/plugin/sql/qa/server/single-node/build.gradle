@@ -1,4 +1,5 @@
-testClusters.matching { it.name == "integTest" }.configureEach {
-  setting 'xpack.security.enabled', 'false'
-  setting 'xpack.license.self_generated.type', 'trial'
+// Necessary to use tests in Serverless
+apply plugin: 'elasticsearch.internal-test-artifact'
+
+dependencies {
 }

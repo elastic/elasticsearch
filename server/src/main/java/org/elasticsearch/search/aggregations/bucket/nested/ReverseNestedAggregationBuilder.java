@@ -1,27 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -72,13 +72,6 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return this;
     }
 
-    /**
-     * Get the path to use for this nested aggregation.
-     */
-    public String path() {
-        return path;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.ONE;
@@ -91,19 +84,27 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             throw new IllegalArgumentException("Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
         }
 
-        ObjectMapper parentObjectMapper = null;
         if (path != null) {
-            parentObjectMapper = context.getObjectMapper(path);
-            if (parentObjectMapper == null) {
-                return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
+            NestedObjectMapper currentParent = context.nestedScope().getObjectMapper();
+            if (currentParent != null) {
+                String parentPath = currentParent.fullPath();
+                if (parentPath.equals(path) == false && parentPath.startsWith(path + ".") == false) {
+                    throw new IllegalArgumentException(
+                        "Reverse nested path [" + path + "] is not a parent of the current nested scope [" + parentPath + "]"
+                    );
+                }
             }
-            if (parentObjectMapper.isNested() == false) {
-                throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
+        }
+
+        NestedObjectMapper nestedMapper = null;
+        if (path != null) {
+            nestedMapper = context.nestedLookup().getNestedMappers().get(path);
+            if (nestedMapper == null) {
+                return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
             }
         }
 
         NestedScope nestedScope = context.nestedScope();
-        NestedObjectMapper nestedMapper = (NestedObjectMapper) parentObjectMapper;
         try {
             nestedScope.nextLevel(nestedMapper);
             return new ReverseNestedAggregatorFactory(name, false, nestedMapper, context, parent, subFactoriesBuilder, metadata);
@@ -178,5 +179,10 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

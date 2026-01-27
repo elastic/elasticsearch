@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.gen.processor.ConstantProcessor;
 import org.elasticsearch.xpack.ql.expression.processor.Processors;
 
+import java.math.BigInteger;
+
 import static org.elasticsearch.xpack.ql.TestUtils.equalsOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.ql.TestUtils.greaterThanOrEqualOf;
@@ -27,14 +29,20 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestCase<BinaryComparisonProcessor> {
     public static BinaryComparisonProcessor randomProcessor() {
         return new BinaryComparisonProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(BinaryComparisonProcessor.BinaryComparisonOperation.values())
+        );
     }
 
     @Override
     protected BinaryComparisonProcessor createTestInstance() {
         return randomProcessor();
+    }
+
+    @Override
+    protected BinaryComparisonProcessor mutateInstance(BinaryComparisonProcessor instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -50,6 +58,8 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
     public void testEq() {
         assertEquals(true, equalsOf(l(4), l(4)).makePipe().asProcessor().process(null));
         assertEquals(false, equalsOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, equalsOf(l(BigInteger.valueOf(4)), l(4L)).makePipe().asProcessor().process(null));
+        assertEquals(false, equalsOf(l(BigInteger.valueOf(3)), l(4L)).makePipe().asProcessor().process(null));
     }
 
     public void testNullEq() {
@@ -63,30 +73,39 @@ public class BinaryComparisonProcessorTests extends AbstractWireSerializingTestC
     public void testNEq() {
         assertEquals(false, notEqualsOf(l(4), l(4)).makePipe().asProcessor().process(null));
         assertEquals(true, notEqualsOf(l(3), l(4)).makePipe().asProcessor().process(null));
+        assertEquals(true, notEqualsOf(l(BigInteger.valueOf(3)), l(4)).makePipe().asProcessor().process(null));
     }
 
     public void testGt() {
         assertEquals(true, greaterThanOf(l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals(false, greaterThanOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(false, greaterThanOf(l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOf(l(4), l(BigInteger.valueOf(3))).makePipe().asProcessor().process(null));
     }
 
     public void testGte() {
         assertEquals(true, greaterThanOrEqualOf(l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals(false, greaterThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(true, greaterThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOrEqualOf(l(BigInteger.valueOf(3)), l(3L)).makePipe().asProcessor().process(null));
+        assertEquals(true, greaterThanOrEqualOf(l(BigInteger.valueOf(4)), l(3L)).makePipe().asProcessor().process(null));
+        assertEquals(false, greaterThanOrEqualOf(l(BigInteger.valueOf(3)), l(4L)).makePipe().asProcessor().process(null));
     }
 
     public void testLt() {
         assertEquals(false, lessThanOf(l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals(true, lessThanOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(false, lessThanOf(l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, lessThanOf(l(3), l(BigInteger.valueOf(3))).makePipe().asProcessor().process(null));
     }
 
     public void testLte() {
         assertEquals(false, lessThanOrEqualOf(l(4), l(3)).makePipe().asProcessor().process(null));
         assertEquals(true, lessThanOrEqualOf(l(3), l(4)).makePipe().asProcessor().process(null));
         assertEquals(true, lessThanOrEqualOf(l(3), l(3)).makePipe().asProcessor().process(null));
+        assertEquals(false, lessThanOrEqualOf(l(4), l(BigInteger.valueOf(3))).makePipe().asProcessor().process(null));
+        assertEquals(true, lessThanOrEqualOf(l(3), l(BigInteger.valueOf(4))).makePipe().asProcessor().process(null));
+        assertEquals(true, lessThanOrEqualOf(l(3), l(BigInteger.valueOf(3))).makePipe().asProcessor().process(null));
     }
 
     public void testHandleNull() {

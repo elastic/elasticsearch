@@ -1,29 +1,33 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -33,19 +37,35 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
-import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 public final class XContentTestUtils {
     private XContentTestUtils() {
 
     }
 
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent) throws IOException {
+        return convertToMap(chunkedToXContent, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ChunkedToXContent chunkedToXContent, ToXContent.Params params) throws IOException {
+        return convertToMap(ChunkedToXContent.wrapAsToXContent(chunkedToXContent), params);
+    }
+
     public static Map<String, Object> convertToMap(ToXContent part) throws IOException {
+        return convertToMap(part, EMPTY_PARAMS);
+    }
+
+    public static Map<String, Object> convertToMap(ToXContent part, ToXContent.Params params) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        part.toXContent(builder, EMPTY_PARAMS);
-        builder.endObject();
+        if (part.isFragment()) {
+            builder.startObject();
+            part.toXContent(builder, params);
+            builder.endObject();
+        } else {
+            part.toXContent(builder, params);
+        }
         return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
@@ -56,23 +76,45 @@ public final class XContentTestUtils {
         }
     }
 
-
     /**
      * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
      *
      * @return null if maps are equal or path to the element where the difference was found
      */
     public static String differenceBetweenMapsIgnoringArrayOrder(Map<String, Object> first, Map<String, Object> second) {
-        return differenceBetweenMapsIgnoringArrayOrder("", first, second);
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, p -> true);
     }
 
-    private static String differenceBetweenMapsIgnoringArrayOrder(String path, Map<String, Object> first, Map<String, Object> second) {
+    /**
+     * Compares two maps generated from XContentObjects. The order of elements in arrays is ignored.
+     *
+     * @param pathFilter Predicate to filter a path and its children. True if the path should be checked, false to exclude it.
+     * @return null if maps are equal or path to the element where the difference was found
+     */
+    public static String differenceBetweenMapsIgnoringArrayOrder(
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        return differenceBetweenMapsIgnoringArrayOrder("", first, second, pathFilter);
+    }
+
+    private static String differenceBetweenMapsIgnoringArrayOrder(
+        String path,
+        Map<String, Object> first,
+        Map<String, Object> second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first.size() != second.size()) {
             return path + ": sizes of the maps don't match: " + first.size() + " != " + second.size();
         }
 
         for (String key : first.keySet()) {
-            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key));
+            String reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/" + key, first.get(key), second.get(key), pathFilter);
             if (reason != null) {
                 return reason;
             }
@@ -81,7 +123,16 @@ public final class XContentTestUtils {
     }
 
     @SuppressWarnings("unchecked")
-    private static String differenceBetweenObjectsIgnoringArrayOrder(String path, Object first, Object second) {
+    private static String differenceBetweenObjectsIgnoringArrayOrder(
+        String path,
+        Object first,
+        Object second,
+        Predicate<String> pathFilter
+    ) {
+        if (pathFilter.test(path) == false) {
+            return null;
+        }
+
         if (first == null) {
             if (second == null) {
                 return null;
@@ -97,7 +148,7 @@ public final class XContentTestUtils {
                     for (Object firstObj : firstList) {
                         boolean found = false;
                         for (Object secondObj : secondList) {
-                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj);
+                            reason = differenceBetweenObjectsIgnoringArrayOrder(path + "/*", firstObj, secondObj, pathFilter);
                             if (reason == null) {
                                 secondList.remove(secondObj);
                                 found = true;
@@ -121,9 +172,9 @@ public final class XContentTestUtils {
             }
         } else if (first instanceof Map) {
             if (second instanceof Map) {
-                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
+                return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second, pathFilter);
             } else {
-                return path + ": the second element is not a map (got " + second +")";
+                return path + ": the second element is not a map (got " + second + ")";
             }
         } else {
             if (first.equals(second)) {
@@ -178,15 +229,25 @@ public final class XContentTestUtils {
      * }
      * </pre>
      */
-    public static BytesReference insertRandomFields(XContentType contentType, BytesReference xContent, Predicate<String> excludeFilter,
-            Random random) throws IOException {
+    public static BytesReference insertRandomFields(
+        XContentType contentType,
+        BytesReference xContent,
+        Predicate<String> excludeFilter,
+        Random random
+    ) throws IOException {
         List<String> insertPaths;
 
         // we can use NamedXContentRegistry.EMPTY here because we only traverse the xContent once and don't use it
-        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, xContent, contentType)) {
+        try (
+            XContentParser parser = createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                xContent,
+                contentType
+            )
+        ) {
             parser.nextToken();
-            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new Stack<>());
+            List<String> possiblePaths = XContentTestUtils.getInsertPaths(parser, new ArrayDeque<>());
             if (excludeFilter == null) {
                 insertPaths = possiblePaths;
             } else {
@@ -207,8 +268,15 @@ public final class XContentTestUtils {
                 }
             }
         };
-        return BytesReference.bytes(XContentTestUtils
-                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value));
+        return BytesReference.bytes(
+            XContentTestUtils.insertIntoXContent(
+                contentType.xContent(),
+                xContent,
+                insertPaths,
+                () -> randomAsciiOfLength(random, 10),
+                value
+            )
+        );
     }
 
     /**
@@ -243,20 +311,20 @@ public final class XContentTestUtils {
      *  <li>"foo3.foo4</li>
      * </ul>
      */
-    static List<String> getInsertPaths(XContentParser parser, Stack<String> currentPath) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY :
-            "should only be called when new objects or arrays start";
+    static List<String> getInsertPaths(XContentParser parser, Deque<String> currentPath) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY
+            : "should only be called when new objects or arrays start";
         List<String> validPaths = new ArrayList<>();
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.push(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replace(".", "\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            validPaths.add(String.join(".", currentPath.toArray(new String[currentPath.size()])));
+            validPaths.add(String.join(".", currentPath));
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    || parser.currentToken() == XContentParser.Token.START_ARRAY) {
                     validPaths.addAll(getInsertPaths(parser, currentPath));
                 }
             }
@@ -264,16 +332,16 @@ public final class XContentTestUtils {
             int itemCount = 0;
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 if (parser.currentToken() == XContentParser.Token.START_OBJECT
-                        || parser.currentToken() == XContentParser.Token.START_ARRAY) {
-                    currentPath.push(Integer.toString(itemCount));
+                    || parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    currentPath.addLast(Integer.toString(itemCount));
                     validPaths.addAll(getInsertPaths(parser, currentPath));
-                    currentPath.pop();
+                    currentPath.removeLast();
                 }
                 itemCount++;
             }
         }
         if (parser.currentName() != null) {
-            currentPath.pop();
+            currentPath.removeLast();
         }
         return validPaths;
     }
@@ -284,8 +352,13 @@ public final class XContentTestUtils {
      * {@link ObjectPath}.
      * The key/value arguments can suppliers that either return fixed or random values.
      */
-    public static XContentBuilder insertIntoXContent(XContent xContent, BytesReference original, List<String> paths, Supplier<String> key,
-            Supplier<Object> value) throws IOException {
+    public static XContentBuilder insertIntoXContent(
+        XContent xContent,
+        BytesReference original,
+        List<String> paths,
+        Supplier<String> key,
+        Supplier<Object> value
+    ) throws IOException {
         ObjectPath object = ObjectPath.createFromXContent(xContent, original);
         for (String path : paths) {
             Map<String, Object> insertMap = object.evaluate(path);
@@ -317,10 +390,15 @@ public final class XContentTestUtils {
                 } else if (context instanceof List) {
                     context = ((List<Object>) context).get(Integer.parseInt(key));
                 } else {
-                    throw new IllegalStateException("neither list nor map");
+                    return null; // node does not exist
                 }
             }
             return (T) context;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
         }
     }
 }

@@ -1,61 +1,63 @@
-apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.bwc-test'
-apply plugin: 'elasticsearch.rest-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-import org.elasticsearch.gradle.Version
+apply plugin: 'elasticsearch.legacy-java-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
-  testImplementation project(':x-pack:qa')
-  testImplementation(project(xpackModule('ql:test-fixtures')))
-  testImplementation project(path: xpackModule('eql'), configuration: 'default')
+    javaRestTestImplementation project(':x-pack:qa')
+    javaRestTestImplementation(project(xpackModule('ql:test-fixtures')))
+    javaRestTestImplementation project(path: xpackModule('eql'), configuration: 'default')
 }
 
-tasks.named("integTest").configure{ enabled = false}
+tasks.named("javaRestTest").configure { enabled = false }
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.10.0') }) {
-  if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
-    // Not really a mixed cluster
-    continue;
-  }
-
-  String baseName = "v${bwcVersion}"
-
-  testClusters {
-    "${baseName}" {
-      versions = [bwcVersion.toString(), project.version]
-      numberOfNodes = 3
-      testDistribution = 'DEFAULT'
-      setting 'xpack.security.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.eql.enabled', 'true'
-      setting 'xpack.license.self_generated.type', 'trial'
-      // for debugging purposes
-      // setting 'logger.org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction', 'TRACE'
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter("7.10.0") &&
+        v != VersionProperties.getElasticsearchVersion()) { bwcVersion, baseName ->
+    def cluster = testClusters.register(baseName) {
+        versions = [bwcVersion.toString(), project.version]
+        numberOfNodes = 3
+        testDistribution = 'DEFAULT'
+        setting 'xpack.security.enabled', 'false'
+        setting 'xpack.watcher.enabled', 'false'
+        setting 'xpack.ml.enabled', 'false'
+        setting 'xpack.eql.enabled', 'true'
+        setting 'xpack.license.self_generated.type', 'trial'
+        // for debugging purposes
+        // setting 'logger.org.elasticsearch.xpack.eql.plugin.TransportEqlSearchAction', 'TRACE'
     }
-  }
 
-  tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
-    mustRunAfter("precommit")
-    doFirst {
-      // Getting the endpoints causes a wait for the cluster
-      println "Endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      println "Upgrading one node to create a mixed cluster"
-      testClusters."${baseName}".nextNodeToNextVersion()
+    tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
+        useCluster cluster
+        mustRunAfter("precommit")
+        classpath = sourceSets.javaRestTest.runtimeClasspath
+        testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+        def socketsProvider1 = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+        def socketsProvider2 = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+        doFirst {
+            // Getting the endpoints causes a wait for the cluster
+            println "Endpoints are: ${-> socketsProvider1.get()}"
+            println "Upgrading one node to create a mixed cluster"
+            getRegistry().get().nextNodeToNextVersion(cluster)
+            println "Upgrade complete, endpoints are: ${-> socketsProvider2.get()} }"
+        }
+        nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") })
+        nonInputProperties.systemProperty('tests.clustername', baseName)
+        systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
+        systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
 
-      println "Upgrade complete, endpoints are: ${-> testClusters."${baseName}".allHttpSocketURI.join(",")}"
-      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
-      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
+        def bwcEnabled = project.bwc_tests_enabled
+        onlyIf("BWC tests disabled") { bwcEnabled }
     }
-    onlyIf { project.bwc_tests_enabled }
-  }
 
-  tasks.register(bwcTaskName(bwcVersion)) {
-    dependsOn "${baseName}#mixedClusterTest"
-  }
+    tasks.register(bwcTaskName(bwcVersion)) {
+        dependsOn "${baseName}#mixedClusterTest"
+    }
 }

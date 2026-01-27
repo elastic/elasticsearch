@@ -8,16 +8,19 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -36,6 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.Response> {
 
     public static final GetDatafeedsStatsAction INSTANCE = new GetDatafeedsStatsAction();
@@ -49,16 +54,14 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
     private static final String RUNNING_STATE = "running_state";
 
     private GetDatafeedsStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LegacyActionRequest {
 
-        @Deprecated
-        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String datafeedId;
+        private final String datafeedId;
         private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
@@ -110,6 +113,11 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
             Request other = (Request) obj;
             return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(allowNoMatch, other.allowNoMatch);
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, format("get_datafeed_stats[%s]", datafeedId), parentTaskId, headers);
         }
     }
 
@@ -173,6 +181,10 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 return timingStats;
             }
 
+            public RunningState getRunningState() {
+                return runningState;
+            }
+
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
@@ -201,7 +213,8 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                     builder.field(
                         TIMING_STATS,
                         timingStats,
-                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true")));
+                        new MapParams(Collections.singletonMap(ToXContentParams.INCLUDE_CALCULATED_FIELDS, "true"))
+                    );
                 }
                 if (runningState != null) {
                     builder.field(RUNNING_STATE, runningState);
@@ -317,9 +330,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             private GetDatafeedRunningStateAction.Response datafeedRuntimeState;
 
             public Builder setDatafeedIds(Collection<String> datafeedIds) {
-                this.statsBuilders = datafeedIds.stream()
-                    .map(GetDatafeedsStatsAction.Response.DatafeedStats::builder)
-                    .collect(Collectors.toList());
+                this.statsBuilders = datafeedIds.stream().map(DatafeedStats::builder).collect(Collectors.toList());
                 return this;
             }
 
@@ -343,17 +354,21 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
             }
 
             public Response build(PersistentTasksCustomMetadata tasksInProgress, ClusterState state) {
-                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder-> {
+                List<DatafeedStats> stats = statsBuilders.stream().map(statsBuilder -> {
                     final String jobId = datafeedToJobId.get(statsBuilder.datafeedId);
-                    DatafeedTimingStats timingStats = jobId == null ?
-                        null :
-                        timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
+                    DatafeedTimingStats timingStats = jobId == null
+                        ? null
+                        : timingStatsMap.getOrDefault(jobId, new DatafeedTimingStats(jobId));
                     PersistentTasksCustomMetadata.PersistentTask<?> maybeTask = MlTasks.getDatafeedTask(
                         statsBuilder.datafeedId,
                         tasksInProgress
                     );
                     DatafeedState datafeedState = MlTasks.getDatafeedState(statsBuilder.datafeedId, tasksInProgress);
-                    return statsBuilder.setNode(maybeTask != null ? state.getNodes().get(maybeTask.getExecutorNode()) : null)
+                    DiscoveryNode node = null;
+                    if (maybeTask != null && maybeTask.getExecutorNode() != null) {
+                        node = state.getNodes().get(maybeTask.getExecutorNode());
+                    }
+                    return statsBuilder.setNode(node)
                         .setDatafeedState(datafeedState)
                         .setAssignmentExplanation(maybeTask != null ? maybeTask.getAssignment().getExplanation() : null)
                         .setTimingStats(timingStats)

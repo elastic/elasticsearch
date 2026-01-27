@@ -11,10 +11,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.eql.execution.search.AsEventListener;
+import org.elasticsearch.xpack.eql.execution.payload.EventPayload;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
-import org.elasticsearch.xpack.eql.execution.search.ReverseListener;
 import org.elasticsearch.xpack.eql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -24,6 +23,7 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -52,7 +52,6 @@ public class EsQueryExec extends LeafExec {
         return output;
     }
 
-    
     /*
      * {@param includeFetchFields} should be true for event queries and false for in progress sequence queries
      * Fetching fields during in progress sequence queries is unnecessary.
@@ -60,19 +59,26 @@ public class EsQueryExec extends LeafExec {
     public SearchSourceBuilder source(EqlSession session, boolean includeFetchFields) {
         EqlConfiguration cfg = session.configuration();
         // by default use the configuration size
-        return SourceGenerator.sourceBuilder(queryContainer, cfg.filter(), includeFetchFields ? cfg.fetchFields() : null,
-            cfg.runtimeMappings());
+        return SourceGenerator.sourceBuilder(
+            queryContainer,
+            cfg.filter(),
+            includeFetchFields ? cfg.fetchFields() : null,
+            cfg.runtimeMappings()
+        );
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
         // endpoint - fetch all source
         QueryRequest request = () -> source(session, true).fetchSource(FetchSourceContext.FETCH_SOURCE);
-        listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
-        new BasicQueryClient(session).query(request, new AsEventListener(listener));
+        new BasicQueryClient(session).query(request, listener.safeMap(shouldReverse(request) ? r -> {
+            var res = new EventPayload(r);
+            Collections.reverse(res.values());
+            return res;
+        } : EventPayload::new));
     }
 
-    private boolean shouldReverse(QueryRequest query) {
+    private static boolean shouldReverse(QueryRequest query) {
         SearchSourceBuilder searchSource = query.searchSource();
         // since all results need to be ASC, use this hack to figure out whether the results need to be flipped
         for (SortBuilder<?> sort : searchSource.sorts()) {
@@ -99,8 +105,7 @@ public class EsQueryExec extends LeafExec {
         }
 
         EsQueryExec other = (EsQueryExec) obj;
-        return Objects.equals(queryContainer, other.queryContainer)
-                && Objects.equals(output, other.output);
+        return Objects.equals(queryContainer, other.queryContainer) && Objects.equals(output, other.output);
     }
 
     @Override

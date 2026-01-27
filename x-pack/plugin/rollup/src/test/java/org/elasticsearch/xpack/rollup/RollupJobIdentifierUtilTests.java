@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.rollup;
 
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
@@ -24,7 +25,6 @@ import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.joda.time.DateTimeZone;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -205,7 +205,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         final GroupConfig group = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h")));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, group, emptyList(), null);
         RollupJobCaps cap = new RollupJobCaps(job);
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
 
         final GroupConfig group2 = new GroupConfig(new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1h")));
@@ -236,7 +236,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         final List<MetricConfig> metrics = singletonList(new MetricConfig("bar", singletonList("max")));
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, group, metrics, null);
         RollupJobCaps cap = new RollupJobCaps(job);
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
 
         // TODO Is it what we really want to test?
@@ -279,7 +279,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .calendarInterval(new DateHistogramInterval("1d"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -309,7 +309,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
         DateHistogramAggregationBuilder builder = new DateHistogramAggregationBuilder("foo").field("foo")
             .calendarInterval(new DateHistogramInterval("1h"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -345,7 +345,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .calendarInterval(new DateHistogramInterval("1h"))
             .subAggregation(new HistogramAggregationBuilder("histo").field("bar").interval(100));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -381,7 +381,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .calendarInterval(new DateHistogramInterval("1h"))
             .subAggregation(new TermsAggregationBuilder("histo").userValueTypeHint(ValueType.STRING).field("bar"));
 
-        Set<RollupJobCaps> caps = new HashSet<>(2);
+        Set<RollupJobCaps> caps = Sets.newHashSetWithExpectedSize(2);
         caps.add(cap);
         caps.add(cap2);
         Set<RollupJobCaps> bestCaps = RollupJobIdentifierUtils.findBestJobs(builder, caps);
@@ -399,7 +399,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
             // NOTE same name but wrong type
-            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
             new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
             null
         );
@@ -428,7 +428,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
         );
         final List<MetricConfig> metrics = Arrays.asList(
             new MetricConfig("max_field", singletonList("max")),
@@ -457,7 +457,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
             // interval in job is much higher than agg interval above
-            new DateHistogramGroupConfig.FixedInterval("foo", new DateHistogramInterval("100d"), null, DateTimeZone.UTC.getID())
+            new DateHistogramGroupConfig.FixedInterval("foo", new DateHistogramInterval("100d"), null, ZoneOffset.UTC.getId())
         );
         final RollupJobConfig job = new RollupJobConfig("foo", "index", "rollup", "*/5 * * * * ?", 10, group, emptyList(), null);
         Set<RollupJobCaps> caps = singletonSet(new RollupJobCaps(job));
@@ -481,7 +481,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
 
         final GroupConfig group = new GroupConfig(
             // NOTE different field from the one in the query
-            new DateHistogramGroupConfig.CalendarInterval("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID())
+            new DateHistogramGroupConfig.CalendarInterval("bar", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId())
         );
         final List<MetricConfig> metrics = Arrays.asList(
             new MetricConfig("max_field", singletonList("max")),
@@ -509,7 +509,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-            new DateHistogramGroupConfig.CalendarInterval("bar", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+            new DateHistogramGroupConfig.CalendarInterval("bar", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
             new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
             null
         );
@@ -538,7 +538,7 @@ public class RollupJobIdentifierUtilTests extends ESTestCase {
             .subAggregation(new AvgAggregationBuilder("the_avg").field("avg_field"));
 
         final GroupConfig group = new GroupConfig(
-            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, DateTimeZone.UTC.getID()),
+            new DateHistogramGroupConfig.CalendarInterval("foo", new DateHistogramInterval("1d"), null, ZoneOffset.UTC.getId()),
             new HistogramGroupConfig(1L, "baz"), // <-- NOTE right type but wrong name
             null
         );

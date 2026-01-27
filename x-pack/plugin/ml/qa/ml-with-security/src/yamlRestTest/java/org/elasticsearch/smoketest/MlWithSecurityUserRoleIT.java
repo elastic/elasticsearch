@@ -7,6 +7,7 @@
 package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
@@ -27,7 +28,6 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
      */
     private static final List<Pattern> ALLOWED_ACTION_PATTERNS = Arrays.asList(
         Pattern.compile("ml\\.get_.*"),
-        Pattern.compile("ml\\.find_file_structure"),
         Pattern.compile("ml\\.evaluate_data_frame")
     );
 
@@ -45,8 +45,8 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
             // We should have got here if and only if the only ML endpoints in the test were in the allowed list
             for (ExecutableSection section : testCandidate.getTestSection().getExecutableSections()) {
-                if (section instanceof DoSection) {
-                    String apiName = ((DoSection) section).getApiCallSection().getApi();
+                if (section instanceof DoSection doSection) {
+                    String apiName = doSection.getApiCallSection().getApi();
 
                     if (apiName.startsWith("ml.") && isAllowed(apiName) == false) {
                         fail("call to ml endpoint [" + apiName + "] should have failed because of missing role");
@@ -54,10 +54,11 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
                 }
             }
         } catch (AssertionError ae) {
-            assertThat(ae.getMessage(),
-                either(containsString("action [cluster:monitor/xpack/ml"))
-                    .or(containsString("action [cluster:admin/xpack/ml"))
-                    .or(containsString("action [cluster:admin/ingest")));
+            assertThat(
+                ae.getMessage(),
+                either(containsString("action [cluster:monitor/xpack/ml")).or(containsString("action [cluster:admin/xpack/ml"))
+                    .or(containsString("action [cluster:admin/ingest"))
+            );
             assertThat(ae.getMessage(), containsString("returned [403 Forbidden]"));
             assertThat(ae.getMessage(), containsString("is unauthorized for user [ml_user]"));
         }
@@ -74,6 +75,6 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"ml_user", "x-pack-test-password"};
+        return new String[] { "ml_user", "x-pack-test-password" };
     }
 }

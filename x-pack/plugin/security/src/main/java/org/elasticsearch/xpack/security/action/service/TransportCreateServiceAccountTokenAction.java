@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.security.action.service;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -20,24 +21,37 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 
-public class TransportCreateServiceAccountTokenAction
-    extends HandledTransportAction<CreateServiceAccountTokenRequest, CreateServiceAccountTokenResponse> {
+public class TransportCreateServiceAccountTokenAction extends HandledTransportAction<
+    CreateServiceAccountTokenRequest,
+    CreateServiceAccountTokenResponse> {
 
     private final ServiceAccountService serviceAccountService;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportCreateServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    ServiceAccountService serviceAccountService,
-                                                    SecurityContext securityContext) {
-        super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
+    public TransportCreateServiceAccountTokenAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ServiceAccountService serviceAccountService,
+        SecurityContext securityContext
+    ) {
+        super(
+            CreateServiceAccountTokenAction.NAME,
+            transportService,
+            actionFilters,
+            CreateServiceAccountTokenRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.serviceAccountService = serviceAccountService;
         this.securityContext = securityContext;
     }
 
     @Override
-    protected void doExecute(Task task, CreateServiceAccountTokenRequest request,
-                             ActionListener<CreateServiceAccountTokenResponse> listener) {
+    protected void doExecute(
+        Task task,
+        CreateServiceAccountTokenRequest request,
+        ActionListener<CreateServiceAccountTokenResponse> listener
+    ) {
         final Authentication authentication = securityContext.getAuthentication();
         if (authentication == null) {
             listener.onFailure(new IllegalStateException("authentication is required"));

@@ -10,14 +10,18 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 public class ExceptionsHelper {
+
+    private static String NO_KNOWN_MODEL_ERROR =
+        "No known trained model with model_id [{}], you may need to create it or load it into the cluster with eland";
 
     private ExceptionsHelper() {}
 
@@ -45,12 +49,16 @@ public class ExceptionsHelper {
         return new ResourceAlreadyExistsException("A data frame analytics with id [{}] already exists", id);
     }
 
-    public static ResourceNotFoundException missingTrainedModel(String modelId) {
-        return new ResourceNotFoundException("No known trained model with model_id [{}]", modelId);
+    public static ResourceNotFoundException missingModelDeployment(String deploymentId) {
+        return new ResourceNotFoundException("No known model deployment with id [{}]", deploymentId);
     }
 
-    public static ResourceNotFoundException missingDeployment(String deploymentId) {
-        return new ResourceNotFoundException("No known trained model with deployment with id [{}]", deploymentId);
+    public static ResourceNotFoundException missingTrainedModel(String modelId) {
+        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, modelId);
+    }
+
+    public static ResourceNotFoundException missingTrainedModel(String modelId, Exception cause) {
+        return new ResourceNotFoundException(NO_KNOWN_MODEL_ERROR, cause, modelId);
     }
 
     public static ElasticsearchException serverError(String msg) {
@@ -85,9 +93,12 @@ public class ExceptionsHelper {
         return new ElasticsearchStatusException(msg, RestStatus.BAD_REQUEST, args);
     }
 
-    public static ElasticsearchStatusException configHasNotBeenMigrated(String verb, String id) {
-        return new ElasticsearchStatusException("cannot {} as the configuration [{}] is temporarily pending migration",
-                RestStatus.SERVICE_UNAVAILABLE, verb, id);
+    public static ElasticsearchStatusException entityNotFoundException(String msg, Object... args) {
+        return new ElasticsearchStatusException(msg, RestStatus.NOT_FOUND, args);
+    }
+
+    public static ElasticsearchStatusException taskOperationFailureToStatusException(TaskOperationFailure failure) {
+        return new ElasticsearchStatusException(failure.getCause().getMessage(), failure.getStatus(), failure.getCause());
     }
 
     /**
@@ -99,9 +110,13 @@ public class ExceptionsHelper {
             throw new IllegalStateException("Invalid call with null or empty shardFailures");
         }
         SearchShardTarget shardTarget = shardFailures[0].shard();
-        return "[" + jobId + "] Search request returned shard failures; first failure: shard ["
-                + (shardTarget == null ? "_na" : shardTarget) + "], reason ["
-                + shardFailures[0].reason() + "]; see logs for more info";
+        return "["
+            + jobId
+            + "] Search request returned shard failures; first failure: shard ["
+            + (shardTarget == null ? "_na" : shardTarget)
+            + "], reason ["
+            + shardFailures[0].reason()
+            + "]; see logs for more info";
     }
 
     /**
@@ -137,8 +152,7 @@ public class ExceptionsHelper {
         // circuit breaking exceptions are at the bottom
         Throwable unwrappedThrowable = unwrapCause(t);
 
-        if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
+        if (unwrappedThrowable instanceof SearchPhaseExecutionException searchPhaseException) {
             for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
                 Throwable unwrappedShardFailure = unwrapCause(shardFailure.getCause());
 

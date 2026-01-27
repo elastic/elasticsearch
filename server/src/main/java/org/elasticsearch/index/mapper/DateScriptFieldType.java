@@ -1,29 +1,30 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
-
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -32,7 +33,9 @@ import org.elasticsearch.search.runtime.LongScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldRangeQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.LongScriptFieldTermsQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -41,8 +44,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
@@ -53,26 +56,29 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             "format",
             true,
             RuntimeField.initializerNotSupported(),
-            null
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
-                b.field(n, v);
+            null,
+            (b, n, v) -> {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                    b.field(n, v);
+                }
             }
-        }, Object::toString).acceptsNull();
+        ).acceptsNull();
 
         private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
             "locale",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            RuntimeField.initializerNotSupported()
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(Locale.ROOT)) {
-                b.field(n, v.toString());
-            }
-        }, Object::toString).acceptsNull();
+            RuntimeField.initializerNotSupported(),
+            (b, n, v) -> {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_LOCALE)) {
+                    b.field(n, v.toString());
+                }
+            },
+            Object::toString
+        ).acceptsNull();
 
-        Builder(String name) {
+        protected Builder(String name) {
             super(name, DateFieldScript.CONTEXT);
         }
 
@@ -84,29 +90,48 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Collections.unmodifiableList(parameters);
         }
 
-        @Override
-        AbstractScriptFieldType<?> createFieldType(String name, DateFieldScript.Factory factory, Script script, Map<String, String> meta) {
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            IndexVersion supportedVersion,
+            OnScriptError onScriptError
+        ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
-            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
-            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern).withLocale(locale);
-            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta);
+            Locale locale = this.locale.getValue() == null ? DateFieldMapper.DEFAULT_LOCALE : this.locale.getValue();
+            DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
+            return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
         }
 
         @Override
-        DateFieldScript.Factory getParseFromSourceFactory() {
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DateFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return createFieldType(name, factory, script, meta, IndexVersion.current(), onScriptError);
+        }
+
+        @Override
+        protected DateFieldScript.Factory getParseFromSourceFactory() {
             return DateFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DateFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DateFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DateFieldScript.leafAdapter(parentScriptFactory);
         }
     }
 
-    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter) {
+    public static RuntimeField sourceOnly(String name, DateFormatter dateTimeFormatter, IndexVersion supportedVersion) {
         Builder builder = new Builder(name);
         builder.format.setValue(dateTimeFormatter.pattern());
-        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE);
+        return builder.createRuntimeField(DateFieldScript.PARSE_FROM_SOURCE, supportedVersion);
     }
 
     private final DateFormatter dateTimeFormatter;
@@ -117,10 +142,17 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         DateFieldScript.Factory scriptFactory,
         DateFormatter dateTimeFormatter,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter),
-            script, meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, dateTimeFormatter, onScriptError),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta,
+            scriptFactory.isParsedFromSource()
+        );
         this.dateTimeFormatter = dateTimeFormatter;
         this.dateMathParser = dateTimeFormatter.toDateMathParser();
     }
@@ -152,13 +184,72 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     }
 
     @Override
-    public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::longs,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        }
+        return new DateScriptBlockDocValuesReader.DateScriptBlockLoader(leafFactory(blContext.lookup()));
+    }
+
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        return new FallbackSyntheticSourceBlockLoader.SingleValueReader<Long>(null) {
+            @Override
+            public void convertValue(Object value, List<Long> accumulator) {
+                try {
+                    if (value instanceof Number) {
+                        accumulator.add(((Number) value).longValue());
+                    } else {
+                        // when the value is given a string formatted date; ex. 2020-07-22T16:09:41.355Z
+                        accumulator.add(dateTimeFormatter.parseMillis(value.toString()));
+                    }
+                } catch (Exception e) {
+                    // ensure a malformed value doesn't crash
+                }
+            }
+
+            @Override
+            public void writeToBlock(List<Long> values, BlockLoader.Builder blockBuilder) {
+                var longBuilder = (BlockLoader.LongBuilder) blockBuilder;
+                for (Long value : values) {
+                    longBuilder.appendLong(value);
+                }
+            }
+
+            @Override
+            protected void parseNonNullValue(XContentParser parser, List<Long> accumulator) throws IOException {
+                try {
+                    String dateAsStr = parser.textOrNull();
+
+                    if (dateAsStr == null) {
+                        accumulator.add(dateTimeFormatter.parseMillis(null));
+                    } else {
+                        accumulator.add(dateTimeFormatter.parseMillis(dateAsStr));
+                    }
+                } catch (Exception e) {
+                    // ensure a malformed value doesn't crash
+                }
+            }
+        };
+    }
+
+    @Override
+    public DateScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DateScriptFieldData.Builder(
+            name(),
+            leafFactory(fieldDataContext.lookupSupplier().get()),
+            Resolution.MILLISECONDS.getDefaultToScriptFieldFactory()
+        );
     }
 
     @Override
     public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.handleNow(context, now -> {
             long originLong = DateFieldType.parseToLong(
                 origin,
@@ -181,7 +272,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new LongScriptFieldExistsQuery(script, leafFactory(context)::newInstance, name());
     }
 
@@ -196,7 +287,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
         SearchExecutionContext context
     ) {
         parser = parser == null ? this.dateMathParser : parser;
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return DateFieldType.dateRangeQuery(
             lowerTerm,
             upperTerm,
@@ -206,6 +297,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             parser,
             context,
             DateFieldMapper.Resolution.MILLISECONDS,
+            name(),
             (l, u) -> new LongScriptFieldRangeQuery(script, leafFactory(context)::newInstance, name(), l, u)
         );
     }
@@ -214,7 +306,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     public Query termQuery(Object value, SearchExecutionContext context) {
         return DateFieldType.handleNow(context, now -> {
             long l = DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS);
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermQuery(script, leafFactory(context)::newInstance, name(), l);
         });
     }
@@ -222,14 +314,14 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         return DateFieldType.handleNow(context, now -> {
-            LongSet terms = new LongHashSet(values.size());
+            Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
             for (Object value : values) {
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new LongScriptFieldTermsQuery(script, leafFactory(context)::newInstance, name(), terms);
         });
     }

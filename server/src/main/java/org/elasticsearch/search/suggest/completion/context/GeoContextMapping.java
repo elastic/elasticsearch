@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -11,22 +12,24 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +40,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
@@ -133,8 +135,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
      * see {@code GeoPoint(String)} for GEO POINT
      */
     @Override
-    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
-        throws IOException, ElasticsearchParseException {
+    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
+        ElasticsearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -176,32 +178,22 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
+            List<IndexableField> fields = document.getFields(fieldName);
             GeoPoint spare = new GeoPoint();
-            if (fields.length == 0) {
-                IndexableField[] lonFields = document.getFields(fieldName + ".lon");
-                IndexableField[] latFields = document.getFields(fieldName + ".lat");
-                if (lonFields.length > 0 && latFields.length > 0) {
-                    for (int i = 0; i < lonFields.length; i++) {
-                        IndexableField lonField = lonFields[i];
-                        IndexableField latField = latFields[i];
-                        assert lonField.fieldType().docValuesType() == latField.fieldType().docValuesType();
-                        // we write doc values fields differently: one field for all values, so we need to only care about indexed fields
-                        if (lonField.fieldType().docValuesType() == DocValuesType.NONE) {
-                            spare.reset(latField.numericValue().doubleValue(), lonField.numericValue().doubleValue());
-                            geohashes.add(stringEncode(spare.getLon(), spare.getLat(), precision));
-                        }
-                    }
-                }
-            } else {
-                for (IndexableField field : fields) {
-                    if (field instanceof StringField) {
-                        spare.resetFromString(field.stringValue());
-                        geohashes.add(spare.geohash());
-                    }  else if (field instanceof LatLonPoint || field instanceof LatLonDocValuesField) {
-                        spare.resetFromIndexableField(field);
-                        geohashes.add(spare.geohash());
-                    }
+            for (IndexableField field : fields) {
+                if (field instanceof StringField) {
+                    spare.resetFromString(field.stringValue());
+                    geohashes.add(spare.geohash());
+                } else if (field instanceof LatLonDocValuesField || field instanceof GeoPointFieldMapper.LatLonPointWithDocValues) {
+                    spare.resetFromEncoded(field.numericValue().longValue());
+                    geohashes.add(spare.geohash());
+                } else if (field instanceof LatLonPoint) {
+                    BytesRef bytes = field.binaryValue();
+                    spare.reset(
+                        NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset),
+                        NumericUtils.sortableBytesToInt(bytes.bytes, bytes.offset + Integer.BYTES)
+                    );
+                    geohashes.add(spare.geohash());
                 }
             }
         }
@@ -258,7 +250,8 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 addNeighbors(geoHash, locations);
             } else if (queryContext.getNeighbours().isEmpty() == false) {
-                queryContext.getNeighbours().stream()
+                queryContext.getNeighbours()
+                    .stream()
                     .filter(neighbourPrecision -> neighbourPrecision < geoHash.length())
                     .forEach(neighbourPrecision -> {
                         String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
@@ -269,32 +262,49 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             internalQueryContextList.addAll(
                 locations.stream()
                     .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
-                    .collect(Collectors.toList()));
+                    .toList()
+            );
         }
         return internalQueryContextList;
     }
 
     @Override
-    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(IndexVersion indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         if (fieldName != null) {
             MappedFieldType mappedFieldType = fieldResolver.apply(fieldName);
             if (mappedFieldType == null) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
-                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "geo_context_mapping",
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
                 } else {
                     throw new ElasticsearchParseException(
-                        "field [{}] referenced in context [{}] is not defined in the mapping", fieldName, name);
+                        "field [{}] referenced in context [{}] is not defined in the mapping",
+                        fieldName,
+                        name
+                    );
                 }
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
-                if (indexVersionCreated.before(Version.V_7_0_0)) {
-                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "geo_context_mapping",
+                if (indexVersionCreated.before(IndexVersions.V_7_0_0)) {
+                    deprecationLogger.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                        fieldName, name, mappedFieldType.typeName());
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
                 } else {
                     throw new ElasticsearchParseException(
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
-                        fieldName, name, mappedFieldType.typeName());
+                        fieldName,
+                        name,
+                        mappedFieldType.typeName()
+                    );
                 }
             }
         }
@@ -339,19 +349,6 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
         /**
          * Set the precision use o make suggestions
          *
-         * @param precision
-         *            precision value
-         * @param unit
-         *            {@link DistanceUnit} to use
-         * @return this
-         */
-        public Builder precision(double precision, DistanceUnit unit) {
-            return precision(unit.toMeters(precision));
-        }
-
-        /**
-         * Set the precision use o make suggestions
-         *
          * @param meters
          *            precision as distance in meters
          * @return this
@@ -360,7 +357,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             int level = GeoUtils.geoHashLevelsForPrecision(meters);
             // Ceiling precision: we might return more results
             if (GeoUtils.geoHashCellSize(level) < meters) {
-               level = Math.max(1, level - 1);
+                level = Math.max(1, level - 1);
             }
             return precision(level);
         }

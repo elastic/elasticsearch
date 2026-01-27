@@ -1,9 +1,10 @@
 #
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
 #
@@ -474,6 +475,21 @@ class java.time.YearMonth {
 class java.time.ZonedDateTime {
   int getDayOfMonth()
   DayOfWeek getDayOfWeek()
+  DayOfWeek org.elasticsearch.painless.api.Augmentation getDayOfWeekEnum()
+  int org.elasticsearch.painless.api.Augmentation getCenturyOfEra()
+  int org.elasticsearch.painless.api.Augmentation getEra()
+  int org.elasticsearch.painless.api.Augmentation getHourOfDay()
+  int org.elasticsearch.painless.api.Augmentation getMillisOfDay()
+  int org.elasticsearch.painless.api.Augmentation getMillisOfSecond()
+  int org.elasticsearch.painless.api.Augmentation getMinuteOfDay()
+  int org.elasticsearch.painless.api.Augmentation getMinuteOfHour()
+  int org.elasticsearch.painless.api.Augmentation getMonthOfYear()
+  int org.elasticsearch.painless.api.Augmentation getSecondOfDay()
+  int org.elasticsearch.painless.api.Augmentation getSecondOfMinute()
+  int org.elasticsearch.painless.api.Augmentation getWeekOfWeekyear()
+  int org.elasticsearch.painless.api.Augmentation getWeekyear()
+  int org.elasticsearch.painless.api.Augmentation getYearOfCentury()
+  int org.elasticsearch.painless.api.Augmentation getYearOfEra()
   int getDayOfYear()
   int getHour()
   LocalDate toLocalDate()

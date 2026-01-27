@@ -8,12 +8,15 @@ package org.elasticsearch.test.http;
 
 import org.elasticsearch.core.TimeValue;
 
+import java.util.function.Function;
+
 /**
  * A response to be sent via the mock webserver. Parts of the response can be configured
  */
 public class MockResponse {
 
     private String body = null;
+    private Function<MockRequest, String> bodyGenerator = null;
     private int statusCode = 200;
     private TimeValue bodyDelay = null;
     private Headers headers = new Headers();
@@ -29,11 +32,35 @@ public class MockResponse {
     }
 
     /**
-     * @param statusCode The status code to be returned if the response is sent by the webserver, defaults to 200
+     * @param bodyGenerator A function that returns a custom response body depending on the request passed in. This allows responses to be
+     *                      generated at runtime to account for race conditions when sending requests in parallel
      * @return The updated mock response
      */
-    public MockResponse setResponseCode(int statusCode) {
-        this.statusCode = statusCode;
+    public MockResponse setBody(Function<MockRequest, String> bodyGenerator) {
+        this.bodyGenerator = bodyGenerator;
+        return this;
+    }
+
+    /**
+     * If a request-specific response body generator has been set, overwrites the current response body with the results of applying
+     * that generator to the given request. If no body generator has been set, does nothing.
+     *
+     * @param request The request to use to generate the response body
+     * @return The updated mock response
+     */
+    public MockResponse setBodyFromRequest(MockRequest request) {
+        if (bodyGenerator != null) {
+            this.body = bodyGenerator.apply(request);
+        }
+        return this;
+    }
+
+    /**
+     * @param responseCode The status code to be returned if the response is sent by the webserver, defaults to 200
+     * @return The updated mock response
+     */
+    public MockResponse setResponseCode(int responseCode) {
+        this.statusCode = responseCode;
         return this;
     }
 
@@ -71,6 +98,13 @@ public class MockResponse {
      */
     String getBody() {
         return body;
+    }
+
+    /**
+     * @return the function used to generate the body from a request
+     */
+    Function<MockRequest, String> getBodyGenerator() {
+        return bodyGenerator;
     }
 
     /**

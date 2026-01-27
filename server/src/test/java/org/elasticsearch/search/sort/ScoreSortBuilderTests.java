@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
-
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -48,7 +49,9 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
      */
     public void testParseOrder() throws IOException {
         SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
-        String scoreSortString = "{ \"_score\": { \"order\": \""+ order.toString() +"\" }}";
+        String scoreSortString = Strings.format("""
+            { "_score": { "order": "%s" }}
+            """, order.toString());
         XContentParser parser = createParser(JsonXContent.jsonXContent, scoreSortString);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
@@ -60,7 +63,8 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
     }
 
     public void testReverseOptionFails() throws IOException {
-        String json = "{ \"_score\": { \"reverse\": true }}";
+        String json = """
+            { "_score": { "reverse": true }}""";
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         // need to skip until parser is located on second START_OBJECT
         parser.nextToken();
@@ -68,8 +72,8 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
 
         try {
-          ScoreSortBuilder.fromXContent(parser, "_score");
-          fail("adding reverse sorting option should fail with an exception");
+            ScoreSortBuilder.fromXContent(parser, "_score");
+            fail("adding reverse sorting option should fail with an exception");
         } catch (IllegalArgumentException e) {
             // all good
         }

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.TestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.ql.TestUtils.of;
@@ -25,6 +26,7 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AttributeMapTests extends ESTestCase {
 
@@ -77,7 +79,7 @@ public class AttributeMapTests extends ESTestCase {
         builder.put(threeAlias.toAttribute(), threeAlias.child());
         builder.put(threeAliasAlias.toAttribute(), threeAliasAlias.child());
         AttributeMap<Object> map = builder.build();
-        
+
         assertEquals(of("one"), map.resolve(one));
         assertEquals("two", map.resolve(two));
         assertEquals(of("three"), map.resolve(three));
@@ -115,11 +117,9 @@ public class AttributeMapTests extends ESTestCase {
         builder.put(d, a);
         AttributeMap<Object> map = builder.build();
 
-        // note: multi hop cycles should not happen, unless we have a 
+        // note: multi hop cycles should not happen, unless we have a
         // bug in the code that populates the AttributeMaps
-        expectThrows(QlIllegalArgumentException.class, () -> {
-            assertEquals(a, map.resolve(a, c));
-        });
+        expectThrows(QlIllegalArgumentException.class, () -> { assertEquals(a, map.resolve(a, c)); });
     }
 
     private Alias createIntParameterAlias(int index, int value) {
@@ -241,7 +241,6 @@ public class AttributeMapTests extends ESTestCase {
 
         assertThat(keys, hasSize(3));
 
-
         assertThat(values, hasSize(3));
         assertThat(values, contains("one", "two", "three"));
     }
@@ -251,5 +250,84 @@ public class AttributeMapTests extends ESTestCase {
         AttributeMap<String> copy = AttributeMap.<String>builder().putAll(m).build();
 
         assertThat(m, is(copy));
+    }
+
+    public void testEmptyMapIsImmutable() {
+        var empty = AttributeMap.emptyAttributeMap();
+        var ex = expectThrows(UnsupportedOperationException.class, () -> empty.add(a("one"), new Object()));
+    }
+
+    public void testAddPutEntriesIntoMap() {
+        var map = new AttributeMap<String>();
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        for (var i : asList(one, two, three)) {
+            map.add(i, i.name());
+        }
+
+        assertThat(map.size(), is(3));
+
+        assertThat(map.remove(one), is("one"));
+        assertThat(map.remove(two), is("two"));
+
+        assertThat(map.size(), is(1));
+    }
+
+    public void testKeyIteratorRemoval() {
+        var map = new AttributeMap<String>();
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        for (var i : asList(one, two, three)) {
+            map.add(i, i.name());
+        }
+
+        assertThat(map.attributeNames(), contains("one", "two", "three"));
+        assertThat(map.size(), is(3));
+
+        var it = map.keySet().iterator();
+        var next = it.next();
+        assertThat(next, sameInstance(one));
+        it.remove();
+        assertThat(map.size(), is(2));
+        next = it.next();
+        assertThat(next, sameInstance(two));
+        next = it.next();
+
+        assertThat(next, sameInstance(three));
+        it.remove();
+        assertThat(map.size(), is(1));
+
+        assertThat(it.hasNext(), is(false));
+    }
+
+    public void testValuesIteratorRemoval() {
+        var map = new AttributeMap<String>();
+        var one = a("one");
+        var two = a("two");
+        var three = a("three");
+
+        for (var i : asList(one, two, three)) {
+            map.add(i, i.name());
+        }
+
+        assertThat(map.values(), contains("one", "two", "three"));
+
+        map.values().removeIf(v -> v.contains("o"));
+        assertThat(map.size(), is(1));
+        assertThat(map.containsKey(three), is(true));
+        assertThat(map.containsValue("three"), is(true));
+
+        assertThat(map.containsKey("two"), is(false));
+        assertThat(map.containsKey(one), is(false));
+
+        var it = map.values().iterator();
+        assertThat(it.hasNext(), is(true));
+        assertThat(it.next(), is("three"));
+        it.remove();
+        assertThat(it.hasNext(), is(false));
     }
 }

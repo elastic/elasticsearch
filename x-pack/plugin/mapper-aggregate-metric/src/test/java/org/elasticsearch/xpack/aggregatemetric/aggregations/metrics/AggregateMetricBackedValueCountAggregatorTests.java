@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -27,22 +27,24 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.subfieldName;
 
 public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTestCase {
 
     private static final String FIELD_NAME = "aggregate_metric_field";
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
@@ -62,7 +64,7 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, valueCount -> {
             assertEquals(0L, valueCount.getValue(), 0d);
@@ -71,7 +73,7 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, sum -> {
@@ -115,26 +117,24 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
      * @param fieldName the name of the field
      * @return the created field type
      */
-    private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
-
+    private AggregateMetricDoubleFieldType createDefaultFieldType(String fieldName) {
+        EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
         for (Metric m : List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
                 subfieldName,
                 NumberFieldMapper.NumberType.DOUBLE
             );
-            fieldType.addMetricField(m, subfield);
+            metricFields.put(m, subfield);
         }
-        fieldType.setDefaultMetric(Metric.sum);
-        return fieldType;
+        return new AggregateMetricDoubleFieldType(fieldName, null, Metric.sum, metricFields, Map.of());
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalValueCount> verify)
         throws IOException {
         MappedFieldType fieldType = createDefaultFieldType(FIELD_NAME);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
     }
 
     @Override

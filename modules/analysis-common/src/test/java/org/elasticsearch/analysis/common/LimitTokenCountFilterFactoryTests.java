@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -20,12 +21,14 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
         Settings settings = Settings.builder()
-                .put("index.analysis.filter.limit_default.type", "limit")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+            .put("index.analysis.filter.limit_default.type", "limit")
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
         ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
         {
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_default");
@@ -48,11 +51,11 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
     public void testSettings() throws IOException {
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 3)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 3)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";
@@ -63,11 +66,11 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
         }
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 3)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", false)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 3)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", false)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";
@@ -79,11 +82,11 @@ public class LimitTokenCountFilterFactoryTests extends ESTokenStreamTestCase {
 
         {
             Settings settings = Settings.builder()
-                    .put("index.analysis.filter.limit_1.type", "limit")
-                    .put("index.analysis.filter.limit_1.max_token_count", 17)
-                    .put("index.analysis.filter.limit_1.consume_all_tokens", true)
-                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                    .build();
+                .put("index.analysis.filter.limit_1.type", "limit")
+                .put("index.analysis.filter.limit_1.max_token_count", 17)
+                .put("index.analysis.filter.limit_1.consume_all_tokens", true)
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
             ESTestCase.TestAnalysis analysis = createTestAnalysisFromSettings(settings);
             TokenFilterFactory tokenFilter = analysis.tokenFilter.get("limit_1");
             String source = "the quick brown fox";

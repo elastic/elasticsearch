@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -26,7 +27,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_
  * A class whose instances represent a value for counting the number
  * of active shard copies for a given shard in an index.
  */
-public final class ActiveShardCount implements Writeable {
+public record ActiveShardCount(int value) implements Writeable {
 
     private static final int ACTIVE_SHARD_COUNT_DEFAULT = -2;
     private static final int ALL_ACTIVE_SHARDS = -1;
@@ -35,12 +36,6 @@ public final class ActiveShardCount implements Writeable {
     public static final ActiveShardCount ALL = new ActiveShardCount(ALL_ACTIVE_SHARDS);
     public static final ActiveShardCount NONE = new ActiveShardCount(0);
     public static final ActiveShardCount ONE = new ActiveShardCount(1);
-
-    private final int value;
-
-    private ActiveShardCount(final int value) {
-        this.value = value;
-    }
 
     /**
      * Get an ActiveShardCount instance for the given value.  The value is first validated to ensure
@@ -130,21 +125,29 @@ public final class ActiveShardCount implements Writeable {
      * Returns true iff the given cluster state's routing table contains enough active
      * shards for the given indices to meet the required shard count represented by this instance.
      */
-    public boolean enoughShardsActive(final ClusterState clusterState, final String... indices) {
+    public boolean enoughShardsActive(
+        @Nullable final ProjectMetadata projectMetadata,
+        @Nullable final RoutingTable routingTable,
+        final String... indices
+    ) {
         if (this == ActiveShardCount.NONE) {
             // not waiting for any active shards
             return true;
         }
-
+        if (projectMetadata == null || routingTable == null) {
+            // while waiting, the project might have been deleted
+            // in this case consider the wait for active shards over
+            return true;
+        }
         for (final String indexName : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
+            final IndexMetadata indexMetadata = projectMetadata.index(indexName);
             if (indexMetadata == null) {
                 // its possible the index was deleted while waiting for active shard copies,
                 // in this case, we'll just consider it that we have enough active shard copies
                 // and we can stop waiting
                 continue;
             }
-            final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
+            final IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
             if (indexRoutingTable == null && indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 // its possible the index was closed while waiting for active shard copies,
                 // in this case, we'll just consider it that we have enough active shard copies
@@ -160,8 +163,8 @@ public final class ActiveShardCount implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                if (waitForActiveShards.enoughShardsActive(indexRoutingTable.shard(i)).enoughShards() == false) {
                     // not enough active shard copies yet
                     return false;
                 }
@@ -172,49 +175,44 @@ public final class ActiveShardCount implements Writeable {
     }
 
     /**
-     * Returns true iff the active shard count in the shard routing table is enough
-     * to meet the required shard count represented by this instance.
+     * Record that captures the decision of {@link #enoughShardsActive(IndexShardRoutingTable)}.
+     * @param enoughShards the decision of whether the active shard count is enough to meet the required shard count of this instance
+     * @param currentActiveShards the currently active shards considered for making the decision
      */
-    public boolean enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
+    public record EnoughShards(boolean enoughShards, int currentActiveShards) {};
+
+    /**
+     * Returns a {@link EnoughShards} record where the first value is true iff the active shard count in the shard routing table is enough
+     * to meet the required shard count represented by this instance, and the second value is the active shard count.
+     */
+    public EnoughShards enoughShardsActive(final IndexShardRoutingTable shardRoutingTable) {
         final int activeShardCount = shardRoutingTable.activeShards().size();
+        boolean enoughShards = false;
+        int currentActiveShards = activeShardCount;
         if (this == ActiveShardCount.ALL) {
-            // adding 1 for the primary in addition to the total number of replicas,
-            // which gives us the total number of shard copies
-            return activeShardCount == shardRoutingTable.replicaShards().size() + 1;
-        } else if (this == ActiveShardCount.DEFAULT) {
-            return activeShardCount >= 1;
+            enoughShards = activeShardCount == shardRoutingTable.size();
+        } else if (value == 0) {
+            enoughShards = true;
+        } else if (value == 1) {
+            if (shardRoutingTable.hasSearchShards()) {
+                enoughShards = shardRoutingTable.getActiveSearchShardCount() >= 1;
+                currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
+            } else {
+                enoughShards = activeShardCount >= 1;
+            }
         } else {
-            return activeShardCount >= value;
+            enoughShards = shardRoutingTable.getActiveSearchShardCount() >= value;
+            currentActiveShards = shardRoutingTable.getActiveSearchShardCount();
         }
-    }
-
-    @Override
-    public int hashCode() {
-        return Integer.hashCode(value);
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        ActiveShardCount that = (ActiveShardCount) o;
-        return value == that.value;
+        return new EnoughShards(enoughShards, currentActiveShards);
     }
 
     @Override
     public String toString() {
-        switch (value) {
-            case ALL_ACTIVE_SHARDS:
-                return "ALL";
-            case ACTIVE_SHARD_COUNT_DEFAULT:
-                return "DEFAULT";
-            default:
-                return Integer.toString(value);
-        }
+        return switch (value) {
+            case ALL_ACTIVE_SHARDS -> "ALL";
+            case ACTIVE_SHARD_COUNT_DEFAULT -> "DEFAULT";
+            default -> Integer.toString(value);
+        };
     }
-
 }

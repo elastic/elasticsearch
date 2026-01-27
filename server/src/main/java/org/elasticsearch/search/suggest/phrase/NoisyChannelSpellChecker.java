@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -34,8 +35,15 @@ final class NoisyChannelSpellChecker {
         this.tokenLimit = tokenLimit;
     }
 
-    Result getCorrections(TokenStream stream, final CandidateGenerator generator,
-            float maxErrors, int numCorrections, WordScorer wordScorer, float confidence, int gramSize) throws IOException {
+    Result getCorrections(
+        TokenStream stream,
+        final CandidateGenerator generator,
+        float maxErrors,
+        int numCorrections,
+        WordScorer wordScorer,
+        float confidence,
+        int gramSize
+    ) throws IOException {
 
         final List<CandidateSet> candidateSetsList = new ArrayList<>();
         DirectCandidateGenerator.analyze(stream, new DirectCandidateGenerator.TokenConsumer() {
@@ -44,6 +52,7 @@ final class NoisyChannelSpellChecker {
             private final BytesRefBuilder termsRef = new BytesRefBuilder();
             private boolean anyUnigram = false;
             private boolean anyTokens = false;
+
             @Override
             public void reset(TokenStream stream) {
                 super.reset(stream);
@@ -61,7 +70,7 @@ final class NoisyChannelSpellChecker {
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
                     TermStats termStats = generator.termStats(term);
-                    if (termStats.docFreq > 0) {
+                    if (termStats.docFreq() > 0) {
                         currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), termStats, realWordLikelihood));
                     }
                 } else {
@@ -78,7 +87,7 @@ final class NoisyChannelSpellChecker {
                     candidateSetsList.add(currentSet);
                 }
                 if (requireUnigram && anyUnigram == false && anyTokens) {
-                    throw new IllegalStateException("At least one unigram is required but all tokens were ngrams");
+                    throw new IllegalArgumentException("At least one unigram is required but all tokens were ngrams");
                 }
             }
         });

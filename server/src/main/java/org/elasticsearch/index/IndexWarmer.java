@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -36,8 +37,7 @@ public final class IndexWarmer {
 
     private final List<Listener> listeners;
 
-    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService,
-                Listener... listeners) {
+    IndexWarmer(ThreadPool threadPool, IndexFieldDataService indexFieldDataService, Listener... listeners) {
         ArrayList<Listener> list = new ArrayList<>();
         final Executor executor = threadPool.executor(ThreadPool.Names.WARMER);
         list.add(new FieldDataWarmer(executor, indexFieldDataService));
@@ -88,6 +88,7 @@ public final class IndexWarmer {
         /** Wait until execution of the warm-up action completes. */
         void awaitTermination() throws InterruptedException;
     }
+
     public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the
          *  execution of those tasks. */
@@ -117,26 +118,28 @@ public final class IndexWarmer {
                 executor.execute(() -> {
                     try {
                         final long start = System.nanoTime();
-                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(fieldType, indexFieldDataService.index().getName(),
-                            () -> {
-                                throw new UnsupportedOperationException("search lookup not available when warming an index");
-                            });
+                        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(
+                            fieldType,
+                            FieldDataContext.noRuntimeFields(mapperService.index().getName(), "index warming")
+                        );
                         IndexFieldData<?> global = ifd.loadGlobal(reader);
                         if (reader.leaves().isEmpty() == false) {
                             global.load(reader.leaves().get(0));
                         }
 
                         if (indexShard.warmerService().logger().isTraceEnabled()) {
-                            indexShard.warmerService().logger().trace(
-                                "warmed global ordinals for [{}], took [{}]",
-                                fieldType.name(),
-                                TimeValue.timeValueNanos(System.nanoTime() - start));
+                            indexShard.warmerService()
+                                .logger()
+                                .trace(
+                                    "warmed global ordinals for [{}], took [{}]",
+                                    fieldType.name(),
+                                    TimeValue.timeValueNanos(System.nanoTime() - start)
+                                );
                         }
                     } catch (Exception e) {
-                        indexShard
-                            .warmerService()
+                        indexShard.warmerService()
                             .logger()
-                            .warn(() -> new ParameterizedMessage("failed to warm-up global ordinals for [{}]", fieldType.name()), e);
+                            .warn(() -> "failed to warm-up global ordinals for [" + fieldType.name() + "]", e);
                     } finally {
                         latch.countDown();
                     }

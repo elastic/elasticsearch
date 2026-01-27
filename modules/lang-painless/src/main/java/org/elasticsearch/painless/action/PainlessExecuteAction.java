@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
@@ -20,52 +21,62 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -74,6 +85,7 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.GeoPointFieldScript;
+import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -83,9 +95,20 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,22 +124,22 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Response> {
+public class PainlessExecuteAction {
 
-    public static final PainlessExecuteAction INSTANCE = new PainlessExecuteAction();
-    private static final String NAME = "cluster:admin/scripts/painless/execute";
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/scripts/painless/execute");
+    public static final RemoteClusterActionType<Response> REMOTE_TYPE = new RemoteClusterActionType<>(INSTANCE.name(), Response::new);
 
-    private PainlessExecuteAction() {
-        super(NAME, Response::new);
-    }
+    private PainlessExecuteAction() {/* no instances */}
 
-    public static class Request extends SingleShardRequest<Request> implements ToXContentObject {
+    public static class Request extends SingleShardRequest<Request> implements ToXContentObject, IndicesRequest.SingleIndexNoWildcards {
 
         private static final ParseField SCRIPT_FIELD = new ParseField("script");
         private static final ParseField CONTEXT_FIELD = new ParseField("context");
         private static final ParseField CONTEXT_SETUP_FIELD = new ParseField("context_setup");
         private static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(
-            "painless_execute_request", args -> new Request((Script) args[0], (String) args[1], (ContextSetup) args[2]));
+            "painless_execute_request",
+            args -> new Request((Script) args[0], (String) args[1], (ContextSetup) args[2])
+        );
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> Script.parse(p), SCRIPT_FIELD);
@@ -150,9 +173,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             private static final ParseField INDEX_FIELD = new ParseField("index");
             private static final ParseField DOCUMENT_FIELD = new ParseField("document");
             private static final ParseField QUERY_FIELD = new ParseField("query");
-            private static final ConstructingObjectParser<ContextSetup, Void> PARSER =
-                new ConstructingObjectParser<>("execute_script_context",
-                    args -> new ContextSetup((String) args[0], (BytesReference) args[1], (QueryBuilder) args[2]));
+            private static final ConstructingObjectParser<ContextSetup, Void> PARSER = new ConstructingObjectParser<>(
+                "execute_script_context",
+                args -> new ContextSetup((String) args[0], (BytesReference) args[1], (QueryBuilder) args[2])
+            );
 
             static {
                 PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_FIELD);
@@ -162,10 +186,15 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         return BytesReference.bytes(b);
                     }
                 }, DOCUMENT_FIELD);
-                PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) ->
-                    AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY_FIELD);
+                PARSER.declareObject(
+                    ConstructingObjectParser.optionalConstructorArg(),
+                    (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
+                    QUERY_FIELD
+                );
             }
 
+            @Nullable // null means local cluster
+            private final transient String clusterAlias;  // this field is not Writeable, as it is needed only on the initial receiving node
             private final String index;
             private final BytesReference document;
             private final QueryBuilder query;
@@ -179,19 +208,58 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             }
 
             ContextSetup(String index, BytesReference document, QueryBuilder query) {
-                this.index = index;
+                Tuple<String, String> clusterAliasAndIndex = parseClusterAliasAndIndex(index);
+                this.clusterAlias = clusterAliasAndIndex.v1();
+                this.index = clusterAliasAndIndex.v2();
                 this.document = document;
                 this.query = query;
             }
 
             ContextSetup(StreamInput in) throws IOException {
-                index = in.readOptionalString();
+                this.clusterAlias = null;
+                this.index = in.readOptionalString();
                 document = in.readOptionalBytesReference();
-                String xContentType = in.readOptionalString();
-                if (xContentType  != null) {
-                    this.xContentType = XContentType.fromMediaType(xContentType);
+                String optionalXContentType = in.readOptionalString();
+                if (optionalXContentType != null) {
+                    this.xContentType = XContentType.fromMediaType(optionalXContentType);
                 }
                 query = in.readOptionalNamedWriteable(QueryBuilder.class);
+            }
+
+            /**
+             * @param indexExpression should be of the form "index" or "cluster:index". Wildcards are not allowed
+             *                        (if wildcards are present, an exception will be thrown in later processing, so
+             *                        we don't check it here).
+             * @return Tuple where first entry is clusterAlias, which will be null if not in the indexExpression
+             *         and second entry is the index name
+             *         Tuple(null, null) will be returned if indexExpression is null
+             * @throws IllegalArgumentException if the indexExpression starts or ends with the REMOTE_CLUSTER_INDEX_SEPARATOR (":")
+             *         (ignoring whitespace)
+             */
+            static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
+                if (indexExpression == null) {
+                    return new Tuple<>(null, null);
+                }
+                String trimmed = indexExpression.trim();
+                String[] parts = RemoteClusterAware.splitIndexName(trimmed);
+                // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
+                // because (1) only a single index is allowed for Painless Execute and
+                // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
+                // Instead, it will fail with the inaccurate and confusing error message:
+                // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
+                // which comes later out of the IndexNameExpressionResolver pathway this code uses.
+                if ((parts[0] != null && parts[1].isEmpty())
+                    || parts[1].contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
+                    throw new IllegalArgumentException(
+                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
+                    );
+                }
+
+                return new Tuple<>(parts[0], parts[1]);
+            }
+
+            public String getClusterAlias() {
+                return clusterAlias;
             }
 
             public String getIndex() {
@@ -219,10 +287,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ContextSetup that = (ContextSetup) o;
-                return Objects.equals(index, that.index) &&
-                    Objects.equals(document, that.document) &&
-                    Objects.equals(query, that.query) &&
-                    Objects.equals(xContentType, that.xContentType);
+                return Objects.equals(index, that.index)
+                    && Objects.equals(document, that.document)
+                    && Objects.equals(query, that.query)
+                    && Objects.equals(xContentType, that.xContentType);
             }
 
             @Override
@@ -232,20 +300,24 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
+                // clusterAlias is not included as only the original coordinator needs to see it
+                // if forwarded to a remote cluster, the remote cluster will execute it locally
                 out.writeOptionalString(index);
                 out.writeOptionalBytesReference(document);
-                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters(): null);
+                out.writeOptionalString(xContentType != null ? xContentType.mediaTypeWithoutParameters() : null);
                 out.writeOptionalNamedWriteable(query);
             }
 
             @Override
             public String toString() {
-                return "ContextSetup{" +
-                    ", index='" + index + '\'' +
-                    ", document=" + document +
-                    ", query=" + query +
-                    ", xContentType=" + xContentType +
-                    '}';
+                return Strings.format(
+                    "ContextSetup{index=%s, cluster=%s, document=%s, query=%s, xContentType=%s}",
+                    index,
+                    clusterAlias,
+                    document,
+                    query,
+                    xContentType
+                );
             }
 
             @Override
@@ -257,8 +329,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     }
                     if (document != null) {
                         builder.field(DOCUMENT_FIELD.getPreferredName());
-                        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                            LoggingDeprecationHandler.INSTANCE, document, xContentType)) {
+                        try (
+                            XContentParser parser = XContentHelper.createParser(
+                                NamedXContentRegistry.EMPTY,
+                                LoggingDeprecationHandler.INSTANCE,
+                                document,
+                                xContentType
+                            )
+                        ) {
                             builder.generator().copyCurrentStructure(parser);
                         }
                     }
@@ -275,6 +353,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         private final Script script;
         private final ScriptContext<?> context;
         private final ContextSetup contextSetup;
+        private transient IndicesOptions indicesOptions;
 
         static Request parse(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -285,7 +364,11 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             this.context = scriptContextName != null ? fromScriptContextName(scriptContextName) : PainlessTestScript.CONTEXT;
             if (setup != null) {
                 this.contextSetup = setup;
-                index(contextSetup.index);
+                if (contextSetup.getClusterAlias() == null) {
+                    index(contextSetup.getIndex());
+                } else {
+                    index(contextSetup.getClusterAlias() + RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR + contextSetup.getIndex());
+                }
             } else {
                 contextSetup = null;
             }
@@ -311,6 +394,14 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         @Override
+        public void markOriginOnly() {
+            assert contextSetup != null
+                : "Painless/execute request without context setup can't have index, this method shouldn't be called";
+            // strip off cluster alias from the index in this request
+            index(contextSetup.getIndex());
+        }
+
+        @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (script.getType() != ScriptType.INLINE) {
@@ -325,6 +416,20 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 }
             }
             return validationException;
+        }
+
+        public void enableCrossProjectMode() {
+            this.indicesOptions = IndicesOptions.builder(super.indicesOptions())
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            if (indicesOptions == null) {
+                return super.indicesOptions();
+            }
+            return indicesOptions;
         }
 
         @Override
@@ -353,9 +458,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(script, request.script) &&
-                Objects.equals(context, request.context) &&
-                Objects.equals(contextSetup, request.contextSetup);
+            return Objects.equals(script, request.script)
+                && Objects.equals(context, request.context)
+                && Objects.equals(contextSetup, request.contextSetup);
         }
 
         @Override
@@ -365,11 +470,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
         @Override
         public String toString() {
-            return "Request{" +
-                "script=" + script +
-                "context=" + context +
-                ", contextSetup=" + contextSetup +
-                '}';
+            return "Request{" + "script=" + script + "context=" + context + ", contextSetup=" + contextSetup + '}';
         }
 
         static boolean needDocumentAndIndex(ScriptContext<?> scriptContext) {
@@ -380,14 +481,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Object result;
+        private final Object result;
 
         Response(Object result) {
             this.result = result;
         }
 
         Response(StreamInput in) throws IOException {
-            super(in);
             result = in.readGenericValue();
         }
 
@@ -421,48 +521,85 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
     }
 
-    public abstract static class PainlessTestScript {
-
-        private final Map<String, Object> params;
-
-        public PainlessTestScript(Map<String, Object> params) {
-            this.params = params;
-        }
-
-        /** Return the parameters for this script. */
-        public Map<String, Object> getParams() {
-            return params;
-        }
-
-        public abstract Object execute();
-
-        public interface Factory {
-
-            PainlessTestScript newInstance(Map<String, Object> params);
-
-        }
-
-        public static final String[] PARAMETERS = {};
-        public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("painless_test", Factory.class);
-
-    }
-
     public static class TransportAction extends TransportSingleShardAction<Request, Response> {
 
         private final ScriptService scriptService;
         private final IndicesService indicesServices;
 
         @Inject
-        public TransportAction(ThreadPool threadPool, TransportService transportService,
-                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               ScriptService scriptService, ClusterService clusterService, IndicesService indicesServices) {
-            super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
+        public TransportAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            ProjectResolver projectResolver,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            ScriptService scriptService,
+            ClusterService clusterService,
+            IndicesService indicesServices
+        ) {
+            super(
+                INSTANCE.name(),
+                threadPool,
+                clusterService,
+                transportService,
+                actionFilters,
+                projectResolver,
+                indexNameExpressionResolver,
                 // Forking a thread here, because only light weight operations should happen on network thread and
                 // Creating a in-memory index is not light weight
                 // TODO: is MANAGEMENT TP the right TP? Right now this is an admin api (see action name).
-                Request::new, ThreadPool.Names.MANAGEMENT);
+                Request::new,
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            );
             this.scriptService = scriptService;
             this.indicesServices = indicesServices;
+        }
+
+        @Override
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            // By this point index resolution has completed, and we should not try to resolve indices for child requests
+            // to avoid the second attempt of project authorization in CPS
+            request.indicesOptions = null;
+
+            if (isLocalIndex(request)) {
+                super.doExecute(task, request, listener);
+            } else {
+                // forward to remote cluster after stripping off the clusterAlias from the index expression
+                removeClusterAliasFromIndexExpression(request);
+                transportService.getRemoteClusterService()
+                    .getRemoteClusterClient(
+                        request.getContextSetup().getClusterAlias(),
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    )
+                    .execute(PainlessExecuteAction.REMOTE_TYPE, request, listener);
+            }
+        }
+
+        private boolean isLocalIndex(Request request) {
+            if (request.getContextSetup() == null) {
+                return true;
+            }
+            String index = request.index();
+            return index == null || RemoteClusterAware.isRemoteIndexName(index) == false;
+        }
+
+        // Visible for testing
+        static void removeClusterAliasFromIndexExpression(Request request) {
+            String index = request.index();
+            if (index != null) {
+                String[] split = RemoteClusterAware.splitIndexName(index);
+                if (split[0] != null) {
+                    /*
+                     * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
+                     * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
+                     * The clusterAlias is not Writeable, so it will be null in the ContextSetup on the remote cluster.
+                     * We need to strip off the clusterAlias from the index before executing the script locally,
+                     * so it will resolve to a local index
+                     */
+                    request.index(split[1]);
+                }
+            }
         }
 
         @Override
@@ -471,7 +608,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         @Override
-        protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+        protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() != null) {
                 return super.checkRequestBlock(state, request);
             }
@@ -484,7 +621,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         @Override
-        protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+        protected ShardsIterator shards(ProjectState state, InternalRequest request) {
             if (request.concreteIndex() == null) {
                 return null;
             }
@@ -498,8 +635,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 ClusterState clusterState = clusterService.state();
                 IndicesOptions indicesOptions = IndicesOptions.strictSingleIndexNoExpandForbidClosed();
                 String indexExpression = request.contextSetup.index;
-                Index[] concreteIndices =
-                    indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
+                Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, indicesOptions, indexExpression);
                 if (concreteIndices.length != 1) {
                     throw new IllegalArgumentException("[" + indexExpression + "] does not resolve to a single index");
                 }
@@ -532,8 +668,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     ScoreScript.Factory factory = scriptService.compile(request.script, ScoreScript.CONTEXT);
                     SearchLookup lookup = context.lookup();
-                    ScoreScript.LeafFactory leafFactory =
-                            factory.newFactory(request.getScript().getParams(), lookup);
+                    ScoreScript.LeafFactory leafFactory = factory.newFactory(request.getScript().getParams(), lookup);
                     ScoreScript scoreScript = leafFactory.newInstance(new DocValuesDocReader(lookup, leafReaderContext));
                     scoreScript.setDocument(0);
 
@@ -543,6 +678,9 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
                         Weight weight = indexSearcher.createWeight(luceneQuery, ScoreMode.COMPLETE, 1f);
                         Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
+                        if (scorer == null) {
+                            throw new IllegalArgumentException("The provided query did not match the sample document");
+                        }
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();
                         assert docID == scorer.docID();
@@ -555,8 +693,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == BooleanFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     BooleanFieldScript.Factory factory = scriptService.compile(request.script, BooleanFieldScript.CONTEXT);
-                    BooleanFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(BooleanFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    BooleanFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        BooleanFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     BooleanFieldScript booleanFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Boolean> booleans = new ArrayList<>();
                     booleanFieldScript.runForDoc(0, booleans::add);
@@ -565,8 +707,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == DateFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DateFieldScript.Factory factory = scriptService.compile(request.script, DateFieldScript.CONTEXT);
-                    DateFieldScript.LeafFactory leafFactory = factory.newFactory(DateFieldScript.CONTEXT.name,
-                            request.getScript().getParams(), context.lookup(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER);
+                    DateFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        DateFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+                        OnScriptError.FAIL
+                    );
                     DateFieldScript dateFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> dates = new ArrayList<>();
                     dateFieldScript.runForDoc(0, d -> dates.add(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(d)));
@@ -575,8 +722,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == DoubleFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     DoubleFieldScript.Factory factory = scriptService.compile(request.script, DoubleFieldScript.CONTEXT);
-                    DoubleFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(DoubleFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    DoubleFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        DoubleFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     DoubleFieldScript doubleFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Double> doubles = new ArrayList<>();
                     doubleFieldScript.runForDoc(0, doubles::add);
@@ -585,21 +736,50 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == GeoPointFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     GeoPointFieldScript.Factory factory = scriptService.compile(request.script, GeoPointFieldScript.CONTEXT);
-                    GeoPointFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(GeoPointFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    GeoPointFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        GeoPointFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     GeoPointFieldScript geoPointFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<GeoPoint> points = new ArrayList<>();
-                    geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
+                    geoPointFieldScript.runForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    Function<List<GeoPoint>, List<Object>> format =
-                        GeometryFormatterFactory.getFormatter(GeometryFormatterFactory.GEOJSON, p -> new Point(p.lon(), p.lat()));
+                    Function<List<GeoPoint>, List<Object>> format = GeometryFormatterFactory.getFormatter(
+                        GeometryFormatterFactory.GEOJSON,
+                        p -> new Point(p.lon(), p.lat())
+                    );
                     return new Response(format.apply(points));
+                }, indexService);
+            } else if (scriptContext == GeometryFieldScript.CONTEXT) {
+                return prepareRamIndex(request, (context, leafReaderContext) -> {
+                    GeometryFieldScript.Factory factory = scriptService.compile(request.script, GeometryFieldScript.CONTEXT);
+                    GeometryFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        GeometryFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
+                    GeometryFieldScript geometryFieldScript = leafFactory.newInstance(leafReaderContext);
+                    List<Geometry> geometries = new ArrayList<>();
+                    geometryFieldScript.runForDoc(0, geometries::add);
+                    // convert geometries to the standard format of the fields api
+                    Function<List<Geometry>, List<Object>> format = GeometryFormatterFactory.getFormatter(
+                        GeometryFormatterFactory.GEOJSON,
+                        Function.identity()
+                    );
+                    return new Response(format.apply(geometries));
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     IpFieldScript.Factory factory = scriptService.compile(request.script, IpFieldScript.CONTEXT);
-                    IpFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(IpFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    IpFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        IpFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     IpFieldScript ipFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> ips = new ArrayList<>();
                     ipFieldScript.runForDoc(0, ip -> {
@@ -614,8 +794,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == LongFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     LongFieldScript.Factory factory = scriptService.compile(request.script, LongFieldScript.CONTEXT);
-                    LongFieldScript.LeafFactory leafFactory =
-                            factory.newFactory(LongFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    LongFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        LongFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     LongFieldScript longFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<Long> longs = new ArrayList<>();
                     longFieldScript.runForDoc(0, longs::add);
@@ -624,8 +808,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == StringFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     StringFieldScript.Factory factory = scriptService.compile(request.script, StringFieldScript.CONTEXT);
-                    StringFieldScript.LeafFactory leafFactory =
-                        factory.newFactory(StringFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    StringFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        StringFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     StringFieldScript stringFieldScript = leafFactory.newInstance(leafReaderContext);
                     List<String> keywords = new ArrayList<>();
                     stringFieldScript.runForDoc(0, keywords::add);
@@ -634,42 +822,67 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
             } else if (scriptContext == CompositeFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {
                     CompositeFieldScript.Factory factory = scriptService.compile(request.script, CompositeFieldScript.CONTEXT);
-                    CompositeFieldScript.LeafFactory leafFactory =
-                        factory.newFactory(CompositeFieldScript.CONTEXT.name, request.getScript().getParams(), context.lookup());
+                    CompositeFieldScript.LeafFactory leafFactory = factory.newFactory(
+                        CompositeFieldScript.CONTEXT.name,
+                        request.getScript().getParams(),
+                        context.lookup(),
+                        OnScriptError.FAIL
+                    );
                     CompositeFieldScript compositeFieldScript = leafFactory.newInstance(leafReaderContext);
-                    return new Response(compositeFieldScript.runForDoc(0));
+                    compositeFieldScript.runForDoc(0);
+                    return new Response(compositeFieldScript.getFieldValues());
                 }, indexService);
             } else {
                 throw new UnsupportedOperationException("unsupported context [" + scriptContext.name + "]");
             }
         }
 
-        private static Response prepareRamIndex(Request request,
-                                                CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
-                                                IndexService indexService) throws IOException {
-
+        private static Response prepareRamIndex(
+            Request request,
+            CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
+            IndexService indexService
+        ) throws IOException {
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
 
             try (Directory directory = new ByteBuffersDirectory()) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(defaultAnalyzer))) {
-                    String index = indexService.index().getName();
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
-                    SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
-                    MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
-                    DocumentParser documentParser = indexService.mapperService().documentParser();
-                    //Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present
-                    //in the sample doc are not accessible from the script through doc['field'].
-                    //This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
-                    //nor _source (if there are no mappings there are no metadata fields).
-                    ParsedDocument parsedDocument = documentParser.parseDocument(sourceToParse, mappingLookup);
-                    indexWriter.addDocuments(parsedDocument.docs());
+
+                    SourceToParse sourceToParse = (indexService.getIndexSettings().getMode() == IndexMode.TIME_SERIES)
+                        ? new SourceToParse(
+                            null,
+                            document,
+                            xContentType,
+                            indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
+                                ? TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
+                                : null
+                        )
+                        : new SourceToParse("_id", document, xContentType);
+
+                    DocumentMapper documentMapper = indexService.mapperService().documentMapper();
+                    if (documentMapper == null) {
+                        documentMapper = DocumentMapper.createEmpty(indexService.mapperService());
+                    }
+                    // Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present
+                    // in the sample doc are not accessible from the script through doc['field'].
+                    // This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
+                    // nor _source (if there are no mappings there are no metadata fields).
+                    ParsedDocument parsedDocument = documentMapper.parse(sourceToParse);
+                    // only index the root doc since nested docs are not supported in painless anyways
+                    indexWriter.addDocuments(List.of(parsedDocument.rootDoc()));
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
-                        SearchExecutionContext context =
-                            indexService.newSearchExecutionContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
+                        SearchExecutionContext context = indexService.newSearchExecutionContext(
+                            0,
+                            0,
+                            searcher,
+                            () -> absoluteStartMillis,
+                            null,
+                            emptyMap()
+                        );
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }
@@ -677,13 +890,17 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
     }
 
+    @ServerlessScope(Scope.PUBLIC)
     public static class RestAction extends BaseRestHandler {
+        private final CrossProjectModeDecider crossProjectModeDecider;
+
+        public RestAction(Settings settings) {
+            this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        }
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(GET, "/_scripts/painless/_execute"),
-                new Route(POST, "/_scripts/painless/_execute"));
+            return List.of(new Route(GET, "/_scripts/painless/_execute"), new Route(POST, "/_scripts/painless/_execute"));
         }
 
         @Override
@@ -694,6 +911,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
             final Request request = Request.parse(restRequest.contentOrSourceParamParser());
+            if (crossProjectModeDecider.crossProjectEnabled()) {
+                request.enableCrossProjectMode();
+            }
+
             return channel -> client.executeLocally(INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }

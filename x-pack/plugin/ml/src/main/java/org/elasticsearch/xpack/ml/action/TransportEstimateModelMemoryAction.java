@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
@@ -32,23 +33,31 @@ import java.util.Set;
  * bytes then the job will be impossible to run successfully, so this is not a
  * major limitation.)
  */
-public class TransportEstimateModelMemoryAction
-    extends HandledTransportAction<EstimateModelMemoryAction.Request, EstimateModelMemoryAction.Response> {
+public class TransportEstimateModelMemoryAction extends HandledTransportAction<
+    EstimateModelMemoryAction.Request,
+    EstimateModelMemoryAction.Response> {
 
     static final ByteSizeValue BASIC_REQUIREMENT = ByteSizeValue.ofMb(10);
     static final long BYTES_PER_INFLUENCER_VALUE = ByteSizeValue.ofKb(10).getBytes();
     private static final long BYTES_IN_MB = ByteSizeValue.ofMb(1).getBytes();
 
     @Inject
-    public TransportEstimateModelMemoryAction(TransportService transportService,
-                                              ActionFilters actionFilters) {
-        super(EstimateModelMemoryAction.NAME, transportService, actionFilters, EstimateModelMemoryAction.Request::new);
+    public TransportEstimateModelMemoryAction(TransportService transportService, ActionFilters actionFilters) {
+        super(
+            EstimateModelMemoryAction.NAME,
+            transportService,
+            actionFilters,
+            EstimateModelMemoryAction.Request::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
     }
 
     @Override
-    protected void doExecute(Task task,
-                             EstimateModelMemoryAction.Request request,
-                             ActionListener<EstimateModelMemoryAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        EstimateModelMemoryAction.Request request,
+        ActionListener<EstimateModelMemoryAction.Response> listener
+    ) {
 
         AnalysisConfig analysisConfig = request.getAnalysisConfig();
         Map<String, Long> overallCardinality = request.getOverallCardinality();
@@ -64,7 +73,8 @@ public class TransportEstimateModelMemoryAction
 
     static long calculateDetectorsRequirementBytes(AnalysisConfig analysisConfig, Map<String, Long> overallCardinality) {
         long bucketSpanSeconds = analysisConfig.getBucketSpan().getSeconds();
-        return analysisConfig.getDetectors().stream()
+        return analysisConfig.getDetectors()
+            .stream()
             .map(detector -> calculateDetectorRequirementBytes(detector, bucketSpanSeconds, overallCardinality))
             .reduce(0L, TransportEstimateModelMemoryAction::addNonNegativeLongsWithMaxValueCap);
     }
@@ -139,28 +149,40 @@ public class TransportEstimateModelMemoryAction
         long partitionFieldCardinalityEstimate = 1;
         String partitionFieldName = detector.getPartitionFieldName();
         if (partitionFieldName != null) {
-            partitionFieldCardinalityEstimate = Math.max(1,
-                cardinalityEstimate(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true));
+            partitionFieldCardinalityEstimate = Math.max(
+                1,
+                cardinalityEstimate(Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true)
+            );
         }
 
         String byFieldName = detector.getByFieldName();
         if (byFieldName != null) {
-            long byFieldCardinalityEstimate =
-                cardinalityEstimate(Detector.BY_FIELD_NAME_FIELD.getPreferredName(), byFieldName, overallCardinality, true);
+            long byFieldCardinalityEstimate = cardinalityEstimate(
+                Detector.BY_FIELD_NAME_FIELD.getPreferredName(),
+                byFieldName,
+                overallCardinality,
+                true
+            );
             // Assume the number of by field values in each partition reduces if the cardinality of both by and partition fields is high
             // The memory cost of a by field is about 2/3rds that of a partition field
-            double multiplier =
-                Math.ceil(reducedCardinality(byFieldCardinalityEstimate, partitionFieldCardinalityEstimate, bucketSpanSeconds) * 2.0 / 3.0);
+            double multiplier = Math.ceil(
+                reducedCardinality(byFieldCardinalityEstimate, partitionFieldCardinalityEstimate, bucketSpanSeconds) * 2.0 / 3.0
+            );
             answer = multiplyNonNegativeLongsWithMaxValueCap(answer, (long) multiplier);
         }
 
         String overFieldName = detector.getOverFieldName();
         if (overFieldName != null) {
-            long overFieldCardinalityEstimate =
-                cardinalityEstimate(Detector.OVER_FIELD_NAME_FIELD.getPreferredName(), overFieldName, overallCardinality, true);
+            long overFieldCardinalityEstimate = cardinalityEstimate(
+                Detector.OVER_FIELD_NAME_FIELD.getPreferredName(),
+                overFieldName,
+                overallCardinality,
+                true
+            );
             // Assume the number of over field values in each partition reduces if the cardinality of both over and partition fields is high
-            double multiplier =
-                Math.ceil(reducedCardinality(overFieldCardinalityEstimate, partitionFieldCardinalityEstimate, bucketSpanSeconds));
+            double multiplier = Math.ceil(
+                reducedCardinality(overFieldCardinalityEstimate, partitionFieldCardinalityEstimate, bucketSpanSeconds)
+            );
             // Over fields don't multiply the whole estimate, just add a small amount (estimate 768 bytes) per value
             answer = addNonNegativeLongsWithMaxValueCap(answer, multiplyNonNegativeLongsWithMaxValueCap(768, (long) multiplier));
         }
@@ -202,7 +224,7 @@ public class TransportEstimateModelMemoryAction
 
         // 20MB is a pretty conservative estimate of the memory requirement for categorization,
         // providing categorization is working well and not creating large numbers of inappropriate
-        // categories.  Often it is considerably less, but it's very hard to predict from simple
+        // categories. Often it is considerably less, but it's very hard to predict from simple
         // statistics, and we have seen some data sets that legitimately create hundreds of
         // categories, so it's best to allow for this.
         long memoryPerPartitionMb = 20;
@@ -214,8 +236,15 @@ public class TransportEstimateModelMemoryAction
             for (Detector detector : analysisConfig.getDetectors()) {
                 String partitionFieldName = detector.getPartitionFieldName();
                 if (partitionFieldName != null) {
-                    relevantPartitionFieldCardinalityEstimate = Math.max(1, cardinalityEstimate(
-                        Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(), partitionFieldName, overallCardinality, true));
+                    relevantPartitionFieldCardinalityEstimate = Math.max(
+                        1,
+                        cardinalityEstimate(
+                            Detector.PARTITION_FIELD_NAME_FIELD.getPreferredName(),
+                            partitionFieldName,
+                            overallCardinality,
+                            true
+                        )
+                    );
                     break;
                 }
             }
@@ -234,8 +263,12 @@ public class TransportEstimateModelMemoryAction
         return ByteSizeValue.ofMb(memoryPerPartitionMb * relevantPartitionFieldCardinalityEstimate).getBytes();
     }
 
-    static long cardinalityEstimate(String description, String fieldName, Map<String, Long> suppliedCardinailityEstimates,
-                                    boolean isOverall) {
+    static long cardinalityEstimate(
+        String description,
+        String fieldName,
+        Map<String, Long> suppliedCardinailityEstimates,
+        boolean isOverall
+    ) {
         Long suppliedEstimate = suppliedCardinailityEstimates.get(fieldName);
         if (suppliedEstimate != null) {
             return suppliedEstimate;
@@ -244,8 +277,15 @@ public class TransportEstimateModelMemoryAction
         if (AnalysisConfig.ML_CATEGORY_FIELD.equals(fieldName)) {
             return isOverall ? 500 : 50;
         }
-        throw new IllegalArgumentException("[" + (isOverall ? "Overall" : "Bucket max") + "] cardinality estimate required for [" +
-            description + "] [" + fieldName + "] but not supplied");
+        throw new IllegalArgumentException(
+            "["
+                + (isOverall ? "Overall" : "Bucket max")
+                + "] cardinality estimate required for ["
+                + description
+                + "] ["
+                + fieldName
+                + "] but not supplied"
+        );
     }
 
     static ByteSizeValue roundUpToNextMb(long bytes) {

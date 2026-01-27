@@ -13,9 +13,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -24,6 +26,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.AggregationConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfigTests;
@@ -47,25 +53,27 @@ import static org.mockito.Mockito.when;
 
 public class AggregationSchemaAndResultTests extends ESTestCase {
 
+    private TestThreadPool threadPool;
     private Client client;
 
     @Before
     public void setupClient() {
-        if (client != null) {
-            client.close();
+        if (threadPool != null) {
+            threadPool.close();
         }
-        client = new MyMockClient(getTestName());
+        threadPool = createThreadPool();
+        client = new MyMockClient(threadPool);
     }
 
     @After
     public void tearDownClient() {
-        client.close();
+        threadPool.close();
     }
 
     private class MyMockClient extends NoOpClient {
 
-        MyMockClient(String testName) {
-            super(testName);
+        MyMockClient(ThreadPool threadPool) {
+            super(threadPool);
         }
 
         @SuppressWarnings("unchecked")
@@ -76,8 +84,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
 
-            if (request instanceof FieldCapabilitiesRequest) {
-                FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
+            if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
 
                 Map<String, Map<String, FieldCapabilities>> fieldCaps = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
@@ -86,13 +93,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                     String[] nameTypePair = Strings.split(field, "_");
                     String type = nameTypePair != null ? nameTypePair[0] : "long";
 
-                    fieldCaps.put(
-                        field,
-                        Collections.singletonMap(
-                            type,
-                            new FieldCapabilities(field, type, false, true, true, null, null, null, emptyMap())
-                        )
-                    );
+                    fieldCaps.put(field, Collections.singletonMap(type, new FieldCapabilitiesBuilder(field, type).build()));
                 }
 
                 // FieldCapabilitiesResponse is package private, thats why we use a mock
@@ -123,6 +124,16 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         // percentile produces 1 output per percentile + 1 for the parent object
         aggs.addAggregator(AggregationBuilders.percentiles("p_rating").field("long_stars").percentiles(1, 5, 10, 50, 99.9));
 
+        // range produces 1 output per range + 1 for the parent object
+        aggs.addAggregator(
+            AggregationBuilders.range("some_range")
+                .field("long_stars")
+                .addUnboundedTo(10.5)
+                .addRange(10.5, 19.5)
+                .addRange(19.5, 20)
+                .addUnboundedFrom(20)
+        );
+
         // scripted metric produces no output because its dynamic
         aggs.addAggregator(AggregationBuilders.scriptedMetric("collapsed_ratings"));
 
@@ -136,9 +147,17 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                "my-transform",
+                SettingsConfig.EMPTY,
+                pivotConfig,
+                new SourceConfig(new String[] { "source-index" }),
+                listener
+            ),
             mappings -> {
-                assertEquals(numGroupsWithoutScripts + 10, mappings.size());
+                assertEquals("Mappings were: " + mappings, numGroupsWithoutScripts + 15, mappings.size());
                 assertEquals("long", mappings.get("max_rating"));
                 assertEquals("double", mappings.get("avg_rating"));
                 assertEquals("long", mappings.get("count_rating"));
@@ -148,6 +167,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 assertEquals("double", mappings.get("p_rating.5"));
                 assertEquals("double", mappings.get("p_rating.10"));
                 assertEquals("double", mappings.get("p_rating.99_9"));
+                assertEquals("object", mappings.get("some_range"));
+                assertEquals("long", mappings.get("some_range.*-10_5"));
+                assertEquals("long", mappings.get("some_range.10_5-19_5"));
+                assertEquals("long", mappings.get("some_range.19_5-20"));
+                assertEquals("long", mappings.get("some_range.20-*"));
 
                 Aggregation agg = AggregationResultUtilsTests.createSingleMetricAgg("avg_rating", 33.3, "33.3");
                 assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(33.3));
@@ -203,7 +227,15 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
             .count();
 
         this.<Map<String, String>>assertAsync(
-            listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, emptyMap(), listener),
+            listener -> SchemaUtil.deduceMappings(
+                client,
+                emptyMap(),
+                "my-transform",
+                SettingsConfig.EMPTY,
+                pivotConfig,
+                new SourceConfig(new String[] { "source-index" }),
+                listener
+            ),
             mappings -> {
                 assertEquals(numGroupsWithoutScripts + 12, mappings.size());
                 assertEquals("long", mappings.get("filter_1"));
@@ -278,10 +310,10 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
 
-        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionListener.wrap(r -> {
+        LatchedActionListener<T> listener = new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(r -> {
             assertTrue("listener called more than once", listenerCalled.compareAndSet(false, true));
             furtherTests.accept(r);
-        }, e -> { fail("got unexpected exception: " + e); }), latch);
+        }), latch);
 
         function.accept(listener);
         assertTrue("timed out after 20s", latch.await(20, TimeUnit.SECONDS));

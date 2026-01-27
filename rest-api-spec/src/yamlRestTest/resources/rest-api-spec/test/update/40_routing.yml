@@ -11,16 +11,11 @@
            index:
              number_of_shards: 5
              number_of_routing_shards: 5
-             number_of_replicas: 0
-
- - do:
-      cluster.health:
-          wait_for_status: green
 
  - do:
       update:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           body:
             doc:        { foo: baz }
@@ -29,7 +24,7 @@
  - do:
       get:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           stored_fields:  _routing
 
@@ -39,14 +34,14 @@
       catch:      missing
       update:
           index:   test_1
-          id:      1
+          id:      "1"
           body:
             doc:        { foo: baz }
 
  - do:
       update:
           index:   test_1
-          id:      1
+          id:      "1"
           routing: "5"
           _source: foo
           body:

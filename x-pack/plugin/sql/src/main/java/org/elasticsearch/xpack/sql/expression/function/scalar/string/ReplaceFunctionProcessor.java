@@ -58,9 +58,20 @@ public class ReplaceFunctionProcessor implements Processor {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", replacement);
         }
 
-        return Strings.replace(input instanceof Character ? input.toString() : (String) input,
-                pattern instanceof Character ? pattern.toString() : (String) pattern,
-                replacement instanceof Character ? replacement.toString() : (String) replacement);
+        String inputStr = input instanceof Character ? input.toString() : (String) input;
+        String patternStr = pattern instanceof Character ? pattern.toString() : (String) pattern;
+        String replacementStr = replacement instanceof Character ? replacement.toString() : (String) replacement;
+        checkResultLength(inputStr, patternStr, replacementStr);
+        return Strings.replace(inputStr, patternStr, replacementStr);
+    }
+
+    private static void checkResultLength(String input, String pattern, String replacement) {
+        int patternLen = pattern.length();
+        long matches = 0;
+        for (int i = input.indexOf(pattern); i >= 0; i = input.indexOf(pattern, i + patternLen)) {
+            matches++;
+        }
+        StringProcessor.checkResultLength(input.length() + matches * (replacement.length() - patternLen));
     }
 
     @Override
@@ -75,8 +86,8 @@ public class ReplaceFunctionProcessor implements Processor {
 
         ReplaceFunctionProcessor other = (ReplaceFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(pattern(), other.pattern())
-                && Objects.equals(replacement(), other.replacement());
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(replacement(), other.replacement());
     }
 
     @Override

@@ -1,0 +1,16 @@
+# user needs to call cluster:admin/nodes/reload_secure_settings
+user_role:
+  cluster: [ALL]
+  indices: []
+
+manage_role:
+  cluster: [MANAGE]
+  indices: []
+
+manage_security_role:
+  cluster: [MANAGE_SECURITY]
+  indices: []
+
+monitor_role:
+  cluster: [MONITOR]
+  indices: []

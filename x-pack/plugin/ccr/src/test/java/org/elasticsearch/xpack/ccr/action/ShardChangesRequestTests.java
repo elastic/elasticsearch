@@ -17,11 +17,15 @@ public class ShardChangesRequestTests extends AbstractWireSerializingTestCase<Sh
 
     @Override
     protected ShardChangesAction.Request createTestInstance() {
-        ShardChangesAction.Request request =
-            new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0), randomAlphaOfLength(4));
+        ShardChangesAction.Request request = new ShardChangesAction.Request(new ShardId("_index", "_indexUUID", 0), randomAlphaOfLength(4));
         request.setMaxOperationCount(randomIntBetween(0, Integer.MAX_VALUE));
         request.setFromSeqNo(randomNonNegativeLong());
         return request;
+    }
+
+    @Override
+    protected ShardChangesAction.Request mutateInstance(ShardChangesAction.Request instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

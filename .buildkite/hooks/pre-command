@@ -1,0 +1,258 @@
+#!/bin/bash
+
+# On some distros, this directory ends up not readable by the `elasticsearch` user that gets created during tests
+# This fixes that
+chmod 755 ~
+
+WORKSPACE="$(pwd)"
+export WORKSPACE
+
+BUILD_NUMBER="$BUILDKITE_BUILD_NUMBER"
+export BUILD_NUMBER
+
+COMPOSE_HTTP_TIMEOUT="120"
+export COMPOSE_HTTP_TIMEOUT
+
+JOB_BRANCH="$BUILDKITE_BRANCH"
+export JOB_BRANCH
+
+GRADLEW="./gradlew --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW
+
+GRADLEW_BAT="./gradlew.bat --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+export GRADLEW_BAT
+
+export $(cat .ci/java-versions.properties | grep '=' | xargs)
+
+JAVA_HOME="$HOME/.java/$ES_BUILD_JAVA"
+export JAVA_HOME
+
+JAVA11_HOME="$HOME/.java/java11"
+export JAVA11_HOME
+
+JAVA16_HOME="$HOME/.java/openjdk16"
+export JAVA16_HOME
+
+if [[ "${ES_RUNTIME_JAVA:-}" ]]; then
+  RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+  export RUNTIME_JAVA_HOME
+fi
+
+GRADLE_BUILD_CACHE_USERNAME=$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_USERNAME
+
+GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export GRADLE_BUILD_CACHE_PASSWORD
+
+DEVELOCITY_API_ACCESS_KEY=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
+export DEVELOCITY_API_ACCESS_KEY
+
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$DEVELOCITY_API_ACCESS_KEY"
+export DEVELOCITY_ACCESS_KEY
+
+BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
+export BUILDKITE_API_TOKEN
+
+export GH_TOKEN="$VAULT_GITHUB_TOKEN"
+
+if [[ "${USE_LUCENE_SNAPSHOT_CREDS:-}" == "true" ]]; then
+  data=$(.buildkite/scripts/get-legacy-secret.sh aws-elastic/creds/lucene-snapshots)
+
+  AWS_ACCESS_KEY_ID=$(echo "$data" | jq -r .data.access_key)
+  export AWS_ACCESS_KEY_ID
+
+  AWS_SECRET_ACCESS_KEY=$(echo "$data" | jq -r .data.secret_key)
+  export AWS_SECRET_ACCESS_KEY
+
+  unset data
+fi
+
+if [[ "${USE_MAVEN_GPG:-}" == "true" ]]; then
+  vault_path="kv/ci-shared/release-eng/team-release-secrets/es-delivery/gpg"
+  ORG_GRADLE_PROJECT_signingKey=$(vault kv get --field="private_key" $vault_path)
+  ORG_GRADLE_PROJECT_signingPassword=$(vault kv get --field="passphase" $vault_path)
+  export ORG_GRADLE_PROJECT_signingKey
+  export ORG_GRADLE_PROJECT_signingPassword
+fi
+
+if [[ "${USE_DRA_CREDENTIALS:-}" == "true" ]]; then
+  DRA_VAULT_ROLE_ID_SECRET=$(vault read -field=role-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_ROLE_ID_SECRET
+
+  DRA_VAULT_SECRET_ID_SECRET=$(vault read -field=secret-id secret/ci/elastic-elasticsearch/legacy-vault-credentials)
+  export DRA_VAULT_SECRET_ID_SECRET
+
+  DRA_VAULT_ADDR=https://secrets.elastic.co:8200
+  export DRA_VAULT_ADDR
+fi
+
+source .buildkite/scripts/third-party-test-credentials.sh
+
+if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
+  SNYK_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/migrated/snyk)
+  export SNYK_TOKEN
+fi
+
+if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
+  if which docker > /dev/null 2>&1; then
+    DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_USERNAME
+
+    DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_PASSWORD
+
+    docker login --username "$DOCKER_REGISTRY_USERNAME" --password "$DOCKER_REGISTRY_PASSWORD" docker.elastic.co
+  fi
+fi
+
+if [[ "${USE_PERF_CREDENTIALS:-}" == "true" ]]; then
+  PERF_METRICS_HOST=$(vault read -field=es_host /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_USERNAME=$(vault read -field=es_user /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+  PERF_METRICS_PASSWORD=$(vault read -field=es_password /secret/ci/elastic-elasticsearch/microbenchmarks-metrics)
+
+  export PERF_METRICS_HOST
+  export PERF_METRICS_USERNAME
+  export PERF_METRICS_PASSWORD
+fi
+
+
+# Authenticate to the Docker Hub public read-only registry
+if which docker > /dev/null 2>&1; then
+  DOCKERHUB_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+  DOCKERHUB_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/docker_hub_public_ro_credentials)"
+
+  echo "$DOCKERHUB_REGISTRY_PASSWORD" | docker login --username "$DOCKERHUB_REGISTRY_USERNAME" --password-stdin docker.io
+fi
+
+if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
+  # Run in the background, while the job continues
+  nohup .buildkite/scripts/setup-monitoring.sh </dev/null >/dev/null 2>&1 &
+fi
+
+# Initialize the build scan and gobld annotations with empty/open <details> tags
+# This ensures that they are collapsible when they get appended to
+if [[ "${BUILDKITE_LABEL:-}" == *"Pipeline upload"* || "${BUILDKITE_LABEL:-}" == *"Upload Pipeline"* ]]; then
+  cat << EOF | buildkite-agent annotate --context "gradle-build-scans" --style "info"
+<details>
+
+<summary>Gradle build scan links</summary>
+EOF
+
+  cat << EOF | buildkite-agent annotate --context "ctx-gobld-metrics" --style "info"
+<details>
+
+<summary>Agent information from gobld</summary>
+EOF
+fi
+
+if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; then
+  echo "--- Resolving previously failed tests"
+  SMART_RETRY_STATUS="disabled"
+  SMART_RETRY_DETAILS=""
+
+  if BUILD_JSON=$(curl --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null); then
+    if ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id' 2>/dev/null) && [ "$ORIGIN_JOB_ID" != "null" ] && [ -n "$ORIGIN_JOB_ID" ]; then
+      
+      # Attempt to retrieve build scan ID directly from metadata
+      BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
+
+      # Retrieve build scan URL for annotation
+      BUILD_SCAN_URL=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-" + $job_id]' 2>/dev/null)
+
+      if [[ -n "$BUILD_SCAN_ID" ]] && [[ "$BUILD_SCAN_ID" != "null" ]]; then
+        # Validate BUILD_SCAN_ID format to prevent injection attacks
+        if [[ ! "$BUILD_SCAN_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+          echo "Smart Retry Configuration Issue"
+          echo "Invalid build scan ID format: $BUILD_SCAN_ID"
+          echo "Smart retry will be disabled for this run."
+          SMART_RETRY_STATUS="failed"
+          SMART_RETRY_DETAILS="Invalid build scan ID format"
+        else
+          DEVELOCITY_BASE_URL="${DEVELOCITY_BASE_URL:-https://gradle-enterprise.elastic.co}"
+          DEVELOCITY_FAILED_TEST_API_URL="${DEVELOCITY_BASE_URL}/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
+
+          # Add random delay to prevent API rate limiting from parallel retries
+          sleep $((RANDOM % 5))
+
+          if curl --compressed --request GET \
+            --url "$DEVELOCITY_FAILED_TEST_API_URL" \
+            --max-filesize 10485760 \
+            --max-time 30 \
+            --header 'accept: application/json' \
+            --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
+            --header 'content-type: application/json' 2>/dev/null | jq '.' &> .failed-test-history.json; then
+
+            # Set secure file permissions
+            chmod 600 .failed-test-history.json
+
+            # Count filtered tests for visibility
+            FILTERED_WORK_UNITS=$(jq -r '.workUnits | length' .failed-test-history.json 2>/dev/null || echo "0")
+            SMART_RETRY_STATUS="enabled"
+            SMART_RETRY_DETAILS="Filtering to $FILTERED_WORK_UNITS work units with failures"
+
+            # Get the origin job name for better annotation labels
+            ORIGIN_JOB_NAME=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$ORIGIN_JOB_ID" '.jobs[] | select(.id == $jobId) | .name' 2>/dev/null)
+            if [ -z "$ORIGIN_JOB_NAME" ] || [ "$ORIGIN_JOB_NAME" = "null" ]; then
+              ORIGIN_JOB_NAME="previous attempt"
+            fi
+
+            echo "✓ Smart retry enabled: filtering to $FILTERED_WORK_UNITS work units"
+
+            # Create Buildkite annotation for visibility
+            # Use unique context per job to support multiple retries
+            cat << EOF | buildkite-agent annotate --style info --context "smart-retry-$BUILDKITE_JOB_ID"
+Rerunning failed build job [$ORIGIN_JOB_NAME]($BUILD_SCAN_URL)
+
+**Gradle Tasks with Failures:** $FILTERED_WORK_UNITS
+
+This retry will skip test tasks that had no failures in the previous run.
+EOF
+          else
+            echo "Smart Retry API Error"
+            echo "Failed to fetch failed tests from Develocity API"
+            echo "Smart retry will be disabled - all tests will run."
+            SMART_RETRY_STATUS="failed"
+            SMART_RETRY_DETAILS="API request failed"
+          fi
+        fi
+      else
+        echo "Smart Retry Configuration Issue"
+        echo "Could not find build scan ID in metadata."
+        echo "Smart retry will be disabled for this run."
+        SMART_RETRY_STATUS="failed"
+        SMART_RETRY_DETAILS="No build scan ID in metadata"
+      fi
+    else
+      echo "Smart Retry Configuration Issue"
+      echo "Could not find origin job ID for retry."
+      echo "Smart retry will be disabled for this run."
+      SMART_RETRY_STATUS="failed"
+      SMART_RETRY_DETAILS="No origin job ID found"
+    fi
+  else
+    echo "Smart Retry API Error"
+    echo "Failed to fetch build information from Buildkite API"
+    echo "Smart retry will be disabled - all tests will run."
+    SMART_RETRY_STATUS="failed"
+    SMART_RETRY_DETAILS="Buildkite API request failed"
+  fi
+
+  # Store metadata for tracking and analysis
+  buildkite-agent meta-data set "smart-retry-status" "$SMART_RETRY_STATUS" 2>/dev/null || true
+  if [[ -n "$SMART_RETRY_DETAILS" ]]; then
+    buildkite-agent meta-data set "smart-retry-details" "$SMART_RETRY_DETAILS" 2>/dev/null || true
+  fi
+  if [[ -n "$BUILD_SCAN_URL" ]]; then
+    buildkite-agent meta-data set "origin-build-scan" "$BUILD_SCAN_URL" 2>/dev/null || true
+  fi
+fi
+
+# Amazon Linux 2 has DNS resolution issues with resource-based hostnames in EC2
+# We have many functional tests that try to lookup and resolve the hostname of the local machine in a particular way
+# And they fail. This sets up a manual entry for the hostname in dnsmasq.
+if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
+  echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
+  sudo systemctl restart dnsmasq.service
+fi
+
+.buildkite/scripts/get-latest-test-mutes.sh

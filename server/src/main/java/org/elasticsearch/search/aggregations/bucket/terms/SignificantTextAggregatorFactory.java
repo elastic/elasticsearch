@@ -1,28 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
+import org.elasticsearch.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -40,10 +46,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.MapStringTermsAggregat
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.lookup.Source;
+import org.elasticsearch.search.lookup.SourceFilter;
+import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.Timer;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -125,7 +135,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
-        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
+        if (bucketCountThresholds.getShardSize() == SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.shardSize()) {
             // The user has not made a shardSize selection.
             // Use default heuristic to avoid any wrong-ranking caused by
             // distributed counting but request double the usual amount.
@@ -138,27 +148,59 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             bucketCountThresholds.setShardSize(2 * BucketUtils.suggestShardSideQueueSize(bucketCountThresholds.getRequiredSize()));
         }
 
+        SamplingContext samplingContext = getSamplingContext().orElse(SamplingContext.NONE);
+        // If min_doc_count and shard_min_doc_count is provided, we do not support them being larger than 1
+        // This is because we cannot be sure about their relative scale when sampled
+        if (samplingContext.isSampled()) {
+            if ((bucketCountThresholds.getMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.minDocCount()
+                && bucketCountThresholds.getMinDocCount() > 1)
+                || (bucketCountThresholds.getShardMinDocCount() != SignificantTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS
+                    .minDocCount() && bucketCountThresholds.getShardMinDocCount() > 1)) {
+                throw new ElasticsearchStatusException(
+                    "aggregation [{}] is within a sampling context; "
+                        + "min_doc_count, provided [{}], and min_shard_doc_count, provided [{}], cannot be greater than 1",
+                    RestStatus.BAD_REQUEST,
+                    name(),
+                    bucketCountThresholds.getMinDocCount(),
+                    bucketCountThresholds.getShardMinDocCount()
+                );
+            }
+        }
+
         // TODO - need to check with mapping that this is indeed a text field....
 
-        IncludeExclude.StringFilter incExcFilter = includeExclude == null ? null : includeExclude.convertToStringFilter(DocValueFormat.RAW);
+        final IncludeExclude.StringFilter incExcFilter = includeExclude == null
+            ? null
+            : includeExclude.convertToStringFilter(DocValueFormat.RAW);
 
-        SignificanceLookup lookup = new SignificanceLookup(context, fieldType, DocValueFormat.RAW, backgroundFilter);
-        return new MapStringTermsAggregator(
-            name,
-            factories,
-            createCollectorSource(),
-            a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
-            null,
-            DocValueFormat.RAW,
-            bucketCountThresholds,
-            incExcFilter,
-            context,
-            parent,
-            SubAggCollectionMode.BREADTH_FIRST,
-            false,
-            cardinality,
-            metadata
-        );
+        final SignificanceLookup lookup = new SignificanceLookup(context, samplingContext, fieldType, DocValueFormat.RAW, backgroundFilter);
+        final CollectorSource collectorSource = createCollectorSource();
+        boolean success = false;
+        try {
+            final MapStringTermsAggregator mapStringTermsAggregator = new MapStringTermsAggregator(
+                name,
+                factories,
+                collectorSource,
+                a -> a.new SignificantTermsResults(lookup, significanceHeuristic, cardinality),
+                null,
+                DocValueFormat.RAW,
+                bucketCountThresholds,
+                incExcFilter,
+                context,
+                parent,
+                SubAggCollectionMode.BREADTH_FIRST,
+                false,
+                cardinality,
+                metadata,
+                false
+            );
+            success = true;
+            return mapStringTermsAggregator;
+        } finally {
+            if (success == false) {
+                Releasables.close(collectorSource);
+            }
+        }
     }
 
     /**
@@ -184,28 +226,32 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
      */
     private CollectorSource createCollectorSource() {
         Analyzer analyzer = context.getIndexAnalyzer(f -> { throw new IllegalArgumentException("No analyzer configured for field " + f); });
+        String[] fieldNames = Arrays.stream(this.sourceFieldNames)
+            .flatMap(sourceFieldName -> context.sourcePath(sourceFieldName).stream())
+            .toArray(String[]::new);
         if (context.profiling()) {
             return new ProfilingSignificantTextCollectorSource(
-                context.lookup().source(),
+                context.lookup(),
                 context.bigArrays(),
                 fieldType,
                 analyzer,
-                sourceFieldNames,
+                fieldNames,
                 filterDuplicateText
             );
         }
         return new SignificantTextCollectorSource(
-            context.lookup().source(),
+            context.lookup(),
             context.bigArrays(),
             fieldType,
             analyzer,
-            sourceFieldNames,
+            fieldNames,
             filterDuplicateText
         );
     }
 
     private static class SignificantTextCollectorSource implements MapStringTermsAggregator.CollectorSource {
-        private final SourceLookup sourceLookup;
+        private final SourceProvider sourceProvider;
+        private final SourceFilter sourceFilter;
         private final BigArrays bigArrays;
         private final MappedFieldType fieldType;
         private final Analyzer analyzer;
@@ -214,18 +260,19 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private ObjectArray<DuplicateByteSequenceSpotter> dupSequenceSpotters;
 
         SignificantTextCollectorSource(
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             BigArrays bigArrays,
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            this.sourceLookup = sourceLookup;
+            this.sourceProvider = sourceProvider;
             this.bigArrays = bigArrays;
             this.fieldType = fieldType;
             this.analyzer = analyzer;
             this.sourceFieldNames = sourceFieldNames;
+            this.sourceFilter = new SourceFilter(sourceFieldNames, Strings.EMPTY_ARRAY);
             dupSequenceSpotters = filterDuplicateText ? bigArrays.newObjectArray(1) : null;
         }
 
@@ -268,12 +315,11 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                 }
 
                 private void collectFromSource(int doc, long owningBucketOrd, DuplicateByteSequenceSpotter spotter) throws IOException {
-                    sourceLookup.setSegmentAndDocument(ctx, doc);
                     BytesRefHash inDocTerms = new BytesRefHash(256, bigArrays);
-
+                    Source source = sourceProvider.getSource(ctx, doc).filter(sourceFilter);
                     try {
                         for (String sourceField : sourceFieldNames) {
-                            Iterator<String> itr = extractRawValues(sourceField).stream().map(obj -> {
+                            Iterator<String> itr = Iterators.map(extractRawValues(source, sourceField).iterator(), obj -> {
                                 if (obj == null) {
                                     return null;
                                 }
@@ -281,7 +327,7 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
                                     return fieldType.valueForDisplay(obj).toString();
                                 }
                                 return obj.toString();
-                            }).iterator();
+                            });
                             while (itr.hasNext()) {
                                 String text = itr.next();
                                 TokenStream ts = analyzer.tokenStream(fieldType.name(), text);
@@ -362,8 +408,8 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         /**
          * Extract values from {@code _source}.
          */
-        protected List<Object> extractRawValues(String field) {
-            return sourceLookup.extractRawValues(field);
+        protected List<Object> extractRawValues(Source source, String field) {
+            return XContentMapValues.extractRawValues(field, source.source());
         }
 
         @Override
@@ -379,14 +425,14 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         private long charsFetched;
 
         private ProfilingSignificantTextCollectorSource(
-            SourceLookup sourceLookup,
+            SourceProvider sourceProvider,
             BigArrays bigArrays,
             MappedFieldType fieldType,
             Analyzer analyzer,
             String[] sourceFieldNames,
             boolean filterDuplicateText
         ) {
-            super(sourceLookup, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
+            super(sourceProvider, bigArrays, fieldType, analyzer, sourceFieldNames, filterDuplicateText);
         }
 
         @Override
@@ -426,10 +472,10 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         }
 
         @Override
-        protected List<Object> extractRawValues(String field) {
+        protected List<Object> extractRawValues(Source source, String field) {
             extract.start();
             try {
-                return super.extractRawValues(field);
+                return super.extractRawValues(source, field);
             } finally {
                 extract.stop();
             }

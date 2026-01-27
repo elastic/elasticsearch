@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -13,20 +14,19 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Stores information about failures that occurred during shard snapshotting process
+ * Stores information about failures that occurred during shard snapshotting process for serialization as part of {@link SnapshotInfo}.
  */
 public class SnapshotShardFailure extends ShardOperationFailedException {
 
@@ -63,9 +63,12 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
      * @param status  rest status
      */
     private SnapshotShardFailure(@Nullable String nodeId, ShardId shardId, String reason, RestStatus status) {
-        super(shardId.getIndexName(), shardId.id(), reason, status, new IndexShardSnapshotFailedException(shardId, reason));
         this.nodeId = nodeId;
         this.shardId = shardId;
+        this.index = shardId.getIndexName();
+        this.reason = reason;
+        super.shardId = shardId.getId();
+        this.status = status;
     }
 
     /**
@@ -189,5 +192,11 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
     @Override
     public int hashCode() {
         return Objects.hash(shardId, reason, nodeId, status.getStatus());
+    }
+
+    @Override
+    public Throwable fillInStackTrace() {
+        // no need for stack-traces here as we are not serializing them anyway
+        return this;
     }
 }

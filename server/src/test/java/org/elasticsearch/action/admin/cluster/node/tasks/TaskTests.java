@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -27,25 +28,27 @@ public class TaskTests extends ESTestCase {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable && randomBoolean();
         TaskInfo taskInfo = new TaskInfo(
-                new TaskId(nodeId, taskId),
-                "test_type",
-                "test_action",
-                "test_description",
-                null,
-                startTime,
-                runningTime,
-                cancellable,
-                cancelled,
-                TaskId.EMPTY_TASK_ID,
-                Collections.singletonMap("foo", "bar"));
+            new TaskId(nodeId, taskId),
+            "test_type",
+            nodeId,
+            "test_action",
+            "test_description",
+            null,
+            startTime,
+            runningTime,
+            cancellable,
+            cancelled,
+            TaskId.EMPTY_TASK_ID,
+            Collections.singletonMap("foo", "bar")
+        );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
-        assertEquals(((Number)map.get("id")).longValue(), taskId);
+        assertEquals(((Number) map.get("id")).longValue(), taskId);
         assertEquals(map.get("type"), "test_type");
         assertEquals(map.get("action"), "test_action");
         assertEquals(map.get("description"), "test_description");
-        assertEquals(((Number)map.get("start_time_in_millis")).longValue(), startTime);
-        assertEquals(((Number)map.get("running_time_in_nanos")).longValue(), runningTime);
+        assertEquals(((Number) map.get("start_time_in_millis")).longValue(), startTime);
+        assertEquals(((Number) map.get("running_time_in_nanos")).longValue(), runningTime);
         assertEquals(map.get("cancellable"), cancellable);
         if (cancellable) {
             assertEquals(map.get("cancelled"), cancelled);

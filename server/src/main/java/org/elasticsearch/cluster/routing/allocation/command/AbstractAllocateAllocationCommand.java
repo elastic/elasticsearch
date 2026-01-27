@@ -1,13 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -17,14 +21,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,8 +41,8 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
     private static final String SHARD_FIELD = "shard";
     private static final String NODE_FIELD = "node";
 
-    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocateParser(String command) {
-        ObjectParser<T, Void> parser = new ObjectParser<>(command);
+    protected static <T extends Builder<?>> ObjectParser<T, ProjectId> createAllocateParser(String command) {
+        ObjectParser<T, ProjectId> parser = new ObjectParser<>(command);
         parser.declareString(Builder::setIndex, new ParseField(INDEX_FIELD));
         parser.declareInt(Builder::setShard, new ParseField(SHARD_FIELD));
         parser.declareString(Builder::setNode, new ParseField(NODE_FIELD));
@@ -53,6 +56,11 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         protected String index;
         protected int shard = -1;
         protected String node;
+        protected final ProjectId projectId;
+
+        Builder(ProjectId projectId) {
+            this.projectId = projectId;
+        }
 
         public void setIndex(String index) {
             this.index = index;
@@ -65,8 +73,6 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         public void setNode(String node) {
             this.node = node;
         }
-
-        public abstract Builder<T> parse(XContentParser parser) throws IOException;
 
         public abstract T build();
 
@@ -83,14 +89,18 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
     }
 
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
     protected final String index;
     protected final int shardId;
     protected final String node;
+    protected final ProjectId projectId;
 
-    protected AbstractAllocateAllocationCommand(String index, int shardId, String node) {
+    protected AbstractAllocateAllocationCommand(String index, int shardId, String node, ProjectId projectId) {
         this.index = index;
         this.shardId = shardId;
         this.node = node;
+        this.projectId = projectId;
     }
 
     /**
@@ -100,6 +110,11 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         index = in.readString();
         shardId = in.readVInt();
         node = in.readString();
+        if (in.getTransportVersion().supports(MULTI_PROJECT)) {
+            projectId = ProjectId.readFrom(in);
+        } else {
+            projectId = Metadata.DEFAULT_PROJECT_ID;
+        }
     }
 
     @Override
@@ -107,6 +122,19 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         out.writeString(index);
         out.writeVInt(shardId);
         out.writeString(node);
+        if (out.getTransportVersion().supports(MULTI_PROJECT)) {
+            projectId.writeTo(out);
+        } else {
+            assert Metadata.DEFAULT_PROJECT_ID.equals(projectId) : projectId;
+            if (Metadata.DEFAULT_PROJECT_ID.equals(projectId) == false) {
+                throw new IllegalArgumentException("expected default project, but got " + projectId);
+            }
+        }
+    }
+
+    @Override
+    public ProjectId projectId() {
+        return projectId;
     }
 
     /**
@@ -175,8 +203,12 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param routingNode the node to initialize it to
      * @param shardRouting the shard routing that is to be matched in unassigned shards
      */
-    protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes,
-                                             RoutingNode routingNode, ShardRouting shardRouting) {
+    protected void initializeUnassignedShard(
+        RoutingAllocation allocation,
+        RoutingNodes routingNodes,
+        RoutingNode routingNode,
+        ShardRouting shardRouting
+    ) {
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, null, null);
     }
 
@@ -190,20 +222,32 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
      * @param unassignedInfo unassigned info to override
      * @param recoverySource recovery source to override
      */
-    protected void initializeUnassignedShard(RoutingAllocation allocation, RoutingNodes routingNodes, RoutingNode routingNode,
-                                             ShardRouting shardRouting, @Nullable UnassignedInfo unassignedInfo,
-                                             @Nullable RecoverySource recoverySource) {
-        for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext(); ) {
+    protected void initializeUnassignedShard(
+        RoutingAllocation allocation,
+        RoutingNodes routingNodes,
+        RoutingNode routingNode,
+        ShardRouting shardRouting,
+        @Nullable UnassignedInfo unassignedInfo,
+        @Nullable RecoverySource recoverySource
+    ) {
+        for (RoutingNodes.UnassignedShards.UnassignedIterator it = routingNodes.unassigned().iterator(); it.hasNext();) {
             ShardRouting unassigned = it.next();
             if (unassigned.equalsIgnoringMetadata(shardRouting) == false) {
                 continue;
             }
             if (unassignedInfo != null || recoverySource != null) {
-                unassigned = it.updateUnassigned(unassignedInfo != null ? unassignedInfo : unassigned.unassignedInfo(),
-                    recoverySource != null ? recoverySource : unassigned.recoverySource(), allocation.changes());
+                unassigned = it.updateUnassigned(
+                    unassignedInfo != null ? unassignedInfo : unassigned.unassignedInfo(),
+                    recoverySource != null ? recoverySource : unassigned.recoverySource(),
+                    allocation.changes()
+                );
             }
-            it.initialize(routingNode.nodeId(), null,
-                allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE), allocation.changes());
+            it.initialize(
+                routingNode.nodeId(),
+                null,
+                allocation.clusterInfo().getShardSize(unassigned, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                allocation.changes()
+            );
             return;
         }
         assert false : "shard to initialize not found in list of unassigned shards";
@@ -219,8 +263,7 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         return builder.endObject();
     }
 
-    protected void extraXContent(XContentBuilder builder) throws IOException {
-    }
+    protected void extraXContent(XContentBuilder builder) throws IOException {}
 
     @Override
     public boolean equals(Object obj) {
@@ -229,14 +272,15 @@ public abstract class AbstractAllocateAllocationCommand implements AllocationCom
         }
         AbstractAllocateAllocationCommand other = (AbstractAllocateAllocationCommand) obj;
         // Override equals and hashCode for testing
-        return Objects.equals(index, other.index) &&
-                Objects.equals(shardId, other.shardId) &&
-                Objects.equals(node, other.node);
+        return Objects.equals(index, other.index)
+            && Objects.equals(shardId, other.shardId)
+            && Objects.equals(node, other.node)
+            && Objects.equals(projectId, other.projectId);
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(index, shardId, node);
+        return Objects.hash(index, shardId, node, projectId);
     }
 }

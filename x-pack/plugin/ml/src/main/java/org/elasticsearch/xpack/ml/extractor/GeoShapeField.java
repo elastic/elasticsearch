@@ -33,8 +33,8 @@ public class GeoShapeField extends SourceField {
     }
 
     @Override
-    public Object[] value(SearchHit hit) {
-        Object[] value = super.value(hit);
+    public Object[] value(SearchHit hit, SourceSupplier source) {
+        Object[] value = super.value(hit, source);
         if (value.length == 0) {
             return value;
         }
@@ -42,8 +42,8 @@ public class GeoShapeField extends SourceField {
             throw new IllegalStateException("Unexpected values for a geo_shape field: " + Arrays.toString(value));
         }
 
-        if (value[0] instanceof String) {
-            value[0] = handleString((String) value[0]);
+        if (value[0] instanceof String stringValue) {
+            value[0] = handleString(stringValue);
         } else if (value[0] instanceof Map<?, ?>) {
             @SuppressWarnings("unchecked")
             Map<String, Object> geoObject = (Map<String, Object>) value[0];
@@ -54,14 +54,14 @@ public class GeoShapeField extends SourceField {
         return value;
     }
 
-    private String handleString(String geoString) {
+    private static String handleString(String geoString) {
         try {
             if (geoString.startsWith("POINT")) { // Entry is of the form "POINT (-77.03653 38.897676)"
                 Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, geoString);
                 if (geometry.type() != ShapeType.POINT) {
                     throw new IllegalArgumentException("Unexpected non-point geo_shape type: " + geometry.type().name());
                 }
-                Point pt = ((Point)geometry);
+                Point pt = ((Point) geometry);
                 return pt.getY() + "," + pt.getX();
             } else {
                 throw new IllegalArgumentException("Unexpected value for a geo_shape field: " + geoString);
@@ -71,7 +71,7 @@ public class GeoShapeField extends SourceField {
         }
     }
 
-    private String handleObject(Map<String, Object> geoObject) {
+    private static String handleObject(Map<String, Object> geoObject) {
         String geoType = (String) geoObject.get("type");
         if (geoType != null && "point".equals(geoType.toLowerCase(Locale.ROOT))) {
             @SuppressWarnings("unchecked")

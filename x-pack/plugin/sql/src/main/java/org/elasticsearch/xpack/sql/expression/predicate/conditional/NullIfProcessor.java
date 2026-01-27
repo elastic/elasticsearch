@@ -22,7 +22,6 @@ public class NullIfProcessor implements Processor {
     private final Processor leftProcessor;
     private final Processor rightProcessor;
 
-
     public NullIfProcessor(Processor leftProcessor, Processor rightProcessor) {
         this.leftProcessor = leftProcessor;
         this.rightProcessor = rightProcessor;
@@ -67,8 +66,7 @@ public class NullIfProcessor implements Processor {
             return false;
         }
         NullIfProcessor that = (NullIfProcessor) o;
-        return Objects.equals(leftProcessor, that.leftProcessor) &&
-            Objects.equals(rightProcessor, that.rightProcessor);
+        return Objects.equals(leftProcessor, that.leftProcessor) && Objects.equals(rightProcessor, that.rightProcessor);
     }
 
     @Override

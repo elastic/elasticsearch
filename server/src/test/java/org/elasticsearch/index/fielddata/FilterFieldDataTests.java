@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.fielddata;
 
@@ -48,15 +49,15 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         writer.forceMerge(1, true);
         List<LeafReaderContext> contexts = refreshReader();
-        final MapperBuilderContext builderContext = MapperBuilderContext.ROOT;
+        final MapperBuilderContext builderContext = MapperBuilderContext.root(false, false);
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers())
-                    .fielddata(true)
-                    .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
-                    .build(builderContext).fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
+                .fielddataFrequencyFilter(0, random.nextBoolean() ? 100 : 0.5d, 0)
+                .build(builderContext)
+                .fieldType();
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -67,11 +68,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers())
-                    .fielddata(true)
-                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, 201, 100)
-                    .build(builderContext).fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            MappedFieldType ft = new TextFieldMapper.Builder("high_freq", createDefaultIndexAnalyzers()).fielddata(true)
+                .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, 201, 100)
+                .build(builderContext)
+                .fieldType();
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -82,11 +83,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);// test # docs with value
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers())
-                    .fielddata(true)
-                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
-                    .build(builderContext).fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+                .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
+                .build(builderContext)
+                .fieldType();
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();
@@ -98,11 +99,11 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
         {
             indexService.clearCaches(false, true);
-            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers())
-                    .fielddata(true)
-                    .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d/200.0d, Integer.MAX_VALUE, 101)
-                    .build(builderContext).fieldType();
-            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft);
+            MappedFieldType ft = new TextFieldMapper.Builder("med_freq", createDefaultIndexAnalyzers()).fielddata(true)
+                .fielddataFrequencyFilter(random.nextBoolean() ? 101 : 101d / 200.0d, Integer.MAX_VALUE, 101)
+                .build(builderContext)
+                .fieldType();
+            IndexOrdinalsFieldData fieldData = searchExecutionContext.getForField(ft, MappedFieldType.FielddataOperation.SEARCH);
             for (LeafReaderContext context : contexts) {
                 LeafOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
                 SortedSetDocValues bytesValues = loadDirect.getOrdinalsValues();

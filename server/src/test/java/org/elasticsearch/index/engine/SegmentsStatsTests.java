@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -29,9 +30,12 @@ public class SegmentsStatsTests extends ESTestCase {
 
     public void testFileExtensionDescriptions() throws Exception {
         try (Directory dir = newDirectory()) {
-            try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig()
-                    .setUseCompoundFile(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE))) {
+            try (
+                IndexWriter w = new IndexWriter(
+                    dir,
+                    new IndexWriterConfig().setUseCompoundFile(false).setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
                 // Create a Lucene index that uses all features
                 Document doc = new Document();
                 StringField id = new StringField("id", "1", Store.YES);
@@ -58,8 +62,10 @@ public class SegmentsStatsTests extends ESTestCase {
                     continue;
                 }
                 if (extension != null) {
-                    assertNotNull("extension [" + extension + "] was not contained in the known segment stats files",
-                        LuceneFilesExtensions.fromExtension(extension));
+                    assertNotNull(
+                        "extension [" + extension + "] was not contained in the known segment stats files",
+                        LuceneFilesExtensions.fromExtension(extension)
+                    );
                 }
             }
         }

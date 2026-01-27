@@ -1,21 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
 
-
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -25,14 +22,16 @@ import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,10 +51,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME),
-                type);
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), type);
         if (randomBoolean()) {
-                builder.order(randomFrom(SortOrder.values()));
+            builder.order(randomFrom(SortOrder.values()));
         }
         if (randomBoolean()) {
             if (type == ScriptSortType.NUMBER) {
@@ -115,8 +113,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 }
                 break;
             case 2:
-                result.setNestedSort(randomValueOtherThan(original.getNestedSort(),
-                        () -> NestedSortBuilderTests.createRandomNestedSort(3)));
+                result.setNestedSort(
+                    randomValueOtherThan(original.getNestedSort(), () -> NestedSortBuilderTests.createRandomNestedSort(3))
+                );
                 break;
         }
         return result;
@@ -132,10 +131,12 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         // we rely on these ordinals in serialization, so changing them breaks bwc.
         assertEquals(0, ScriptSortType.STRING.ordinal());
         assertEquals(1, ScriptSortType.NUMBER.ordinal());
-        assertEquals(2, ScriptSortType.LONG.ordinal());
+        assertEquals(2, ScriptSortType.VERSION.ordinal());
+        assertEquals(3, ScriptSortType.LONG.ordinal());
 
         assertEquals("string", ScriptSortType.STRING.toString());
         assertEquals("number", ScriptSortType.NUMBER.toString());
+        assertEquals("version", ScriptSortType.VERSION.toString());
         assertEquals("long", ScriptSortType.LONG.toString());
 
         assertEquals(ScriptSortType.STRING, ScriptSortType.fromString("string"));
@@ -144,6 +145,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("Number"));
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("Version"));
+        assertEquals(ScriptSortType.VERSION, ScriptSortType.fromString("VERSION"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("Long"));
         assertEquals(ScriptSortType.LONG, ScriptSortType.fromString("LONG"));
@@ -160,19 +164,20 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson() throws IOException {
-        String scriptSort = "{"
-            + "  \"_script\": {"
-            + "    \"type\": \"number\","
-            + "    \"script\": {"
-            + "      \"source\": \"doc['field_name'].value * factor\","
-            + "      \"params\": {"
-            + "        \"factor\": 1.1"
-            + "      }"
-            + "    },"
-            + "    \"mode\": \"max\","
-            + "    \"order\": \"asc\""
-            + "  }"
-            + "}";
+        String scriptSort = """
+            {
+              "_script": {
+                "type": "number",
+                "script": {
+                  "source": "doc['field_name'].value * factor",
+                  "params": {
+                    "factor": 1.1
+                  }
+                },
+                "mode": "max",
+                "order": "asc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -191,13 +196,15 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseJson_simple() throws IOException {
-        String scriptSort = "{\n" +
-                "\"_script\" : {\n" +
-                "\"type\" : \"number\",\n" +
-                "\"script\" : \"doc['field_name'].value\",\n" +
-                "\"mode\" : \"max\",\n" +
-                "\"order\" : \"asc\"\n" +
-                "} }\n";
+        String scriptSort = """
+            {
+              "_script": {
+                "type": "number",
+                "script": "doc['field_name'].value",
+                "mode": "max",
+                "order": "asc"
+              }
+            }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -216,7 +223,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseBadFieldNameExceptions() throws IOException {
-        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
+        String scriptSort = """
+            {"_script" : {"bad_field" : "number"} }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -228,8 +236,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
-
-        String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
+        String scriptSort = """
+            {"_script" : {"bad_field" : { "order" : "asc" } } }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -241,7 +249,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     public void testParseUnexpectedToken() throws IOException {
-        String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
+        String scriptSort = """
+            {"_script" : {"script" : [ "order" : "asc" ] } }""";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort)) {
             parser.nextToken();
             parser.nextToken();
@@ -270,7 +279,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         for (SortMode mode : SortMode.values()) {
             ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
             sortBuilder.sortMode(mode);
-            SortField sortField = sortBuilder.build(searchExecutionContext).field;
+            SortField sortField = sortBuilder.build(searchExecutionContext).field();
             assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
             XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
             assertEquals(MultiValueMode.fromString(mode.toString()), comparatorSource.sortMode());
@@ -279,14 +288,14 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         // check that without mode set, order ASC sets mode to MIN, DESC to MAX
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortBuilder.order(SortOrder.ASC);
-        SortField sortField = sortBuilder.build(searchExecutionContext).field;
+        SortField sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MIN, comparatorSource.sortMode());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
         sortBuilder.order(SortOrder.DESC);
-        sortField = sortBuilder.build(searchExecutionContext).field;
+        sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         assertEquals(MultiValueMode.MAX, comparatorSource.sortMode());
@@ -297,15 +306,19 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
      */
     public void testBuildCorrectComparatorType() throws IOException {
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.STRING);
-        SortField sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        SortField sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
         assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER);
-        sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
         assertThat(sortField.getComparatorSource(), instanceOf(DoubleValuesComparatorSource.class));
 
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.VERSION);
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
+        assertThat(sortField.getComparatorSource(), instanceOf(BytesRefFieldComparatorSource.class));
+
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.LONG);
-        sortField = sortBuilder.build(createMockSearchExecutionContext()).field;
+        sortField = sortBuilder.build(createMockSearchExecutionContext()).field();
         assertThat(sortField.getComparatorSource(), instanceOf(LongValuesComparatorSource.class));
     }
 
@@ -315,33 +328,35 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testBuildNested() throws IOException {
         SearchExecutionContext searchExecutionContext = createMockSearchExecutionContext();
 
-        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
-                .setNestedSort(new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery()));
-        SortField sortField = sortBuilder.build(searchExecutionContext).field;
+        ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
+            new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery())
+        );
+        SortField sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
-            .setNestedSort(new NestedSortBuilder("path"));
-        sortField = sortBuilder.build(searchExecutionContext).field;
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
+            new NestedSortBuilder("path")
+        );
+        sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
         assertEquals(new TermQuery(new Term(NestedPathFieldMapper.NAME, "path")), nested.getInnerQuery());
 
-        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER)
-            .setNestedSort(new NestedSortBuilder("path")
-                .setFilter(QueryBuilders.matchAllQuery()));
-        sortField = sortBuilder.build(searchExecutionContext).field;
+        sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
+            new NestedSortBuilder("path").setFilter(QueryBuilders.matchAllQuery())
+        );
+        sortField = sortBuilder.build(searchExecutionContext).field();
         assertThat(sortField.getComparatorSource(), instanceOf(XFieldComparatorSource.class));
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
     }
 
     /**
@@ -351,13 +366,12 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        ScriptSortBuilder rewritten = sortBuilder
-                .rewrite(createMockSearchExecutionContext());
+        ScriptSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 
@@ -368,13 +382,12 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         ScriptSortBuilder sortBuilder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
         RangeQueryBuilder rangeQuery = new RangeQueryBuilder("fieldName") {
             @Override
-            public QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            public QueryBuilder doSearchRewrite(SearchExecutionContext context) {
                 return new MatchNoneQueryBuilder();
             }
         };
         sortBuilder.setNestedSort(new NestedSortBuilder("path").setFilter(rangeQuery));
-        ScriptSortBuilder rewritten = sortBuilder
-                .rewrite(createMockSearchExecutionContext());
+        ScriptSortBuilder rewritten = sortBuilder.rewrite(createMockSearchExecutionContext());
         assertNotSame(rangeQuery, rewritten.getNestedSort().getFilter());
     }
 

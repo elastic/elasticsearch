@@ -1,20 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.client.benchmark.ops.bulk;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -38,8 +39,13 @@ public class BulkBenchmarkTask implements BenchmarkTask {
     private LoadGenerator generator;
     private ExecutorService executorService;
 
-    public BulkBenchmarkTask(BulkRequestExecutor requestExecutor, String indexFilePath, int warmupIterations, int measurementIterations,
-                             int bulkSize) {
+    public BulkBenchmarkTask(
+        BulkRequestExecutor requestExecutor,
+        String indexFilePath,
+        int warmupIterations,
+        int measurementIterations,
+        int bulkSize
+    ) {
         this.requestExecutor = requestExecutor;
         this.indexFilePath = indexFilePath;
         this.warmupIterations = warmupIterations;
@@ -62,11 +68,11 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
     @Override
     @SuppressForbidden(reason = "system out is ok for a command line tool")
-    public void run() throws Exception  {
+    public void run() throws Exception {
         generator.execute();
         // when the generator is done, there are no more data -> shutdown client
         executorService.shutdown();
-        //We need to wait until the queue is drained
+        // We need to wait until the queue is drained
         final boolean finishedNormally = executorService.awaitTermination(20, TimeUnit.MINUTES);
         if (finishedNormally == false) {
             System.err.println("Background tasks are still running after timeout on enclosing pool. Forcing pool shutdown.");
@@ -76,7 +82,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
 
     @Override
     public void tearDown() {
-        //no op
+        // no op
     }
 
     private static final class LoadGenerator {
@@ -122,7 +128,6 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         }
     }
 
-
     private static final class BulkIndexer implements Runnable {
         private static final Logger logger = LogManager.getLogger(BulkIndexer.class);
 
@@ -132,8 +137,13 @@ public class BulkBenchmarkTask implements BenchmarkTask {
         private final BulkRequestExecutor bulkRequestExecutor;
         private final SampleRecorder sampleRecorder;
 
-        BulkIndexer(BlockingQueue<List<String>> bulkData, int warmupIterations, int measurementIterations,
-                           SampleRecorder sampleRecorder, BulkRequestExecutor bulkRequestExecutor) {
+        BulkIndexer(
+            BlockingQueue<List<String>> bulkData,
+            int warmupIterations,
+            int measurementIterations,
+            SampleRecorder sampleRecorder,
+            BulkRequestExecutor bulkRequestExecutor
+        ) {
             this.bulkData = bulkData;
             this.warmupIterations = warmupIterations;
             this.measurementIterations = measurementIterations;
@@ -152,7 +162,7 @@ public class BulkBenchmarkTask implements BenchmarkTask {
                     Thread.currentThread().interrupt();
                     return;
                 }
-                //measure only service time, latency is not that interesting for a throughput benchmark
+                // measure only service time, latency is not that interesting for a throughput benchmark
                 long start = System.nanoTime();
                 try {
                     success = bulkRequestExecutor.bulkIndex(currentBulk);

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -18,11 +19,40 @@ import java.util.function.ToIntBiFunction;
 
 public abstract class AbstractBytesReference implements BytesReference {
 
-    private Integer hash = null; // we cache the hash of this reference since it can be quite costly to re-calculated it
+    protected final int length;
+
+    private int hash;           // we cache the hash of this reference since it can be quite costly to re-calculated it
+    private boolean hashIsZero; // if the calculated hash is actually zero
+
+    protected AbstractBytesReference(int length) {
+        this.length = length;
+    }
+
+    @Override
+    public final int length() {
+        return length;
+    }
 
     @Override
     public int getInt(int index) {
         return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
+    }
+
+    @Override
+    public int getIntLE(int index) {
+        return (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1) & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
+    public long getLongLE(int index) {
+        return (long) (get(index + 7) & 0xFF) << 56 | (long) (get(index + 6) & 0xFF) << 48 | (long) (get(index + 5) & 0xFF) << 40
+            | (long) (get(index + 4) & 0xFF) << 32 | (long) (get(index + 3) & 0xFF) << 24 | (get(index + 2) & 0xFF) << 16 | (get(index + 1)
+                & 0xFF) << 8 | get(index) & 0xFF;
+    }
+
+    @Override
+    public double getDoubleLE(int index) {
+        return Double.longBitsToDouble(getLongLE(index));
     }
 
     @Override
@@ -56,30 +86,18 @@ public abstract class AbstractBytesReference implements BytesReference {
     }
 
     @Override
-    public BytesRefIterator iterator() {
-        return new BytesRefIterator() {
-            BytesRef ref = length() == 0 ? null : toBytesRef();
-            @Override
-            public BytesRef next() {
-                BytesRef r = ref;
-                ref = null; // only return it once...
-                return r;
-            }
-        };
-    }
-
-    @Override
     public boolean equals(Object other) {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesReference) {
-            final BytesReference otherRef = (BytesReference) other;
+        if (other instanceof final BytesReference otherRef) {
             if (length() != otherRef.length()) {
                 return false;
             }
-            return compareIterators(this, otherRef, (a, b) ->
-                a.bytesEquals(b) ? 0 : 1 // this is a call to BytesRef#bytesEquals - this method is the hot one in the comparison
+            return compareIterators(
+                this,
+                otherRef,
+                (a, b) -> a.bytesEquals(b) ? 0 : 1 // this is a call to BytesRef#bytesEquals - this method is the hot one in the comparison
             ) == 0;
         }
         return false;
@@ -87,7 +105,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     @Override
     public int hashCode() {
-        if (hash == null) {
+        if (hash == 0 && hashIsZero == false) {
             final BytesRefIterator iterator = iterator();
             BytesRef ref;
             int result = 1;
@@ -100,10 +118,13 @@ public abstract class AbstractBytesReference implements BytesReference {
             } catch (IOException ex) {
                 throw new AssertionError("wont happen", ex);
             }
-            return hash = result;
-        } else {
-            return hash;
+            if (result == 0) {
+                hashIsZero = true;
+            } else {
+                hash = result;
+            }
         }
+        return hash;
     }
 
     @Override
@@ -162,7 +183,7 @@ public abstract class AbstractBytesReference implements BytesReference {
 
     private static void advance(final BytesRef ref, final int length) {
         assert ref.length >= length : " ref.length: " + ref.length + " length: " + length;
-        assert ref.offset+length < ref.bytes.length || (ref.offset+length == ref.bytes.length && ref.length-length == 0)
+        assert ref.offset + length < ref.bytes.length || (ref.offset + length == ref.bytes.length && ref.length - length == 0)
             : "offset: " + ref.offset + " ref.bytes.length: " + ref.bytes.length + " length: " + length + " ref.length: " + ref.length;
         ref.length -= length;
         ref.offset += length;

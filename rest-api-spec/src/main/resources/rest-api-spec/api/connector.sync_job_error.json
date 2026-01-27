@@ -1,0 +1,38 @@
+{
+  "connector.sync_job_error": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-error",
+      "description": "Set a connector sync job error"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_connector/_sync_job/{connector_sync_job_id}/_error",
+          "methods": [
+            "PUT"
+          ],
+          "parts": {
+            "connector_sync_job_id": {
+              "type": "string",
+              "description": "The unique identifier of the connector sync job to set an error for."
+            }
+          }
+        }
+      ]
+    },
+    "body": {
+      "description": "The error to set in the connector sync job.",
+      "required": true
+    }
+  }
+}

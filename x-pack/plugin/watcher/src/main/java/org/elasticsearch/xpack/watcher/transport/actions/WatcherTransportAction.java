@@ -12,21 +12,29 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.watcher.WatcherField;
 
-abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse>
-        extends HandledTransportAction<Request, Response> {
+abstract class WatcherTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends HandledTransportAction<
+    Request,
+    Response> {
 
     protected final XPackLicenseState licenseState;
 
-    WatcherTransportAction(String actionName, TransportService transportService, ActionFilters actionFilters,
-                           XPackLicenseState licenseState, Writeable.Reader<Request> request) {
-        super(actionName, transportService, actionFilters, request);
+    WatcherTransportAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        XPackLicenseState licenseState,
+        Writeable.Reader<Request> request
+    ) {
+        super(actionName, transportService, actionFilters, request, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.licenseState = licenseState;
     }
 
@@ -36,7 +44,7 @@ abstract class WatcherTransportAction<Request extends ActionRequest, Response ex
 
     @Override
     protected final void doExecute(Task task, final Request request, ActionListener<Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.WATCHER)) {
+        if (WatcherField.WATCHER_FEATURE.check(licenseState)) {
             doExecute(request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.WATCHER));

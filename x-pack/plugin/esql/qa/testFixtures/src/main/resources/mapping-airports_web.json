@@ -1,0 +1,19 @@
+{
+  "properties": {
+    "abbrev": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text"
+    },
+    "scalerank": {
+      "type": "integer"
+    },
+    "type": {
+      "type": "keyword"
+    },
+    "location": {
+      "type": "point"
+    }
+  }
+}

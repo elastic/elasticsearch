@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -42,7 +42,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_NAME = "field";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0d);
@@ -51,7 +51,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 5.3, 6, 20 })));
         }, avg -> {
@@ -61,7 +61,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSimpleHistogram() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 6, 20 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })));
@@ -111,7 +111,7 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalAvg> verify)
         throws IOException {
-        testCase(avg("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+        testCase(indexer, verify, new AggTestConfig(avg("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
     }
 
     @Override
@@ -136,6 +136,6 @@ public class HistoBackedAvgAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType(HistoBackedAvgAggregatorTests.FIELD_NAME, Collections.emptyMap());
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedAvgAggregatorTests.FIELD_NAME, Collections.emptyMap(), null);
     }
 }

@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
 
-import org.elasticsearch.gradle.internal.test.GradleUnitTestCase;
+import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,9 +17,11 @@ import java.util.Map;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.deriveId;
 import static org.elasticsearch.gradle.internal.docker.DockerSupportService.parseOsRelease;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 
-public class DockerSupportServiceTests extends GradleUnitTestCase {
+public class DockerSupportServiceTests {
 
+    @Test
     public void testParseOsReleaseOnOracle() {
         final List<String> lines = List.of(
             "NAME=\"Oracle Linux Server\"",
@@ -60,6 +63,7 @@ public class DockerSupportServiceTests extends GradleUnitTestCase {
     /**
      * Trailing whitespace should be removed
      */
+    @Test
     public void testRemoveTrailingWhitespace() {
         final List<String> lines = List.of("NAME=\"Oracle Linux Server\"   ");
 
@@ -73,6 +77,7 @@ public class DockerSupportServiceTests extends GradleUnitTestCase {
     /**
      * Comments should be removed
      */
+    @Test
     public void testRemoveComments() {
         final List<String> lines = List.of("# A comment", "NAME=\"Oracle Linux Server\"");
 
@@ -83,6 +88,7 @@ public class DockerSupportServiceTests extends GradleUnitTestCase {
         assertThat(expected, equalTo(results));
     }
 
+    @Test
     public void testDeriveIdOnOracle() {
         final Map<String, String> osRelease = new HashMap<>();
         osRelease.put("ID", "ol");

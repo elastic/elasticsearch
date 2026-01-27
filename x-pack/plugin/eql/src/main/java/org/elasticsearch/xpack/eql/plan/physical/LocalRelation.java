@@ -87,7 +87,6 @@ public class LocalRelation extends LogicalPlan implements Executable {
         return Objects.equals(executable, other.executable);
     }
 
-
     @Override
     public String nodeString() {
         return nodeName() + NodeUtils.limitedToString(output());

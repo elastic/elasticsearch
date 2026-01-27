@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.analyze;
@@ -12,17 +13,17 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NameOrDefinition;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
     public static final String NAME = "indices:admin/analyze";
 
     private AnalyzeAction() {
-        super(NAME, AnalyzeAction.Response::new);
+        super(NAME);
     }
 
     public static class Fields {
@@ -59,7 +60,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
      * A request to analyze a text associated with a specific index. Allow to provide
      * the actual analyzer name to perform the analysis with.
      */
-    public static class Request extends SingleShardRequest<Request> {
+    public static final class Request extends SingleShardRequest<Request> {
 
         private String[] text;
         private String analyzer;
@@ -71,16 +72,15 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         private String[] attributes = Strings.EMPTY_ARRAY;
         private String normalizer;
 
-        public Request() {
-        }
+        public Request() {}
 
         Request(StreamInput in) throws IOException {
             super(in);
             text = in.readStringArray();
             analyzer = in.readOptionalString();
             tokenizer = in.readOptionalWriteable(NameOrDefinition::new);
-            tokenFilters.addAll(in.readList(NameOrDefinition::new));
-            charFilters.addAll(in.readList(NameOrDefinition::new));
+            tokenFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
+            charFilters.addAll(in.readCollectionAsList(NameOrDefinition::new));
             field = in.readOptionalString();
             explain = in.readBoolean();
             attributes = in.readStringArray();
@@ -106,7 +106,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public Request text(List<String> text) {
-            this.text = text.toArray(new String[]{});
+            this.text = text.toArray(new String[] {});
             return this;
         }
 
@@ -200,7 +200,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         public void attributes(List<String> attributes) {
-            this.attributes = attributes.toArray(new String[]{});
+            this.attributes = attributes.toArray(new String[] {});
         }
 
         public String[] attributes() {
@@ -226,20 +226,22 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 validationException = addValidationError("index is required if normalizer is specified", validationException);
             }
             if (normalizer != null && (tokenizer != null || analyzer != null)) {
-                validationException
-                    = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
+                validationException = addValidationError(
+                    "tokenizer/analyze should be null if normalizer is specified",
+                    validationException
+                );
             }
             if (analyzer != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
-                validationException
-                    = addValidationError("cannot define extra components on a named analyzer", validationException);
+                validationException = addValidationError("cannot define extra components on a named analyzer", validationException);
             }
             if (normalizer != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
-                validationException
-                    = addValidationError("cannot define extra components on a named normalizer", validationException);
+                validationException = addValidationError("cannot define extra components on a named normalizer", validationException);
             }
             if (field != null && (tokenizer != null || charFilters.isEmpty() == false || tokenFilters.isEmpty() == false)) {
-                validationException
-                    = addValidationError("cannot define extra components on a field-specific analyzer", validationException);
+                validationException = addValidationError(
+                    "cannot define extra components on a field-specific analyzer",
+                    validationException
+                );
             }
             return validationException;
         }
@@ -250,8 +252,8 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             out.writeStringArray(text);
             out.writeOptionalString(analyzer);
             out.writeOptionalWriteable(tokenizer);
-            out.writeList(tokenFilters);
-            out.writeList(charFilters);
+            out.writeCollection(tokenFilters);
+            out.writeCollection(charFilters);
             out.writeOptionalString(field);
             out.writeBoolean(explain);
             out.writeStringArray(attributes);
@@ -269,12 +271,14 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         static {
             PARSER.declareStringArray(Request::text, Fields.TEXT);
             PARSER.declareString(Request::analyzer, Fields.ANALYZER);
-            PARSER.declareField(Request::tokenizer, (p, c) -> NameOrDefinition.fromXContent(p),
-                Fields.TOKENIZER, ObjectParser.ValueType.OBJECT_OR_STRING);
-            PARSER.declareObjectArray(Request::setTokenFilters, (p, c) -> NameOrDefinition.fromXContent(p),
-                Fields.TOKEN_FILTERS);
-            PARSER.declareObjectArray(Request::setCharFilters, (p, c) -> NameOrDefinition.fromXContent(p),
-                Fields.CHAR_FILTERS);
+            PARSER.declareField(
+                Request::tokenizer,
+                (p, c) -> NameOrDefinition.fromXContent(p),
+                Fields.TOKENIZER,
+                ObjectParser.ValueType.OBJECT_OR_STRING
+            );
+            PARSER.declareObjectArray(Request::setTokenFilters, (p, c) -> NameOrDefinition.fromXContent(p), Fields.TOKEN_FILTERS);
+            PARSER.declareObjectArray(Request::setCharFilters, (p, c) -> NameOrDefinition.fromXContent(p), Fields.CHAR_FILTERS);
             PARSER.declareString(Request::field, Fields.FIELD);
             PARSER.declareBoolean(Request::explain, Fields.EXPLAIN);
             PARSER.declareStringArray(Request::attributes, Fields.ATTRIBUTES);
@@ -349,8 +353,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 return false;
             }
             Response that = (Response) o;
-            return Objects.equals(detail, that.detail) &&
-                Objects.equals(tokens, that.tokens);
+            return Objects.equals(detail, that.detail) && Objects.equals(tokens, that.tokens);
         }
 
         @Override
@@ -395,13 +398,13 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 return false;
             }
             AnalyzeToken that = (AnalyzeToken) o;
-            return startOffset == that.startOffset &&
-                endOffset == that.endOffset &&
-                position == that.position &&
-                positionLength == that.positionLength &&
-                Objects.equals(term, that.term) &&
-                Objects.equals(attributes, that.attributes) &&
-                Objects.equals(type, that.type);
+            return startOffset == that.startOffset
+                && endOffset == that.endOffset
+                && position == that.position
+                && positionLength == that.positionLength
+                && Objects.equals(term, that.term)
+                && Objects.equals(attributes, that.attributes)
+                && Objects.equals(type, that.type);
         }
 
         @Override
@@ -409,8 +412,15 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             return Objects.hash(term, startOffset, endOffset, position, positionLength, attributes, type);
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
-                            String type, Map<String, Object> attributes) {
+        public AnalyzeToken(
+            String term,
+            int position,
+            int startOffset,
+            int endOffset,
+            int positionLength,
+            String type,
+            Map<String, Object> attributes
+        ) {
             this.term = term;
             this.position = position;
             this.startOffset = startOffset;
@@ -432,7 +442,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 positionLength = 1;
             }
             type = in.readOptionalString();
-            attributes = in.readMap();
+            attributes = in.readGenericMap();
         }
 
         public String getTerm() {
@@ -459,7 +469,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             return this.type;
         }
 
-        public Map<String, Object> getAttributes(){
+        public Map<String, Object> getAttributes() {
             return this.attributes;
         }
 
@@ -512,11 +522,13 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             this(true, null, charfilters, tokenizer, tokenfilters);
         }
 
-        DetailAnalyzeResponse(boolean customAnalyzer,
-                                     AnalyzeTokenList analyzer,
-                                     CharFilteredText[] charfilters,
-                                     AnalyzeTokenList tokenizer,
-                                     AnalyzeTokenList[] tokenfilters) {
+        DetailAnalyzeResponse(
+            boolean customAnalyzer,
+            AnalyzeTokenList analyzer,
+            CharFilteredText[] charfilters,
+            AnalyzeTokenList tokenizer,
+            AnalyzeTokenList[] tokenfilters
+        ) {
             this.customAnalyzer = customAnalyzer;
             this.analyzer = analyzer;
             this.charfilters = charfilters;
@@ -580,11 +592,11 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 return false;
             }
             DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
-            return customAnalyzer == that.customAnalyzer &&
-                Objects.equals(analyzer, that.analyzer) &&
-                Arrays.equals(charfilters, that.charfilters) &&
-                Objects.equals(tokenizer, that.tokenizer) &&
-                Arrays.equals(tokenfilters, that.tokenfilters);
+            return customAnalyzer == that.customAnalyzer
+                && Objects.equals(analyzer, that.analyzer)
+                && Arrays.equals(charfilters, that.charfilters)
+                && Objects.equals(tokenizer, that.tokenizer)
+                && Arrays.equals(tokenfilters, that.tokenfilters);
         }
 
         @Override
@@ -635,18 +647,12 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
             if (customAnalyzer) {
                 tokenizer.writeTo(out);
                 if (charfilters != null) {
-                    out.writeVInt(charfilters.length);
-                    for (CharFilteredText charfilter : charfilters) {
-                        charfilter.writeTo(out);
-                    }
+                    out.writeArray(charfilters);
                 } else {
                     out.writeVInt(0);
                 }
                 if (tokenfilters != null) {
-                    out.writeVInt(tokenfilters.length);
-                    for (AnalyzeTokenList tokenfilter : tokenfilters) {
-                        tokenfilter.writeTo(out);
-                    }
+                    out.writeArray(tokenfilters);
                 } else {
                     out.writeVInt(0);
                 }
@@ -671,8 +677,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 return false;
             }
             AnalyzeTokenList that = (AnalyzeTokenList) o;
-            return Objects.equals(name, that.name) &&
-                Arrays.equals(tokens, that.tokens);
+            return Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
         }
 
         @Override
@@ -779,8 +784,7 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
                 return false;
             }
             CharFilteredText that = (CharFilteredText) o;
-            return Objects.equals(name, that.name) &&
-                Arrays.equals(texts, that.texts);
+            return Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
         }
 
         @Override

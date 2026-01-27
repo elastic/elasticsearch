@@ -1,27 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
@@ -72,6 +74,19 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         assertEquals(expectedMax, reduced.getMax(), 0d);
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalStats sampled, InternalStats reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 1e-7);
+        assertEquals(sampled.getMin(), reduced.getMin(), 0d);
+        assertEquals(sampled.getMax(), reduced.getMax(), 0d);
+    }
+
     public void testSummationAccuracy() {
         double[] values = new double[] { 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.9, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7 };
         verifyStatsOfDoubles(values, 13.5, 0.9, 0d);
@@ -110,38 +125,13 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
             min = Math.min(min, value);
             aggregations.add(new InternalStats("dummy1", 1, value, value, value, null, null));
         }
-        InternalStats internalStats = new InternalStats("dummy2", 0, 0.0, 2.0, 0.0, null, null);
-        InternalStats reduced = internalStats.reduce(aggregations, null);
-        assertEquals("dummy2", reduced.getName());
+        InternalStats reduced = (InternalStats) InternalAggregationTestCase.reduce(aggregations, null);
+        assertEquals("dummy1", reduced.getName());
         assertEquals(values.length, reduced.getCount());
         assertEquals(expectedSum, reduced.getSum(), delta);
         assertEquals(expectedAvg, reduced.getAvg(), delta);
         assertEquals(min, reduced.getMin(), 0d);
         assertEquals(max, reduced.getMax(), 0d);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalStats aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedStats);
-        ParsedStats parsed = (ParsedStats) parsedAggregation;
-        assertStats(aggregation, parsed);
-    }
-
-    static void assertStats(InternalStats aggregation, ParsedStats parsed) {
-        long count = aggregation.getCount();
-        assertEquals(count, parsed.getCount());
-        // for count == 0, fields are rendered as `null`, so we test that we parse to default values used also in the reduce phase
-        assertEquals(count > 0 ? aggregation.getMin() : Double.POSITIVE_INFINITY, parsed.getMin(), 0);
-        assertEquals(count > 0 ? aggregation.getMax() : Double.NEGATIVE_INFINITY, parsed.getMax(), 0);
-        assertEquals(count > 0 ? aggregation.getSum() : 0, parsed.getSum(), 0);
-        assertEquals(count > 0 ? aggregation.getAvg() : 0, parsed.getAvg(), 0);
-        // also as_string values are only rendered for count != 0
-        if (count > 0) {
-            assertEquals(aggregation.getMinAsString(), parsed.getMinAsString());
-            assertEquals(aggregation.getMaxAsString(), parsed.getMaxAsString());
-            assertEquals(aggregation.getSumAsString(), parsed.getSumAsString());
-            assertEquals(aggregation.getAvgAsString(), parsed.getAvgAsString());
-        }
     }
 
     @Override
@@ -187,7 +177,7 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
                 break;
             case 5:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
@@ -207,43 +197,42 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         int count = randomIntBetween(1, 10);
         DocValueFormat format = randomNumericDocValueFormat();
         InternalStats internalStats = createInstance("stats", count, sum, min, max, format, null);
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        String expected = "{\n"
-            + "  \"count\" : "
-            + count
-            + ",\n"
-            + "  \"min\" : "
-            + min
-            + ",\n"
-            + "  \"max\" : "
-            + max
-            + ",\n"
-            + "  \"avg\" : "
-            + internalStats.getAvg()
-            + ",\n"
-            + "  \"sum\" : "
-            + sum;
-        if (format != DocValueFormat.RAW) {
-            expected += ",\n"
-                + "  \"min_as_string\" : \""
-                + format.format(internalStats.getMin())
-                + "\",\n"
-                + "  \"max_as_string\" : \""
-                + format.format(internalStats.getMax())
-                + "\",\n"
-                + "  \"avg_as_string\" : \""
-                + format.format(internalStats.getAvg())
-                + "\",\n"
-                + "  \"sum_as_string\" : \""
-                + format.format(internalStats.getSum())
-                + "\"";
-        }
-        expected += "\n}";
-        assertEquals(expected, Strings.toString(builder));
+        Object[] args = new Object[] {
+            count,
+            min,
+            max,
+            internalStats.getAvg(),
+            sum,
+            format != DocValueFormat.RAW
+                ? Strings.format(
+                    """
+                        ,
+                        "min_as_string" : "%s",
+                        "max_as_string" : "%s",
+                        "avg_as_string" : "%s",
+                        "sum_as_string" : "%s"
+                        """,
+                    format.format(internalStats.getMin()),
+                    format.format(internalStats.getMax()),
+                    format.format(internalStats.getAvg()),
+                    format.format(internalStats.getSum())
+                )
+                : "" };
+        String expected = Strings.format("""
+            {
+              "count" : %s,
+              "min" : %s,
+              "max" : %s,
+              "avg" : %s,
+              "sum" : %s
+              %s
+            }""", args);
+        assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
 
         // count is zero
         format = randomNumericDocValueFormat();
@@ -252,26 +241,24 @@ public class InternalStatsTests extends InternalAggregationTestCase<InternalStat
         sum = 0.0;
         count = 0;
         internalStats = createInstance("stats", count, sum, min, max, format, null);
-        builder = JsonXContent.contentBuilder().prettyPrint();
+        builder = JsonXContent.contentBuilder();
         builder.startObject();
         internalStats.doXContentBody(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"count\" : 0,\n"
-                + "  \"min\" : null,\n"
-                + "  \"max\" : null,\n"
-                + "  \"avg\" : null,\n"
-                + "  \"sum\" : 0.0\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "count" : 0,
+              "min" : null,
+              "max" : null,
+              "avg" : null,
+              "sum" : 0.0
+            }"""), Strings.toString(builder));
     }
 
     public void testIterator() {
         InternalStats aggregation = createTestInstance("test", emptyMap());
-        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).collect(Collectors.toList());
+        List<String> names = StreamSupport.stream(aggregation.valueNames().spliterator(), false).toList();
 
         assertEquals(5, names.size());
         assertTrue(names.contains("min"));

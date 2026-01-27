@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -42,31 +42,31 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_NAME = "field";
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
+            assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
         });
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues("wrong_field", new double[] { 5.3, 6, 20 })));
         }, sum -> {
-            assertEquals(0L, sum.getValue(), 0d);
+            assertEquals(0L, sum.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(sum));
         });
     }
 
     public void testSimpleHistogram() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 3, 1.2, 10 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { 5.3, 6, 6, 20 })));
             iw.addDocument(singleton(histogramFieldDocValues(FIELD_NAME, new double[] { -10, 0.01, 1, 90 })));
         }, sum -> {
-            assertEquals(132.51d, sum.getValue(), 0.01d);
+            assertEquals(132.51d, sum.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
         });
     }
@@ -104,14 +104,13 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
                 )
             );
         }, sum -> {
-            assertEquals(126.51d, sum.getValue(), 0.01d);
+            assertEquals(126.51d, sum.value(), 0.01d);
             assertTrue(AggregationInspectionHelper.hasValue(sum));
         });
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalSum> verify)
-        throws IOException {
-        testCase(sum("_name").field(FIELD_NAME), query, indexer, verify, defaultFieldType());
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify) throws IOException {
+        testCase(indexer, verify, new AggTestConfig(sum("_name").field(FIELD_NAME), defaultFieldType()).withQuery(query));
     }
 
     @Override
@@ -136,6 +135,6 @@ public class HistoBackedSumAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType defaultFieldType() {
-        return new HistogramFieldMapper.HistogramFieldType(HistoBackedSumAggregatorTests.FIELD_NAME, Collections.emptyMap());
+        return new HistogramFieldMapper.HistogramFieldType(HistoBackedSumAggregatorTests.FIELD_NAME, Collections.emptyMap(), null);
     }
 }

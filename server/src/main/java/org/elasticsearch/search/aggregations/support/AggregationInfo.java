@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -52,18 +53,7 @@ public class AggregationInfo implements ReportingService.Info {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(aggs.size());
-        for (Map.Entry<String, Set<String>> e : aggs.entrySet()) {
-            out.writeString(e.getKey());
-            out.writeVInt(e.getValue().size());
-            for (String type : e.getValue()) {
-                out.writeString(type);
-            }
-        }
-    }
-
-    public Map<String, Set<String>> getAggregations() {
-        return aggs;
+        out.writeMap(aggs, StreamOutput::writeStringCollection);
     }
 
     @Override

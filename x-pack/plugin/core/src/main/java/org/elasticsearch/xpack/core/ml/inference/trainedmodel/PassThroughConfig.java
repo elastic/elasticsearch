@@ -7,13 +7,14 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObjectHelper;
@@ -38,40 +39,55 @@ public class PassThroughConfig implements NlpConfig {
     private static final ConstructingObjectParser<PassThroughConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<PassThroughConfig, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<PassThroughConfig, Void> parser = new ConstructingObjectParser<>(NAME, ignoreUnknownFields,
-            a -> new PassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1]));
-        parser.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> {
-                if (ignoreUnknownFields == false) {
-                    throw ExceptionsHelper.badRequestException(
-                        "illegal setting [{}] on inference model creation",
-                        VOCABULARY.getPreferredName()
-                    );
-                }
-                return VocabularyConfig.fromXContentLenient(p);
-            },
-            VOCABULARY
+        ConstructingObjectParser<PassThroughConfig, Void> parser = new ConstructingObjectParser<>(
+            NAME,
+            ignoreUnknownFields,
+            a -> new PassThroughConfig((VocabularyConfig) a[0], (Tokenization) a[1], (String) a[2])
         );
+        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            if (ignoreUnknownFields == false) {
+                throw ExceptionsHelper.badRequestException(
+                    "illegal setting [{}] on inference model creation",
+                    VOCABULARY.getPreferredName()
+                );
+            }
+            return VocabularyConfig.fromXContentLenient(p);
+        }, VOCABULARY);
         parser.declareNamedObject(
-            ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(Tokenization.class, n, ignoreUnknownFields),
             TOKENIZATION
         );
+        parser.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
         return parser;
     }
 
     private final VocabularyConfig vocabularyConfig;
     private final Tokenization tokenization;
+    private final String resultsField;
 
-    public PassThroughConfig(@Nullable VocabularyConfig vocabularyConfig, @Nullable Tokenization tokenization) {
+    public PassThroughConfig(
+        @Nullable VocabularyConfig vocabularyConfig,
+        @Nullable Tokenization tokenization,
+        @Nullable String resultsField
+    ) {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
+        this.resultsField = resultsField;
+        if (this.tokenization.span != -1) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] does not support windowing long text sequences; configured span [{}]",
+                NAME,
+                this.tokenization.span
+            );
+        }
     }
 
     public PassThroughConfig(StreamInput in) throws IOException {
         vocabularyConfig = new VocabularyConfig(in);
         tokenization = in.readNamedWriteable(Tokenization.class);
+        resultsField = in.readOptionalString();
     }
 
     @Override
@@ -79,6 +95,9 @@ public class PassThroughConfig implements NlpConfig {
         builder.startObject();
         builder.field(VOCABULARY.getPreferredName(), vocabularyConfig, params);
         NamedXContentObjectHelper.writeNamedObject(builder, params, TOKENIZATION.getPreferredName(), tokenization);
+        if (resultsField != null) {
+            builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
+        }
         builder.endObject();
         return builder;
     }
@@ -92,6 +111,7 @@ public class PassThroughConfig implements NlpConfig {
     public void writeTo(StreamOutput out) throws IOException {
         vocabularyConfig.writeTo(out);
         out.writeNamedWriteable(tokenization);
+        out.writeOptionalString(resultsField);
     }
 
     @Override
@@ -100,8 +120,29 @@ public class PassThroughConfig implements NlpConfig {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_8_0_0;
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof PassThroughConfigUpdate configUpdate) {
+            return new PassThroughConfig(
+                vocabularyConfig,
+                (configUpdate.getTokenizationUpdate() == null) ? tokenization : configUpdate.getTokenizationUpdate().apply(tokenization),
+                update.getResultsField() == null ? resultsField : update.getResultsField()
+            );
+        } else if (update instanceof TokenizationConfigUpdate tokenizationUpdate) {
+            var updatedTokenization = getTokenization().updateWindowSettings(tokenizationUpdate.getSpanSettings());
+            return new PassThroughConfig(this.vocabularyConfig, updatedTokenization, this.resultsField);
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
+    }
+
+    @Override
+    public MlConfigVersion getMinimalSupportedMlConfigVersion() {
+        return MlConfigVersion.V_8_0_0;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedTransportVersion() {
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -121,12 +162,13 @@ public class PassThroughConfig implements NlpConfig {
 
         PassThroughConfig that = (PassThroughConfig) o;
         return Objects.equals(vocabularyConfig, that.vocabularyConfig)
-            && Objects.equals(tokenization, that.tokenization);
+            && Objects.equals(tokenization, that.tokenization)
+            && Objects.equals(resultsField, that.resultsField);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(vocabularyConfig, tokenization);
+        return Objects.hash(vocabularyConfig, tokenization, resultsField);
     }
 
     @Override
@@ -137,5 +179,10 @@ public class PassThroughConfig implements NlpConfig {
     @Override
     public Tokenization getTokenization() {
         return tokenization;
+    }
+
+    @Override
+    public String getResultsField() {
+        return resultsField;
     }
 }

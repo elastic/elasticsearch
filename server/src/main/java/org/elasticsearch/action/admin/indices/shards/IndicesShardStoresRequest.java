@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.shards;
 
@@ -15,27 +16,36 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.EnumSet;
+import java.util.Map;
 
 /**
- * Request for {@link IndicesShardStoresAction}
+ * Request for {@link TransportIndicesShardStoresAction}
  */
 public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShardStoresRequest> implements IndicesRequest.Replaceable {
 
+    static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 100;
+
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpand();
+    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
     private EnumSet<ClusterHealthStatus> statuses = EnumSet.of(ClusterHealthStatus.YELLOW, ClusterHealthStatus.RED);
+    private int maxConcurrentShardRequests = DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS;
 
     /**
      * Create a request for shard stores info for <code>indices</code>
      */
     public IndicesShardStoresRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.indices = indices;
     }
 
     public IndicesShardStoresRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
@@ -47,17 +57,16 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
             statuses.add(ClusterHealthStatus.readFrom(in));
         }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
+        maxConcurrentShardRequests = in.readVInt();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeVInt(statuses.size());
-        for (ClusterHealthStatus status : statuses) {
-            out.writeByte(status.value());
-        }
+        out.writeCollection(statuses, (o, v) -> o.writeByte(v.value()));
         indicesOptions.writeIndicesOptions(out);
+        out.writeVInt(maxConcurrentShardRequests);
     }
 
     /**
@@ -118,8 +127,21 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
         return indicesOptions;
     }
 
+    public void maxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    public int maxConcurrentShardRequests() {
+        return maxConcurrentShardRequests;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 }

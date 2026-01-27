@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.eql.plugin;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,24 +24,41 @@ import java.util.List;
 /**
  * Performs the stats operation.
  */
-public class TransportEqlStatsAction extends TransportNodesAction<EqlStatsRequest, EqlStatsResponse,
-        EqlStatsRequest.NodeStatsRequest, EqlStatsResponse.NodeStatsResponse> {
+public class TransportEqlStatsAction extends TransportNodesAction<
+    EqlStatsRequest,
+    EqlStatsResponse,
+    EqlStatsRequest.NodeStatsRequest,
+    EqlStatsResponse.NodeStatsResponse,
+    Void> {
 
     // the plan executor holds the metrics
     private final PlanExecutor planExecutor;
 
     @Inject
-    public TransportEqlStatsAction(TransportService transportService, ClusterService clusterService,
-            ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor) {
-        super(EqlStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-              EqlStatsRequest::new, EqlStatsRequest.NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT,
-              EqlStatsResponse.NodeStatsResponse.class);
+    public TransportEqlStatsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        PlanExecutor planExecutor
+    ) {
+        super(
+            EqlStatsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            EqlStatsRequest.NodeStatsRequest::new,
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+        );
         this.planExecutor = planExecutor;
     }
 
     @Override
-    protected EqlStatsResponse newResponse(EqlStatsRequest request, List<EqlStatsResponse.NodeStatsResponse> nodes,
-                                           List<FailedNodeException> failures) {
+    protected EqlStatsResponse newResponse(
+        EqlStatsRequest request,
+        List<EqlStatsResponse.NodeStatsResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         return new EqlStatsResponse(clusterService.getClusterName(), nodes, failures);
     }
 
@@ -50,7 +68,7 @@ public class TransportEqlStatsAction extends TransportNodesAction<EqlStatsReques
     }
 
     @Override
-    protected EqlStatsResponse.NodeStatsResponse newNodeResponse(StreamInput in) throws IOException {
+    protected EqlStatsResponse.NodeStatsResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new EqlStatsResponse.NodeStatsResponse(in);
     }
 

@@ -19,8 +19,13 @@ public class InsensitiveBinaryComparisonPipe extends BinaryPipe {
 
     private final InsensitiveBinaryComparisonOperation operation;
 
-    public InsensitiveBinaryComparisonPipe(Source source, Expression expression, Pipe left, Pipe right,
-                                           InsensitiveBinaryComparisonOperation operation) {
+    public InsensitiveBinaryComparisonPipe(
+        Source source,
+        Expression expression,
+        Pipe left,
+        Pipe right,
+        InsensitiveBinaryComparisonOperation operation
+    ) {
         super(source, expression, left, right);
         this.operation = operation;
     }

@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -41,7 +44,13 @@ import java.util.function.BooleanSupplier;
  */
 public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
+    private final ThreadContext threadContext;
+
     private final AtomicReference<CachedItem> currentCachedItemRef = new AtomicReference<>();
+
+    protected CancellableSingleObjectCache(ThreadContext threadContext) {
+        this.threadContext = threadContext;
+    }
 
     /**
      * Compute a new value for the cache.
@@ -57,11 +66,23 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *                           suitably fresh for future requests too.
      * @param ensureNotCancelled A {@link Runnable} which throws a {@link TaskCancelledException} if the result of the computation is no
      *                           longer needed. On cancellation, notifying the {@code listener} is optional.
+     * @param supersedeIfStale   Checks whether the {@code input} to this refresh has been superseded by a fresher input. If the current
+     *                           input has been superseded then this supplier subscribes the {@code listener} (and corresponding
+     *                           cancellation checks) to the computation from the new input and returns {@code true}, indicating that no
+     *                           further action is needed by this invocation of {@code refresh()}. If the current input is still the
+     *                           freshest then it takes no action and returns {@code false} to indicate that this invocation of {@code
+     *                           refresh()} must proceed. Implementations of {@code refresh()} that work asynchronously, for instance by
+     *                           running the computation on a different thread, should use this to check for freshness when they resume.
      * @param listener           A {@link ActionListener} which should be notified when the computation completes. If the computation fails
      *                           by calling {@link ActionListener#onFailure} then the result is returned to the pending listeners but is not
      *                           cached.
      */
-    protected abstract void refresh(Input input, Runnable ensureNotCancelled, ActionListener<Value> listener);
+    protected abstract void refresh(
+        Input input,
+        Runnable ensureNotCancelled,
+        BooleanSupplier supersedeIfStale,
+        ActionListener<Value> listener
+    );
 
     /**
      * Compute the key for the given input value.
@@ -80,6 +101,13 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
     }
 
     /**
+     * Sets the currently cached item reference to {@code null}, which will result in a {@code refresh()} on the next {@code get()} call.
+     */
+    protected final void clearCurrentCachedItem() {
+        this.currentCachedItemRef.set(null);
+    }
+
+    /**
      * Start a retrieval for the value associated with the given {@code input}, and pass it to the given {@code listener}.
      * <p>
      * If a fresh-enough result is available when this method is called then the {@code listener} is notified immediately, on this thread.
@@ -89,7 +117,8 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
      *
      * @param input       The input to compute the desired value, converted to a {@link Key} to determine if the value that's currently
      *                    cached or pending is fresh enough.
-     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed.
+     * @param isCancelled Returns {@code true} if the listener no longer requires the value being computed. The listener is expected to be
+     *                    completed as soon as possible when cancellation is detected.
      * @param listener    The listener to notify when the desired value becomes available.
      */
     public final void get(Input input, BooleanSupplier isCancelled, ActionListener<Value> listener) {
@@ -116,9 +145,10 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
                 // Our item was only just released, possibly cancelled, by another get() with a fresher key. We don't simply retry
                 // since that would evict the new item. Instead let's see if it was cancelled or whether it completed properly.
-                if (currentCachedItem.getFuture().isDone()) {
+                final var future = currentCachedItem.getFuture();
+                if (future.isDone()) {
                     try {
-                        listener.onResponse(currentCachedItem.getFuture().actionGet(0L));
+                        listener.onResponse(future.actionResult());
                         return;
                     } catch (TaskCancelledException e) {
                         // previous task was cancelled before completion, therefore we must perform our own one-shot refresh
@@ -140,23 +170,15 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (currentCachedItem != null) {
                     currentCachedItem.decRef();
                 }
-                startRefresh(input, newCachedItem);
                 final boolean listenerAdded = newCachedItem.addListener(listener, isCancelled);
                 assert listenerAdded;
-                newCachedItem.decRef();
+                newCachedItem.decRef(); // release our ref before calling refresh so that we're not blocking a cancellation
+                newCachedItem.startRefresh(input);
                 return;
             }
             // else the CAS failed because we lost a race to a concurrent retrieval; try again from the top since we expect the race winner
             // to be fresh enough for us and therefore we can just wait for its result.
         } while (true);
-    }
-
-    private void startRefresh(Input input, CachedItem cachedItem) {
-        try {
-            refresh(input, cachedItem::ensureNotCancelled, cachedItem.getFuture());
-        } catch (Exception e) {
-            cachedItem.getFuture().onFailure(e);
-        }
     }
 
     /**
@@ -179,7 +201,7 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
 
         CachedItem(Key key) {
             this.key = key;
-            incRef(); // start with a refcount of 2 so we're not closed while adding the first listener
+            mustIncRef(); // start with a refcount of 2 so we're not closed while adding the first listener
             this.future.addListener(new ActionListener<>() {
                 @Override
                 public void onResponse(Value value) {
@@ -213,14 +235,18 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
                 if (future.isDone()) {
                     // No need to bother with ref counting & cancellation any more, just complete the listener.
                     // We know it wasn't cancelled because there are still references.
-                    ActionListener.completeWith(listener, () -> future.actionGet(0L));
+                    ActionListener.completeWith(listener, future::actionResult);
                 } else {
                     // Refresh is still pending; it's not cancelled because there are still references.
-                    future.addListener(listener);
+                    final var cancellableListener = ActionListener.notifyOnce(
+                        ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+                    );
+                    future.addListener(cancellableListener);
                     final AtomicBoolean released = new AtomicBoolean();
                     cancellationChecks.add(() -> {
                         if (released.get() == false && isCancelled.getAsBoolean() && released.compareAndSet(false, true)) {
                             decRef();
+                            cancellableListener.onFailure(new TaskCancelledException("task cancelled"));
                         }
                     });
                 }
@@ -230,9 +256,9 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
             }
         }
 
-        void ensureNotCancelled() {
+        private void ensureNotCancelled() {
             cancellationChecks.runAll();
-            if (refCount() == 0) {
+            if (hasReferences() == false) {
                 throw new TaskCancelledException("task cancelled");
             }
         }
@@ -241,6 +267,42 @@ public abstract class CancellableSingleObjectCache<Input, Key, Value> {
         protected void closeInternal() {
             // Complete the future (and hence all its listeners) with an exception if it hasn't already been completed.
             future.onFailure(new TaskCancelledException("task cancelled"));
+        }
+
+        private boolean supersedeIfStale() {
+            final CachedItem currentCachedItem = currentCachedItemRef.get();
+            if (currentCachedItem == this) {
+                // this item is still the freshest
+                return false;
+            }
+
+            if (currentCachedItem == null) {
+                // this item was superseded but the newer item was cancelled so we must proceed with a refresh for this item
+                return false;
+            }
+
+            cancellationChecks.runAll();
+            if (tryIncRef()) {
+                try {
+                    return currentCachedItem.addListener(future, () -> {
+                        cancellationChecks.runAll();
+                        return hasReferences() == false;
+                    });
+                } finally {
+                    decRef();
+                }
+            } else {
+                // this item was cancelled, not superseded, so the refresh must complete (typically with a cancellation exception)
+                return false;
+            }
+        }
+
+        void startRefresh(Input input) {
+            try {
+                refresh(input, this::ensureNotCancelled, this::supersedeIfStale, future);
+            } catch (Exception e) {
+                future.onFailure(e);
+            }
         }
     }
 

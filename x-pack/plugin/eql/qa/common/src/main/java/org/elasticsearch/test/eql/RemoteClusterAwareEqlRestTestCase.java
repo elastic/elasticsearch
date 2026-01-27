@@ -11,20 +11,19 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.AfterClass;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.common.Strings.hasText;
 
@@ -35,19 +34,14 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
-    @BeforeClass
-    public static void initRemoteClients() throws IOException {
-        String crossClusterHost = System.getProperty("tests.rest.cluster.remote.host"); // gradle defined
-        if (crossClusterHost != null) {
-            int portSeparator = crossClusterHost.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + crossClusterHost + "]");
+    @Before
+    public void initRemoteClients() throws IOException {
+        if (remoteClient == null) {
+            String crossClusterHost = getRemoteCluster();
+            if (crossClusterHost != null) {
+                List<HttpHost> httpHosts = parseClusterHosts(crossClusterHost);
+                remoteClient = clientBuilder(secureRemoteClientSettings(), httpHosts.toArray(new HttpHost[0]));
             }
-            String host = crossClusterHost.substring(0, portSeparator);
-            int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
-            HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
-
-            remoteClient = clientBuilder(secureRemoteClientSettings(), remoteHttpHosts);
         }
     }
 
@@ -60,18 +54,13 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         }
     }
 
-    protected static RestHighLevelClient highLevelClient(RestClient client) {
-        return new RestHighLevelClient(
-                client,
-                ignore -> {
-                },
-                Collections.emptyList()) {
-        };
+    protected String getRemoteCluster() {
+        return System.getProperty("tests.rest.cluster.remote.host");
     }
 
     protected static RestClient clientBuilder(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
-        configureClient(builder, settings);
+        doConfigureClient(builder, settings);
 
         int timeout = Math.toIntExact(timeout().millis());
         builder.setRequestConfigCallback(
@@ -116,7 +105,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         provisioningClient().performRequest(request);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 
@@ -126,13 +115,11 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
     }
 
     protected static Settings secureRemoteClientSettings() {
-        String user = System.getProperty("tests.rest.cluster.remote.user"); // gradle defined
-        String pass = System.getProperty("tests.rest.cluster.remote.password");
+        String user = System.getProperty("tests.rest.cluster.remote.user", "test_user"); // gradle defined
+        String pass = System.getProperty("tests.rest.cluster.remote.password", "x-pack-test-password");
         if (hasText(user) && hasText(pass)) {
             String token = basicAuthHeaderValue(user, new SecureString(pass.toCharArray()));
-            return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                .build();
+            return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
         }
         return Settings.EMPTY;
     }

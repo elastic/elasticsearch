@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.geometry;
@@ -62,7 +63,8 @@ public class GeometryValidatorTests extends ESTestCase {
         protected void checkLatitude(double latitude) {
             if (Double.isNaN(latitude) || latitude < MIN_LAT_INCL || latitude > MAX_LAT_INCL) {
                 throw new IllegalArgumentException(
-                    "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL);
+                    "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL
+                );
             }
         }
 
@@ -70,7 +72,8 @@ public class GeometryValidatorTests extends ESTestCase {
         protected void checkLongitude(double longitude) {
             if (Double.isNaN(longitude) || longitude < MIN_LON_INCL || longitude > MAX_LON_INCL) {
                 throw new IllegalArgumentException(
-                    "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL);
+                    "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL
+                );
             }
         }
 
@@ -78,7 +81,8 @@ public class GeometryValidatorTests extends ESTestCase {
         protected void checkAltitude(double zValue) {
             if (Double.isNaN(zValue) == false && (zValue < MIN_ALT_INCL || zValue > MAX_ALT_INCL)) {
                 throw new IllegalArgumentException(
-                    "invalid altitude " + zValue + "; must be between " + MIN_ALT_INCL + " and " + MAX_ALT_INCL);
+                    "invalid altitude " + zValue + "; must be between " + MIN_ALT_INCL + " and " + MAX_ALT_INCL
+                );
             }
         }
     }
@@ -103,11 +107,15 @@ public class GeometryValidatorTests extends ESTestCase {
         assertEquals("invalid longitude 2.0; must be between -1.0 and 1.0", ex.getMessage());
         ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "LINESTRING (1 -1 0, 0 0 2)"));
         assertEquals("invalid altitude 2.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () ->
-            WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 5 0.3, 0.3 0.1))"));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 5 0.3, 0.3 0.1))")
+        );
         assertEquals("invalid longitude 5.0; must be between -1.0 and 1.0", ex.getMessage());
-        ex = expectThrows(IllegalArgumentException.class, () ->
-            WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 0.5 0.3, 0.3 0.1), (0.5 1.5, 2.5 1.5, 2.0 1.0))"));
+        ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> WellKnownText.fromWKT(validator, true, "POLYGON ((0.3 0.1, 0.4 0.2, 0.5 0.3, 0.3 0.1), (0.5 1.5, 2.5 1.5, 2.0 1.0))")
+        );
         assertEquals("invalid latitude 1.5; must be between -1.0 and 1.0", ex.getMessage());
         ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, "MULTIPOINT (0 1, -2 1)"));
         assertEquals("invalid longitude -2.0; must be between -1.0 and 1.0", ex.getMessage());

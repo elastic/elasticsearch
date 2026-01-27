@@ -6,20 +6,25 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -30,14 +35,15 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME, FollowInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String[] followerIndices;
 
-        public Request() {
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         public String[] getFollowerIndices() {
@@ -78,7 +84,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse implements ChunkedToXContentObject {
 
         public static final ParseField FOLLOWER_INDICES_FIELD = new ParseField("follower_indices");
 
@@ -93,25 +99,21 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
-            followInfos = in.readList(FollowerInfo::new);
+            followInfos = in.readCollectionAsList(FollowerInfo::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(followInfos);
+            out.writeCollection(followInfos);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.startArray(FOLLOWER_INDICES_FIELD.getPreferredName());
-            for (FollowerInfo followInfo : followInfos) {
-                followInfo.toXContent(builder, params);
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder;
+        public Iterator<ToXContent> toXContentChunked(ToXContent.Params outerParams) {
+            return Iterators.concat(
+                Iterators.single((builder, params) -> builder.startObject().startArray(FOLLOWER_INDICES_FIELD.getPreferredName())),
+                followInfos.iterator(),
+                Iterators.single((builder, params) -> builder.endArray().endObject())
+            );
         }
 
         @Override
@@ -145,8 +147,13 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
             private final Status status;
             private final FollowParameters parameters;
 
-            public FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status,
-                                FollowParameters parameters) {
+            public FollowerInfo(
+                String followerIndex,
+                String remoteCluster,
+                String leaderIndex,
+                Status status,
+                FollowParameters parameters
+            ) {
                 this.followerIndex = followerIndex;
                 this.remoteCluster = remoteCluster;
                 this.leaderIndex = leaderIndex;
@@ -214,11 +221,11 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 FollowerInfo that = (FollowerInfo) o;
-                return Objects.equals(followerIndex, that.followerIndex) &&
-                    Objects.equals(remoteCluster, that.remoteCluster) &&
-                    Objects.equals(leaderIndex, that.leaderIndex) &&
-                    status == that.status &&
-                    Objects.equals(parameters, that.parameters);
+                return Objects.equals(followerIndex, that.followerIndex)
+                    && Objects.equals(remoteCluster, that.remoteCluster)
+                    && Objects.equals(leaderIndex, that.leaderIndex)
+                    && status == that.status
+                    && Objects.equals(parameters, that.parameters);
             }
 
             @Override
@@ -243,14 +250,11 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
             }
 
             public static Status fromString(String value) {
-                switch (value) {
-                    case "active":
-                        return Status.ACTIVE;
-                    case "paused":
-                        return Status.PAUSED;
-                    default:
-                        throw new IllegalArgumentException("unexpected status value [" + value + "]");
-                }
+                return switch (value) {
+                    case "active" -> Status.ACTIVE;
+                    case "paused" -> Status.PAUSED;
+                    default -> throw new IllegalArgumentException("unexpected status value [" + value + "]");
+                };
             }
         }
     }

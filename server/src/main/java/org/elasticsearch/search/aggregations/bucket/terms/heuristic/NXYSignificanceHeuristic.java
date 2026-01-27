@@ -1,24 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
@@ -26,10 +28,9 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
 
     protected static final ParseField INCLUDE_NEGATIVES_FIELD = new ParseField("include_negatives");
 
-    protected static final String SCORE_ERROR_MESSAGE = ", does your background filter not include all documents in the bucket? "
-        + "If so and it is intentional, set \""
-        + BACKGROUND_IS_SUPERSET.getPreferredName()
-        + "\": false";
+    protected static final String SCORE_ERROR_MESSAGE = String.format(Locale.ROOT, """
+        , does your background filter not include all documents in the bucket? If so and it is intentional, set "%s": false
+        """, BACKGROUND_IS_SUPERSET.getPreferredName());
 
     protected final boolean backgroundIsSuperset;
 
@@ -65,9 +66,7 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         NXYSignificanceHeuristic other = (NXYSignificanceHeuristic) obj;
-        if (backgroundIsSuperset != other.backgroundIsSuperset) return false;
-        if (includeNegatives != other.includeNegatives) return false;
-        return true;
+        return backgroundIsSuperset == other.backgroundIsSuperset && includeNegatives == other.includeNegatives;
     }
 
     @Override
@@ -159,24 +158,10 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
      */
     protected static <T> Function<Object[], T> buildFromParsedArgs(BiFunction<Boolean, Boolean, T> ctor) {
         return args -> {
-            boolean includeNegatives = args[0] == null ? false : (boolean) args[0];
-            boolean backgroundIsSuperset = args[1] == null ? true : (boolean) args[1];
+            boolean includeNegatives = args[0] != null && (boolean) args[0];
+            boolean backgroundIsSuperset = args[1] == null || (boolean) args[1];
             return ctor.apply(includeNegatives, backgroundIsSuperset);
         };
     }
 
-    protected abstract static class NXYBuilder implements SignificanceHeuristicBuilder {
-        protected boolean includeNegatives = true;
-        protected boolean backgroundIsSuperset = true;
-
-        public NXYBuilder(boolean includeNegatives, boolean backgroundIsSuperset) {
-            this.includeNegatives = includeNegatives;
-            this.backgroundIsSuperset = backgroundIsSuperset;
-        }
-
-        protected void build(XContentBuilder builder) throws IOException {
-            builder.field(INCLUDE_NEGATIVES_FIELD.getPreferredName(), includeNegatives)
-                .field(BACKGROUND_IS_SUPERSET.getPreferredName(), backgroundIsSuperset);
-        }
-    }
 }

@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  *
  * Copyright 2020 Adrien Grand and the lz4-java contributors.
  *

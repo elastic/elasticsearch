@@ -6,11 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.results;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -47,8 +48,12 @@ public class WarningInferenceResults implements InferenceResults {
 
     @Override
     public boolean equals(Object object) {
-        if (object == this) { return true; }
-        if (object == null || getClass() != object.getClass()) { return false; }
+        if (object == this) {
+            return true;
+        }
+        if (object == null || getClass() != object.getClass()) {
+            return false;
+        }
         WarningInferenceResults that = (WarningInferenceResults) object;
         return Objects.equals(warning, that.warning);
     }
@@ -59,10 +64,21 @@ public class WarningInferenceResults implements InferenceResults {
     }
 
     @Override
+    public String getResultsField() {
+        return NAME;
+    }
+
+    @Override
     public Map<String, Object> asMap() {
         Map<String, Object> asMap = new LinkedHashMap<>();
         asMap.put(NAME, warning);
         return asMap;
+    }
+
+    @Override
+    public Map<String, Object> asMap(String outputField) {
+        // warnings do not have a result
+        return asMap();
     }
 
     @Override

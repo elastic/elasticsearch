@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -39,16 +40,16 @@ public class SearchSortValuesAndFormats implements Writeable {
                 // sort by _score or _doc
                 this.formattedSortValues[i] = sortValue;
             } else {
-                assert sortValue == null : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got "
-                    + sortValue.getClass() + ": " + sortValue;
+                assert sortValue == null
+                    : "Sort values must be a BytesRef, Long, Integer, Double or Float, but got " + sortValue.getClass() + ": " + sortValue;
                 this.formattedSortValues[i] = sortValue;
             }
         }
     }
 
     public SearchSortValuesAndFormats(StreamInput in) throws IOException {
-        this.rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        this.formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        this.rawSortValues = Lucene.readSortValues(in);
+        this.formattedSortValues = Lucene.readSortValues(in);
         this.sortValueFormats = new DocValueFormat[formattedSortValues.length];
         for (int i = 0; i < sortValueFormats.length; ++i) {
             sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
@@ -81,9 +82,9 @@ public class SearchSortValuesAndFormats implements Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchSortValuesAndFormats that = (SearchSortValuesAndFormats) o;
-        return Arrays.equals(rawSortValues, that.rawSortValues) &&
-            Arrays.equals(formattedSortValues, that.formattedSortValues) &&
-            Arrays.equals(sortValueFormats, that.sortValueFormats);
+        return Arrays.equals(rawSortValues, that.rawSortValues)
+            && Arrays.equals(formattedSortValues, that.formattedSortValues)
+            && Arrays.equals(sortValueFormats, that.sortValueFormats);
     }
 
     @Override

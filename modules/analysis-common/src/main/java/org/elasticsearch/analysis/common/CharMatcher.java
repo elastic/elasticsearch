@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -57,16 +58,16 @@ public interface CharMatcher {
             @Override
             public boolean isTokenChar(int c) {
                 switch (Character.getType(c)) {
-                case Character.START_PUNCTUATION:
-                case Character.END_PUNCTUATION:
-                case Character.OTHER_PUNCTUATION:
-                case Character.CONNECTOR_PUNCTUATION:
-                case Character.DASH_PUNCTUATION:
-                case Character.INITIAL_QUOTE_PUNCTUATION:
-                case Character.FINAL_QUOTE_PUNCTUATION:
-                    return true;
-                default:
-                    return false;
+                    case Character.START_PUNCTUATION:
+                    case Character.END_PUNCTUATION:
+                    case Character.OTHER_PUNCTUATION:
+                    case Character.CONNECTOR_PUNCTUATION:
+                    case Character.DASH_PUNCTUATION:
+                    case Character.INITIAL_QUOTE_PUNCTUATION:
+                    case Character.FINAL_QUOTE_PUNCTUATION:
+                        return true;
+                    default:
+                        return false;
                 }
             }
         },
@@ -74,13 +75,13 @@ public interface CharMatcher {
             @Override
             public boolean isTokenChar(int c) {
                 switch (Character.getType(c)) {
-                case Character.CURRENCY_SYMBOL:
-                case Character.MATH_SYMBOL:
-                case Character.OTHER_SYMBOL:
-                case Character.MODIFIER_SYMBOL:
-                    return true;
-                 default:
-                     return false;
+                    case Character.CURRENCY_SYMBOL:
+                    case Character.MATH_SYMBOL:
+                    case Character.OTHER_SYMBOL:
+                    case Character.MODIFIER_SYMBOL:
+                        return true;
+                    default:
+                        return false;
                 }
             }
         }
@@ -88,37 +89,29 @@ public interface CharMatcher {
 
     final class Builder {
         private final Set<CharMatcher> matchers;
+
         Builder() {
             matchers = new HashSet<>();
         }
+
         public Builder or(CharMatcher matcher) {
             matchers.add(matcher);
             return this;
         }
+
         public CharMatcher build() {
-            switch (matchers.size()) {
-            case 0:
-                return new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        return false;
-                    }
-                };
-            case 1:
-                return matchers.iterator().next();
-            default:
-                return new CharMatcher() {
-                    @Override
-                    public boolean isTokenChar(int c) {
-                        for (CharMatcher matcher : matchers) {
-                            if (matcher.isTokenChar(c)) {
-                                return true;
-                            }
+            return switch (matchers.size()) {
+                case 0 -> c -> false;
+                case 1 -> matchers.iterator().next();
+                default -> c -> {
+                    for (CharMatcher matcher : matchers) {
+                        if (matcher.isTokenChar(c)) {
+                            return true;
                         }
-                        return false;
                     }
+                    return false;
                 };
-            }
+            };
         }
     }
 

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.explain;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -20,12 +21,8 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
 
-    ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
-        super(client, action, new ExplainRequest());
-    }
-
-    public ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action, String index, String id) {
-        super(client, action, new ExplainRequest().index(index).id(id));
+    public ExplainRequestBuilder(ElasticsearchClient client, String index, String id) {
+        super(client, TransportExplainAction.TYPE, new ExplainRequest().index(index).id(id));
     }
 
     /**
@@ -80,9 +77,10 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Indicates whether the response should contain the stored _source
      */
     public ExplainRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
+        request.fetchSourceContext(FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes()));
         return this;
     }
 
@@ -95,8 +93,9 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
     }
 
     /**
@@ -107,9 +106,10 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public ExplainRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null ? request.fetchSourceContext()
+        FetchSourceContext fetchSourceContext = request.fetchSourceContext() != null
+            ? request.fetchSourceContext()
             : FetchSourceContext.FETCH_SOURCE;
-        request.fetchSourceContext(new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes));
+        request.fetchSourceContext(FetchSourceContext.of(fetchSourceContext.fetchSource(), includes, excludes));
         return this;
     }
 }

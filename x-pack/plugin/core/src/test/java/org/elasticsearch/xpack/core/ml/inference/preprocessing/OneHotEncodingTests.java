@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -25,14 +25,19 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
 
     @Override
     protected OneHotEncoding doParseInstance(XContentParser parser) throws IOException {
-        return lenient ?
-            OneHotEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT) :
-            OneHotEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
+        return lenient
+            ? OneHotEncoding.fromXContentLenient(parser, PreProcessor.PreProcessorParseContext.DEFAULT)
+            : OneHotEncoding.fromXContentStrict(parser, PreProcessor.PreProcessorParseContext.DEFAULT);
     }
 
     @Override
     protected OneHotEncoding createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected OneHotEncoding mutateInstance(OneHotEncoding instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     public static OneHotEncoding createRandom() {
@@ -49,9 +54,7 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new OneHotEncoding(inputField,
-            valueMap,
-            isCustom);
+        return new OneHotEncoding(inputField, valueMap, isCustom);
     }
 
     @Override
@@ -67,10 +70,9 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         Object fieldValue = randomFrom(values);
         Map<String, Object> fieldValues = randomFieldValues(field, fieldValue);
 
-        Map<String, Matcher<? super Object>> matchers = values.stream().map(v -> "Column_" + v)
-            .collect(Collectors.toMap(
-                Function.identity(),
-                v -> v.equals("Column_" + fieldValue) ? equalTo(1) : equalTo(0)));
+        Map<String, Matcher<? super Object>> matchers = values.stream()
+            .map(v -> "Column_" + v)
+            .collect(Collectors.toMap(Function.identity(), v -> v.equals("Column_" + fieldValue) ? equalTo(1) : equalTo(0)));
 
         fieldValues.put(field, fieldValue);
         testProcess(encoding, fieldValues, matchers);
@@ -87,8 +89,7 @@ public class OneHotEncodingTests extends PreProcessingTests<OneHotEncoding> {
         Map<String, String> valueMap = values.stream().collect(Collectors.toMap(Object::toString, v -> "Column_" + v.toString()));
         OneHotEncoding encoding = new OneHotEncoding(field, valueMap, false);
         assertThat(encoding.inputFields(), containsInAnyOrder(field));
-        assertThat(encoding.outputFields(),
-            containsInAnyOrder(values.stream().map(v -> "Column_" + v.toString()).toArray(String[]::new)));
+        assertThat(encoding.outputFields(), containsInAnyOrder(values.stream().map(v -> "Column_" + v.toString()).toArray(String[]::new)));
     }
 
 }

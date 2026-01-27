@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -29,6 +30,22 @@ public class PutTransformActionRequestTests extends AbstractWireSerializingTrans
     @Override
     protected Request createTestInstance() {
         TransformConfig config = TransformConfigTests.randomTransformConfigWithoutHeaders(transformId);
-        return new Request(config, randomBoolean());
+        return new Request(config, randomBoolean(), randomTimeValue());
+    }
+
+    @Override
+    protected Request mutateInstance(Request instance) {
+        TransformConfig config = instance.getConfig();
+        boolean deferValidation = instance.isDeferValidation();
+        TimeValue timeout = instance.ackTimeout();
+
+        switch (between(0, 2)) {
+            case 0 -> config = new TransformConfig.Builder(config).setId(config.getId() + randomAlphaOfLengthBetween(1, 5)).build();
+            case 1 -> deferValidation ^= true;
+            case 2 -> timeout = new TimeValue(timeout.duration() + randomLongBetween(1, 5), timeout.timeUnit());
+            default -> throw new AssertionError("Illegal randomization branch");
+        }
+
+        return new Request(config, deferValidation, timeout);
     }
 }

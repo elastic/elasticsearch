@@ -7,29 +7,22 @@
 
 package org.elasticsearch.xpack.analytics.stringstats;
 
-import org.elasticsearch.client.analytics.ParsedStringStats;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 public class InternalStringStatsTests extends InternalAggregationTestCase<InternalStringStats> {
 
@@ -39,33 +32,24 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(
-                Aggregation.class,
-                new ParseField(StringStatsAggregationBuilder.NAME),
-                (p, c) -> ParsedStringStats.PARSER.parse(p, (String) c)
-            )
-        );
-    }
-
-    @Override
     protected InternalStringStats createTestInstance(String name, Map<String, Object> metadata) {
         return createTestInstance(name, metadata, Long.MAX_VALUE, Long.MAX_VALUE);
     }
 
     @Override
-    protected List<InternalStringStats> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalStringStats> randomResultsToReduce(String name, int size) {
         /*
          * Pick random count and length that are less than
          * Long.MAX_VALUE because reduction adds them together and sometimes
          * serializes them and that serialization would fail if the sum has
          * wrapped to a negative number.
          */
-        return Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
-            .limit(size)
-            .collect(toList());
+        return new BuilderAndToReduce<>(
+            mock(AggregationBuilder.class),
+            Stream.generate(() -> createTestInstance(name, null, Long.MAX_VALUE / size, Long.MAX_VALUE / size))
+                .limit(size)
+                .collect(toList())
+        );
     }
 
     private InternalStringStats createTestInstance(String name, Map<String, Object> metadata, long maxCount, long maxTotalLength) {
@@ -88,7 +72,7 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
     }
 
     @Override
-    protected InternalStringStats mutateInstance(InternalStringStats instance) throws IOException {
+    protected InternalStringStats mutateInstance(InternalStringStats instance) {
         String name = instance.getName();
         long count = instance.getCount();
         long totalLength = instance.getTotalLength();
@@ -97,27 +81,13 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
         Map<String, Long> charOccurrences = instance.getCharOccurrences();
         boolean showDistribution = instance.getShowDistribution();
         switch (between(0, 6)) {
-            case 0:
-                name = name + "a";
-                break;
-            case 1:
-                count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
-                break;
-            case 2:
-                totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
-                break;
-            case 3:
-                minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
-                break;
-            case 4:
-                maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
-                break;
-            case 5:
-                charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
-                break;
-            case 6:
-                showDistribution = showDistribution == false;
-                break;
+            case 0 -> name = name + "a";
+            case 1 -> count = randomValueOtherThan(count, () -> randomLongBetween(1, Long.MAX_VALUE));
+            case 2 -> totalLength = randomValueOtherThan(totalLength, ESTestCase::randomNonNegativeLong);
+            case 3 -> minLength = randomValueOtherThan(minLength, () -> between(0, Integer.MAX_VALUE));
+            case 4 -> maxLength = randomValueOtherThan(maxLength, () -> between(0, Integer.MAX_VALUE));
+            case 5 -> charOccurrences = randomValueOtherThan(charOccurrences, this::randomCharOccurrences);
+            case 6 -> showDistribution = showDistribution == false;
         }
         return new InternalStringStats(
             name,
@@ -130,36 +100,6 @@ public class InternalStringStatsTests extends InternalAggregationTestCase<Intern
             DocValueFormat.RAW,
             instance.getMetadata()
         );
-    }
-
-    @Override
-    protected void assertFromXContent(InternalStringStats aggregation, ParsedAggregation parsedAggregation) throws IOException {
-        ParsedStringStats parsed = (ParsedStringStats) parsedAggregation;
-        assertThat(parsed.getName(), equalTo(aggregation.getName()));
-        if (aggregation.getCount() == 0) {
-            assertThat(parsed.getCount(), equalTo(0L));
-            assertThat(parsed.getMinLength(), equalTo(0));
-            assertThat(parsed.getMaxLength(), equalTo(0));
-            assertThat(parsed.getAvgLength(), equalTo(0d));
-            assertThat(parsed.getEntropy(), equalTo(0d));
-            assertThat(parsed.getDistribution(), nullValue());
-            return;
-        }
-        assertThat(parsed.getCount(), equalTo(aggregation.getCount()));
-        assertThat(parsed.getMinLength(), equalTo(aggregation.getMinLength()));
-        assertThat(parsed.getMaxLength(), equalTo(aggregation.getMaxLength()));
-        assertThat(parsed.getAvgLength(), equalTo(aggregation.getAvgLength()));
-        assertThat(parsed.getEntropy(), equalTo(aggregation.getEntropy()));
-        if (aggregation.getShowDistribution()) {
-            assertThat(parsed.getDistribution(), equalTo(aggregation.getDistribution()));
-        } else {
-            assertThat(parsed.getDistribution(), nullValue());
-        }
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(".distribution");
     }
 
     @Override

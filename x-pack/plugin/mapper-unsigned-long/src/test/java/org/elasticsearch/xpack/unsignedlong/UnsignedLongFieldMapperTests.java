@@ -9,26 +9,42 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperTestCase;
+import org.elasticsearch.index.mapper.NumberTypeOutOfRangeSpec;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.WholeNumberFieldMapperTests;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
-public class UnsignedLongFieldMapperTests extends MapperTestCase {
+public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -56,10 +72,6 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(
-            b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((UnsignedLongFieldMapper) m).ignoreMalformed())
-        );
     }
 
     public void testDefaults() throws Exception {
@@ -70,33 +82,23 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         // test indexing of values as string
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-            assertFalse(pointField.fieldType().stored());
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-            assertFalse(dvField.fieldType().stored());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
         }
 
         // test indexing values as integer numbers
         {
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", 9223372036854775807L)));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(-1L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(-1L, dvField.numericValue().longValue());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:-1>", fields.get(0).toString());
         }
 
         // test that indexing values as number with decimal is not allowed
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", 10.5)));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"10.5\" has a decimal part"));
         }
     }
@@ -104,9 +106,9 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testNotIndexed() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("index", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField dvField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField dvField = fields.get(0);
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(9223372036854775807L, dvField.numericValue().longValue());
     }
@@ -114,25 +116,21 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
     public void testNoDocValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("doc_values", false)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        IndexableField pointField = fields[0];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        IndexableField pointField = fields.get(0);
         assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
         assertEquals(9223372036854775807L, pointField.numericValue().longValue());
+        assertAggregatableConsistency(mapper.mappers().getFieldType("field"));
     }
 
     public void testStore() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "unsigned_long").field("store", true)));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "18446744073709551615")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(3, fields.length);
-        IndexableField pointField = fields[0];
-        assertEquals(1, pointField.fieldType().pointIndexDimensionCount());
-        assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-        IndexableField dvField = fields[1];
-        assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
-        assertEquals(9223372036854775807L, dvField.numericValue().longValue());
-        IndexableField storedField = fields[2];
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+        assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
+        IndexableField storedField = fields.get(1);
         assertTrue(storedField.fieldType().stored());
         assertEquals("18446744073709551615", storedField.stringValue());
     }
@@ -153,7 +151,7 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
-            assertArrayEquals(new IndexableField[0], doc.rootDoc().getFields("field"));
+            assertThat(doc.rootDoc().getFields("field"), empty());
         }
 
         // test that if null value is defined, it is used
@@ -163,47 +161,26 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
             );
             ParsedDocument doc = mapper.parse(source(b -> b.nullField("field")));
             ;
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(2, fields.length);
-            IndexableField pointField = fields[0];
-            assertEquals(9223372036854775807L, pointField.numericValue().longValue());
-            IndexableField dvField = fields[1];
-            assertEquals(9223372036854775807L, dvField.numericValue().longValue());
+            List<IndexableField> fields = doc.rootDoc().getFields("field");
+            assertEquals(1, fields.size());
+            assertEquals("LongField <field:9223372036854775807>", fields.get(0).toString());
         }
     }
 
-    public void testIgnoreMalformed() throws Exception {
-        // test ignore_malformed is false by default
-        {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-            Object malformedValue1 = "a";
-            ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue1)));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: \"a\""));
+    @Override
+    public void testCoerce() {} // coerce is unimplemented
 
-            Object malformedValue2 = Boolean.FALSE;
-            runnable = () -> mapper.parse(source(b -> b.field("field", malformedValue2)));
-            e = expectThrows(MapperParsingException.class, runnable);
-            assertThat(e.getCause().getMessage(), containsString("For input string: \"false\""));
-        }
+    @Override
+    protected boolean supportsIgnoreMalformed() {
+        return true;
+    }
 
-        // test ignore_malformed when set to true ignored malformed documents
-        {
-            DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> b.field("type", "unsigned_long").field("ignore_malformed", true))
-            );
-            Object malformedValue1 = "a";
-            ParsedDocument doc = mapper.parse(source(b -> b.field("field", malformedValue1)));
-            IndexableField[] fields = doc.rootDoc().getFields("field");
-            assertEquals(0, fields.length);
-            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
-
-            Object malformedValue2 = Boolean.FALSE;
-            ParsedDocument doc2 = mapper.parse(source(b -> b.field("field", malformedValue2)));
-            IndexableField[] fields2 = doc2.rootDoc().getFields("field");
-            assertEquals(0, fields2.length);
-            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc2.rootDoc().getFields("_ignored")));
-        }
+    @Override
+    protected List<ExampleMalformedValue> exampleMalformedValues() {
+        return List.of(
+            exampleMalformedValue("a").errorMatches("For input string: \"a\""),
+            exampleMalformedValue(b -> b.value(false)).errorMatches("For input string: \"false\"")
+        );
     }
 
     public void testDecimalParts() throws IOException {
@@ -211,28 +188,26 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         DocumentMapper mapper = createDocumentMapper(mapping);
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("100.5", 100.5, 100.5f))));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"100.5\" has a decimal part"));
         }
         {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", randomFrom("0.9", 0.9, 0.9f))));
-            MapperParsingException e = expectThrows(MapperParsingException.class, runnable);
+            DocumentParsingException e = expectThrows(DocumentParsingException.class, runnable);
             assertThat(e.getCause().getMessage(), containsString("Value \"0.9\" has a decimal part"));
         }
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", randomFrom("100.", "100.0", "100.00", 100.0, 100.0f))));
-        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
+        assertThat(doc.rootDoc().getFields("field").get(0).numericValue().longValue(), equalTo(Long.MIN_VALUE + 100L));
 
         doc = mapper.parse(source(b -> b.field("field", randomFrom("0.", "0.0", ".00", 0.0, 0.0f))));
-        assertThat(doc.rootDoc().getFields("field")[0].numericValue().longValue(), equalTo(Long.MIN_VALUE));
-        assertThat(doc.rootDoc().getFields("field")[1].numericValue().longValue(), equalTo(Long.MIN_VALUE));
+        assertThat(doc.rootDoc().getFields("field").get(0).numericValue().longValue(), equalTo(Long.MIN_VALUE));
     }
 
     public void testIndexingOutOfRangeValues() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         for (Object outOfRangeValue : new Object[] { "-1", -1L, "18446744073709551616", new BigInteger("18446744073709551616") }) {
             ThrowingRunnable runnable = () -> mapper.parse(source(b -> b.field("field", outOfRangeValue)));
-            expectThrows(MapperParsingException.class, runnable);
+            expectThrows(DocumentParsingException.class, runnable);
         }
     }
 
@@ -243,6 +218,126 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
         }));
         assertExistsQuery(mapperService);
         assertParseMinimalWarnings();
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+        assertDimension(false, UnsignedLongFieldMapper.UnsignedLongFieldType::isDimension);
+
+        assertTimeSeriesIndexing();
+    }
+
+    public void testDimensionIndexedAndDocvalues() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true).field("index", false).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_dimension", true).field("index", true).field("doc_values", false);
+            })));
+            assertThat(e.getCause().getMessage(), containsString("Field [time_series_dimension] requires that [doc_values] is true"));
+        }
+    }
+
+    public void testDimensionMultiValuedFieldTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), IndexMode.TIME_SERIES);
+
+        ParsedDocument doc = mapper.parse(source(null, b -> {
+            b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            b.field("@timestamp", Instant.now());
+        }, TimeSeriesRoutingHashFieldMapper.encode(randomInt())));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testDimensionMultiValuedFieldNonTSDB() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_dimension", true);
+        }), randomFrom(IndexMode.STANDARD, IndexMode.LOGSDB));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            b.field("@timestamp", Instant.now());
+        }));
+        assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        UnsignedLongFieldMapper.UnsignedLongFieldType ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);
+        assertMetricType("counter", UnsignedLongFieldMapper.UnsignedLongFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
+    }
+
+    public void testMetricAndDimension() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("time_series_dimension", true);
+        })));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString("Field [time_series_dimension] cannot be set in conjunction with field [time_series_metric]")
+        );
+    }
+
+    public void testTimeSeriesIndexDefault() throws Exception {
+        var randomMetricType = randomFrom(TimeSeriesParams.MetricType.scalar());
+        var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field");
+        var mapperService = createMapperService(indexSettings.build(), fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", randomMetricType.toString());
+        }));
+        var ft = (UnsignedLongFieldMapper.UnsignedLongFieldType) mapperService.fieldType("field");
+        assertThat(ft.getMetricType(), equalTo(randomMetricType));
+        assertTrue(ft.indexType().hasOnlyDocValues());
     }
 
     @Override
@@ -266,5 +361,154 @@ public class UnsignedLongFieldMapperTests extends MapperTestCase {
                 BigInteger big = BigInteger.valueOf(randomLongBetween(0, Long.MAX_VALUE)).shiftLeft(1);
                 return big.add(randomBoolean() ? BigInteger.ONE : BigInteger.ZERO);
         }
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed);
+    }
+
+    @Override
+    protected SyntheticSourceSupport syntheticSourceSupportForKeepTests(boolean ignoreMalformed, Mapper.SourceKeepMode sourceKeepMode) {
+        return new NumberSyntheticSourceSupport(ignoreMalformed) {
+            @Override
+            public SyntheticSourceExample example(int maxVals) {
+                var example = super.example(maxVals);
+                // Need the expectedForSyntheticSource as inputValue since MapperTestCase#testSyntheticSourceKeepArrays
+                // uses the inputValue as both the input and expected.
+                return new SyntheticSourceExample(
+                    example.expectedForSyntheticSource(),
+                    example.expectedForSyntheticSource(),
+                    example.mapping()
+                );
+            }
+        };
+    }
+
+    @Override
+    protected IngestScriptSupport ingestScriptSupport() {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
+        return Collections.emptyList(); // unimplemented
+    }
+
+    @Override
+    public void testIgnoreMalformedWithObject() {} // unimplemented
+
+    @Override
+    public void testAllowMultipleValuesField() {} // unimplemented
+
+    @Override
+    public void testScriptableTypes() {} // unimplemented
+
+    @Override
+    protected Number missingValue() {
+        return 123L;
+    }
+
+    @Override
+    protected Number randomNumber() {
+        if (randomBoolean()) {
+            return randomLong();
+        }
+        if (randomBoolean()) {
+            return randomDouble();
+        }
+        return randomDoubleBetween(0L, Long.MAX_VALUE, true);
+    }
+
+    class NumberSyntheticSourceSupport implements SyntheticSourceSupport {
+        private final BigInteger nullValue = usually() ? null : BigInteger.valueOf(randomNonNegativeLong());
+        private final boolean ignoreMalformedEnabled;
+
+        NumberSyntheticSourceSupport(boolean ignoreMalformedEnabled) {
+            this.ignoreMalformedEnabled = ignoreMalformedEnabled;
+        }
+
+        @Override
+        public SyntheticSourceExample example(int maxVals) {
+            if (randomBoolean()) {
+                Value v = generateValue();
+                if (v.malformedOutput == null) {
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
+                }
+                return new SyntheticSourceExample(v.input, v.malformedOutput, this::mapping);
+            }
+            List<Value> values = randomList(1, maxVals, this::generateValue);
+            List<Object> in = values.stream().map(Value::input).toList();
+
+            List<BigInteger> outputFromDocValues = values.stream()
+                .filter(v -> v.malformedOutput == null)
+                .map(Value::output)
+                .sorted()
+                .toList();
+            Stream<Object> malformedOutput = values.stream().filter(v -> v.malformedOutput != null).map(Value::malformedOutput);
+
+            // Malformed values are always last in the implementation.
+            List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private record Value(Object input, BigInteger output, Object malformedOutput) {}
+
+        private Value generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return new Value(null, nullValue, null);
+            }
+            if (ignoreMalformedEnabled && randomBoolean()) {
+                List<Supplier<Object>> choices = List.of(() -> randomAlphaOfLengthBetween(1, 10));
+                var malformedInput = randomFrom(choices).get();
+                return new Value(malformedInput, null, malformedInput);
+            }
+            long n = randomNonNegativeLong();
+            BigInteger b = BigInteger.valueOf(n);
+            if (b.signum() < 0) {
+                b = b.add(BigInteger.ONE.shiftLeft(64));
+            }
+            return new Value(n, b, null);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+            if (ignoreMalformedEnabled) {
+                b.field("ignore_malformed", "true");
+            }
+        }
+
+        @Override
+        public List<SyntheticSourceInvalidExample> invalidExample() {
+            return List.of();
+        }
+    }
+
+    @Override
+    protected Object[] getThreeEncodedSampleValues() {
+        return Arrays.stream(super.getThreeEncodedSampleValues())
+            .map(v -> UnsignedLongFieldMapper.sortableSignedLongToUnsigned((Long) v))
+            .toArray();
+    }
+
+    @Override
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, true));
     }
 }

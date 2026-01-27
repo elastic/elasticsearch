@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.util.ByteUtils;
@@ -94,8 +96,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
             // iteratively traverse document fields
             while (values.isEmpty() == false) {
                 var value = values.pop();
-                if (value instanceof List) {
-                    var list = (List<?>) value;
+                if (value instanceof List<?> list) {
                     for (int k = list.size() - 1; k >= 0; k--) {
                         values.push(list.get(k));
                     }
@@ -111,13 +112,13 @@ public final class FingerprintProcessor extends AbstractProcessor {
                 } else if (value instanceof Map) {
                     var map = (Map<String, Object>) value;
                     // process map entries in consistent order
+                    @SuppressWarnings("rawtypes")
                     var entryList = new ArrayList<>(map.entrySet());
                     entryList.sort(Map.Entry.comparingByKey(Comparator.naturalOrder()));
                     for (int k = entryList.size() - 1; k >= 0; k--) {
                         values.push(entryList.get(k));
                     }
-                } else if (value instanceof Map.Entry) {
-                    var entry = (Map.Entry<?, ?>) value;
+                } else if (value instanceof Map.Entry<?, ?> entry) {
                     hasher.update(DELIMITER);
                     hasher.update(toBytes(entry.getKey()));
                     values.push(entry.getValue());
@@ -135,37 +136,36 @@ public final class FingerprintProcessor extends AbstractProcessor {
     }
 
     static byte[] toBytes(Object value) {
-        if (value instanceof String) {
-            return ((String) value).getBytes(StandardCharsets.UTF_8);
+        if (value instanceof String string) {
+            return string.getBytes(StandardCharsets.UTF_8);
         }
-        if (value instanceof byte[]) {
-            return (byte[]) value;
+        if (value instanceof byte[] bytes) {
+            return bytes;
         }
-        if (value instanceof Integer) {
+        if (value instanceof Integer integer) {
             byte[] intBytes = new byte[4];
-            ByteUtils.writeIntLE((Integer) value, intBytes, 0);
+            ByteUtils.writeIntLE(integer, intBytes, 0);
             return intBytes;
         }
-        if (value instanceof Long) {
+        if (value instanceof Long longValue) {
             byte[] longBytes = new byte[8];
-            ByteUtils.writeLongLE((Long) value, longBytes, 0);
+            ByteUtils.writeLongLE(longValue, longBytes, 0);
             return longBytes;
         }
-        if (value instanceof Float) {
+        if (value instanceof Float floatValue) {
             byte[] floatBytes = new byte[4];
-            ByteUtils.writeFloatLE((Float) value, floatBytes, 0);
+            ByteUtils.writeFloatLE(floatValue, floatBytes, 0);
             return floatBytes;
         }
-        if (value instanceof Double) {
+        if (value instanceof Double doubleValue) {
             byte[] doubleBytes = new byte[8];
-            ByteUtils.writeDoubleLE((Double) value, doubleBytes, 0);
+            ByteUtils.writeDoubleLE(doubleValue, doubleBytes, 0);
             return doubleBytes;
         }
-        if (value instanceof Boolean) {
-            return (Boolean) value ? TRUE_BYTES : FALSE_BYTES;
+        if (value instanceof Boolean b) {
+            return b ? TRUE_BYTES : FALSE_BYTES;
         }
-        if (value instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) value;
+        if (value instanceof ZonedDateTime zdt) {
             byte[] zoneIdBytes = zdt.getZone().getId().getBytes(StandardCharsets.UTF_8);
             byte[] zdtBytes = new byte[32 + zoneIdBytes.length];
             ByteUtils.writeIntLE(zdt.getYear(), zdtBytes, 0);
@@ -179,9 +179,9 @@ public final class FingerprintProcessor extends AbstractProcessor {
             System.arraycopy(zoneIdBytes, 0, zdtBytes, 32, zoneIdBytes.length);
             return zdtBytes;
         }
-        if (value instanceof Date) {
+        if (value instanceof Date date) {
             byte[] dateBytes = new byte[8];
-            ByteUtils.writeLongLE(((Date) value).getTime(), dateBytes, 0);
+            ByteUtils.writeLongLE(date.getTime(), dateBytes, 0);
             return dateBytes;
         }
         if (value == null) {
@@ -228,7 +228,8 @@ public final class FingerprintProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             List<String> fields = ConfigurationUtils.readList(TYPE, processorTag, config, "fields");
             if (fields.size() < 1) {
@@ -348,7 +349,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
 
         @Override
         public String getAlgorithm() {
-            return mh.getAlgorithm();
+            return Murmur3Hasher.getAlgorithm();
         }
     }
 

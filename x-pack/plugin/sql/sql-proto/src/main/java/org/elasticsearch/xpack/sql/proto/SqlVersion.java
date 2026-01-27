@@ -17,7 +17,7 @@ import java.security.InvalidParameterException;
  *     aid to establish the compatibility between them.
  * </p>
  */
-public class SqlVersion implements Comparable<SqlVersion>{
+public class SqlVersion implements Comparable<SqlVersion> {
 
     public final int id;
     public final String version; // originally provided String representation
@@ -29,10 +29,6 @@ public class SqlVersion implements Comparable<SqlVersion>{
     public static final int REVISION_MULTIPLIER = 100;
     public static final int MINOR_MULTIPLIER = REVISION_MULTIPLIER * REVISION_MULTIPLIER;
     public static final int MAJOR_MULTIPLIER = REVISION_MULTIPLIER * MINOR_MULTIPLIER;
-
-    public static final SqlVersion V_7_7_0 = new SqlVersion(7, 7, 0);
-    public static final SqlVersion V_7_12_0 = new SqlVersion(7, 12, 0);
-    public static final SqlVersion DATE_NANOS_SUPPORT_VERSION = V_7_12_0;
 
     public SqlVersion(byte major, byte minor, byte revision) {
         this(toString(major, minor, revision), major, minor, revision);
@@ -54,16 +50,17 @@ public class SqlVersion implements Comparable<SqlVersion>{
         revision = parts[2];
         build = (parts.length >= 4) ? parts[3] : REVISION_MULTIPLIER - 1;
 
-        if ((major | minor | revision | build) < 0 ||
-                minor >= REVISION_MULTIPLIER || revision >= REVISION_MULTIPLIER || build >= REVISION_MULTIPLIER) {
-            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + ", " +
-                build + "]");
+        if ((major | minor | revision | build) < 0
+            || minor >= REVISION_MULTIPLIER
+            || revision >= REVISION_MULTIPLIER
+            || build >= REVISION_MULTIPLIER) {
+            throw new InvalidParameterException(
+                "Invalid version initialisers [" + major + ", " + minor + ", " + revision + ", " + build + "]"
+            );
         }
 
-        id = Integer.valueOf(major) * MAJOR_MULTIPLIER
-            + Integer.valueOf(minor) * MINOR_MULTIPLIER
-            + Integer.valueOf(revision) * REVISION_MULTIPLIER
-            + Integer.valueOf(build);
+        id = Integer.valueOf(major) * MAJOR_MULTIPLIER + Integer.valueOf(minor) * MINOR_MULTIPLIER + Integer.valueOf(revision)
+            * REVISION_MULTIPLIER + Integer.valueOf(build);
     }
 
     public static SqlVersion fromString(String version) {
@@ -100,7 +97,7 @@ public class SqlVersion implements Comparable<SqlVersion>{
     private static String toString(byte... parts) {
         assert parts.length >= 1 : "Version must contain at least a Major component";
         String ver = String.valueOf(parts[0]);
-        for (int i = 1; i < parts.length; i ++) {
+        for (int i = 1; i < parts.length; i++) {
             ver += "." + parts[i];
         }
         return ver;
@@ -147,28 +144,7 @@ public class SqlVersion implements Comparable<SqlVersion>{
         return id - o.id;
     }
 
-    public static int majorMinorId(SqlVersion v) {
-        return v.major * MAJOR_MULTIPLIER + v.minor * MINOR_MULTIPLIER;
-    }
-
-    public int compareToMajorMinor(SqlVersion o) {
-        return majorMinorId(this) - majorMinorId(o);
-    }
-
-    public static boolean hasVersionCompatibility(SqlVersion version) {
-        return version.compareTo(V_7_7_0) >= 0;
-    }
-
-    // A client is version-compatible with the server if:
-    // - it supports version compatibility (past or on 7.7.0); and
-    // - it's not on a version newer than server's; and
-    // - it's major version is at most one unit behind server's.
-    public static boolean isClientCompatible(SqlVersion server, SqlVersion client) {
-        // ES's Version.CURRENT not available (core not a dependency), so it needs to be passed in as a parameter.
-        return hasVersionCompatibility(client) && server.compareTo(client) >= 0 && server.major - client.major <= 1;
-    }
-
-    public static boolean supportsDateNanos(SqlVersion version) {
-        return DATE_NANOS_SUPPORT_VERSION.compareTo(version) <= 0;
+    public boolean onOrAfter(SqlVersion other) {
+        return this.compareTo(other) >= 0;
     }
 }

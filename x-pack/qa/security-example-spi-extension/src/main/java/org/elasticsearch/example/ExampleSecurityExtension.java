@@ -16,8 +16,6 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,20 +32,16 @@ import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
  */
 public class ExampleSecurityExtension implements SecurityExtension {
 
-    static {
-        // check that the extension's policy works.
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            System.getSecurityManager().checkPropertyAccess("myproperty");
-            return null;
-        });
+    @Override
+    public String extensionName() {
+        return "example";
     }
 
     @Override
     public Map<String, Realm.Factory> getRealms(SecurityComponents components) {
         return Map.ofEntries(
             Map.entry(CustomRealm.TYPE, CustomRealm::new),
-            Map.entry(CustomRoleMappingRealm.TYPE,
-                config -> new CustomRoleMappingRealm(config, components.roleMapper()))
+            Map.entry(CustomRoleMappingRealm.TYPE, config -> new CustomRoleMappingRealm(config, components.roleMapper()))
         );
     }
 
@@ -57,8 +51,7 @@ public class ExampleSecurityExtension implements SecurityExtension {
     }
 
     @Override
-    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>
-    getRolesProviders(SecurityComponents components) {
+    public List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> getRolesProviders(SecurityComponents components) {
         CustomInMemoryRolesProvider rp1 = new CustomInMemoryRolesProvider(Collections.singletonMap(ROLE_A, "read"));
         Map<String, String> roles = new HashMap<>();
         roles.put(ROLE_A, "all");

@@ -6,18 +6,18 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -34,26 +34,29 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
     public static final String NAME = "cluster:admin/xpack/ml/job/estimate_model_memory";
 
     private EstimateModelMemoryAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField ANALYSIS_CONFIG = Job.ANALYSIS_CONFIG;
         public static final ParseField OVERALL_CARDINALITY = new ParseField("overall_cardinality");
         public static final ParseField MAX_BUCKET_CARDINALITY = new ParseField("max_bucket_cardinality");
 
-        public static final ObjectParser<Request, Void> PARSER =
-            new ObjectParser<>(NAME, EstimateModelMemoryAction.Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareObject(Request::setAnalysisConfig, (p, c) -> AnalysisConfig.STRICT_PARSER.apply(p, c).build(), ANALYSIS_CONFIG);
-            PARSER.declareObject(Request::setOverallCardinality,
+            PARSER.declareObject(
+                Request::setOverallCardinality,
                 (p, c) -> p.map(HashMap::new, parser -> Request.parseNonNegativeLong(parser, OVERALL_CARDINALITY)),
-                OVERALL_CARDINALITY);
-            PARSER.declareObject(Request::setMaxBucketCardinality,
+                OVERALL_CARDINALITY
+            );
+            PARSER.declareObject(
+                Request::setMaxBucketCardinality,
                 (p, c) -> p.map(HashMap::new, parser -> Request.parseNonNegativeLong(parser, MAX_BUCKET_CARDINALITY)),
-                MAX_BUCKET_CARDINALITY);
+                MAX_BUCKET_CARDINALITY
+            );
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -71,8 +74,8 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         public Request(StreamInput in) throws IOException {
             super(in);
             this.analysisConfig = in.readBoolean() ? new AnalysisConfig(in) : null;
-            this.overallCardinality = in.readMap(StreamInput::readString, StreamInput::readVLong);
-            this.maxBucketCardinality = in.readMap(StreamInput::readString, StreamInput::readVLong);
+            this.overallCardinality = in.readMap(StreamInput::readVLong);
+            this.maxBucketCardinality = in.readMap(StreamInput::readVLong);
         }
 
         @Override
@@ -84,8 +87,8 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
             } else {
                 out.writeBoolean(false);
             }
-            out.writeMap(overallCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
-            out.writeMap(maxBucketCardinality, StreamOutput::writeString, StreamOutput::writeVLong);
+            out.writeMap(overallCardinality, StreamOutput::writeVLong);
+            out.writeMap(maxBucketCardinality, StreamOutput::writeVLong);
         }
 
         @Override
@@ -111,8 +114,7 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         }
 
         public void setOverallCardinality(Map<String, Long> overallCardinality) {
-            this.overallCardinality =
-                Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(overallCardinality, OVERALL_CARDINALITY));
+            this.overallCardinality = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(overallCardinality, OVERALL_CARDINALITY));
         }
 
         public Map<String, Long> getMaxBucketCardinality() {
@@ -120,15 +122,19 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         }
 
         public void setMaxBucketCardinality(Map<String, Long> maxBucketCardinality) {
-            this.maxBucketCardinality =
-                Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(maxBucketCardinality, MAX_BUCKET_CARDINALITY));
+            this.maxBucketCardinality = Collections.unmodifiableMap(
+                ExceptionsHelper.requireNonNull(maxBucketCardinality, MAX_BUCKET_CARDINALITY)
+            );
         }
 
         private static long parseNonNegativeLong(XContentParser parser, ParseField enclosingField) throws IOException {
             long value = parser.longValue();
             if (value < 0) {
-                throw ExceptionsHelper.badRequestException("[{}] contained negative cardinality [{}]",
-                    enclosingField.getPreferredName(), value);
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] contained negative cardinality [{}]",
+                    enclosingField.getPreferredName(),
+                    value
+                );
             }
             return value;
         }
@@ -145,7 +151,7 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         }
 
         public Response(StreamInput in) throws IOException {
-            modelMemoryEstimate = new ByteSizeValue(in);
+            modelMemoryEstimate = ByteSizeValue.readFrom(in);
         }
 
         @Override

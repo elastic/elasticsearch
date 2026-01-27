@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
@@ -21,7 +22,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
  * It will only populate these if the event have message of type <code>ESLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "CustomMapFields")
-@ConverterKeys({"CustomMapFields"})
+@ConverterKeys({ "CustomMapFields" })
 public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     public CustomMapFieldsConverter() {
@@ -37,8 +38,7 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if(event.getMessage() instanceof ESLogMessage) {
-            ESLogMessage logMessage = (ESLogMessage) event.getMessage();
+        if (event.getMessage() instanceof ESLogMessage logMessage) {
             logMessage.addJsonNoBrackets(toAppendTo);
         }
     }

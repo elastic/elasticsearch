@@ -10,22 +10,21 @@ package org.elasticsearch.xpack.core.security.action.service;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class DeleteServiceAccountTokenResponse extends ActionResponse implements ToXContentObject {
 
-    private boolean found;
+    private final boolean found;
 
     public DeleteServiceAccountTokenResponse(boolean found) {
         this.found = found;
     }
 
     public DeleteServiceAccountTokenResponse(StreamInput in) throws IOException {
-        super(in);
         this.found = in.readBoolean();
     }
 
@@ -35,10 +34,8 @@ public class DeleteServiceAccountTokenResponse extends ActionResponse implements
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         DeleteServiceAccountTokenResponse that = (DeleteServiceAccountTokenResponse) o;
         return found == that.found;
     }

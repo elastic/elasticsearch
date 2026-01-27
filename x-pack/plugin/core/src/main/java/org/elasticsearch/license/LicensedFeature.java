@@ -41,8 +41,8 @@ public abstract class LicensedFeature {
      * A Persistent feature is one that is tracked starting when the license is checked, and later may be untracked.
      */
     public static class Persistent extends LicensedFeature {
-        private Persistent(String family, String name, License.OperationMode minimumOperationMode, boolean needsActive) {
-            super(family, name, minimumOperationMode, needsActive);
+        private Persistent(String family, String name, License.OperationMode minimumOperationMode) {
+            super(family, name, minimumOperationMode, true);
         }
 
         /**
@@ -104,14 +104,14 @@ public abstract class LicensedFeature {
         return needsActive;
     }
 
-    /** Create a momentary feature for hte given license level */
+    /** Create a momentary feature for the given license level */
     public static Momentary momentary(String family, String name, License.OperationMode licenseLevel) {
         return new Momentary(family, name, licenseLevel, true);
     }
 
     /** Create a persistent feature for the given license level */
     public static Persistent persistent(String family, String name, License.OperationMode licenseLevel) {
-        return new Persistent(family, name, licenseLevel, true);
+        return new Persistent(family, name, licenseLevel);
     }
 
     /**
@@ -121,15 +121,6 @@ public abstract class LicensedFeature {
     @Deprecated
     public static Momentary momentaryLenient(String family, String name, License.OperationMode licenseLevel) {
         return new Momentary(family, name, licenseLevel, false);
-    }
-
-    /**
-     * Creates a persistent feature, but one that is lenient as
-     * to whether the license needs to be active to allow the feature.
-     */
-    @Deprecated
-    public static Persistent persistentLenient(String family, String name, License.OperationMode licenseLevel) {
-        return new Persistent(family, name, licenseLevel, false);
     }
 
     /**
@@ -145,11 +136,11 @@ public abstract class LicensedFeature {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LicensedFeature that = (LicensedFeature) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(family, that.family);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, family);
     }
 }

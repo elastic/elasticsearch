@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -14,6 +15,7 @@ import org.gradle.testkit.runner.TaskOutcome
 class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
     def setup() {
+        configurationCacheCompatible = false
         internalBuild()
         buildFile << """
             import org.elasticsearch.gradle.Version;
@@ -21,11 +23,11 @@ class InternalBwcGitPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
             bwcGitConfig {
                  bwcVersion = project.provider { Version.fromString("7.9.1") }
-                 bwcBranch = project.provider { "7.x" }
+                 bwcBranch = project.provider { "7.9" }
                  checkoutDir = project.provider{file("build/checkout")}
             }
         """
-        execute("git branch origin/7.x", file("cloned"))
+        execute("git branch origin/7.9", file("cloned"))
     }
 
     def "current repository can be cloned"() {

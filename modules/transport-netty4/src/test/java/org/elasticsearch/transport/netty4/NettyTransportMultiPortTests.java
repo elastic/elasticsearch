@@ -1,13 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
@@ -19,7 +20,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.Before;
@@ -109,9 +109,16 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     private TcpTransport startTransport(Settings settings, ThreadPool threadPool) {
         PageCacheRecycler recycler = new MockPageCacheRecycler(Settings.EMPTY);
-        TcpTransport transport = new Netty4Transport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
-            recycler, new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService(),
-            new SharedGroupFactory(settings));
+        TcpTransport transport = new Netty4Transport(
+            settings,
+            TransportVersion.current(),
+            threadPool,
+            new NetworkService(Collections.emptyList()),
+            recycler,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(settings)
+        );
         transport.start();
 
         assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));

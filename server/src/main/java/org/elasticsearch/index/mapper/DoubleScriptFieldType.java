@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.DoubleDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.DoubleScriptFieldExistsQuery;
@@ -30,8 +31,8 @@ import org.elasticsearch.search.runtime.DoubleScriptFieldTermsQuery;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
@@ -43,20 +44,25 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name,
-                                                   DoubleFieldScript.Factory factory,
-                                                   Script script,
-                                                   Map<String, String> meta) {
-            return new DoubleScriptFieldType(name, factory, script, meta);
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            DoubleFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return new DoubleScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        DoubleFieldScript.Factory getParseFromSourceFactory() {
+        protected DoubleFieldScript.Factory getParseFromSourceFactory() {
             return DoubleFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        DoubleFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected DoubleFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return DoubleFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -69,9 +75,17 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         String name,
         DoubleFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta,
+            scriptFactory.isParsedFromSource()
+        );
     }
 
     @Override
@@ -94,13 +108,33 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
     }
 
     @Override
-    public DoubleScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new DoubleScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.DOUBLE,
+            BlockLoader.BlockFactory::doubles,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.DoubleBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendDouble(value.doubleValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
+    }
+
+    @Override
+    public DoubleScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new DoubleScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), DoubleDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -114,7 +148,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return NumberType.doubleRangeQuery(
             lowerTerm,
             upperTerm,
@@ -126,20 +160,20 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermQuery(script, leafFactory(context), name(), NumberType.objectToDouble(value));
     }
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
-        LongSet terms = new LongHashSet(values.size());
+        Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {
             terms.add(Double.doubleToLongBits(NumberType.objectToDouble(value)));
         }
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new DoubleScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 }

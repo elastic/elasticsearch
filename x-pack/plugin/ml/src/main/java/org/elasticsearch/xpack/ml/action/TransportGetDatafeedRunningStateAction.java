@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -16,8 +15,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -32,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.core.Strings.format;
 
 public class TransportGetDatafeedRunningStateAction extends TransportTasksAction<
     TransportStartDatafeedAction.DatafeedTask,
@@ -54,16 +56,17 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
-            ThreadPool.Names.MANAGEMENT
+            transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 
     @Override
-    protected Response newResponse(Request request,
-                                   List<Response> tasks,
-                                   List<TaskOperationFailure> taskOperationFailures,
-                                   List<FailedNodeException> failedNodeExceptions) {
+    protected Response newResponse(
+        Request request,
+        List<Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         org.elasticsearch.ExceptionsHelper.rethrowAndSuppress(
             taskOperationFailures.stream()
                 .map(t -> org.elasticsearch.ExceptionsHelper.convertToElastic(t.getCause()))
@@ -75,6 +78,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
 
     @Override
     protected void taskOperation(
+        CancellableTask actionTask,
         Request request,
         TransportStartDatafeedAction.DatafeedTask datafeedTask,
         ActionListener<Response> listener
@@ -85,7 +89,7 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasks == null) {
             listener.onResponse(new Response(Collections.emptyMap()));
             return;
@@ -101,38 +105,39 @@ public class TransportGetDatafeedRunningStateAction extends TransportTasksAction
         }
 
         // Do this to catch datafeed tasks that have been created but are currently not assigned to a node.
-        ActionListener<Response> taskResponseListener = ActionListener.wrap(
-            actionResponses -> {
-                Map<String, Response.RunningState> runningStateMap = actionResponses.getDatafeedRunningState();
-                if (runningStateMap.size() == datafeedTasks.size()) {
-                    listener.onResponse(actionResponses);
-                    return;
-                }
-                List<Response> missingResponses = new ArrayList<>();
-                missingResponses.add(actionResponses);
-                missingResponses.add(new Response(datafeedTasks.stream()
-                    .map(t -> (StartDatafeedAction.DatafeedParams)t.getParams())
-                    .filter(datafeedParams -> runningStateMap.containsKey(datafeedParams.getDatafeedId()) == false)
-                    .collect(Collectors.toMap(
-                        StartDatafeedAction.DatafeedParams::getDatafeedId,
-                        // If it isn't assigned to a node, assume that look back hasn't completed yet
-                        params -> new Response.RunningState(params.getEndTime() == null, false)
-                    ))));
-                listener.onResponse(Response.fromResponses(missingResponses));
-            },
-            listener::onFailure
-        );
+        ActionListener<Response> taskResponseListener = ActionListener.wrap(actionResponses -> {
+            Map<String, Response.RunningState> runningStateMap = actionResponses.getDatafeedRunningState();
+            if (runningStateMap.size() == datafeedTasks.size()) {
+                listener.onResponse(actionResponses);
+                return;
+            }
+            List<Response> missingResponses = new ArrayList<>();
+            missingResponses.add(actionResponses);
+            missingResponses.add(
+                new Response(
+                    datafeedTasks.stream()
+                        .map(t -> (StartDatafeedAction.DatafeedParams) t.getParams())
+                        .filter(datafeedParams -> runningStateMap.containsKey(datafeedParams.getDatafeedId()) == false)
+                        .collect(
+                            Collectors.toMap(
+                                StartDatafeedAction.DatafeedParams::getDatafeedId,
+                                // If it isn't assigned to a node, assume that look back hasn't completed yet
+                                params -> new Response.RunningState(params.getEndTime() == null, false, null)
+                            )
+                        )
+                )
+            );
+            listener.onResponse(Response.fromResponses(missingResponses));
+        }, listener::onFailure);
 
-        String[] nodesOfConcern = datafeedTasks.stream().map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
+        String[] nodesOfConcern = datafeedTasks.stream()
+            .map(PersistentTasksCustomMetadata.PersistentTask::getExecutorNode)
             .filter(Objects::nonNull)
             .filter(nodes::nodeExists)
             .toArray(String[]::new);
 
         if (nodesOfConcern.length == 0) {
-            logger.debug(() -> new ParameterizedMessage(
-                "Unable to find executor nodes for datafeed tasks {}",
-                request.getDatafeedTaskIds()
-            ));
+            logger.debug(() -> format("Unable to find executor nodes for datafeed tasks %s", request.getDatafeedTaskIds()));
 
             taskResponseListener.onResponse(new Response(Collections.emptyMap()));
             return;

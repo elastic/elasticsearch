@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -12,8 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -22,8 +23,7 @@ public class ShutdownPluginsStatus implements Writeable, ToXContentObject {
     private final SingleNodeShutdownMetadata.Status status;
 
     public ShutdownPluginsStatus(boolean safeToShutdown) {
-        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE :
-            SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
     }
 
     public ShutdownPluginsStatus(StreamInput in) throws IOException {

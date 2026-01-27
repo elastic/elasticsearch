@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -34,17 +36,8 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     private boolean ignoreUnavailable;
 
-    public SnapshotsStatusRequest() {}
-
-    /**
-     * Constructs a new get snapshots request with given repository name and list of snapshots
-     *
-     * @param repository repository name
-     * @param snapshots  list of snapshots
-     */
-    public SnapshotsStatusRequest(String repository, String[] snapshots) {
-        this.repository = repository;
-        this.snapshots = snapshots;
+    public SnapshotsStatusRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
     }
 
     public SnapshotsStatusRequest(StreamInput in) throws IOException {
@@ -67,7 +60,8 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
      *
      * @param repository repository name
      */
-    public SnapshotsStatusRequest(String repository) {
+    public SnapshotsStatusRequest(TimeValue masterNodeTimeout, String repository) {
+        this(masterNodeTimeout);
         this.repository = repository;
     }
 
@@ -151,7 +145,7 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("repository[").append(repository).append("], snapshots[");
-        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(snapshots), ",", 1024, stringBuilder);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

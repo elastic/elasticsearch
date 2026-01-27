@@ -12,9 +12,10 @@ import org.jline.reader.impl.completer.ArgumentCompleter;
 import org.jline.reader.impl.completer.StringsCompleter;
 
 class Completers {
-    //TODO: need tree structure
+    // TODO: need tree structure
     static final Completer INSTANCE = new AggregateCompleter(
-            new ArgumentCompleter(new StringsCompleter("", "EXPLAIN", "SHOW", "SELECT", "SET")),
-            new ArgumentCompleter(new StringsCompleter("SHOW", "TABLE", "COLUMNS", "FUNCTIONS")));
+        new ArgumentCompleter(new StringsCompleter("", "EXPLAIN", "SHOW", "SELECT", "SET")),
+        new ArgumentCompleter(new StringsCompleter("SHOW", "TABLE", "COLUMNS", "FUNCTIONS"))
+    );
 
 }

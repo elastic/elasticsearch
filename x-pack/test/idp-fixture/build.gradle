@@ -1,42 +1,34 @@
-import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.Architecture
-import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
+apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.cache-test-fixtures'
+apply plugin: 'elasticsearch.deploy-test-fixtures'
 
-apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.internal-distribution-download'
-
-tasks.register("copyKeystore", Sync) {
-  from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
-  into "${buildDir}/certs"
-  doLast {
-    file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+dockerFixtures {
+  idp {
+    dockerContext = file("src/main/resources/idp")
+    version = "1.2"
+    baseImages = ["openjdk:11.0.16-jre"]
+  }
+  httpproxy {
+    dockerContext = file("src/main/resources/nginx")
+    version = "1.0"
+    baseImages = ["nginx:1.27.1"]
+  }
+  oidc {
+    dockerContext = file("src/main/resources/oidc")
+    version = "1.0"
+    baseImages = ["c2id/c2id-server-demo:16.1.1", "eclipse-temurin:17-noble"]
+  }
+  openldap {
+    dockerContext = file("src/main/resources/openldap")
+    version = "1.0"
+    baseImages = ["osixia/openldap:1.4.0"]
   }
 }
 
-elasticsearch_distributions {
-  docker {
-    type = DOCKER
-    architecture = Architecture.current()
-    version = VersionProperties.getElasticsearch()
-    failIfUnavailable = false // This ensures we skip this testing if Docker is unavailable
-  }
-}
+dependencies {
+  testImplementation project(':test:framework')
+  api project(':test:fixtures:testcontainer-utils')
+  api "junit:junit:${versions.junit}"
 
-tasks.named("preProcessFixture").configure {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
-  doLast {
-    File file = file("${buildDir}/logs/node1")
-    file.mkdirs()
-    file.setWritable(true, false)
-  }
-}
-
-tasks.named('composeUp').configure {
-  dependsOn "preProcessFixture"
-}
-
-tasks.named('composePull').configure {
-  enabled = false // this task fails due to docker-compose oddities
+  runtimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }

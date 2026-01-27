@@ -1,74 +1,109 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.node;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
+import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
+import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsServiceTests;
+import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.mockito.Mockito;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Mockito.mock;
 
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class NodeTests extends ESTestCase {
 
     public static class CheckPlugin extends Plugin {
-        public static final BootstrapCheck CHECK = context -> BootstrapCheck.BootstrapCheckResult.success();
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
+            @Override
+            public BootstrapCheckResult check(BootstrapContext context) {
+                return BootstrapCheck.BootstrapCheckResult.success();
+            }
+
+            @Override
+            public ReferenceDocs referenceDocs() {
+                return ReferenceDocs.BOOTSTRAP_CHECKS;
+            }
+        };
 
         @Override
         public List<BootstrapCheck> getBootstrapChecks() {
@@ -94,8 +129,11 @@ public class NodeTests extends ESTestCase {
         plugins.add(CheckPlugin.class);
         try (Node node = new MockNode(settings.build(), plugins) {
             @Override
-            protected void validateNodeBeforeAcceptingRequests(BootstrapContext context, BoundTransportAddress boundTransportAddress,
-                                                               List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
+            protected void validateNodeBeforeAcceptingRequests(
+                BootstrapContext context,
+                BoundTransportAddress boundTransportAddress,
+                List<BootstrapCheck> bootstrapChecks
+            ) throws NodeValidationException {
                 assertEquals(1, bootstrapChecks.size());
                 assertSame(CheckPlugin.CHECK, bootstrapChecks.get(0));
                 executed.set(true);
@@ -159,6 +197,10 @@ public class NodeTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            // default the watermarks low values to prevent tests from failing on nodes without enough disk space
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")
             .put(dataNode());
     }
 
@@ -170,7 +212,8 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get()) ;
+            while (shouldRun.get())
+                ;
         });
         threadRunning.await();
         node.close();
@@ -193,7 +236,8 @@ public class NodeTests extends ESTestCase {
             }
             try {
                 threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
-                    while (shouldRun.get()) ;
+                    while (shouldRun.get())
+                        ;
                 });
             } catch (RejectedExecutionException e) {
                 assertThat(e.getMessage(), containsString("[Terminated,"));
@@ -232,7 +276,8 @@ public class NodeTests extends ESTestCase {
         final CountDownLatch threadRunning = new CountDownLatch(1);
         threadpool.executor(ThreadPool.Names.SEARCH).execute(() -> {
             threadRunning.countDown();
-            while (shouldRun.get()) ;
+            while (shouldRun.get())
+                ;
         });
         threadRunning.await();
         node.close();
@@ -274,8 +319,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(node.client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         Searcher searcher = shard.acquireSearcher("test");
@@ -290,8 +334,7 @@ public class NodeTests extends ESTestCase {
         Node node = new MockNode(baseSettings().build(), basePlugins());
         node.start();
         IndicesService indicesService = node.injector().getInstance(IndicesService.class);
-        assertAcked(node.client().admin().indices().prepareCreate("test")
-            .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)));
+        assertAcked(node.client().admin().indices().prepareCreate("test").setSettings(indexSettings(1, 0)));
         IndexService indexService = indicesService.iterator().next();
         IndexShard shard = indexService.getShard(0);
         shard.store().incRef();
@@ -303,19 +346,123 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testCreateWithCircuitBreakerPlugins() throws IOException {
-        Settings.Builder settings = baseSettings()
-            .put("breaker.test_breaker.limit", "50b");
+        Settings.Builder settings = baseSettings().put("breaker.test_breaker.limit", "50b");
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockCircuitBreakerPlugin.class);
         try (Node node = new MockNode(settings.build(), plugins)) {
             CircuitBreakerService service = node.injector().getInstance(CircuitBreakerService.class);
             assertThat(service.getBreaker("test_breaker"), is(not(nullValue())));
             assertThat(service.getBreaker("test_breaker").getLimit(), equalTo(50L));
-            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).get(0);
+            CircuitBreakerPlugin breakerPlugin = node.getPluginsService().filterPlugins(CircuitBreakerPlugin.class).findFirst().get();
             assertTrue(breakerPlugin instanceof MockCircuitBreakerPlugin);
-            assertSame("plugin circuit breaker instance is not the same as breaker service's instance",
+            assertSame(
+                "plugin circuit breaker instance is not the same as breaker service's instance",
                 ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
-                service.getBreaker("test_breaker"));
+                service.getBreaker("test_breaker")
+            );
+        }
+    }
+
+    /**
+     * TODO: Remove this test once classpath plugins are fully moved to MockNode.
+     * In production, plugin name clashes are checked in a completely different way.
+     * See {@link PluginsServiceTests#testPluginNameClash()}
+     */
+    public void testNodeFailsToStartWhenThereAreMultipleRecoveryPlannerPluginsLoaded() {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockRecoveryPlannerPlugin.class);
+        plugins.add(MockRecoveryPlannerPlugin.class);
+        IllegalStateException exception = expectThrows(IllegalStateException.class, () -> new MockNode(baseSettings().build(), plugins));
+        assertThat(exception.getMessage(), containsString("Duplicate key org.elasticsearch.node.NodeTests$MockRecoveryPlannerPlugin"));
+    }
+
+    public void testHeadersToCopyInTaskManagerAreTheSameAsDeclaredInTask() throws IOException {
+        Settings.Builder settings = baseSettings();
+        try (Node node = new MockNode(settings.build(), basePlugins())) {
+            final TransportService transportService = node.injector().getInstance(TransportService.class);
+            final Set<String> taskHeaders = transportService.getTaskManager().getTaskHeaders();
+            assertThat(taskHeaders, containsInAnyOrder(Task.HEADERS_TO_COPY.toArray()));
+        }
+    }
+
+    public static class MockPluginWithAltImpl extends Plugin {
+        private final boolean randomBool;
+        private static boolean startCalled = false;
+        private static boolean stopCalled = false;
+        private static boolean closeCalled = false;
+
+        public MockPluginWithAltImpl() {
+            this.randomBool = randomBoolean();
+        }
+
+        interface MyInterface extends LifecycleComponent {
+            String get();
+
+        }
+
+        static class Foo extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "foo";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        static class Bar extends AbstractLifecycleComponent implements MyInterface {
+            @Override
+            public String get() {
+                return "bar";
+            }
+
+            @Override
+            protected void doStart() {
+                startCalled = true;
+            }
+
+            @Override
+            protected void doStop() {
+                stopCalled = true;
+            }
+
+            @Override
+            protected void doClose() throws IOException {
+                closeCalled = true;
+            }
+        }
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            List<Object> components = new ArrayList<>();
+            components.add(new PluginComponentBinding<>(MyInterface.class, getRandomBool() ? new Foo() : new Bar()));
+            return components;
+        }
+
+        public boolean getRandomBool() {
+            return this.randomBool;
+        }
+
+    }
+
+    public static class MockRecoveryPlannerPlugin extends Plugin implements RecoveryPlannerPlugin {
+        public MockRecoveryPlannerPlugin() {}
+
+        @Override
+        public Optional<RecoveryPlannerService> createRecoveryPlannerService(ShardSnapshotsService shardSnapshotsService) {
+            return Optional.of(mock(RecoveryPlannerService.class));
         }
     }
 
@@ -328,12 +475,9 @@ public class NodeTests extends ESTestCase {
         @Override
         public BreakerSettings getCircuitBreaker(Settings settings) {
             return BreakerSettings.updateFromSettings(
-                new BreakerSettings("test_breaker",
-                    100L,
-                    1.0d,
-                    CircuitBreaker.Type.MEMORY,
-                    CircuitBreaker.Durability.TRANSIENT),
-                settings);
+                new BreakerSettings("test_breaker", 100L, 1.0d, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT),
+                settings
+            );
         }
 
         @Override
@@ -345,13 +489,19 @@ public class NodeTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private static ContextParser<Object, Integer> mockContextParser() {
-        return Mockito.mock(ContextParser.class);
+        return mock(ContextParser.class);
     }
 
-    static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())), mockContextParser());
-    static NamedXContentRegistry.Entry currentVersionEntries = new NamedXContentRegistry.Entry(Integer.class,
-        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())), mockContextParser());
+    static NamedXContentRegistry.Entry compatibleEntries = new NamedXContentRegistry.Entry(
+        Integer.class,
+        new ParseField("name").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported())),
+        mockContextParser()
+    );
+    static NamedXContentRegistry.Entry currentVersionEntries = new NamedXContentRegistry.Entry(
+        Integer.class,
+        new ParseField("name2").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.minimumSupported())),
+        mockContextParser()
+    );
 
     public static class TestRestCompatibility1 extends Plugin {
         @Override
@@ -395,19 +545,200 @@ public class NodeTests extends ESTestCase {
         }
     }
 
+    static class AdditionalSettingsPlugin1 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder()
+                .put("foo.bar", "1")
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.MMAPFS.getSettingsKey())
+                .build();
+        }
+    }
+
+    static class AdditionalSettingsPlugin2 extends Plugin {
+        @Override
+        public Settings additionalSettings() {
+            return Settings.builder().put("foo.bar", "2").build();
+        }
+    }
+
+    public void testAdditionalSettings() {
+        Map<String, Plugin> pluginMap = Map.of(AdditionalSettingsPlugin1.class.getName(), new AdditionalSettingsPlugin1());
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("my.setting", "test")
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
+            .build();
+
+        Settings newSettings = Node.mergePluginSettings(pluginMap, settings);
+        assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
+        assertEquals("1", newSettings.get("foo.bar")); // added setting exists
+        // does not override pre existing settings
+        assertEquals(IndexModule.Type.NIOFS.getSettingsKey(), newSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()));
+    }
+
+    public void testAdditionalSettingsClash() {
+        Map<String, Plugin> pluginMap = Map.of(
+            AdditionalSettingsPlugin1.class.getName(),
+            new AdditionalSettingsPlugin1(),
+            AdditionalSettingsPlugin2.class.getName(),
+            new AdditionalSettingsPlugin2()
+        );
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> Node.mergePluginSettings(pluginMap, Settings.EMPTY)
+        );
+        String msg = e.getMessage();
+        assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin1.class.getName()));
+        assertTrue(msg, msg.contains("plugin [" + AdditionalSettingsPlugin2.class.getName()));
+    }
+
+    public void testPluginComponentInterfaceBinding() throws IOException, NodeValidationException {
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockPluginWithAltImpl.class);
+        try (Node node = new MockNode(baseSettings().build(), plugins)) {
+            MockPluginWithAltImpl.MyInterface myInterface = node.injector().getInstance(MockPluginWithAltImpl.MyInterface.class);
+            MockPluginWithAltImpl plugin = node.getPluginsService().filterPlugins(MockPluginWithAltImpl.class).findFirst().get();
+            if (plugin.getRandomBool()) {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Foo.class));
+                assertThat(myInterface.get(), equalTo("foo"));
+            } else {
+                assertThat(myInterface, instanceOf(MockPluginWithAltImpl.Bar.class));
+                assertThat(myInterface.get(), equalTo("bar"));
+            }
+            node.start();
+            assertTrue(MockPluginWithAltImpl.startCalled);
+        }
+        assertTrue(MockPluginWithAltImpl.stopCalled);
+        assertTrue(MockPluginWithAltImpl.closeCalled);
+    }
+
     private RestRequest request(NamedXContentRegistry namedXContentRegistry, RestApiVersion restApiVersion) throws IOException {
         String mediaType = XContentType.VND_JSON.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
-                String.valueOf(restApiVersion.major)));
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(restApiVersion.major)));
         List<String> mediaTypeList = Collections.singletonList(mediaType);
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent()).startObject().endObject();
 
-        return new FakeRestRequest.Builder(namedXContentRegistry)
-            .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
-            .build();
+        return new FakeRestRequest.Builder(namedXContentRegistry).withContent(
+            BytesReference.bytes(b),
+            RestRequest.parseContentType(mediaTypeList)
+        ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
     }
 
+    private static class BaseTestClusterCoordinationPlugin extends Plugin implements ClusterCoordinationPlugin {
 
+        public PersistedClusterStateService persistedClusterStateService;
+
+        @Override
+        public Optional<PersistedClusterStateServiceFactory> getPersistedClusterStateServiceFactory() {
+            return Optional.of(
+                (
+                    nodeEnvironment,
+                    namedXContentRegistry,
+                    clusterSettings,
+                    threadPool,
+                    compatibilityVersions) -> persistedClusterStateService = new PersistedClusterStateService(
+                        nodeEnvironment,
+                        namedXContentRegistry,
+                        clusterSettings,
+                        threadPool.relativeTimeInMillisSupplier(),
+                        ESTestCase::randomBoolean
+                    )
+            );
+        }
+    }
+
+    public static class TestClusterCoordinationPlugin1 extends BaseTestClusterCoordinationPlugin {}
+
+    public static class TestClusterCoordinationPlugin2 extends BaseTestClusterCoordinationPlugin {}
+
+    public void testPluggablePersistedClusterStateServiceValidation() throws IOException {
+        assertThat(
+            expectThrows(
+                IllegalStateException.class,
+                () -> new MockNode(
+                    baseSettings().build(),
+                    List.of(TestClusterCoordinationPlugin1.class, TestClusterCoordinationPlugin2.class, getTestTransportPlugin())
+                )
+            ).getMessage(),
+            containsString("A single " + ClusterCoordinationPlugin.PersistedClusterStateServiceFactory.class.getName() + " was expected")
+        );
+
+        try (Node node = new MockNode(baseSettings().build(), List.of(TestClusterCoordinationPlugin1.class, getTestTransportPlugin()))) {
+
+            for (final var plugin : node.getPluginsService().filterPlugins(BaseTestClusterCoordinationPlugin.class).toList()) {
+                assertSame(
+                    Objects.requireNonNull(plugin.persistedClusterStateService),
+                    node.injector().getInstance(PersistedClusterStateService.class)
+                );
+            }
+        }
+    }
+
+    public void testInitialClusterStateWaitCancelledOnShutdown() throws Exception {
+
+        Consumer<MockNode> startNode = node -> {
+            try {
+                node.start();
+            } catch (NodeValidationException e) {
+                throw new AssertionError(e);
+            }
+        };
+        Settings baseSettings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .build();
+        Settings masterSettings = Settings.builder()
+            .put(baseSettings)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put("node.name", "master_node")
+            .build();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockTransportService.TestPlugin.class);
+
+        try (MockNode masterNode = new MockNode(NodeRoles.masterOnlyNode(masterSettings), plugins)) {
+            startNode.accept(masterNode);
+
+            CountDownLatch reachedBlock = new CountDownLatch(1);
+
+            var transportService = asInstanceOf(MockTransportService.class, masterNode.injector().getInstance(TransportService.class));
+            transportService.addRequestHandlingBehavior("internal:discovery/request_peers", (handler, request, channel, task) -> {
+                logger.info("blocking peer discovery");
+                reachedBlock.countDown();
+            });
+            String masterAddress = masterNode.injector().getInstance(TransportService.class).getLocalNode().getAddress().toString();
+
+            Settings nodeSettings = NodeRoles.dataOnlyNode(
+                Settings.builder()
+                    .put(baseSettings)
+                    .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+                    .put(INITIAL_STATE_TIMEOUT_SETTING.getKey(), "1h")
+                    .putList("cluster.initial_master_nodes", "master_node")
+                    .put("node.name", "joining_node")
+                    .putList(SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.getKey(), masterAddress)
+                    .build()
+            );
+            try (MockLog mockLog = MockLog.capture(Node.class); MockNode joiningNode = new MockNode(nodeSettings, plugins)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "aborted initial state log",
+                        Node.class.getName(),
+                        Level.INFO,
+                        "shutdown began while waiting for initial discovery state"
+                    )
+                );
+
+                Thread startupThread = new Thread(() -> startNode.accept(joiningNode));
+                startupThread.start();
+                safeAwait(reachedBlock);
+
+                joiningNode.prepareForClose();
+                // startup should now complete on its own even though the discover request is blocked
+                startupThread.join();
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+    }
 }

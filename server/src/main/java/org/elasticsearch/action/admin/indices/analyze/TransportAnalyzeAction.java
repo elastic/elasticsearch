@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
@@ -17,18 +18,20 @@ import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
@@ -42,6 +45,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -65,11 +70,27 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     private final IndicesService indicesService;
 
     @Inject
-    public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                  TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            AnalyzeAction.Request::new, ThreadPool.Names.ANALYZE);
+    public TransportAnalyzeAction(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            AnalyzeAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            projectResolver,
+            indexNameExpressionResolver,
+            AnalyzeAction.Request::new,
+            threadPool.executor(ThreadPool.Names.ANALYZE)
+        );
         this.settings = settings;
         this.indicesService = indicesService;
     }
@@ -85,7 +106,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
         if (request.concreteIndex() != null) {
             return super.checkRequestBlock(state, request);
         }
@@ -93,7 +114,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, InternalRequest request) {
+    protected ShardsIterator shards(ProjectState state, InternalRequest request) {
         if (request.concreteIndex() == null) {
             // just execute locally....
             return null;
@@ -104,23 +125,30 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     @Override
     protected AnalyzeAction.Response shardOperation(AnalyzeAction.Request request, ShardId shardId) throws IOException {
         final IndexService indexService = getIndexService(shardId);
-        final int maxTokenCount = indexService == null ?
-            IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings) : indexService.getIndexSettings().getMaxTokenCount();
+        final int maxTokenCount = indexService == null
+            ? IndexSettings.MAX_TOKEN_COUNT_SETTING.get(settings)
+            : indexService.getIndexSettings().getMaxTokenCount();
 
         return analyze(request, indicesService.getAnalysis(), indexService, maxTokenCount);
     }
 
-    public static AnalyzeAction.Response analyze(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                          IndexService indexService, int maxTokenCount) throws IOException {
+    public static AnalyzeAction.Response analyze(
+        AnalyzeAction.Request request,
+        AnalysisRegistry analysisRegistry,
+        IndexService indexService,
+        int maxTokenCount
+    ) throws IOException {
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
 
-        // First, we check to see if the request requires a custom analyzer.  If so, then we
+        // First, we check to see if the request requires a custom analyzer. If so, then we
         // need to build it and then close it after use.
         try (Analyzer analyzer = buildCustomAnalyzer(request, analysisRegistry, settings)) {
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException("Can not build a custom analyzer", e);
         }
 
         // Otherwise we use a built-in analyzer, which should not be closed
@@ -134,8 +162,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return null;
     }
 
-    private static Analyzer getAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                        IndexService indexService) throws IOException {
+    private static Analyzer getAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry, IndexService indexService)
+        throws IOException {
         if (request.analyzer() != null) {
             if (indexService == null) {
                 Analyzer analyzer = analysisRegistry.getAnalyzer(request.analyzer());
@@ -169,11 +197,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             MappedFieldType fieldType = indexService.mapperService().fieldType(request.field());
             if (fieldType != null) {
                 if (fieldType instanceof StringFieldType) {
-                    return indexService.mapperService().indexAnalyzer(fieldType.name(),
-                        f -> { throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name()); });
+                    return indexService.mapperService().indexAnalyzer(fieldType.name(), f -> {
+                        throw new IllegalArgumentException("No analyzer configured for field " + fieldType.name());
+                    });
                 } else {
-                    throw new IllegalArgumentException("Can't process field [" + request.field() +
-                        "], Analysis requests are only supported on tokenized fields");
+                    throw new IllegalArgumentException(
+                        "Can't process field [" + request.field() + "], Analysis requests are only supported on tokenized fields"
+                    );
                 }
             }
         }
@@ -184,16 +214,31 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         }
     }
 
-    private static Analyzer buildCustomAnalyzer(AnalyzeAction.Request request, AnalysisRegistry analysisRegistry,
-                                                IndexSettings indexSettings) throws IOException {
+    private static Analyzer buildCustomAnalyzer(
+        AnalyzeAction.Request request,
+        AnalysisRegistry analysisRegistry,
+        IndexSettings indexSettings
+    ) throws IOException {
         if (request.tokenizer() != null) {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, false,
-                request.tokenizer(), request.charFilters(), request.tokenFilters());
+            return analysisRegistry.buildCustomAnalyzer(
+                IndexCreationContext.RELOAD_ANALYZERS,
+                indexSettings,
+                false,
+                request.tokenizer(),
+                request.charFilters(),
+                request.tokenFilters()
+            );
         } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
             || (request.charFilters() != null && request.charFilters().size() > 0))) {
-            return analysisRegistry.buildCustomAnalyzer(indexSettings, true, new NameOrDefinition("keyword"),
-                request.charFilters(), request.tokenFilters());
-        }
+                return analysisRegistry.buildCustomAnalyzer(
+                    IndexCreationContext.RELOAD_ANALYZERS,
+                    indexSettings,
+                    true,
+                    new NameOrDefinition("keyword"),
+                    request.charFilters(),
+                    request.tokenFilters()
+                );
+            }
         return null;
     }
 
@@ -204,8 +249,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return new AnalyzeAction.Response(simpleAnalyze(request, analyzer, maxTokenCount), null);
     }
 
-    private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request,
-                                                                  Analyzer analyzer, int maxTokenCount) {
+    private static List<AnalyzeAction.AnalyzeToken> simpleAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         int lastPosition = -1;
@@ -224,8 +268,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeAction.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
-                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(), null));
+                    tokens.add(
+                        new AnalyzeAction.AnalyzeToken(
+                            term.toString(),
+                            lastPosition,
+                            lastOffset + offset.startOffset(),
+                            lastOffset + offset.endOffset(),
+                            posLen.getPositionLength(),
+                            type.type(),
+                            null
+                        )
+                    );
                     tc.increment();
                 }
                 stream.end();
@@ -241,8 +294,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return tokens;
     }
 
-    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer,
-                                                                     int maxTokenCount) {
+    private static AnalyzeAction.DetailAnalyzeResponse detailAnalyze(AnalyzeAction.Request request, Analyzer analyzer, int maxTokenCount) {
         AnalyzeAction.DetailAnalyzeResponse detailResponse;
         final Set<String> includeAttributes = new HashSet<>();
         if (request.attributes() != null) {
@@ -257,8 +309,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             potentialCustomAnalyzer = ((NamedAnalyzer) analyzer).analyzer();
         }
 
-        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider) {
-            AnalyzerComponentsProvider customAnalyzer = (AnalyzerComponentsProvider) potentialCustomAnalyzer;
+        if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider customAnalyzer) {
             // note: this is not field-name dependent in our cases so we can leave out the argument
             int positionIncrementGap = potentialCustomAnalyzer.getPositionIncrementGap("");
             int offsetGap = potentialCustomAnalyzer.getOffsetGap("");
@@ -269,8 +320,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
 
             String[][] charFiltersTexts = new String[charFilterFactories != null ? charFilterFactories.length : 0][request.text().length];
-            TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null ?
-                tokenFilterFactories.length : 0];
+            TokenListCreator[] tokenFiltersTokenListCreator = new TokenListCreator[tokenFilterFactories != null
+                ? tokenFilterFactories.length
+                : 0];
 
             TokenListCreator tokenizerTokenListCreator = new TokenListCreator(maxTokenCount);
 
@@ -300,34 +352,43 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                         if (tokenFiltersTokenListCreator[tokenFilterIndex] == null) {
                             tokenFiltersTokenListCreator[tokenFilterIndex] = new TokenListCreator(maxTokenCount);
                         }
-                        TokenStream stream = createStackedTokenStream(request.text()[textIndex],
-                            charFilterFactories, tokenizerFactory, tokenFilterFactories, tokenFilterIndex + 1);
+                        TokenStream stream = createStackedTokenStream(
+                            request.text()[textIndex],
+                            charFilterFactories,
+                            tokenizerFactory,
+                            tokenFilterFactories,
+                            tokenFilterIndex + 1
+                        );
                         tokenFiltersTokenListCreator[tokenFilterIndex].analyze(stream, includeAttributes, positionIncrementGap, offsetGap);
                     }
                 }
             }
 
-            AnalyzeAction.CharFilteredText[] charFilteredLists =
-                new AnalyzeAction.CharFilteredText[charFiltersTexts.length];
+            AnalyzeAction.CharFilteredText[] charFilteredLists = new AnalyzeAction.CharFilteredText[charFiltersTexts.length];
 
             if (charFilterFactories != null) {
                 for (int charFilterIndex = 0; charFilterIndex < charFiltersTexts.length; charFilterIndex++) {
                     charFilteredLists[charFilterIndex] = new AnalyzeAction.CharFilteredText(
-                        charFilterFactories[charFilterIndex].name(), charFiltersTexts[charFilterIndex]);
+                        charFilterFactories[charFilterIndex].name(),
+                        charFiltersTexts[charFilterIndex]
+                    );
                 }
             }
-            AnalyzeAction.AnalyzeTokenList[] tokenFilterLists =
-                new AnalyzeAction.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
+            AnalyzeAction.AnalyzeTokenList[] tokenFilterLists = new AnalyzeAction.AnalyzeTokenList[tokenFiltersTokenListCreator.length];
 
             if (tokenFilterFactories != null) {
                 for (int tokenFilterIndex = 0; tokenFilterIndex < tokenFiltersTokenListCreator.length; tokenFilterIndex++) {
                     tokenFilterLists[tokenFilterIndex] = new AnalyzeAction.AnalyzeTokenList(
-                        tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
+                        tokenFilterFactories[tokenFilterIndex].name(),
+                        tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens()
+                    );
                 }
             }
-            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(charFilteredLists,
+            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(
+                charFilteredLists,
                 new AnalyzeAction.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()),
-                tokenFilterLists);
+                tokenFilterLists
+            );
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {
@@ -342,17 +403,23 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     analyzer.tokenStream(request.field(), text),
                     includeAttributes,
                     analyzer.getPositionIncrementGap(request.field()),
-                    analyzer.getOffsetGap(request.field()));
+                    analyzer.getOffsetGap(request.field())
+                );
             }
-            detailResponse
-                = new AnalyzeAction.DetailAnalyzeResponse(new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens()));
+            detailResponse = new AnalyzeAction.DetailAnalyzeResponse(
+                new AnalyzeAction.AnalyzeTokenList(name, tokenListCreator.getArrayTokens())
+            );
         }
         return detailResponse;
     }
 
-    private static TokenStream createStackedTokenStream(String source, CharFilterFactory[] charFilterFactories,
-                                                        TokenizerFactory tokenizerFactory, TokenFilterFactory[] tokenFilterFactories,
-                                                        int current) {
+    private static TokenStream createStackedTokenStream(
+        String source,
+        CharFilterFactory[] charFilterFactories,
+        TokenizerFactory tokenizerFactory,
+        TokenFilterFactory[] tokenFilterFactories,
+        int current
+    ) {
         Reader reader = new StringReader(source);
         for (CharFilterFactory charFilterFactory : charFilterFactories) {
             reader = charFilterFactory.create(reader);
@@ -384,19 +451,24 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return sb.toString();
     }
 
-    private static class TokenCounter{
+    private static class TokenCounter {
         private int tokenCount = 0;
         private int maxTokenCount;
 
-        private TokenCounter(int maxTokenCount){
+        private TokenCounter(int maxTokenCount) {
             this.maxTokenCount = maxTokenCount;
         }
-        private void increment(){
+
+        private void increment() {
             tokenCount++;
             if (tokenCount > maxTokenCount) {
-                throw new IllegalStateException(
-                    "The number of tokens produced by calling _analyze has exceeded the allowed maximum of [" + maxTokenCount + "]."
-                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.");
+                throw new ElasticsearchStatusException(
+                    "The number of tokens produced by calling _analyze has exceeded the allowed maximum of ["
+                        + maxTokenCount
+                        + "]."
+                        + " This limit can be set by changing the [index.analyze.max_token_count] index level setting.",
+                    RestStatus.BAD_REQUEST
+                );
             }
         }
     }
@@ -426,9 +498,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                     if (increment > 0) {
                         lastPosition = lastPosition + increment;
                     }
-                    tokens.add(new AnalyzeAction.AnalyzeToken(term.toString(), lastPosition, lastOffset + offset.startOffset(),
-                        lastOffset + offset.endOffset(), posLen.getPositionLength(), type.type(),
-                        extractExtendedAttributes(stream, includeAttributes)));
+                    tokens.add(
+                        new AnalyzeAction.AnalyzeToken(
+                            term.toString(),
+                            lastPosition,
+                            lastOffset + offset.startOffset(),
+                            lastOffset + offset.endOffset(),
+                            posLen.getPositionLength(),
+                            type.type(),
+                            extractExtendedAttributes(stream, includeAttributes)
+                        )
+                    );
                     tc.increment();
                 }
                 stream.end();
@@ -476,8 +556,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
                 return;
             }
             if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
-                if (value instanceof BytesRef) {
-                    final BytesRef p = (BytesRef) value;
+                if (value instanceof final BytesRef p) {
                     value = p.toString();
                 }
                 extendedAttributes.put(key, value);

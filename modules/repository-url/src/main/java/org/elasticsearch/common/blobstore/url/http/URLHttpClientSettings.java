@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.url.http;
@@ -24,13 +25,15 @@ public class URLHttpClientSettings {
         "http_socket_timeout",
         TimeValue.timeValueMillis(URLHttpClientSettings.DEFAULT_SOCKET_TIMEOUT_MILLIS),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMinutes(60));
+        TimeValue.timeValueMinutes(60)
+    );
 
     static final Setting<Integer> HTTP_MAX_RETRIES_SETTING = Setting.intSetting(
         "http_max_retries",
         URLHttpClientSettings.DEFAULT_MAX_RETRIES,
         0,
-        Integer.MAX_VALUE);
+        Integer.MAX_VALUE
+    );
 
     private int maxRetries = DEFAULT_MAX_RETRIES;
     private int connectionPoolTimeoutMs = DEFAULT_CONNECTION_POOL_TIMEOUT_MILLIS;

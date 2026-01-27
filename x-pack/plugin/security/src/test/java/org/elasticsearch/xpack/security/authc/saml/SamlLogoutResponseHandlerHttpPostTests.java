@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.NamedFormatter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;
 import org.opensaml.saml.saml2.core.LogoutResponse;
@@ -34,10 +34,12 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         clock = new ClockMock();
         maxSkew = TimeValue.timeValueMinutes(1);
         requestId = randomId();
-        samlLogoutResponseHandler = new SamlLogoutResponseHandler(clock,
+        samlLogoutResponseHandler = new SamlLogoutResponseHandler(
+            clock,
             getIdpConfiguration(() -> buildOpenSamlCredential(idpSigningCertificatePair)),
             getSpConfiguration(emptyList()),
-            maxSkew);
+            maxSkew
+        );
     }
 
     public void testHandlerWorksWithHttpPostBinding() throws Exception {
@@ -47,8 +49,9 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
 
     public void testHandlerFailsWithHttpPostBindingAndNoSignature() throws Exception {
         final String payload = buildLogoutResponsePayload(emptyMap(), false);
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("is not signed"));
     }
 
@@ -56,23 +59,25 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
         final Map<String, Object> replacements = new HashMap<>();
         replacements.put("status", "urn:oasis:names:tc:SAML:2.0:status:Requester");
         final String payload = buildLogoutResponsePayload(replacements, true);
-        final ElasticsearchSecurityException e =
-            expectSamlException(() -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId)));
+        final ElasticsearchSecurityException e = expectSamlException(
+            () -> samlLogoutResponseHandler.handle(false, payload, List.of(requestId))
+        );
         assertThat(e.getMessage(), containsString("not a 'success' response"));
     }
 
     private String buildLogoutResponsePayload(Map<String, Object> data, boolean shouldSign) throws Exception {
-        final String template = "<?xml version=\"1.0\"?>\n"
-            + "<samlp:LogoutResponse xmlns:samlp=\"urn:oasis:names:tc:SAML:2.0:protocol\" \n"
-            + "                      ID=\"%(randomId)\"\n"
-            + "                      InResponseTo=\"%(requestId)\" Version=\"2.0\" \n"
-            + "                      IssueInstant=\"%(now)\"\n"
-            + "                      Destination=\"%(SP_LOGOUT_URL)\">\n"
-            + "    <saml:Issuer xmlns:saml=\"urn:oasis:names:tc:SAML:2.0:assertion\">%(IDP_ENTITY_ID)</saml:Issuer>\n"
-            + "    <samlp:Status>\n"
-            + "        <samlp:StatusCode Value=\"%(status)\"/>\n"
-            + "    </samlp:Status>\n"
-            + "</samlp:LogoutResponse>";
+        final String template = """
+            <?xml version="1.0"?>
+            <samlp:LogoutResponse xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol"\s
+                                  ID="%(randomId)"
+                                  InResponseTo="%(requestId)" Version="2.0"\s
+                                  IssueInstant="%(now)"
+                                  Destination="%(SP_LOGOUT_URL)">
+                <saml:Issuer xmlns:saml="urn:oasis:names:tc:SAML:2.0:assertion">%(IDP_ENTITY_ID)</saml:Issuer>
+                <samlp:Status>
+                    <samlp:StatusCode Value="%(status)"/>
+                </samlp:Status>
+            </samlp:LogoutResponse>""";
 
         Map<String, Object> replacements = new HashMap<>(data);
         replacements.putIfAbsent("IDP_ENTITY_ID", IDP_ENTITY_ID);
@@ -87,8 +92,10 @@ public class SamlLogoutResponseHandlerHttpPostTests extends SamlResponseHandlerT
     }
 
     private String signLogoutResponseString(String xml) throws Exception {
-        final LogoutResponse logoutResponse =
-            samlLogoutResponseHandler.buildXmlObject(parseDocument(xml).getDocumentElement(), LogoutResponse.class);
+        final LogoutResponse logoutResponse = samlLogoutResponseHandler.buildXmlObject(
+            parseDocument(xml).getDocumentElement(),
+            LogoutResponse.class
+        );
         signSignableObject(logoutResponse, EXCLUSIVE, idpSigningCertificatePair);
         return SamlUtils.getXmlContent(logoutResponse, false);
     }

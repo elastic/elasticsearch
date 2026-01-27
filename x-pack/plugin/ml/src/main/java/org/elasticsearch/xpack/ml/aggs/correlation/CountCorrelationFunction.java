@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.MovingFunctions;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +27,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
     private static final ConstructingObjectParser<CountCorrelationFunction, Void> PARSER = new ConstructingObjectParser<>(
         "count_correlation_function",
         false,
-        a -> new CountCorrelationFunction((CountCorrelationIndicator)a[0])
+        a -> new CountCorrelationFunction((CountCorrelationIndicator) a[0])
     );
 
     static {
@@ -99,7 +98,7 @@ public class CountCorrelationFunction implements CorrelationFunction {
     @Override
     public double execute(CountCorrelationIndicator y) {
         if (indicator.getExpectations().length != y.getExpectations().length) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "value lengths do not match; indicator.expectations ["
                     + indicator.getExpectations().length
                     + "] and number of buckets ["
@@ -134,9 +133,9 @@ public class CountCorrelationFunction implements CorrelationFunction {
             }
             xVar = var;
         }
-        final double weight = MovingFunctions.sum(y.getExpectations())/indicator.getDocCount();
+        final double weight = MovingFunctions.sum(y.getExpectations()) / indicator.getDocCount();
         if (weight > 1.0) {
-            throw new AggregationExecutionException(
+            throw new IllegalArgumentException(
                 "doc_count of indicator must be larger than the total count of the correlating values indicator count ["
                     + indicator.getDocCount()
                     + "] correlating value total count ["
@@ -152,18 +151,14 @@ public class CountCorrelationFunction implements CorrelationFunction {
             for (int i = 0; i < indicator.getExpectations().length; i++) {
                 final double xVal = indicator.getExpectations()[i];
                 final double nX = y.getExpectations()[i];
-                xyCov = xyCov
-                    - (indicator.getDocCount() * fraction - nX) * (xVal - xMean) * yMean
-                    + nX * (xVal - xMean) * (1 - yMean);
+                xyCov = xyCov - (indicator.getDocCount() * fraction - nX) * (xVal - xMean) * yMean + nX * (xVal - xMean) * (1 - yMean);
             }
         } else {
             for (int i = 0; i < indicator.getExpectations().length; i++) {
                 final double fraction = indicator.getFractions()[i];
                 final double xVal = indicator.getExpectations()[i];
                 final double nX = y.getExpectations()[i];
-                xyCov = xyCov
-                    - (indicator.getDocCount() * fraction - nX) * (xVal - xMean) * yMean
-                    + nX * (xVal - xMean) * (1 - yMean);
+                xyCov = xyCov - (indicator.getDocCount() * fraction - nX) * (xVal - xMean) * yMean + nX * (xVal - xMean) * (1 - yMean);
             }
         }
         xyCov /= indicator.getDocCount();

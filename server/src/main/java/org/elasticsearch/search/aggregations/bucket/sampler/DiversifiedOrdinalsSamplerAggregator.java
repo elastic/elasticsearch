@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
@@ -13,8 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -27,6 +27,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
@@ -116,12 +118,12 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                     @Override
                     public boolean advanceExact(int target) throws IOException {
                         if (globalOrds.advanceExact(target)) {
-                            value = globalOrds.nextOrd();
                             // Check there isn't a second value for this
                             // document
-                            if (globalOrds.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                            if (globalOrds.docValueCount() > 1) {
                                 throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
+                            value = globalOrds.nextOrd();
                             return true;
                         } else {
                             return false;

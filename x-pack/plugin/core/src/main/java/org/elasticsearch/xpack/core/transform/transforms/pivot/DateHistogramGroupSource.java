@@ -6,27 +6,27 @@
  */
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DateHistogramGroupSource extends SingleGroupSource {
 
@@ -182,25 +182,23 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         }
     }
 
-    private Interval readInterval(StreamInput in) throws IOException {
+    private static Interval readInterval(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case FIXED_INTERVAL_ID:
-                return new FixedInterval(in);
-            case CALENDAR_INTERVAL_ID:
-                return new CalendarInterval(in);
-            default:
-                throw new IllegalArgumentException("unknown interval type [" + id + "]");
-        }
+        return switch (id) {
+            case FIXED_INTERVAL_ID -> new FixedInterval(in);
+            case CALENDAR_INTERVAL_ID -> new CalendarInterval(in);
+            default -> throw new IllegalArgumentException("unknown interval type [" + id + "]");
+        };
     }
 
-    private void writeInterval(Interval interval, StreamOutput out) throws IOException {
-        out.write(interval.getIntervalTypeId());
-        interval.writeTo(out);
+    private static void writeInterval(Interval anInterval, StreamOutput out) throws IOException {
+        out.write(anInterval.getIntervalTypeId());
+        anInterval.writeTo(out);
     }
 
     private static final String NAME = "data_frame_date_histogram_group";
     private static final ParseField TIME_ZONE = new ParseField("time_zone");
+    private static final ParseField OFFSET = Histogram.OFFSET_FIELD;
 
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> STRICT_PARSER = createParser(false);
     private static final ConstructingObjectParser<DateHistogramGroupSource, Void> LENIENT_PARSER = createParser(true);
@@ -208,23 +206,29 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     private final Interval interval;
     private final ZoneId timeZone;
     private final Rounding.Prepared rounding;
+    private final long offset;
 
-    public DateHistogramGroupSource(String field, ScriptConfig scriptConfig, boolean missingBucket, Interval interval, ZoneId timeZone) {
+    public DateHistogramGroupSource(
+        String field,
+        ScriptConfig scriptConfig,
+        boolean missingBucket,
+        Interval interval,
+        ZoneId timeZone,
+        Long offset
+    ) {
         super(field, scriptConfig, missingBucket);
         this.interval = interval;
         this.timeZone = timeZone;
-        rounding = buildRounding();
+        this.offset = offset != null ? offset : 0;
+        this.rounding = buildRounding();
     }
 
     public DateHistogramGroupSource(StreamInput in) throws IOException {
         super(in);
         this.interval = readInterval(in);
         this.timeZone = in.readOptionalZoneId();
-        // Format was optional in 7.2.x, removed in 7.3+
-        if (in.getVersion().before(Version.V_7_3_0)) {
-            in.readOptionalString();
-        }
-        rounding = buildRounding();
+        this.offset = in.readLong();
+        this.rounding = buildRounding();
     }
 
     private Rounding.Prepared buildRounding() {
@@ -239,6 +243,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         if (timeZone != null) {
             roundingBuilder.timeZone(timeZone);
         }
+        roundingBuilder.offset(offset);
         return roundingBuilder.build().prepareForUnknown();
     }
 
@@ -250,6 +255,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             String fixedInterval = (String) args[3];
             String calendarInterval = (String) args[4];
             ZoneId zoneId = (ZoneId) args[5];
+            Long offset = (Long) args[6];
 
             Interval interval = null;
 
@@ -263,7 +269,7 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 throw new IllegalArgumentException("You must specify either fixed_interval or calendar_interval, found none");
             }
 
-            return new DateHistogramGroupSource(field, scriptConfig, missingBucket, interval, zoneId);
+            return new DateHistogramGroupSource(field, scriptConfig, missingBucket, interval, zoneId, offset);
         });
 
         declareValuesSourceFields(parser, lenient);
@@ -278,6 +284,14 @@ public class DateHistogramGroupSource extends SingleGroupSource {
                 return ZoneOffset.ofHours(p.intValue());
             }
         }, TIME_ZONE, ObjectParser.ValueType.LONG);
+
+        parser.declareField(optionalConstructorArg(), p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return DateHistogramAggregationBuilder.parseStringOffset(p.text());
+            }
+        }, OFFSET, ObjectParser.ValueType.LONG);
 
         return parser;
     }
@@ -303,15 +317,16 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         return rounding;
     }
 
+    public long getOffset() {
+        return offset;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeInterval(interval, out);
         out.writeOptionalZoneId(timeZone);
-        // Format was optional in 7.2.x, removed in 7.3+
-        if (out.getVersion().before(Version.V_7_3_0)) {
-            out.writeOptionalString(null);
-        }
+        out.writeLong(offset);
     }
 
     @Override
@@ -321,6 +336,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         interval.toXContent(builder, params);
         if (timeZone != null) {
             builder.field(TIME_ZONE.getPreferredName(), timeZone.toString());
+        }
+        if (offset != 0) {
+            builder.field(OFFSET.getPreferredName(), offset);
         }
         builder.endObject();
         return builder;
@@ -342,11 +360,12 @@ public class DateHistogramGroupSource extends SingleGroupSource {
             && Objects.equals(this.field, that.field)
             && Objects.equals(this.scriptConfig, that.scriptConfig)
             && Objects.equals(this.interval, that.interval)
-            && Objects.equals(this.timeZone, that.timeZone);
+            && Objects.equals(this.timeZone, that.timeZone)
+            && this.offset == that.offset;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, scriptConfig, missingBucket, interval, timeZone);
+        return Objects.hash(field, scriptConfig, missingBucket, interval, timeZone, offset);
     }
 }

@@ -6,18 +6,17 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class FeatureImportanceBaselineTests extends AbstractBWCSerializationTestCase<FeatureImportanceBaseline> {
 
@@ -32,12 +31,12 @@ public class FeatureImportanceBaselineTests extends AbstractBWCSerializationTest
         );
         return new FeatureImportanceBaseline(
             randomBoolean() ? null : randomDouble(),
-            randomBoolean() ?
-                null :
-                Stream.generate(() -> new FeatureImportanceBaseline.ClassBaseline(classNameGenerator.get(), randomDouble()))
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> new FeatureImportanceBaseline.ClassBaseline(classNameGenerator.get(), randomDouble()))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList())
-            );
+        );
     }
 
     @Before
@@ -48,6 +47,11 @@ public class FeatureImportanceBaselineTests extends AbstractBWCSerializationTest
     @Override
     protected FeatureImportanceBaseline createTestInstance() {
         return randomInstance();
+    }
+
+    @Override
+    protected FeatureImportanceBaseline mutateInstance(FeatureImportanceBaseline instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -66,7 +70,7 @@ public class FeatureImportanceBaselineTests extends AbstractBWCSerializationTest
     }
 
     @Override
-    protected FeatureImportanceBaseline mutateInstanceForVersion(FeatureImportanceBaseline instance, Version version) {
+    protected FeatureImportanceBaseline mutateInstanceForVersion(FeatureImportanceBaseline instance, TransportVersion version) {
         return instance;
     }
 }

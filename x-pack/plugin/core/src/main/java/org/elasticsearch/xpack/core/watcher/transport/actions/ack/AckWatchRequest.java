@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.watcher.transport.actions.ack;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +20,7 @@ import java.util.Locale;
 /**
  * A ack watch request to ack a watch by name (id)
  */
-public class AckWatchRequest extends ActionRequest {
+public class AckWatchRequest extends LegacyActionRequest {
 
     private String watchId;
     private String[] actionIds = Strings.EMPTY_ARRAY;
@@ -71,7 +71,7 @@ public class AckWatchRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (watchId == null){
+        if (watchId == null) {
             validationException = ValidateActions.addValidationError("watch id is missing", validationException);
         } else if (WatcherUtils.isValidId(watchId) == false) {
             validationException = ValidateActions.addValidationError("watch id contains whitespace", validationException);
@@ -80,10 +80,14 @@ public class AckWatchRequest extends ActionRequest {
             for (String actionId : actionIds) {
                 if (actionId == null) {
                     validationException = ValidateActions.addValidationError(
-                            String.format(Locale.ROOT, "action id may not be null"), validationException);
+                        String.format(Locale.ROOT, "action id may not be null"),
+                        validationException
+                    );
                 } else if (WatcherUtils.isValidId(actionId) == false) {
                     validationException = ValidateActions.addValidationError(
-                            String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId), validationException);
+                        String.format(Locale.ROOT, "action id [%s] contains whitespace", actionId),
+                        validationException
+                    );
                 }
             }
         }

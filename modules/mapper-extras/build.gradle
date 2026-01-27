@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Adds advanced field mappers'
-  classname 'org.elasticsearch.index.mapper.MapperExtrasPlugin'
+  description = 'Adds advanced field mappers'
+  classname ='org.elasticsearch.index.mapper.extras.MapperExtrasPlugin'
 }
 
 restResources {
@@ -20,18 +22,6 @@ restResources {
   }
 }
 
-tasks.named('splitPackagesAudit').configure {
-  // index is owned by server, move these to mapper specific packages
-  ignoreClasses 'org.elasticsearch.index.query.RankFeatureQueryBuilder',
-    'org.elasticsearch.index.query.RankFeatureQueryBuilders',
-    'org.elasticsearch.index.query.SourceConfirmedTextQuery',
-    'org.elasticsearch.index.query.SourceIntervalsSource',
-    'org.elasticsearch.index.mapper.MapperExtrasPlugin',
-    'org.elasticsearch.index.mapper.MatchOnlyTextFieldMapper',
-    'org.elasticsearch.index.mapper.RankFeatureFieldMapper',
-    'org.elasticsearch.index.mapper.RankFeatureMetaFieldMapper',
-    'org.elasticsearch.index.mapper.RankFeaturesFieldMapper',
-    'org.elasticsearch.index.mapper.ScaledFloatFieldMapper',
-    'org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper',
-    'org.elasticsearch.index.mapper.TokenCountFieldMapper'
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.skipTest("match_only_text/10_basic/synthetic_source match_only_text as multi-field with ignored keyword as parent", "ignore_above now uses sorted binary doc values")
 }

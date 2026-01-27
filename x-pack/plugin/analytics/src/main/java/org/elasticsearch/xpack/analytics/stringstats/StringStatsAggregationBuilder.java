@@ -6,11 +6,9 @@
  */
 package org.elasticsearch.xpack.analytics.stringstats;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -20,6 +18,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -114,11 +115,6 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         return NAME;
     }
 
-    @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
     /**
      * Return whether to include the probability distribution of each character in the results.
      * {@code showDistribution} is true, distribution will be included.
@@ -153,5 +149,10 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
         if (super.equals(obj) == false) return false;
         StringStatsAggregationBuilder other = (StringStatsAggregationBuilder) obj;
         return showDistribution == other.showDistribution;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

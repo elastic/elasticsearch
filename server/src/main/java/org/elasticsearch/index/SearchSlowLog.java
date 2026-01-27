@@ -1,32 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogMessage;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
@@ -41,100 +41,159 @@ public final class SearchSlowLog implements SearchOperationListener {
     private long fetchDebugThreshold;
     private long fetchTraceThreshold;
 
-    private final Logger queryLogger;
-    private final Logger fetchLogger;
-
     static final String INDEX_SEARCH_SLOWLOG_PREFIX = "index.search.slowlog";
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.info", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.debug", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.trace", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.warn", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.info", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.debug", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
-    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING =
-        Setting.timeSetting(INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace", TimeValue.timeValueNanos(-1),
-            TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
+
+    private static final Logger queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
+    private static final Logger fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
+
+    private final ActionLoggingFields loggingFields;
+
+    public static final Setting<Boolean> INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING = Setting.boolSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".include.user",
+        false,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.warn",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.info",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.debug",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.query.trace",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.warn",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.info",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.debug",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+    public static final Setting<TimeValue> INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING = Setting.timeSetting(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".threshold.fetch.trace",
+        TimeValue.MINUS_ONE,
+        TimeValue.MINUS_ONE,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Legacy index setting, kept for 7.x BWC compatibility. This setting has no effect in 8.x. Do not use.
+     * TODO: Remove in 9.0
+     */
+    @Deprecated
+    public static final Setting<String> INDEX_SEARCH_SLOWLOG_LEVEL = new Setting<>(
+        INDEX_SEARCH_SLOWLOG_PREFIX + ".level",
+        "",
+        s -> s,
+        Property.Dynamic,
+        Property.IndexScope,
+        Property.IndexSettingDeprecatedInV7AndRemovedInV8
+    );
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
-    public SearchSlowLog(IndexSettings indexSettings) {
-        this.queryLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".query");
-        this.fetchLogger = LogManager.getLogger(INDEX_SEARCH_SLOWLOG_PREFIX + ".fetch");
-        Loggers.setLevel(this.fetchLogger, Level.TRACE);
-        Loggers.setLevel(this.queryLogger, Level.TRACE);
-
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
-            this::setQueryWarnThreshold);
+    public SearchSlowLog(IndexSettings indexSettings, ActionLoggingFieldsProvider slowLogFieldsProvider) {
+        ActionLoggingFieldsContext logContext = new ActionLoggingFieldsContext(
+            indexSettings.getValue(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING)
+        );
+        this.loggingFields = slowLogFieldsProvider.create(logContext);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_INCLUDE_USER_SETTING, logContext::setIncludeUserInformation);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING, this::setQueryWarnThreshold);
         this.queryWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-            this::setQueryInfoThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING, this::setQueryInfoThreshold);
         this.queryInfoThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-            this::setQueryDebugThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING, this::setQueryDebugThreshold);
         this.queryDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            this::setQueryTraceThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING, this::setQueryTraceThreshold);
         this.queryTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING).nanos();
 
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
-            this::setFetchWarnThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING, this::setFetchWarnThreshold);
         this.fetchWarnThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
-            this::setFetchInfoThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING, this::setFetchInfoThreshold);
         this.fetchInfoThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
-            this::setFetchDebugThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING, this::setFetchDebugThreshold);
         this.fetchDebugThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING).nanos();
-        indexSettings.getScopedSettings().addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
-            this::setFetchTraceThreshold);
+        indexSettings.getScopedSettings()
+            .addSettingsUpdateConsumer(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING, this::setFetchTraceThreshold);
         this.fetchTraceThreshold = indexSettings.getValue(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING).nanos();
     }
 
     @Override
     public void onQueryPhase(SearchContext context, long tookInNanos) {
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn(SearchSlowLogMessage.of(context, tookInNanos));
+            queryLogger.warn(messageProducer.get());
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
-            queryLogger.info(SearchSlowLogMessage.of(context, tookInNanos));
+            queryLogger.info(messageProducer.get());
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
-            queryLogger.debug(SearchSlowLogMessage.of(context, tookInNanos));
+            queryLogger.debug(messageProducer.get());
         } else if (queryTraceThreshold >= 0 && tookInNanos > queryTraceThreshold) {
-            queryLogger.trace(SearchSlowLogMessage.of(context, tookInNanos));
+            queryLogger.trace(messageProducer.get());
         }
     }
 
     @Override
     public void onFetchPhase(SearchContext context, long tookInNanos) {
+        Supplier<ESLogMessage> messageProducer = () -> SearchSlowLogMessage.of(loggingFields.logFields(), context, tookInNanos);
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn(SearchSlowLogMessage.of(context, tookInNanos));
+            fetchLogger.warn(messageProducer.get());
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
-            fetchLogger.info(SearchSlowLogMessage.of(context, tookInNanos));
+            fetchLogger.info(messageProducer.get());
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {
-            fetchLogger.debug(SearchSlowLogMessage.of(context, tookInNanos));
+            fetchLogger.debug(messageProducer.get());
         } else if (fetchTraceThreshold >= 0 && tookInNanos > fetchTraceThreshold) {
-            fetchLogger.trace(SearchSlowLogMessage.of(context, tookInNanos));
+            fetchLogger.trace(messageProducer.get());
         }
     }
 
-    static final class SearchSlowLogMessage  {
+    static final class SearchSlowLogMessage {
 
-        public static ESLogMessage of(SearchContext context, long tookInNanos) {
+        public static ESLogMessage of(Map<String, String> additionalFields, SearchContext context, long tookInNanos) {
             Map<String, Object> jsonFields = prepareMap(context, tookInNanos);
+            jsonFields.putAll(additionalFields);
             return new ESLogMessage().withFields(jsonFields);
         }
 
@@ -143,13 +202,15 @@ public final class SearchSlowLog implements SearchOperationListener {
             messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
             messageFields.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
             messageFields.put("elasticsearch.slowlog.took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("elasticsearch.slowlog.total_hits", context.queryResult().getTotalHits());
+            if (context.getTotalHits() != null) {
+                messageFields.put("elasticsearch.slowlog.total_hits", context.getTotalHits());
             } else {
                 messageFields.put("elasticsearch.slowlog.total_hits", "-1");
             }
-            messageFields.put("elasticsearch.slowlog.stats", escapeJson(ESLogMessage.asJsonArray(
-                context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
+            messageFields.put(
+                "elasticsearch.slowlog.stats",
+                escapeJson(ESLogMessage.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
+            );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());
 
@@ -161,7 +222,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("elasticsearch.slowlog.source", "{}");
             }
 
-            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
             return messageFields;
         }
 

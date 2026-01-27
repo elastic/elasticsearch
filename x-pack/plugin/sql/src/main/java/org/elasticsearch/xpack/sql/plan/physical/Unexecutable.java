@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.Executable;
 import org.elasticsearch.xpack.sql.session.Session;
 
-
 // this is mainly a marker interface to validate a plan before being executed
 public interface Unexecutable extends Executable {
 

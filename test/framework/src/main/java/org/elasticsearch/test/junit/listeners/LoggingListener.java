@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.junit.listeners;
@@ -11,6 +12,7 @@ package org.elasticsearch.test.junit.listeners;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.runner.Description;
@@ -22,7 +24,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -45,10 +46,12 @@ public class LoggingListener extends RunListener {
         Package testClassPackage = description.getTestClass().getPackage();
         previousPackageLoggingMap = processTestLogging(
             testClassPackage != null ? testClassPackage.getAnnotation(TestLogging.class) : null,
-            testClassPackage != null ? testClassPackage.getAnnotation(TestIssueLogging.class) : null);
+            testClassPackage != null ? testClassPackage.getAnnotation(TestIssueLogging.class) : null
+        );
         previousClassLoggingMap = processTestLogging(
             description.getAnnotation(TestLogging.class),
-            description.getAnnotation(TestIssueLogging.class));
+            description.getAnnotation(TestIssueLogging.class)
+        );
     }
 
     @Override
@@ -102,9 +105,8 @@ public class LoggingListener extends RunListener {
          * Use a sorted set so that we apply a parent logger before its children thus not overwriting the child setting when processing the
          * parent setting.
          */
-        final Map<String, String> loggingLevels =
-            new TreeMap<>(Stream.concat(testLoggingMap.entrySet().stream(), testIssueLoggingMap.entrySet().stream())
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        final Map<String, String> loggingLevels = Stream.concat(testLoggingMap.entrySet().stream(), testIssueLoggingMap.entrySet().stream())
+            .collect(Maps.toUnmodifiableSortedMap(Map.Entry::getKey, Map.Entry::getValue));
 
         /*
          * Obtain the existing logging levels so that we can restore them at the end of the test. We have to do this separately from

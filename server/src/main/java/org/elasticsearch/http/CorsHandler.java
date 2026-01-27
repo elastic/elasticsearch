@@ -1,11 +1,6 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-/*
+ * @notice
+ *
  * Copyright 2013 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License, version
@@ -19,8 +14,17 @@
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
  * the License.
+ *
+ * =============================================================================
+ * Modifications copyright Elasticsearch B.V.
+ *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-
 package org.elasticsearch.http;
 
 import org.elasticsearch.common.Strings;
@@ -36,6 +40,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -51,6 +56,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HE
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_EXPOSE_HEADERS;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_MAX_AGE;
 
 /**
@@ -74,6 +80,7 @@ public class CorsHandler {
     public static final String ACCESS_CONTROL_ALLOW_METHODS = "access-control-allow-methods";
     public static final String ACCESS_CONTROL_ALLOW_ORIGIN = "access-control-allow-origin";
     public static final String ACCESS_CONTROL_MAX_AGE = "access-control-max-age";
+    public static final String ACCESS_CONTROL_EXPOSE_HEADERS = "access-control-expose-headers";
 
     private static final Pattern SCHEME_PATTERN = Pattern.compile("^https?://");
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O", Locale.ENGLISH);
@@ -102,6 +109,7 @@ public class CorsHandler {
         }
         if (setOrigin(httpRequest, httpResponse)) {
             setAllowCredentials(httpResponse);
+            setExposeHeaders(httpResponse);
         }
     }
 
@@ -136,7 +144,7 @@ public class CorsHandler {
         return false;
     }
 
-    private void setPreflightHeaders(final HttpResponse response) {
+    private static void setPreflightHeaders(final HttpResponse response) {
         response.addHeader(CorsHandler.DATE, dateTimeFormatter.format(ZonedDateTime.now(ZoneOffset.UTC)));
         response.addHeader("content-length", "0");
     }
@@ -200,9 +208,9 @@ public class CorsHandler {
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         final Map<String, List<String>> headers = request.getHeaders();
-        return request.method().equals(RestRequest.Method.OPTIONS) &&
-            headers.containsKey(ORIGIN) &&
-            headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
+        return request.method().equals(RestRequest.Method.OPTIONS)
+            && headers.containsKey(ORIGIN)
+            && headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
     private static void setVaryHeader(final HttpResponse response) {
@@ -225,6 +233,12 @@ public class CorsHandler {
         }
     }
 
+    private void setExposeHeaders(final HttpResponse response) {
+        for (String header : config.accessControlExposeHeaders) {
+            response.addHeader(ACCESS_CONTROL_EXPOSE_HEADERS, header);
+        }
+    }
+
     private void setAllowCredentials(final HttpResponse response) {
         if (config.isCredentialsAllowed()) {
             response.addHeader(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true");
@@ -244,6 +258,7 @@ public class CorsHandler {
         private final boolean credentialsAllowed;
         private final Set<RestRequest.Method> allowedRequestMethods;
         private final Set<String> allowedRequestHeaders;
+        private final Set<String> accessControlExposeHeaders;
         private final long maxAge;
 
         public Config(Builder builder) {
@@ -254,6 +269,7 @@ public class CorsHandler {
             this.credentialsAllowed = builder.allowCredentials;
             this.allowedRequestMethods = Collections.unmodifiableSet(builder.requestMethods);
             this.allowedRequestHeaders = Collections.unmodifiableSet(builder.requestHeaders);
+            this.accessControlExposeHeaders = Collections.unmodifiableSet(builder.accessControlExposeHeaders);
             this.maxAge = builder.maxAge;
         }
 
@@ -296,16 +312,26 @@ public class CorsHandler {
 
         @Override
         public String toString() {
-            return "Config{" +
-                "enabled=" + enabled +
-                ", origins=" + origins +
-                ", pattern=" + pattern +
-                ", anyOrigin=" + anyOrigin +
-                ", credentialsAllowed=" + credentialsAllowed +
-                ", allowedRequestMethods=" + allowedRequestMethods +
-                ", allowedRequestHeaders=" + allowedRequestHeaders +
-                ", maxAge=" + maxAge +
-                '}';
+            return "Config{"
+                + "enabled="
+                + enabled
+                + ", origins="
+                + origins
+                + ", pattern="
+                + pattern
+                + ", anyOrigin="
+                + anyOrigin
+                + ", credentialsAllowed="
+                + credentialsAllowed
+                + ", allowedRequestMethods="
+                + allowedRequestMethods
+                + ", allowedRequestHeaders="
+                + allowedRequestHeaders
+                + ", accessControlExposeHeaders="
+                + accessControlExposeHeaders
+                + ", maxAge="
+                + maxAge
+                + '}';
         }
 
         private static class Builder {
@@ -316,8 +342,9 @@ public class CorsHandler {
             private final boolean anyOrigin;
             private boolean allowCredentials = false;
             long maxAge;
-            private final Set<RestRequest.Method> requestMethods = new HashSet<>();
+            private final Set<RestRequest.Method> requestMethods = EnumSet.noneOf(RestRequest.Method.class);
             private final Set<String> requestHeaders = new HashSet<>();
+            private final Set<String> accessControlExposeHeaders = new HashSet<>();
 
             private Builder() {
                 anyOrigin = true;
@@ -354,7 +381,6 @@ public class CorsHandler {
                 return this;
             }
 
-
             public Builder allowedRequestMethods(RestRequest.Method[] methods) {
                 requestMethods.addAll(Arrays.asList(methods));
                 return this;
@@ -367,6 +393,11 @@ public class CorsHandler {
 
             public Builder allowedRequestHeaders(String[] headers) {
                 requestHeaders.addAll(Arrays.asList(headers));
+                return this;
+            }
+
+            public Builder accessControlExposeHeaders(String[] headers) {
+                accessControlExposeHeaders.addAll(Arrays.asList(headers));
                 return this;
             }
 
@@ -417,6 +448,7 @@ public class CorsHandler {
         Config config = builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
             .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .accessControlExposeHeaders(Strings.tokenizeToStringArray(SETTING_CORS_EXPOSE_HEADERS.get(settings), ","))
             .build();
         return config;
     }

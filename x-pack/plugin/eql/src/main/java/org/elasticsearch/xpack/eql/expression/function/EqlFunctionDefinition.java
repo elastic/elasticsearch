@@ -20,11 +20,13 @@ class EqlFunctionDefinition extends FunctionDefinition {
 
     private final boolean caseAware;
 
-    protected EqlFunctionDefinition(String name,
-                                    List<String> aliases,
-                                    Class<? extends Function> clazz,
-                                    boolean caseAware,
-                                    Builder builder) {
+    protected EqlFunctionDefinition(
+        String name,
+        List<String> aliases,
+        Class<? extends Function> clazz,
+        boolean caseAware,
+        Builder builder
+    ) {
         super(name, aliases, clazz, builder);
         this.caseAware = caseAware;
     }

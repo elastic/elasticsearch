@@ -1,18 +1,28 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.validate-rest-spec'
-apply plugin: 'elasticsearch.internal-test-artifact'
-apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
-archivesBaseName = 'x-pack'
+base {
+  archivesName = 'x-pack'
+}
 
 dependencies {
   testImplementation project(xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(testArtifact(project(":x-pack:plugin:security:qa:service-account"), "javaRestTest"))
+  testImplementation(testArtifact(project(':x-pack:plugin:inference:qa:inference-service-tests'), "javaRestTest"))
+  testImplementation project(':test:yaml-rest-runner')
 }
 
 // let the yamlRestTests see the classpath of test
@@ -29,228 +39,43 @@ artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
 
-tasks.named("testJar").configure {
-  /*
-   * Stick the license and notice file in the jar. This isn't strictly
-   * needed because we don't publish it but it makes our super-paranoid
-   * tests happy.
-   */
-  metaInf {
-    from(project.licenseFile.parent) {
-      include project.licenseFile.name
-      rename { 'LICENSE.txt' }
-    }
-    from(project.noticeFile.parent) {
-      include project.noticeFile.name
-    }
-  }
-}
-
-// location for keys and certificates
-File extraResourceDir = file("$buildDir/extra_resource")
-File nodeKey = file("$extraResourceDir/testnode.pem")
-File nodeCert = file("$extraResourceDir/testnode.crt")
-// location for service tokens
-File serviceTokens = file("$extraResourceDir/service_tokens")
-
-// Add key and certs to test classpath: it expects them there
-// User cert and key PEM files instead of a JKS Keystore for the cluster's trust material so that
-// it can run in a FIPS 140 JVM
-// TODO: Remove all existing uses of cross project file references when the new approach for referencing static files is available
-// https://github.com/elastic/elasticsearch/pull/32201
-tasks.register("copyExtraResources", Copy) {
-  from(project(':x-pack:plugin:core').file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/')) {
-    include 'testnode.crt', 'testnode.pem'
-  }
-  from(project(':x-pack:plugin:security:qa:service-account').file('src/javaRestTest/resources/')) {
-    include 'service_tokens'
-  }
-  into extraResourceDir
-}
-// Add keystores to test classpath: it expects it there
-sourceSets.yamlRestTest.resources.srcDir(extraResourceDir)
-tasks.named("processYamlRestTestResources").configure {
-  dependsOn("copyExtraResources")
-}
 def restTestBlacklist = []
-tasks.withType(RestIntegTestTask).configureEach {
-  // TODO: fix this rest test to not depend on a hardcoded port!
-  restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
-  if (BuildParams.isSnapshotBuild() == false) {
-    // these tests attempt to install basic/internal licenses signed against the dev/public.key
-    // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
-    // private key, these tests are blacklisted in non-snapshot test runs
-    restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
-  }
+// TODO: fix this rest test to not depend on a hardcoded port!
+restTestBlacklist.addAll(['getting_started/10_monitor_cluster_health/*'])
+if (buildParams.snapshotBuild == false) {
+  // these tests attempt to install basic/internal licenses signed against the dev/public.key
+  // Since there is no infrastructure in place (anytime soon) to generate licenses using the production
+  // private key, these tests are blacklisted in non-snapshot test runs
+  restTestBlacklist.addAll(['xpack/15_basic/*', 'license/20_put_license/*', 'license/30_enterprise_license/*'])
+
+  // TODO: Remove the following when the following features are released. These tests include new privileges only available under feature flags
+  //  which require snapshot builds:
+  // * Data Stream Lifecycle. manage_data_stream_lifecycle privilege is only available with dlm_feature_flag_enabled set
+  // We disable these tests for snapshot builds to maintain release build coverage.
+  restTestBlacklist.add('privileges/11_builtin/Test get builtin privileges')
+}
+
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
+  usesDefaultDistribution("to be triaged")
 }
 
 tasks.named("yamlRestTest").configure {
   systemProperty 'tests.rest.blacklist', restTestBlacklist.join(',')
-  dependsOn "copyExtraResources"
-}
-
-tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
-  task.replaceKeyInDo("license.delete", "xpack-license.delete")
-  task.replaceKeyInDo("license.get", "xpack-license.get")
-  task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
-  task.replaceKeyInDo("license.get_trial_status", "xpack-license.get_trial_status")
-  task.replaceKeyInDo("license.post", "xpack-license.post")
-  task.replaceKeyInDo("license.post_start_basic", "xpack-license.post_start_basic")
-  task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
-  task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
-
-  task.replaceKeyInDo("migration.deprecations", "xpack-migration.deprecations")
-  task.addAllowedWarningRegex(".*_xpack/migration.* is deprecated.*")
-
-  task.replaceKeyInDo("rollup.delete_job", "xpack-rollup.delete_job")
-  task.replaceKeyInDo("rollup.get_jobs", "xpack-rollup.get_jobs")
-  task.replaceKeyInDo("rollup.get_rollup_caps", "xpack-rollup.get_rollup_caps")
-  task.replaceKeyInDo("rollup.get_rollup_index_caps", "xpack-rollup.get_rollup_index_caps")
-  task.replaceKeyInDo("rollup.put_job", "xpack-rollup.put_job")
-  task.replaceKeyInDo("rollup.start_job", "xpack-rollup.start_job")
-  task.replaceKeyInDo("rollup.stop_job", "xpack-rollup.stop_job")
-  task.addAllowedWarningRegex(".*_xpack/rollup.* is deprecated.*")
-
-  task.replaceKeyInDo("ml.close_job", "xpack-ml.close_job")
-  task.replaceKeyInDo("ml.delete_calendar", "xpack-ml.delete_calendar")
-  task.replaceKeyInDo("ml.delete_calendar_event", "xpack-ml.delete_calendar_event")
-  task.replaceKeyInDo("ml.delete_calendar_job", "xpack-ml.delete_calendar_job")
-  task.replaceKeyInDo("ml.delete_datafeed", "xpack-ml.delete_datafeed")
-  task.replaceKeyInDo("ml.delete_expired_data", "xpack-ml.delete_expired_data")
-  task.replaceKeyInDo("ml.delete_filter", "xpack-ml.delete_filter")
-  task.replaceKeyInDo("ml.delete_forecast", "xpack-ml.delete_forecast")
-  task.replaceKeyInDo("ml.delete_job", "xpack-ml.delete_job")
-  task.replaceKeyInDo("ml.delete_model_snapshot", "xpack-ml.delete_model_snapshot")
-  task.replaceKeyInDo("ml.flush_job", "xpack-ml.flush_job")
-  task.replaceKeyInDo("ml.forecast", "xpack-ml.forecast")
-  task.replaceKeyInDo("ml.get_buckets", "xpack-ml.get_buckets")
-  task.replaceKeyInDo("ml.get_calendar_events", "xpack-ml.get_calendar_events")
-  task.replaceKeyInDo("ml.get_calendars", "xpack-ml.get_calendars")
-  task.replaceKeyInDo("ml.get_categories", "xpack-ml.get_categories")
-  task.replaceKeyInDo("ml.get_datafeed_stats", "xpack-ml.get_datafeed_stats")
-  task.replaceKeyInDo("ml.get_datafeeds", "xpack-ml.get_datafeeds")
-  task.replaceKeyInDo("ml.get_filters", "xpack-ml.get_filters")
-  task.replaceKeyInDo("ml.get_influencers", "xpack-ml.get_influencers")
-  task.replaceKeyInDo("ml.get_job_stats", "xpack-ml.get_job_stats")
-  task.replaceKeyInDo("ml.get_jobs", "xpack-ml.get_jobs")
-  task.replaceKeyInDo("ml.get_model_snapshots", "xpack-ml.get_model_snapshots")
-  task.replaceKeyInDo("ml.get_overall_buckets", "xpack-ml.get_overall_buckets")
-  task.replaceKeyInDo("ml.get_records", "xpack-ml.get_records")
-  task.replaceKeyInDo("ml.info", "xpack-ml.info")
-  task.replaceKeyInDo("ml.open_job", "xpack-ml.open_job")
-  task.replaceKeyInDo("ml.post_calendar_events", "xpack-ml.post_calendar_events")
-  task.replaceKeyInDo("ml.post_data", "xpack-ml.post_data")
-  task.replaceKeyInDo("ml.preview_datafeed", "xpack-ml.preview_datafeed")
-  task.replaceKeyInDo("ml.put_calendar", "xpack-ml.put_calendar")
-  task.replaceKeyInDo("ml.put_calendar_job", "xpack-ml.put_calendar_job")
-  task.replaceKeyInDo("ml.put_datafeed", "xpack-ml.put_datafeed")
-  task.replaceKeyInDo("ml.put_filter", "xpack-ml.put_filter")
-  task.replaceKeyInDo("ml.put_job", "xpack-ml.put_job")
-  task.replaceKeyInDo("ml.revert_model_snapshot", "xpack-ml.revert_model_snapshot")
-  task.replaceKeyInDo("ml.set_upgrade_mode", "xpack-ml.set_upgrade_mode")
-  task.replaceKeyInDo("ml.start_datafeed", "xpack-ml.start_datafeed")
-  task.replaceKeyInDo("ml.stop_datafeed", "xpack-ml.stop_datafeed")
-  task.replaceKeyInDo("ml.update_datafeed", "xpack-ml.update_datafeed")
-  task.replaceKeyInDo("ml.update_filter", "xpack-ml.update_filter")
-  task.replaceKeyInDo("ml.update_job", "xpack-ml.update_job")
-  task.replaceKeyInDo("ml.update_model_snapshot", "xpack-ml.update_model_snapshot")
-  task.replaceKeyInDo("ml.validate", "xpack-ml.validate")
-  task.replaceKeyInDo("ml.validate_detector", "xpack-ml.validate_detector")
-  task.addAllowedWarningRegex(".*_xpack/ml.* is deprecated.*")
-
-  task.replaceKeyInDo("ssl.certificates", "xpack-ssl.certificates", "Test get SSL certificates")
-  task.addAllowedWarningRegexForTest(".*_xpack/ssl.* is deprecated.*", "Test get SSL certificates")
-  task.replaceValueInMatch("_type", "_doc")
-  task.addAllowedWarningRegex("\\[types removal\\].*")
-  task.addAllowedWarningRegexForTest("Including \\[accept_enterprise\\] in get license.*", "Installing enterprise license")
-})
-tasks.named("yamlRestTestV7CompatTest").configure {
-  systemProperty 'tests.rest.blacklist', [
-      // enable after backporting #77479
-      'indices.freeze/10_basic/Test index options',
-      'indices.freeze/10_basic/Basic',
-      'ml/datafeeds_crud/Test put and update datafeed with indices options in params',
-      'ml/jobs_crud/Test put job with datafeed with indices options in params',
-      // to support it, it would require to almost revert back the #48725 and complicate the code
-      'vectors/10_dense_vector_basic/Deprecated function signature',
-      // not going to be supported
-      'vectors/30_sparse_vector_basic/Cosine Similarity',
-      'vectors/30_sparse_vector_basic/Deprecated function signature',
-      'vectors/30_sparse_vector_basic/Dot Product',
-      'vectors/35_sparse_vector_l1l2/L1 norm',
-      'vectors/35_sparse_vector_l1l2/L2 norm',
-      'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
-      'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
-      'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',
-      'vectors/40_sparse_vector_special_cases/Sparse vectors should error with dense vector functions',
-      'vectors/40_sparse_vector_special_cases/Vectors of different dimensions and data types',
-      // the test uses sparse vector - not supported
-      'vectors/50_vector_stats/Usage stats on vector fields',
-
-      // put role request with a term lookup (deprecated) and type. Requires validation in REST layer
-      'roles/30_prohibited_role_query/Test use prohibited query inside role query',
-      //removing undocumented functionality
-      'ml/jobs_crud/Test create job with delimited format',
-      // behaviour change #44752 - not allowing to update datafeed job_id
-      'ml/datafeeds_crud/Test update datafeed to point to missing job',
-      'ml/datafeeds_crud/Test update datafeed to point to different job',
-      'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
-      //rollup was an experimental feature
-      //https://github.com/elastic/elasticsearch/pull/41227.
-      'rollup/delete_job/Test basic delete_job',
-      'rollup/delete_job/Test delete job twice',
-      'rollup/delete_job/Test delete running job',
-      'rollup/get_jobs/Test basic get_jobs',
-      'rollup/put_job/Test basic put_job',
-      //https://github.com/elastic/elasticsearch/pull/41502
-      'rollup/start_job/Test start job twice',
-
-      // a type field was added to cat.ml_trained_models #73660, this is a backwards compatible change.
-      // still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)
-      'ml/trained_model_cat_apis/Test cat trained models'
-  ].join(',')
-  dependsOn "copyExtraResources"
-}
-
-testClusters.all {
-  testDistribution = 'DEFAULT' // this is important since we use the reindex module in ML
-  setting 'xpack.ml.enabled', 'true'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.watcher.enabled', 'false'
-  // Integration tests are supposed to enable/disable exporters before/after each test
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
-  setting 'xpack.security.authc.token.enabled', 'true'
-  setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.transport.ssl.key', nodeKey.name
-  setting 'xpack.security.transport.ssl.certificate', nodeCert.name
-  setting 'xpack.security.transport.ssl.verification_mode', 'certificate'
-  setting 'xpack.security.audit.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  // disable ILM history, since it disturbs tests using _all
-  setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'bootstrap.password', 'x-pack-test-password'
-  keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
-  setting 'xpack.searchable.snapshot.shared_cache.size', '10mb'
-
-  user username: "x_pack_rest_user", password: "x-pack-test-password"
-  extraConfigFile nodeKey.name, nodeKey
-  extraConfigFile nodeCert.name, nodeCert
-  extraConfigFile serviceTokens.name, serviceTokens
 }
 
 tasks.register('enforceApiSpecsConvention').configure {
+  def mainApiSpecs = fileTree('src/test/resources/rest-api-spec/api')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/api').files) {
+    if (mainApiSpecs.files) {
       throw new GradleException("There are REST specs in src/test source set. These should be moved to the :rest-api-spec project.")
     }
   }
 }
 
 tasks.register('enforceYamlTestConvention').configure {
+  def mainYamlFiles = fileTree('src/test/resources/rest-api-spec/test')
   doLast {
-    if (fileTree('src/test/resources/rest-api-spec/test').files) {
+    if (mainYamlFiles.files) {
       throw new GradleException("There are YAML tests in src/test source set. These should be moved to src/yamlRestTest.")
     }
   }
@@ -260,3 +85,89 @@ tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention', 'enforceApiSpecsConvention'
 }
 
+tasks.named("yamlRestCompatTestTransform").configure(
+  { task ->
+    task.replaceIsTrue("\\.ml-anomalies-shared.mappings._meta.version", "\\.ml-anomalies-shared-000001.mappings._meta.version")
+    task.replaceKeyInMatch(
+      "\\.ml-anomalies-shared.mappings.new_field.mapping.new_field.type",
+      "\\.ml-anomalies-shared-000001.mappings.new_field.mapping.new_field.type"
+    )
+    task.replaceValueTextByKeyValue("index", ".ml-anomalies-shared", ".ml-anomalies-shared-000001")
+    task.replaceValueTextByKeyValue(
+      "index",
+      ".ml-anomalies-custom-all-test-1,.ml-anomalies-custom-all-test-2",
+      ".ml-anomalies-custom-all-test-1-000001,.ml-anomalies-custom-all-test-2-000001"
+    )
+    task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-1", ".ml-anomalies-custom-all-test-1-000001")
+    task.replaceValueTextByKeyValue("index", ".ml-anomalies-custom-all-test-2", ".ml-anomalies-custom-all-test-2-000001")
+    task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
+    task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
+    task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
+    task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version", "The number of functions is constantly increasing")
+    task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
+    task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
+    task.skipTest("privileges/11_builtin/Test get builtin privileges", "unnecessary to test compatibility")
+    task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
+    task.skipTest("esql/180_match_operator/match with non text field", "Match operator can now be used on non-text fields")
+    task.skipTest("esql/180_match_operator/match with functions", "Error message changed")
+    task.skipTest("esql/180_match_operator/match within eval", "Error message changed")
+    task.skipTest("esql/40_unsupported_types/semantic_text declared in mapping", "The semantic text field format changed")
+    task.skipTest("esql/190_lookup_join/Alias as lookup index", "LOOKUP JOIN does not support index aliases for now")
+    task.skipTest("esql/190_lookup_join/alias-repeated-alias", "LOOKUP JOIN does not support index aliases for now")
+    task.skipTest("esql/190_lookup_join/alias-repeated-index", "LOOKUP JOIN does not support index aliases for now")
+    task.skipTest("esql/190_lookup_join/alias-pattern-multiple", "LOOKUP JOIN does not support index aliases for now")
+    task.skipTest("esql/190_lookup_join/alias-pattern-single", "LOOKUP JOIN does not support index aliases for now")
+    task.skipTest("esql/180_match_operator/match with disjunctions", "Disjunctions in full text functions work now")
+    task.skipTest("esql/130_spatial/values unsupported for geo_point", "Spatial types are now supported in VALUES aggregation")
+    task.skipTest("esql/130_spatial/values unsupported for geo_point status code", "Spatial types are now supported in VALUES aggregation")
+    // Expected deprecation warning to compat yaml tests:
+    task.addAllowedWarningRegex(
+      ".*rollup functionality will be removed in Elasticsearch.*",
+      // https://github.com/elastic/elasticsearch/issues/127911
+      "Index \\[\\.profiling-.*\\] name begins with a dot.* and will not be allowed in a future Elasticsearch version."
+    )
+    task.skipTest("esql/40_tsdb/from doc with aggregate_metric_double", "TODO: support for subset of metric fields")
+    task.skipTest("esql/40_tsdb/stats on aggregate_metric_double", "TODO: support for subset of metric fields")
+    task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
+    task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
+    task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
+    task.skipTest("service_accounts/10_basic/Test get service accounts", "Enterprise Search service account removed, invalidating the current tests")
+    task.skipTest(
+      "service_accounts/10_basic/Test service account tokens",
+      "Enterprise Search service account removed, invalidating the current tests"
+    )
+    task.skipTest("ml/3rd_party_deployment/Test clear deployment cache", "Deprecated route removed")
+    task.skipTest("ml/3rd_party_deployment/Test start and stop deployment with cache", "Deprecated route removed")
+    task.skipTest("ml/3rd_party_deployment/Test start and stop multiple deployments", "Deprecated route removed")
+    task.skipTest("ml/3rd_party_deployment/Test update model alias on pytorch model to undeployed model", "Deprecated route removed")
+    task.skipTest("ml/job_cat_apis/Test cat anomaly detector jobs", "Flush API is deprecated")
+    task.skipTest("ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats", "Flush API is deprecated")
+    task.skipTest("ml/jobs_get_stats/Test get job stats for closed job", "Flush API is deprecated")
+    task.skipTest("ml/jobs_get_stats/Test reading v54 data counts and model size stats", "Version 5.4 support removed")
+    task.skipTest("ml/inference_crud/Test deprecation of include model definition param", "Query parameter removed")
+    task.skipTest("ml/post_data/Test flush and close job WITHOUT sending any data", "Flush API is deprecated")
+    task.skipTest("ml/post_data/Test flush with skip_time", "Flush API is deprecated")
+    task.skipTest("ml/post_data/Test POST data job api, flush, close and verify DataCounts doc", "Flush API is deprecated")
+    task.replaceValueInMatch("Size", 49, "Test flamegraph from profiling-events")
+    task.replaceValueInMatch("Size", 49, "Test flamegraph from test-events")
+    task.skipTest("esql/90_non_indexed/fetch", "Temporary until backported")
+    task.skipTest("esql/63_enrich_int_range/Invalid age as double", "TODO: require disable allow_partial_results")
+    task.skipTest("esql/191_lookup_join_on_datastreams/data streams not supported in LOOKUP JOIN", "Added support for aliases in JOINs")
+    task.skipTest("esql/190_lookup_join/non-lookup index", "Error message changed")
+    task.skipTest("esql/190_lookup_join/fails with non-lookup index", "Error message changed")
+    task.skipTest("esql/192_lookup_join_on_aliases/alias-pattern-multiple", "Error message changed")
+    task.skipTest("esql/192_lookup_join_on_aliases/fails when alias or pattern resolves to multiple", "Error message changed")
+    task.skipTest("esql/10_basic/Test wrong LIMIT parameter", "Error message changed")
+    task.skipTest("ml/sparse_vector_search/Search on a sparse_vector field with dots in the field names", "Vectors are no longer returned by default")
+    task.skipTest(
+      "ml/sparse_vector_search/Search on a nested sparse_vector field with dots in the field names and conflicting child fields",
+      "Vectors are no longer returned by default"
+    )
+    task.skipTest("esql/190_lookup_join/lookup-no-key-only-key", "Requires the fix")
+    task.skipTest("ml/data_frame_analytics_crud/Test put config with remote source index", "Error message changed")
+  }
+)
+
+tasks.named('yamlRestCompatTest').configure {
+  systemProperty 'es.queryable_built_in_roles_enabled', 'false'
+}

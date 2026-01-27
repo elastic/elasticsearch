@@ -1,35 +1,35 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,8 +37,8 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
+import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
  * A scrollable source of hits from a {@linkplain Client} instance.
@@ -47,9 +47,16 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
-    public ClientScrollableHitSource(Logger logger, BackoffPolicy backoffPolicy, ThreadPool threadPool, Runnable countSearchRetry,
-                                     Consumer<AsyncResponse> onResponse, Consumer<Exception> fail,
-                                     ParentTaskAssigningClient client, SearchRequest firstSearchRequest) {
+    public ClientScrollableHitSource(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        Runnable countSearchRetry,
+        Consumer<AsyncResponse> onResponse,
+        Consumer<Exception> fail,
+        ParentTaskAssigningClient client,
+        SearchRequest firstSearchRequest
+    ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.client = client;
         this.firstSearchRequest = firstSearchRequest;
@@ -59,8 +66,10 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     @Override
     public void doStart(RejectAwareActionListener<Response> searchListener) {
         if (logger.isDebugEnabled()) {
-            logger.debug("executing initial scroll against {}",
-                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices());
+            logger.debug(
+                "executing initial scroll against {}",
+                isEmpty(firstSearchRequest.indices()) ? "all indices" : firstSearchRequest.indices()
+            );
         }
         client.search(firstSearchRequest, wrapListener(searchListener));
     }
@@ -69,11 +78,11 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
         SearchScrollRequest request = new SearchScrollRequest();
         // Add the wait time into the scroll timeout so it won't timeout while we wait for throttling
-        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()));
+        request.scrollId(scrollId).scroll(timeValueNanos(firstSearchRequest.scroll().nanos() + extraKeepAlive.nanos()));
         client.searchScroll(request, wrapListener(searchListener));
     }
 
-    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+    private static ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
@@ -108,7 +117,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                logger.warn(() -> "Failed to clear scroll [" + scrollId + "]", e);
                 onCompletion.run();
             }
         });
@@ -119,13 +128,13 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         onCompletion.run();
     }
 
-    private Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response) {
         List<SearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
-            for (ShardSearchFailure failure: response.getShardFailures()) {
+            for (ShardSearchFailure failure : response.getShardFailures()) {
                 String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
                 failures.add(new SearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
@@ -135,14 +144,13 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             hits = emptyList();
         } else {
             hits = new ArrayList<>(response.getHits().getHits().length);
-            for (SearchHit hit: response.getHits().getHits()) {
+            for (SearchHit hit : response.getHits().getHits()) {
                 hits.add(new ClientHit(hit));
             }
             hits = unmodifiableList(hits);
         }
-        long total = response.getHits().getTotalHits().value;
-        return new Response(response.isTimedOut(), failures, total,
-                hits, response.getScrollId());
+        long total = response.getHits().getTotalHits().value();
+        return new Response(response.isTimedOut(), failures, total, hits, response.getScrollId());
     }
 
     private static class ClientHit implements Hit {
@@ -150,8 +158,8 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         private final BytesReference source;
 
         ClientHit(SearchHit delegate) {
-            this.delegate = delegate;
-            source = delegate.hasSource() ? delegate.getSourceRef() : null;
+            this.delegate = delegate.asUnpooled(); // TODO: use pooled version here
+            source = this.delegate.hasSource() ? this.delegate.getSourceRef() : null;
         }
 
         @Override
@@ -173,6 +181,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         public XContentType getXContentType() {
             return XContentHelper.xContentType(source);
         }
+
         @Override
         public long getVersion() {
             return delegate.getVersion();

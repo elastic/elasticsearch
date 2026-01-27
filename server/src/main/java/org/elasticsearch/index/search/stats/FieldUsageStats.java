@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search.stats;
@@ -12,9 +13,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -22,7 +23,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String ANY = "any";
@@ -39,6 +39,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
     public static final String POINTS = "points";
     public static final String PROXIMITY = "proximity";
+    public static final String KNN_VECTORS = "knn_vectors";
 
     private final Map<String, PerFieldUsageStats> stats;
 
@@ -51,12 +52,12 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
     }
 
     public FieldUsageStats(StreamInput in) throws IOException {
-        stats = in.readMap(StreamInput::readString, PerFieldUsageStats::new);
+        stats = in.readMap(PerFieldUsageStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMap(stats, StreamOutput::writeWriteable);
     }
 
     @Override
@@ -68,8 +69,10 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
         builder.startObject("fields");
         {
-            final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries =
-                stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+            final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries = stats.entrySet()
+                .stream()
+                .sorted(Map.Entry.comparingByKey())
+                .toList();
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);
@@ -120,11 +123,12 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         PAYLOADS,
         TERM_VECTORS, // possibly refine this one
         POINTS,
+        KNN_VECTORS,
     }
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
 
-        static final PerFieldUsageStats EMPTY = new PerFieldUsageStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+        static final PerFieldUsageStats EMPTY = new PerFieldUsageStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
         private final long any;
         private final long proximity;
@@ -139,9 +143,24 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
         private final long payloads;
         private final long termVectors;
         private final long points;
+        private final long knnVectors;
 
-        public PerFieldUsageStats(long any, long proximity, long terms, long postings, long termFrequencies, long positions, long offsets,
-                                  long docValues, long storedFields, long norms, long payloads, long termVectors, long points) {
+        public PerFieldUsageStats(
+            long any,
+            long proximity,
+            long terms,
+            long postings,
+            long termFrequencies,
+            long positions,
+            long offsets,
+            long docValues,
+            long storedFields,
+            long norms,
+            long payloads,
+            long termVectors,
+            long points,
+            long knnVectors
+        ) {
             this.any = any;
             this.proximity = proximity;
             this.terms = terms;
@@ -155,6 +174,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             this.payloads = payloads;
             this.termVectors = termVectors;
             this.points = points;
+            this.knnVectors = knnVectors;
         }
 
         private PerFieldUsageStats add(PerFieldUsageStats other) {
@@ -171,7 +191,9 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
                 norms + other.norms,
                 payloads + other.payloads,
                 termVectors + other.termVectors,
-                points + other.points);
+                points + other.points,
+                knnVectors + other.knnVectors
+            );
         }
 
         public PerFieldUsageStats(StreamInput in) throws IOException {
@@ -188,6 +210,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             payloads = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
+            knnVectors = in.readVLong();
         }
 
         @Override
@@ -205,6 +228,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             out.writeVLong(payloads);
             out.writeVLong(termVectors);
             out.writeVLong(points);
+            out.writeVLong(knnVectors);
         }
 
         @Override
@@ -224,6 +248,7 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             builder.field(POINTS, points);
             builder.field(NORMS, norms);
             builder.field(TERM_VECTORS, termVectors);
+            builder.field(KNN_VECTORS, knnVectors);
             return builder;
         }
 
@@ -261,6 +286,9 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
             }
             if (points > 0L) {
                 set.add(UsageContext.POINTS);
+            }
+            if (knnVectors > 0L) {
+                set.add(UsageContext.KNN_VECTORS);
             }
             return set;
         }
@@ -307,6 +335,10 @@ public class FieldUsageStats implements ToXContentObject, Writeable {
 
         public long getPoints() {
             return points;
+        }
+
+        public long getKnnVectors() {
+            return knnVectors;
         }
 
         public long getProximity() {

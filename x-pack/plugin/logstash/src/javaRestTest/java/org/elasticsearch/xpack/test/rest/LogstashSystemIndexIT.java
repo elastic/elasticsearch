@@ -15,23 +15,33 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class LogstashSystemIndexIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .module("x-pack-logstash")
+        .module("analysis-common")
+        .setting("xpack.security.enabled", "true")
+        .user("x_pack_rest_user", "x-pack-test-password")
+        .build();
+
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
         SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
@@ -40,6 +50,11 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
     @Override
     protected Settings restClientSettings() {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
     }
 
     public void testPipelineCRUD() throws Exception {
@@ -135,6 +150,59 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         assertThat(listResponseMap.size(), is(ids.size()));
     }
 
+    public void testValidPipelineIds() throws IOException {
+        final String pipelineJson = getPipelineJson();
+        final List<String> validIds = List.of(
+            "main",
+            "_internal",
+            "my_pipeline",
+            "my-pipeline",
+            "pipeline123",
+            "A1",
+            "_pipeline_1",
+            "MyPipeline-123",
+            "main_pipeline_v2"
+        );
+
+        for (String id : validIds) {
+            createPipeline(id, pipelineJson);
+        }
+
+        refreshAllIndices();
+
+        // fetch all pipeline IDs
+        Request listAll = new Request("GET", "/_logstash/pipeline");
+        Response listAllResponse = client().performRequest(listAll);
+        assertThat(listAllResponse.getStatusLine().getStatusCode(), is(200));
+        Map<String, Object> listResponseMap = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            EntityUtils.toString(listAllResponse.getEntity()),
+            false
+        );
+        for (String id : validIds) {
+            assertTrue(listResponseMap.containsKey(id));
+        }
+        assertThat(listResponseMap.size(), is(validIds.size()));
+    }
+
+    public void testInvalidPipelineIds() throws IOException {
+        final String pipelineJson = getPipelineJson();
+        final List<String> invalidPipelineIds = List.of("123pipeline", "-pipeline", "*-pipeline");
+
+        for (String id : invalidPipelineIds) {
+            Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
+            putRequest.setJsonEntity(pipelineJson);
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
+
+            Response response = exception.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(400));
+
+            String responseBody = EntityUtils.toString(response.getEntity());
+            assertThat(responseBody, containsString("Invalid pipeline [" + id + "] ID received"));
+        }
+    }
+
     private void createPipeline(String id, String json) throws IOException {
         Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
         putRequest.setJsonEntity(json);
@@ -159,7 +227,11 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
                 }
                 builder.endObject();
                 builder.field("username", "john.doe");
-                builder.field("pipeline", "\"input\": {},\n \"filter\": {},\n \"output\": {}\n");
+                builder.field("pipeline", """
+                    "input": {},
+                    "filter": {},
+                    "output": {}
+                    """);
                 builder.startObject("pipeline_settings");
                 {
                     builder.field("pipeline.batch.delay", 50);

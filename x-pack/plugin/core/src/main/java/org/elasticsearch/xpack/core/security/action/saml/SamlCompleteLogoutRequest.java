@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.List;
@@ -20,7 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Represents a request to complete SAML LogoutResponse
  */
-public final class SamlCompleteLogoutRequest extends ActionRequest {
+public final class SamlCompleteLogoutRequest extends LegacyActionRequest {
 
     @Nullable
     private String queryString;
@@ -33,8 +33,7 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
         super(in);
     }
 
-    public SamlCompleteLogoutRequest() {
-    }
+    public SamlCompleteLogoutRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

@@ -6,34 +6,26 @@
  */
 package org.elasticsearch.protocol.xpack;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.license.License;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class XPackInfoResponse extends ActionResponse implements ToXContentObject {
     /**
@@ -42,12 +34,14 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
     public static final long BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS = Long.MAX_VALUE - TimeUnit.HOURS.toMillis(24 * 365);
     // TODO move this constant to License.java once we move License.java to the protocol jar
 
-    @Nullable private BuildInfo buildInfo;
-    @Nullable private LicenseInfo licenseInfo;
-    @Nullable private FeatureSetsInfo featureSetsInfo;
+    @Nullable
+    private final BuildInfo buildInfo;
+    @Nullable
+    private final LicenseInfo licenseInfo;
+    @Nullable
+    private final FeatureSetsInfo featureSetsInfo;
 
     public XPackInfoResponse(StreamInput in) throws IOException {
-        super(in);
         this.buildInfo = in.readOptionalWriteable(BuildInfo::new);
         this.licenseInfo = in.readOptionalWriteable(LicenseInfo::new);
         this.featureSetsInfo = in.readOptionalWriteable(FeatureSetsInfo::new);
@@ -94,8 +88,8 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         if (this == other) return true;
         XPackInfoResponse rhs = (XPackInfoResponse) other;
         return Objects.equals(buildInfo, rhs.buildInfo)
-                && Objects.equals(licenseInfo, rhs.licenseInfo)
-                && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
+            && Objects.equals(licenseInfo, rhs.licenseInfo)
+            && Objects.equals(featureSetsInfo, rhs.featureSetsInfo);
     }
 
     @Override
@@ -116,8 +110,9 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             builder.field("build", buildInfo, params);
         }
 
-        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category
-                .toSet(Strings.splitStringByCommaToArray(params.param("categories", "_all")));
+        EnumSet<XPackInfoRequest.Category> categories = XPackInfoRequest.Category.toSet(
+            Strings.splitStringByCommaToArray(params.param("categories", "_all"))
+        );
         if (licenseInfo != null) {
             builder.field("license", licenseInfo, params);
         } else if (categories.contains(XPackInfoRequest.Category.LICENSE)) {
@@ -192,10 +187,10 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             if (this == other) return true;
             LicenseInfo rhs = (LicenseInfo) other;
             return Objects.equals(uid, rhs.uid)
-                    && Objects.equals(type, rhs.type)
-                    && Objects.equals(mode, rhs.mode)
-                    && Objects.equals(status, rhs.status)
-                    && expiryDate == rhs.expiryDate;
+                && Objects.equals(type, rhs.type)
+                && Objects.equals(mode, rhs.mode)
+                && Objects.equals(status, rhs.status)
+                && expiryDate == rhs.expiryDate;
         }
 
         @Override
@@ -207,27 +202,11 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("uid", uid);
-
-            if (builder.getRestApiVersion() == RestApiVersion.V_7 && params.paramAsBoolean("accept_enterprise", false) == false) {
-                if (License.LicenseType.ENTERPRISE.getTypeName().equals(type)) {
-                    builder.field("type", License.LicenseType.PLATINUM.getTypeName());
-                } else {
-                    builder.field("type", type);
-                }
-
-                if (License.OperationMode.ENTERPRISE.description().equals(mode)) {
-                    builder.field("mode", License.OperationMode.PLATINUM.description());
-                } else {
-                    builder.field("mode", mode);
-                }
-            } else {
-                builder.field("type", type);
-                builder.field("mode", mode);
-            }
-
+            builder.field("type", type);
+            builder.field("mode", mode);
             builder.field("status", status.label());
             if (expiryDate != BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
-                builder.timeField("expiry_date_in_millis", "expiry_date", expiryDate);
+                builder.timestampFieldsFromUnixEpochMillis("expiry_date_in_millis", "expiry_date", expiryDate);
             }
             return builder.endObject();
         }
@@ -265,8 +244,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             if (other == null || other.getClass() != getClass()) return false;
             if (this == other) return true;
             BuildInfo rhs = (BuildInfo) other;
-            return Objects.equals(hash, rhs.hash)
-                    && Objects.equals(timestamp, rhs.timestamp);
+            return Objects.equals(hash, rhs.hash) && Objects.equals(timestamp, rhs.timestamp);
         }
 
         @Override
@@ -274,19 +252,9 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             return Objects.hash(hash, timestamp);
         }
 
-        private static final ConstructingObjectParser<BuildInfo, Void> PARSER = new ConstructingObjectParser<>(
-                "build_info", true, (a, v) -> new BuildInfo((String) a[0], (String) a[1]));
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("hash"));
-            PARSER.declareString(constructorArg(), new ParseField("date"));
-        }
-
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field("hash", hash)
-                    .field("date", timestamp)
-                    .endObject();
+            return builder.startObject().field("hash", hash).field("date", timestamp).endObject();
         }
     }
 
@@ -294,7 +262,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         private final Map<String, FeatureSet> featureSets;
 
         public FeatureSetsInfo(Set<FeatureSet> featureSets) {
-            Map<String, FeatureSet> map = new HashMap<>(featureSets.size());
+            Map<String, FeatureSet> map = Maps.newMapWithExpectedSize(featureSets.size());
             for (FeatureSet featureSet : featureSets) {
                 map.put(featureSet.name, featureSet);
             }
@@ -303,7 +271,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
 
         public FeatureSetsInfo(StreamInput in) throws IOException {
             int size = in.readVInt();
-            Map<String, FeatureSet> featureSets = new HashMap<>(size);
+            Map<String, FeatureSet> featureSets = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 FeatureSet featureSet = new FeatureSet(in);
                 featureSets.put(featureSet.name, featureSet);
@@ -339,7 +307,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().collect(Collectors.toList());
+            List<String> names = new ArrayList<>(this.featureSets.keySet()).stream().sorted().toList();
             for (String name : names) {
                 builder.field(name, featureSets.get(name), params);
             }
@@ -358,32 +326,14 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
             }
 
             public FeatureSet(StreamInput in) throws IOException {
-                this(in.readString(), readAvailable(in), in.readBoolean());
-                if (in.getVersion().before(Version.V_8_0_0)) {
-                    in.readMap(); // backcompat reading native code info, but no longer used here
-                }
-            }
-
-            // this is separated out so that the removed description can be read from the stream on construction
-            // TODO: remove this for 8.0
-            private static boolean readAvailable(StreamInput in) throws IOException {
-                if (in.getVersion().before(Version.V_7_3_0)) {
-                    in.readOptionalString();
-                }
-                return in.readBoolean();
+                this(in.readString(), in.readBoolean(), in.readBoolean());
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(name);
-                if (out.getVersion().before(Version.V_7_3_0)) {
-                    out.writeOptionalString(null);
-                }
                 out.writeBoolean(available);
                 out.writeBoolean(enabled);
-                if (out.getVersion().before(Version.V_8_0_0)) {
-                    out.writeMap(Collections.emptyMap());
-                }
             }
 
             public String name() {
@@ -403,9 +353,7 @@ public class XPackInfoResponse extends ActionResponse implements ToXContentObjec
                 if (other == null || other.getClass() != getClass()) return false;
                 if (this == other) return true;
                 FeatureSet rhs = (FeatureSet) other;
-                return Objects.equals(name, rhs.name)
-                        && available == rhs.available
-                        && enabled == rhs.enabled;
+                return Objects.equals(name, rhs.name) && available == rhs.available && enabled == rhs.enabled;
             }
 
             @Override

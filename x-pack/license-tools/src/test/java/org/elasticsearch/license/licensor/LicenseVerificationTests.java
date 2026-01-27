@@ -7,6 +7,7 @@
 package org.elasticsearch.license.licensor;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.license.CryptUtils;
 import org.elasticsearch.license.DateUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseVerifier;
@@ -16,29 +17,32 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PublicKey;
 
 public class LicenseVerificationTests extends ESTestCase {
 
     protected Path pubKeyPath = null;
+    protected PublicKey publicKey;
     protected Path priKeyPath = null;
 
     @Before
     public void setup() throws Exception {
         pubKeyPath = getDataPath("/public.key");
+        publicKey = CryptUtils.readPublicKey(Files.readAllBytes(pubKeyPath));
         priKeyPath = getDataPath("/private.key");
     }
 
     @After
     public void cleanUp() {
         pubKeyPath = null;
+        publicKey = null;
         priKeyPath = null;
     }
 
     public void testGeneratedLicenses() throws Exception {
         final TimeValue fortyEightHours = TimeValue.timeValueHours(2 * 24);
-        final License license =
-                TestUtils.generateSignedLicense(fortyEightHours, pubKeyPath, priKeyPath);
-        assertTrue(LicenseVerifier.verifyLicense(license, Files.readAllBytes(pubKeyPath)));
+        final License license = TestUtils.generateSignedLicense(fortyEightHours, pubKeyPath, priKeyPath);
+        assertTrue(LicenseVerifier.verifyLicense(license, publicKey));
     }
 
     public void testLicenseTampering() throws Exception {
@@ -46,32 +50,32 @@ public class LicenseVerificationTests extends ESTestCase {
         License license = TestUtils.generateSignedLicense(twoHours, pubKeyPath, priKeyPath);
 
         final License tamperedLicense = License.builder()
-                .fromLicenseSpec(license, license.signature())
-                .expiryDate(license.expiryDate() + 10 * 24 * 60 * 60 * 1000L)
-                .validate()
-                .build();
+            .fromLicenseSpec(license, license.signature())
+            .expiryDate(license.expiryDate() + 10 * 24 * 60 * 60 * 1000L)
+            .validate()
+            .build();
 
-        assertFalse(LicenseVerifier.verifyLicense(tamperedLicense, Files.readAllBytes(pubKeyPath)));
+        assertFalse(LicenseVerifier.verifyLicense(tamperedLicense, publicKey));
     }
 
     public void testRandomLicenseVerification() throws Exception {
         TestUtils.LicenseSpec licenseSpec = TestUtils.generateRandomLicenseSpec(
-                randomIntBetween(License.VERSION_START, License.VERSION_CURRENT));
+            randomIntBetween(License.VERSION_START, License.VERSION_CURRENT)
+        );
         License generatedLicense = generateSignedLicense(licenseSpec, pubKeyPath, priKeyPath);
-        assertTrue(LicenseVerifier.verifyLicense(generatedLicense, Files.readAllBytes(pubKeyPath)));
+        assertTrue(LicenseVerifier.verifyLicense(generatedLicense, publicKey));
     }
 
-    private static License generateSignedLicense(
-            TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
+    private static License generateSignedLicense(TestUtils.LicenseSpec spec, Path pubKeyPath, Path priKeyPath) throws Exception {
         LicenseSigner signer = new LicenseSigner(priKeyPath, pubKeyPath);
         License.Builder builder = License.builder()
-                .uid(spec.uid)
-                .feature(spec.feature)
-                .type(spec.type)
-                .subscriptionType(spec.subscriptionType)
-                .issuedTo(spec.issuedTo)
-                .issuer(spec.issuer)
-                .maxNodes(spec.maxNodes);
+            .uid(spec.uid)
+            .feature(spec.feature)
+            .type(spec.type)
+            .subscriptionType(spec.subscriptionType)
+            .issuedTo(spec.issuedTo)
+            .issuer(spec.issuer)
+            .maxNodes(spec.maxNodes);
 
         if (spec.expiryDate != null) {
             builder.expiryDate(DateUtils.endOfTheDay(spec.expiryDate));

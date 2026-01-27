@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,14 +12,14 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit.NestedIdentity;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class NestedIdentityTests extends ESTestCase {
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
         try (XContentParser parser = createParser(builder)) {
-            NestedIdentity parsedNestedIdentity = NestedIdentity.fromXContent(parser);
+            NestedIdentity parsedNestedIdentity = SearchResponseUtils.parseNestedIdentity(parser);
             assertEquals(nestedIdentity, parsedNestedIdentity);
             assertNull(parser.nextToken());
         }
@@ -61,13 +62,13 @@ public class NestedIdentityTests extends ESTestCase {
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-              "{\n" +
-              "  \"_nested\" : {\n" +
-              "    \"field\" : \"foo\",\n" +
-              "    \"offset\" : 5\n" +
-              "  }\n" +
-              "}", Strings.toString(builder));
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5
+              }
+            }""", Strings.toString(builder));
 
         nestedIdentity = new NestedIdentity("foo", 5, new NestedIdentity("bar", 3, null));
         builder = JsonXContent.contentBuilder();
@@ -75,17 +76,17 @@ public class NestedIdentityTests extends ESTestCase {
         builder.startObject();
         nestedIdentity.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals(
-              "{\n" +
-              "  \"_nested\" : {\n" +
-              "    \"field\" : \"foo\",\n" +
-              "    \"offset\" : 5,\n" +
-              "    \"_nested\" : {\n" +
-              "      \"field\" : \"bar\",\n" +
-              "      \"offset\" : 3\n" +
-              "    }\n" +
-              "  }\n" +
-              "}", Strings.toString(builder));
+        assertEquals("""
+            {
+              "_nested" : {
+                "field" : "foo",
+                "offset" : 5,
+                "_nested" : {
+                  "field" : "bar",
+                  "offset" : 3
+                }
+              }
+            }""", Strings.toString(builder));
     }
 
     /**
@@ -116,8 +117,7 @@ public class NestedIdentityTests extends ESTestCase {
         int offset = original.getOffset();
         NestedIdentity child = original.getChild();
         String fieldName = original.getField().string();
-        mutations.add(() ->
-            new NestedIdentity(original.getField().string() + "_prefix", offset, child));
+        mutations.add(() -> new NestedIdentity(original.getField().string() + "_prefix", offset, child));
         mutations.add(() -> new NestedIdentity(fieldName, offset + 1, child));
         mutations.add(() -> new NestedIdentity(fieldName, offset, mutate(child)));
         return randomFrom(mutations).get();

@@ -7,19 +7,19 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -51,10 +51,10 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/overall_buckets/get";
 
     private GetOverallBucketsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends LegacyActionRequest implements ToXContentObject {
 
         public static final ParseField TOP_N = new ParseField("top_n");
         public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
@@ -62,9 +62,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
-        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_JOBS);
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -74,10 +72,11 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             PARSER.declareString(Request::setBucketSpan, BUCKET_SPAN);
             PARSER.declareDouble(Request::setOverallScore, OVERALL_SCORE);
             PARSER.declareBoolean(Request::setExcludeInterim, EXCLUDE_INTERIM);
-            PARSER.declareString((request, startTime) -> request.setStart(parseDateOrThrow(
-                    startTime, START, System::currentTimeMillis)), START);
-            PARSER.declareString((request, endTime) -> request.setEnd(parseDateOrThrow(
-                    endTime, END, System::currentTimeMillis)), END);
+            PARSER.declareString(
+                (request, startTime) -> request.setStart(parseDateOrThrow(startTime, START, System::currentTimeMillis)),
+                START
+            );
+            PARSER.declareString((request, endTime) -> request.setEnd(parseDateOrThrow(endTime, END, System::currentTimeMillis)), END);
             PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
@@ -109,8 +108,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         private Long end;
         private boolean allowNoMatch = true;
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -256,14 +254,14 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
                 return false;
             }
             Request that = (Request) other;
-            return Objects.equals(jobId, that.jobId) &&
-                    this.topN == that.topN &&
-                    Objects.equals(bucketSpan, that.bucketSpan) &&
-                    this.excludeInterim == that.excludeInterim &&
-                    this.overallScore == that.overallScore &&
-                    Objects.equals(start, that.start) &&
-                    Objects.equals(end, that.end) &&
-                    this.allowNoMatch == that.allowNoMatch;
+            return Objects.equals(jobId, that.jobId)
+                && this.topN == that.topN
+                && Objects.equals(bucketSpan, that.bucketSpan)
+                && this.excludeInterim == that.excludeInterim
+                && this.overallScore == that.overallScore
+                && Objects.equals(start, that.start)
+                && Objects.equals(end, that.end)
+                && this.allowNoMatch == that.allowNoMatch;
         }
     }
 

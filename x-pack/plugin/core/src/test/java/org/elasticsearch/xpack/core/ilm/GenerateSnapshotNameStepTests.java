@@ -6,16 +6,21 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
+import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.generateSnapshotName;
 import static org.elasticsearch.xpack.core.ilm.GenerateSnapshotNameStep.validateGeneratedSnapshotName;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -30,7 +35,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
     @Override
     protected GenerateSnapshotNameStep createRandomInstance() {
-        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(5, 10));
+        return new GenerateSnapshotNameStep(randomStepKey(), randomStepKey(), randomAlphaOfLengthBetween(5, 10), (i, s) -> i);
     }
 
     @Override
@@ -40,46 +45,132 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         String snapshotRepository = instance.getSnapshotRepository();
 
         switch (between(0, 2)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 2:
-                snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(5, 10));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            case 2 -> snapshotRepository = randomValueOtherThan(snapshotRepository, () -> randomAlphaOfLengthBetween(5, 10));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new GenerateSnapshotNameStep(key, nextKey, snapshotRepository);
+        return new GenerateSnapshotNameStep(key, nextKey, snapshotRepository, null);
     }
 
     @Override
     protected GenerateSnapshotNameStep copyInstance(GenerateSnapshotNameStep instance) {
-        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository());
+        return new GenerateSnapshotNameStep(instance.getKey(), instance.getNextStepKey(), instance.getSnapshotRepository(), null);
     }
 
     public void testPerformAction() {
-        String indexName = randomAlphaOfLength(10);
-        String policyName = "test-ilm-policy";
-        IndexMetadata.Builder indexMetadataBuilder =
-            IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
-                .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
+        testPerformAction("test-ilm-policy", "test-ilm-policy");
+        // in case the policy name contains disallowed characters ({@link org.elasticsearch.common.Strings.INVALID_CHARS}), they should
+        // be stripped off
+        testPerformAction("invalid-policy\\\\/*?\"<>|,-name", "invalid-policy-name");
+    }
 
-        final IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-                .metadata(Metadata.builder().put(indexMetadata, false).build()).build();
+    private void testPerformAction(String policyName, String expectedPolicyName) {
+        String indexName = randomAlphaOfLength(10);
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
-        ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
-        assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
-            notNullValue());
-        assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
-        assertThat(executionState.getSnapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
-        assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
+        // generate a snapshot repository with the expected name
+        RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
+
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
+
+        // the snapshot index name, snapshot repository, and snapshot name are generated as expected
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(executionState.snapshotIndexName(), is(indexName));
+        assertThat(
+            "the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name",
+            executionState.snapshotName(),
+            notNullValue()
+        );
+        assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
+        assertThat(executionState.snapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
+        assertThat(executionState.snapshotName(), containsString(expectedPolicyName));
+
+        // re-running this step results in no change to the important outputs
+        newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newState);
+        LifecycleExecutionState repeatedState = newState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(repeatedState.snapshotIndexName(), is(executionState.snapshotIndexName()));
+        assertThat(repeatedState.snapshotRepository(), is(executionState.snapshotRepository()));
+        assertThat(repeatedState.snapshotName(), is(executionState.snapshotName()));
+    }
+
+    public void testPerformActionRejectsNonexistentRepository() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
+        );
+
+        IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state)
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "repository ["
+                    + generateSnapshotNameStep.getSnapshotRepository()
+                    + "] "
+                    + "is missing. [test-ilm-policy] policy for index ["
+                    + indexName
+                    + "] cannot continue until the repository "
+                    + "is created or the policy is changed"
+            )
+        );
+    }
+
+    public void testPerformActionWillOverwriteCachedRepository() {
+        String indexName = randomAlphaOfLength(10);
+        String policyName = "test-ilm-policy";
+
+        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder();
+        newCustomData.setSnapshotName("snapshot-name-is-not-touched");
+        newCustomData.setSnapshotRepository("snapshot-repository-will-be-reset");
+
+        final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap())
+            .build();
+
+        GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
+
+        // generate a snapshot repository with the expected name
+        RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
+
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(indexMetadata, false)
+                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)))
+        );
+
+        ProjectState newState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), state);
+
+        LifecycleExecutionState executionState = newState.metadata().index(indexName).getLifecycleExecutionState();
+        assertThat(executionState.snapshotName(), is("snapshot-name-is-not-touched"));
+        assertThat(executionState.snapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
     }
 
     public void testNameGeneration() {
@@ -87,13 +178,12 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         assertThat(generateSnapshotName("name"), startsWith("name-"));
         assertThat(generateSnapshotName("name").length(), greaterThan("name-".length()));
 
-        IndexNameExpressionResolver.ResolverContext resolverContext = new IndexNameExpressionResolver.ResolverContext(time);
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext), startsWith("name-2019.03.15-"));
-        assertThat(generateSnapshotName("<name-{now}>", resolverContext).length(), greaterThan("name-2019.03.15-".length()));
+        assertThat(generateSnapshotName("<name-{now}>", time), startsWith("name-2019.03.15-"));
+        assertThat(generateSnapshotName("<name-{now}>", time).length(), greaterThan("name-2019.03.15-".length()));
 
-        assertThat(generateSnapshotName("<name-{now/M}>", resolverContext), startsWith("name-2019.03.01-"));
+        assertThat(generateSnapshotName("<name-{now/M}>", time), startsWith("name-2019.03.01-"));
 
-        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", resolverContext), startsWith("name-2019-03-15.21:09:00-"));
+        assertThat(generateSnapshotName("<name-{now/m{yyyy-MM-dd.HH:mm:ss}}>", time), startsWith("name-2019-03-15.21:09:00-"));
     }
 
     public void testNameValidation() {
@@ -113,8 +203,10 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("_start", generateSnapshotName("_start"));
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [_start]: must not start with " +
-                "'_'"));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder("invalid snapshot name [_start]: must not start with " + "'_'")
+            );
         }
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("aBcD", generateSnapshotName("aBcD"));
@@ -124,8 +216,14 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("na>me", generateSnapshotName("na>me"));
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [na>me]: must not contain " +
-                "contain the following characters " + Strings.INVALID_FILENAME_CHARS));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder(
+                    "invalid snapshot name [na>me]: must not contain "
+                        + "contain the following characters "
+                        + Strings.INVALID_FILENAME_CHARS
+                )
+            );
         }
     }
 }

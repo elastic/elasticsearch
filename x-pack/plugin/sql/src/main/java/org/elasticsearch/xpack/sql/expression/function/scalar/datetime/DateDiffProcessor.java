@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiff.Part;
@@ -52,11 +53,13 @@ public class DateDiffProcessor extends ThreeArgsDateTimeProcessor {
         if (datePartField == null) {
             List<String> similar = Part.findSimilar((String) unit);
             if (similar.isEmpty()) {
-                throw new SqlIllegalArgumentException("A value of {} or their aliases is required; received [{}]",
-                    Part.values(), unit);
+                throw new InvalidArgumentException("A value of {} or their aliases is required; received [{}]", Part.values(), unit);
             } else {
-                throw new SqlIllegalArgumentException("Received value [{}] is not valid date part to add; " +
-                    "did you mean {}?", unit, similar);
+                throw new InvalidArgumentException(
+                    "Received value [{}] is not valid date part to add; " + "did you mean {}?",
+                    unit,
+                    similar
+                );
             }
         }
 
@@ -68,7 +71,9 @@ public class DateDiffProcessor extends ThreeArgsDateTimeProcessor {
             throw new SqlIllegalArgumentException("A date/datetime is required; received [{}]", endTimestamp);
         }
 
-        return datePartField.diff(((ZonedDateTime) startTimestamp).withZoneSameInstant(zoneId),
-            ((ZonedDateTime) endTimestamp).withZoneSameInstant(zoneId));
+        return datePartField.diff(
+            ((ZonedDateTime) startTimestamp).withZoneSameInstant(zoneId),
+            ((ZonedDateTime) endTimestamp).withZoneSameInstant(zoneId)
+        );
     }
 }

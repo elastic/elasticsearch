@@ -7,12 +7,15 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
@@ -22,23 +25,43 @@ public class NodeTests extends ESTestCase {
         {
             ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
             assertEquals("ChildrenAreAProperty[thing]", empty.toString());
-            assertEquals("ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString());
-            assertEquals("ChildrenAreAProperty[many]\n"
-                       + "|_ChildrenAreAProperty[thing]\n"
-                      + "\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString());
+            assertEquals(
+                "ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
+                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString()
+            );
+            assertEquals(
+                """
+                    ChildrenAreAProperty[many]
+                    |_ChildrenAreAProperty[thing]
+                    \\_ChildrenAreAProperty[thing]""",
+                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString()
+            );
         }
         {
             NoChildren empty = new NoChildren(randomSource(), "thing");
-            assertEquals("AChildIsAProperty[single]\n"
-                      + "\\_NoChildren[thing]",
-                new AChildIsAProperty(randomSource(), empty, "single").toString());
+            assertEquals(
+                "AChildIsAProperty[single]\n" + "\\_NoChildren[thing]",
+                new AChildIsAProperty(randomSource(), empty, "single").toString()
+            );
         }
+    }
+
+    public void testWithNullChild() {
+        List<Dummy> listWithNull = new ArrayList<>();
+        listWithNull.add(null);
+        var e = expectThrows(QlIllegalArgumentException.class, () -> new ChildrenAreAProperty(randomSource(), listWithNull, "single"));
+        assertEquals("Null children are not allowed", e.getMessage());
+    }
+
+    public void testWithImmutableChildList() {
+        // It's good enough that the node can be created without throwing a NPE
+        var node = new ChildrenAreAProperty(randomSource(), List.of(), "single");
+        assertEquals(node.children().size(), 0);
     }
 
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
+
         public Dummy(Source source, List<Dummy> children, String thing) {
             super(source, children);
             this.thing = thing;
@@ -57,8 +80,7 @@ public class NodeTests extends ESTestCase {
                 return false;
             }
             Dummy other = (Dummy) obj;
-            return thing.equals(other.thing)
-                && children().equals(other.children());
+            return thing.equals(other.thing) && children().equals(other.children());
         }
 
         @Override
@@ -117,5 +139,11 @@ public class NodeTests extends ESTestCase {
         public Dummy replaceChildren(List<Dummy> newChildren) {
             throw new UnsupportedOperationException("no children to replace");
         }
+    }
+
+    // Returns an empty list. The returned list may be backed various implementations, some
+    // allowing null some not - disallowing null disallows (throws NPE for) contains(null).
+    private static <T> List<T> emptyList() {
+        return randomFrom(List.of(), Collections.emptyList(), new ArrayList<>(), new LinkedList<>());
     }
 }

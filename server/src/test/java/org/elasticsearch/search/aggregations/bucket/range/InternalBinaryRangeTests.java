@@ -1,18 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -71,14 +72,9 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         for (int i = 0; i < ranges.size(); ++i) {
             final int docCount = randomIntBetween(1, 100);
             final String key = (i == nullKey) ? null : randomAlphaOfLength(10);
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
+            buckets.add(new InternalBinaryRange.Bucket(format, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
-    }
-
-    @Override
-    protected Class<ParsedBinaryRange> implementationClass() {
-        return ParsedBinaryRange.class;
     }
 
     @Override
@@ -90,7 +86,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         for (Range.Bucket bucket : reduced.getBuckets()) {
             int expectedCount = 0;
             for (InternalBinaryRange input : inputs) {
-                expectedCount += input.getBuckets().get(pos).getDocCount();
+                expectedCount += (int) input.getBuckets().get(pos).getDocCount();
             }
             assertEquals(expectedCount, bucket.getDocCount());
             pos++;
@@ -103,11 +99,6 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation.ParsedBucket> parsedRangeBucketClass() {
-        return ParsedBinaryRange.ParsedBucket.class;
-    }
-
-    @Override
     protected InternalBinaryRange mutateInstance(InternalBinaryRange instance) {
         String name = instance.getName();
         DocValueFormat format = instance.format;
@@ -115,18 +106,13 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-            case 0:
-                name += randomAlphaOfLength(5);
-                break;
-            case 1:
-                keyed = keyed == false;
-                break;
-            case 2:
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> keyed = keyed == false;
+            case 2 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
                     new InternalBinaryRange.Bucket(
                         format,
-                        keyed,
                         "range_a",
                         new BytesRef(randomAlphaOfLengthBetween(1, 20)),
                         new BytesRef(randomAlphaOfLengthBetween(1, 20)),
@@ -134,17 +120,16 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
                         InternalAggregations.EMPTY
                     )
                 );
-                break;
-            case 3:
+            }
+            case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }
                 metadata.put(randomAlphaOfLength(15), randomInt());
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }

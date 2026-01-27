@@ -92,8 +92,6 @@ setup:
   - do:
       indices.close:
         index: test-index
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       indices.put_settings:
@@ -126,3 +124,12 @@ setup:
      test-index.settings.index.query_string.lenient: "true"
   - match:
      test-index.settings.index.translog.durability: "async"
+
+---
+put unsupported setting:
+  - do:
+      catch: bad_request
+      indices.put_settings:
+        index: test-index
+        body:
+          garbage: garbage

@@ -49,8 +49,7 @@ public abstract class Agg {
         }
 
         Agg other = (Agg) obj;
-        return Objects.equals(id, other.id)
-            && Objects.equals(source, other.source);
+        return Objects.equals(id, other.id) && Objects.equals(source, other.source);
     }
 
     @Override

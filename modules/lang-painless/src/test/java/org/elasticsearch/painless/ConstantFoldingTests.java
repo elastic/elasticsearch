@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -107,27 +108,27 @@ public class ConstantFoldingTests extends ScriptTestCase {
         assertBytecodeExists("4L<5F", "ICONST_1");
     }
 
-    public void testStoreInMap()  {
+    public void testStoreInMap() {
         assertBytecodeExists("Map m = [:]; m.a = 1 + 1; m.a", "ICONST_2");
     }
 
-    public void testStoreInMapDef()  {
+    public void testStoreInMapDef() {
         assertBytecodeExists("def m = [:]; m.a = 1 + 1; m.a", "ICONST_2");
     }
 
-    public void testStoreInList()  {
+    public void testStoreInList() {
         assertBytecodeExists("List l = [null]; l.0 = 1 + 1; l.0", "ICONST_2");
     }
 
-    public void testStoreInListDef()  {
+    public void testStoreInListDef() {
         assertBytecodeExists("def l = [null]; l.0 = 1 + 1; l.0", "ICONST_2");
     }
 
-    public void testStoreInArray()  {
+    public void testStoreInArray() {
         assertBytecodeExists("int[] a = new int[1]; a[0] = 1 + 1; a[0]", "ICONST_2");
     }
 
-    public void testStoreInArrayDef()  {
+    public void testStoreInArrayDef() {
         assertBytecodeExists("def a = new int[1]; a[0] = 1 + 1; a[0]", "ICONST_2");
     }
 }

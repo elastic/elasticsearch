@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.watcher.transport.action.delete;
 
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchRequestBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
@@ -29,6 +28,7 @@ import java.util.Map;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.sleep;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
@@ -56,15 +56,14 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             server.start();
             HttpRequestTemplate template = HttpRequestTemplate.builder(server.getHostName(), server.getPort()).path("/").build();
 
-            PutWatchResponse responseFuture = new PutWatchRequestBuilder(client(), "_name").setSource(watchBuilder()
-                    .trigger(schedule(interval("6h")))
-                    .input(httpInput(template))
-                    .addAction("_action1", loggingAction("anything")))
-                    .get();
+            PutWatchResponse responseFuture = new PutWatchRequestBuilder(client(), "_name").setSource(
+                watchBuilder().trigger(schedule(interval("6h"))).input(httpInput(template)).addAction("_action1", loggingAction("anything"))
+            ).get();
             assertThat(responseFuture.isCreated(), is(true));
 
-            ActionFuture<ExecuteWatchResponse> executeWatchFuture =
-                    new ExecuteWatchRequestBuilder(client(), "_name").setRecordExecution(true).execute();
+            ActionFuture<ExecuteWatchResponse> executeWatchFuture = new ExecuteWatchRequestBuilder(client(), "_name").setRecordExecution(
+                true
+            ).execute();
 
             // without this sleep the delete operation might overtake the watch execution
             sleep(1000);
@@ -77,19 +76,22 @@ public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
             GetWatchResponse getWatchResponse = new GetWatchRequestBuilder(client(), "_name").get();
             assertThat(getWatchResponse.isFound(), is(false));
 
-            // the watch history shows a successful execution, even though the watch was deleted
-            // during execution
-            refresh(HistoryStoreField.INDEX_PREFIX + "*");
+            assertBusy(() -> {
+                // the watch history shows a successful execution, even though the watch was deleted
+                // during execution
+                refresh(HistoryStoreField.INDEX_PREFIX + "*");
 
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(matchAllQuery()).get();
-            assertHitCount(searchResponse, 1);
+                assertResponse(prepareSearch(HistoryStoreField.INDEX_PREFIX + "*").setQuery(matchAllQuery()), searchResponse -> {
+                    assertHitCount(searchResponse, 1);
 
-            Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
-            // watch has been executed successfully
-            String state = ObjectPath.eval("state", source);
-            assertThat(state, is("executed"));
-            // no exception occurred
-            assertThat(source, not(hasKey("exception")));
+                    Map<String, Object> source = searchResponse.getHits().getAt(0).getSourceAsMap();
+                    // watch has been executed successfully
+                    String state = ObjectPath.eval("state", source);
+                    assertThat(state, is("executed"));
+                    // no exception occurred
+                    assertThat(source, not(hasKey("exception")));
+                });
+            });
         }
     }
 }

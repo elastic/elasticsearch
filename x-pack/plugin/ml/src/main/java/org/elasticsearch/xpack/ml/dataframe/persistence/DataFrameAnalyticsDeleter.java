@@ -9,16 +9,15 @@ package org.elasticsearch.xpack.ml.dataframe.persistence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -60,43 +59,45 @@ public class DataFrameAnalyticsDeleter {
         final String id = config.getId();
 
         // Step 3. Delete the config
-        ActionListener<BulkByScrollResponse> deleteStatsHandler = ActionListener.wrap(
-            bulkByScrollResponse -> {
-                if (bulkByScrollResponse.isTimedOut()) {
-                    logger.warn("[{}] DeleteByQuery for stats timed out", id);
-                }
-                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                    logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery for stats", id,
-                        bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
-                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                        logger.warn("[{}] DBQ failure: {}", id, failure);
-                    }
-                }
-                deleteConfig(id, listener);
-            },
-            failure -> {
-                logger.warn(new ParameterizedMessage("[{}] failed to remove stats", id), ExceptionsHelper.unwrapCause(failure));
-                deleteConfig(id, listener);
+        ActionListener<BulkByScrollResponse> deleteStatsHandler = ActionListener.wrap(bulkByScrollResponse -> {
+            if (bulkByScrollResponse.isTimedOut()) {
+                logger.warn("[{}] DeleteByQuery for stats timed out", id);
             }
-        );
+            if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                logger.warn(
+                    "[{}] {} failures and {} conflicts encountered while running DeleteByQuery for stats",
+                    id,
+                    bulkByScrollResponse.getBulkFailures().size(),
+                    bulkByScrollResponse.getVersionConflicts()
+                );
+                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                    logger.warn("[{}] DBQ failure: {}", id, failure);
+                }
+            }
+            deleteConfig(id, listener);
+        }, failure -> {
+            logger.warn(() -> "[" + id + "] failed to remove stats", ExceptionsHelper.unwrapCause(failure));
+            deleteConfig(id, listener);
+        });
 
         // Step 2. Delete job docs from stats index
-        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(
-            bulkByScrollResponse -> {
-                if (bulkByScrollResponse.isTimedOut()) {
-                    logger.warn("[{}] DeleteByQuery for state timed out", id);
+        ActionListener<BulkByScrollResponse> deleteStateHandler = ActionListener.wrap(bulkByScrollResponse -> {
+            if (bulkByScrollResponse.isTimedOut()) {
+                logger.warn("[{}] DeleteByQuery for state timed out", id);
+            }
+            if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                logger.warn(
+                    "[{}] {} failures and {} conflicts encountered while running DeleteByQuery for state",
+                    id,
+                    bulkByScrollResponse.getBulkFailures().size(),
+                    bulkByScrollResponse.getVersionConflicts()
+                );
+                for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
+                    logger.warn("[{}] DBQ failure: {}", id, failure);
                 }
-                if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
-                    logger.warn("[{}] {} failures and {} conflicts encountered while running DeleteByQuery for state", id,
-                        bulkByScrollResponse.getBulkFailures().size(), bulkByScrollResponse.getVersionConflicts());
-                    for (BulkItemResponse.Failure failure : bulkByScrollResponse.getBulkFailures()) {
-                        logger.warn("[{}] DBQ failure: {}", id, failure);
-                    }
-                }
-                deleteStats(id, timeout, deleteStatsHandler);
-            },
-            listener::onFailure
-        );
+            }
+            deleteStats(id, timeout, deleteStatsHandler);
+        }, listener::onFailure);
 
         // Step 1. Delete state
         deleteState(config, timeout, deleteStateHandler);
@@ -106,36 +107,32 @@ public class DataFrameAnalyticsDeleter {
         DeleteRequest deleteRequest = new DeleteRequest(MlConfigIndex.indexName());
         deleteRequest.id(DataFrameAnalyticsConfig.documentId(id));
         deleteRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, deleteRequest, ActionListener.wrap(
-            deleteResponse -> {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
-                    return;
-                }
-                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-                logger.info("[{}] Deleted", id);
-                auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            },
-            e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
-                } else {
-                    listener.onFailure(e);
-                }
+        executeAsyncWithOrigin(client, ML_ORIGIN, TransportDeleteAction.TYPE, deleteRequest, ActionListener.wrap(deleteResponse -> {
+            if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
+                return;
             }
-        ));
+            assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+            logger.info("[{}] Deleted", id);
+            auditor.info(id, Messages.DATA_FRAME_ANALYTICS_AUDIT_DELETED);
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }, e -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
+                listener.onFailure(ExceptionsHelper.missingDataFrameAnalytics(id));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     private void deleteState(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
-        ActionListener<Boolean> deleteModelStateListener = ActionListener.wrap(
-            r -> executeDeleteByQuery(
+        ActionListener<Boolean> deleteModelStateListener = listener.delegateFailureAndWrap(
+            (l, r) -> executeDeleteByQuery(
                 AnomalyDetectorsIndex.jobStateIndexPattern(),
                 QueryBuilders.idsQuery().addIds(StoredProgress.documentId(config.getId())),
                 timeout,
-                listener
+                l
             )
-            , listener::onFailure
         );
 
         deleteModelState(config, timeout, 1, deleteModelStateListener);
@@ -152,16 +149,13 @@ public class DataFrameAnalyticsDeleter {
             AnomalyDetectorsIndex.jobStateIndexPattern(),
             query,
             timeout,
-            ActionListener.wrap(
-                response -> {
-                    if (response.getDeleted() > 0) {
-                        deleteModelState(config, timeout, docNum + 1, listener);
-                        return;
-                    }
-                    listener.onResponse(true);
-                },
-                listener::onFailure
-            )
+            listener.delegateFailureAndWrap((l, response) -> {
+                if (response.getDeleted() > 0) {
+                    deleteModelState(config, timeout, docNum + 1, l);
+                    return;
+                }
+                l.onResponse(true);
+            })
         );
     }
 
@@ -174,8 +168,7 @@ public class DataFrameAnalyticsDeleter {
         );
     }
 
-    private void executeDeleteByQuery(String index, QueryBuilder query, TimeValue timeout,
-                                      ActionListener<BulkByScrollResponse> listener) {
+    private void executeDeleteByQuery(String index, QueryBuilder query, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(index);
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));

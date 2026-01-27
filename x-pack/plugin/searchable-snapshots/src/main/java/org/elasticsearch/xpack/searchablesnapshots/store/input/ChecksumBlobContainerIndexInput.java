@@ -18,7 +18,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 
 /**
  * A {@link IndexInput} that can only be used to verify footer checksums.
@@ -115,7 +115,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
     }
 
     private static void ensureReadOnceChecksumContext(IOContext context) {
-        if (context != Store.READONCE_CHECKSUM) {
+        if (context.hints().contains(Store.FileFooterOnly.INSTANCE) == false) {
             assert false : "expected READONCE_CHECKSUM but got " + context;
             throw new IllegalArgumentException("ChecksumBlobContainerIndexInput should only be used with READONCE_CHECKSUM context");
         }
@@ -140,9 +140,9 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
         assert result.length >= Integer.BYTES + Integer.BYTES + Long.BYTES; // ensure that nobody changed the file format under us
         final ByteArrayDataOutput output = new ByteArrayDataOutput(result);
         // reverse CodecUtil.writeFooter()
-        output.writeInt(CodecUtil.FOOTER_MAGIC);
-        output.writeInt(0);
-        output.writeLong(Long.parseLong(checksum, Character.MAX_RADIX));
+        CodecUtil.writeBEInt(output, CodecUtil.FOOTER_MAGIC);
+        CodecUtil.writeBEInt(output, 0);
+        CodecUtil.writeBELong(output, Long.parseLong(checksum, Character.MAX_RADIX));
         assert output.getPosition() == result.length;
         return result;
     }

@@ -1,0 +1,50 @@
+{"create": {"_index": "profiling-executables", "_id": "4rFFPORY8_4FvK9QaA3QUQ"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "63e115dedee42e3aee75e0d5fa41243ac2cf9228"}, "file": {"name": "python2.7"}}, "Symbolization": {"next_time": "4851753124"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "-FiXU0afkg-sRwubj2WiAw"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "a607524ba9b6f400a9af233fa574bc7f2abd5f33"}, "file": {"name": "dbus-daemon"}}, "Symbolization": {"next_time": "4852488441"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "vQ7EacG6CR4rzcFaNFEsTQ"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "7b4536f41cdaa5888408e82d0836e33dcf436466"}, "file": {"name": "libpthread-2.31.so"}}, "Symbolization": {"next_time": "4851738741"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "8NlMClggx8jaziUTJXlmWA"}}
+{"@timestamp": "1698019200", "Executable": {"build": {"id": "f0983025f0e0f327a6da752ff4ffa675e0be393f"}, "file": {"name": "libpthread-2.31.so"}}, "Symbolization": {"next_time": "4851892090"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "wEIfl0pGBuepuUcTwdKc2g"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "101d8983a254f1b26637242e10b80ecae42eff2d"}, "file": {"name": "libz.so.1.2.11"}}, "Symbolization": {"next_time": "4851735147"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "hrCIM-i5cm0sSd-oVTZrsg"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": ""}, "file": {"name": "libzip.so"}}, "Symbolization": {"next_time": "4851816838"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "EkX-Bbjdn5I_vHMz9xIc5g"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": ""}, "file": {"name": "libnio.so"}}, "Symbolization": {"next_time": "4851764933"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "lW7fiQNIMpeUsn4R6s23pw"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": ""}, "file": {"name": "pf-host-agent"}}, "Symbolization": {"next_time": "4851745916"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "-6ARRafpA91HAsyIFfBmBQ"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": ""}, "file": {"name": "libjava.so"}}, "Symbolization": {"next_time": "4852281623"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "SA0fsx010mzWc4t8ff1-lA"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "ecf04bbd82c8ee9cc79e17dfca893ffa37a7ff5d"}, "file": {"name": "systemd"}}, "Symbolization": {"next_time": "4852496637"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "cEvvhuguaGYCmGWrnWRz1Q"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "7ce3ef6b0c6c2c687b4c6643596171dc03569610"}, "file": {"name": "auditbeat"}}, "Symbolization": {"next_time": "4851745898"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "SVqTovndX3vgWwiNPDrUZA"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": ""}, "file": {"name": "libnio.so"}}, "Symbolization": {"next_time": "4851818483"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "UJmIMEc6K8gJ39NHYaD0Ww"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "f7307432a8b162377e77a182b6cc2e53d771ec4b"}, "file": {"name": "libc-2.27.so"}}, "Symbolization": {"next_time": "4851753127"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "VNoyxdugL4O4pEtN-lEJQw"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "dc83469c2c5d9aff0b32d242be021a5d8875e846"}, "file": {"name": "libsystemd-shared-237.so"}}, "Symbolization": {"next_time": "4852496565"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "634wiWh6F21tPpXr0Zz3mg"}}
+{"@timestamp": "1698019200", "Executable": {"build": {"id": "9fdb74e7b217d06c93172a8243f8547f947ee6d1"}, "file": {"name": "libc-2.31.so"}}, "Symbolization": {"next_time": "4851892087"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "qjB_amR59Lv13Nhle_Nwbw"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "1878e6b475720c7c51969e69ab2d276fae6d1dee"}, "file": {"name": "libc-2.31.so"}}, "Symbolization": {"next_time": "4851738739"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "QTXwwuqN0mLb-8lqckiaTQ"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "6eee75cb89aff959ae1ba2c54194fd82d6aa604e"}, "file": {"name": "xfs"}}, "Symbolization": {"next_time": "4852490265"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "lHp5_WAgpLy2alrUVab6HA"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "c5f89ea1c68710d2a493bb604c343a92c4f8ddeb"}, "file": {"name": "vmlinux"}}, "Symbolization": {"next_time": "4852491791"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "qvacTmpSpuAOHxTh9l_exA"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": ""}, "file": {"name": "libjvm.so"}}, "Symbolization": {"next_time": "4852281581"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "fhsEKXDuxJ-jIJrZpdRuSA"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "0c75f746ff8d9d30d6417d79b7732a66f5890a8b"}, "file": {"name": "libz.so.1.2.11"}}, "Symbolization": {"next_time": "4851764966"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "Z3CKaS4aU08RhYA19y5ITQ"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "ced267ea05869f9c3b8e789e83b7fa545f0b7c49"}, "file": {"name": "dockerd"}}, "Symbolization": {"next_time": "4852034064"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "z5k14PsCcDvFyUC1kmlV3Q"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": "0eca98a615313a9d2be9a993097f65969dee8816"}, "file": {"name": "containerd"}}, "Symbolization": {"next_time": "4851843260"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "Fuiq0RN8VMfwSLHsA6DzhA"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": "c52b0055d6c5b32b0561ffe7c25b40eba4aec3c2"}, "file": {"name": "libdbus-1.so.3.19.4"}}, "Symbolization": {"next_time": "4851947999"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "GXH6S9Nv2Lf0omTz4cH4RA"}}
+{"@timestamp": "1699228800", "Executable": {"build": {"id": ""}, "file": {"name": "libzip.so"}}, "Symbolization": {"next_time": "4852250623"}, "ecs": {"version": "1.12.0"}}
+{"create": {"_index": "profiling-executables", "_id": "qn_i-43Ca0UMIY4VcWF0Ag"}}
+{"@timestamp": "1698624000", "Executable": {"build": {"id": ""}, "file": {"name": "libzip.so"}}, "Symbolization": {"next_time": "4852282517"}, "ecs": {"version": "1.12.0"}}

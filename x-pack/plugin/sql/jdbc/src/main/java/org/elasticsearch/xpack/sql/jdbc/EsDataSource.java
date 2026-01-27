@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 
-import javax.sql.DataSource;
 import java.io.PrintWriter;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -18,13 +17,15 @@ import java.sql.Wrapper;
 import java.util.Properties;
 import java.util.logging.Logger;
 
+import javax.sql.DataSource;
+
 /**
  * Factory for connections to Elasticsearch SQL.
  */
 public class EsDataSource implements DataSource, Wrapper {
 
     static {
-        // invoke Version to perform classpath/jar sanity checks
+        // invoke version to perform classpath/jar sanity checks
         ClientVersion.CURRENT.toString();
     }
 

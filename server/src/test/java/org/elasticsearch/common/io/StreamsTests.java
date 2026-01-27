@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.io;
@@ -80,7 +81,7 @@ public class StreamsTests extends ESTestCase {
         final int limit = randomIntBetween(0, bytes.length);
         final BytesArray stuffArray = new BytesArray(bytes);
         final ByteArrayOutputStream out = new ByteArrayOutputStream(bytes.length);
-        final long count = org.elasticsearch.core.internal.io.Streams.copy(Streams.limitStream(stuffArray.streamInput(), limit), out);
+        final long count = org.elasticsearch.core.Streams.copy(Streams.limitStream(stuffArray.streamInput(), limit), out);
         assertEquals(limit, count);
         assertThat(Arrays.equals(out.toByteArray(), Arrays.copyOf(bytes, limit)), equalTo(true));
     }

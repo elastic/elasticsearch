@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.saml2.metadata.AssertionConsumerService;
 import org.opensaml.saml.saml2.metadata.AttributeConsumingService;
@@ -60,7 +60,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Constructs SAML Metadata to describe a <em>Service Provider</em>.
@@ -176,8 +178,11 @@ public class SamlSpMetadataBuilder {
      * The certificate credential that should be used to send encrypted data to the service provider.
      */
     public SamlSpMetadataBuilder encryptionCredentials(Collection<X509Credential> credentials) {
-        return encryptionCertificates(credentials == null ? Collections.emptyList()
-                : credentials.stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList()));
+        return encryptionCertificates(
+            credentials == null
+                ? Collections.emptyList()
+                : credentials.stream().map(credential -> credential.getEntityCertificate()).collect(Collectors.toList())
+        );
     }
 
     /**
@@ -241,7 +246,7 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        if(contacts.size() > 0) {
+        if (contacts.size() > 0) {
             contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
         }
 
@@ -253,7 +258,7 @@ public class SamlSpMetadataBuilder {
             throw new IllegalStateException("NameID format has not been specified");
         }
         final NameIDFormat format = new NameIDFormatBuilder().buildObject();
-        format.setFormat(this.nameIdFormat);
+        format.setURI(this.nameIdFormat);
         return format;
     }
 
@@ -274,9 +279,9 @@ public class SamlSpMetadataBuilder {
         service.setIndex(1);
         service.setIsDefault(true);
         service.getNames().add(buildServiceName());
-        attributeNames.forEach((name, friendlyName) -> {
-            service.getRequestAttributes().add(buildRequestedAttribute(friendlyName, name));
-        });
+        attributeNames.forEach(
+            (name, friendlyName) -> { service.getRequestedAttributes().add(buildRequestedAttribute(friendlyName, name)); }
+        );
         return service;
     }
 
@@ -287,7 +292,7 @@ public class SamlSpMetadataBuilder {
         return name;
     }
 
-    private RequestedAttribute buildRequestedAttribute(String friendlyName, String name) {
+    private static RequestedAttribute buildRequestedAttribute(String friendlyName, String name) {
         final RequestedAttribute attribute = new RequestedAttributeBuilder().buildObject();
         if (Strings.hasText(friendlyName)) {
             attribute.setFriendlyName(friendlyName);
@@ -318,13 +323,13 @@ public class SamlSpMetadataBuilder {
         if (signingCertificate != null) {
             keys.add(buildKeyDescriptor(signingCertificate, UsageType.SIGNING));
         }
-        for( X509Certificate encryptionCertificate : encryptionCertificates) {
+        for (X509Certificate encryptionCertificate : encryptionCertificates) {
             keys.add(buildKeyDescriptor(encryptionCertificate, UsageType.ENCRYPTION));
         }
         return keys;
     }
 
-    private KeyDescriptor buildKeyDescriptor(X509Certificate certificate, UsageType usageType) throws CertificateEncodingException {
+    private static KeyDescriptor buildKeyDescriptor(X509Certificate certificate, UsageType usageType) throws CertificateEncodingException {
         final KeyDescriptor descriptor = new KeyDescriptorBuilder().buildObject();
         descriptor.setUse(usageType);
         final KeyInfo keyInfo = new KeyInfoBuilder().buildObject();
@@ -342,7 +347,7 @@ public class SamlSpMetadataBuilder {
         displayName.setValue(this.organization.displayName);
         displayName.setXMLLang(lang);
         final OrganizationURL url = new OrganizationURLBuilder().buildObject();
-        url.setValue(this.organization.url);
+        url.setURI(this.organization.url);
         url.setXMLLang(lang);
 
         final Organization org = new OrganizationBuilder().buildObject();
@@ -352,13 +357,13 @@ public class SamlSpMetadataBuilder {
         return org;
     }
 
-    private ContactPerson buildContact(ContactInfo contact) {
+    private static ContactPerson buildContact(ContactInfo contact) {
         final GivenName givenName = new GivenNameBuilder().buildObject();
-        givenName.setName(contact.givenName);
+        givenName.setValue(contact.givenName);
         final SurName surName = new SurNameBuilder().buildObject();
-        surName.setName(contact.surName);
+        surName.setValue(contact.surName);
         final EmailAddress email = new EmailAddressBuilder().buildObject();
-        email.setAddress(contact.email);
+        email.setURI(contact.email);
 
         final ContactPerson person = new ContactPersonBuilder().buildObject();
         person.setType(contact.type);
@@ -367,7 +372,6 @@ public class SamlSpMetadataBuilder {
         person.getEmailAddresses().add(email);
         return person;
     }
-
 
     public static class OrganizationInfo {
         public final String organizationName;
@@ -391,14 +395,13 @@ public class SamlSpMetadataBuilder {
     }
 
     public static class ContactInfo {
-        static final Map<String, ContactPersonTypeEnumeration> TYPES =
-                MapBuilder.<String, ContactPersonTypeEnumeration>newMapBuilder(new LinkedHashMap<>())
-                        .put(ContactPersonTypeEnumeration.ADMINISTRATIVE.toString(), ContactPersonTypeEnumeration.ADMINISTRATIVE)
-                        .put(ContactPersonTypeEnumeration.BILLING.toString(), ContactPersonTypeEnumeration.BILLING)
-                        .put(ContactPersonTypeEnumeration.SUPPORT.toString(), ContactPersonTypeEnumeration.SUPPORT)
-                        .put(ContactPersonTypeEnumeration.TECHNICAL.toString(), ContactPersonTypeEnumeration.TECHNICAL)
-                        .put(ContactPersonTypeEnumeration.OTHER.toString(), ContactPersonTypeEnumeration.OTHER)
-                        .map();
+        static final Map<String, ContactPersonTypeEnumeration> TYPES = Stream.of(
+            ContactPersonTypeEnumeration.ADMINISTRATIVE,
+            ContactPersonTypeEnumeration.BILLING,
+            ContactPersonTypeEnumeration.SUPPORT,
+            ContactPersonTypeEnumeration.TECHNICAL,
+            ContactPersonTypeEnumeration.OTHER
+        ).collect(Maps.toUnmodifiableOrderedMap(ContactPersonTypeEnumeration::toString, Function.identity()));
 
         public final ContactPersonTypeEnumeration type;
         public final String givenName;
@@ -415,8 +418,9 @@ public class SamlSpMetadataBuilder {
         private static ContactPersonTypeEnumeration getType(String name) {
             final ContactPersonTypeEnumeration type = TYPES.get(name.toLowerCase(Locale.ROOT));
             if (type == null) {
-                throw new IllegalArgumentException("Invalid contact type " + name + " allowed values are "
-                        + Strings.collectionToCommaDelimitedString(TYPES.keySet()));
+                throw new IllegalArgumentException(
+                    "Invalid contact type " + name + " allowed values are " + Strings.collectionToCommaDelimitedString(TYPES.keySet())
+                );
             }
             return type;
         }

@@ -1,26 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +44,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     protected final String name;
 
     public enum Type {
-        CATEGORY, GEO;
+        CATEGORY,
+        GEO;
 
         public static Type fromString(String type) {
             if (type.equalsIgnoreCase("category")) {
@@ -84,8 +86,8 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
     /**
      * Parses a set of index-time contexts.
      */
-    public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
-            throws IOException, ElasticsearchParseException;
+    public abstract Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
+        ElasticsearchParseException;
 
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
@@ -129,7 +131,7 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
      * Checks if the current context is consistent with the rest of the fields. For example, the GeoContext
      * should check that the field that it points to has the correct type.
      */
-    public void validateReferences(Version indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
+    public void validateReferences(IndexVersion indexVersionCreated, Function<String, MappedFieldType> fieldResolver) {
         // No validation is required by default
     }
 
@@ -164,45 +166,5 @@ public abstract class ContextMapping<T extends ToXContent> implements ToXContent
         }
     }
 
-    public static class InternalQueryContext {
-        public final String context;
-        public final int boost;
-        public final boolean isPrefix;
-
-        public InternalQueryContext(String context, int boost, boolean isPrefix) {
-            this.context = context;
-            this.boost = boost;
-            this.isPrefix = isPrefix;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            InternalQueryContext that = (InternalQueryContext) o;
-
-            if (boost != that.boost) return false;
-            if (isPrefix != that.isPrefix) return false;
-            return context != null ? context.equals(that.context) : that.context == null;
-
-        }
-
-        @Override
-        public int hashCode() {
-            int result = context != null ? context.hashCode() : 0;
-            result = 31 * result + boost;
-            result = 31 * result + (isPrefix ? 1 : 0);
-            return result;
-        }
-
-        @Override
-        public String toString() {
-            return "QueryContext{" +
-                    "context='" + context + '\'' +
-                    ", boost=" + boost +
-                    ", isPrefix=" + isPrefix +
-                    '}';
-        }
-    }
+    public record InternalQueryContext(String context, int boost, boolean isPrefix) {}
 }

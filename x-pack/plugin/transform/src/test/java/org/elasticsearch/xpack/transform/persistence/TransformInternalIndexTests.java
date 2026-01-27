@@ -8,19 +8,17 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ClusterAdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClusterAdminClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -29,10 +27,12 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -40,9 +40,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.mockito.Matchers.any;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -53,19 +57,19 @@ import static org.mockito.Mockito.when;
 public class TransformInternalIndexTests extends ESTestCase {
 
     private ClusterState stateWithLatestVersionedIndex;
-    private ClusterState stateWithLatestAuditIndexTemplate;
 
     public static ClusterState randomTransformClusterState() {
         return randomTransformClusterState(true);
     }
 
     public static ClusterState randomTransformClusterState(boolean shardsReady) {
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        String uuid = UUIDs.randomBase64UUID();
+        Map<String, IndexMetadata> indexMapBuilder = new HashMap<>();
         try {
             IndexMetadata.Builder builder = new IndexMetadata.Builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME).settings(
                 Settings.builder()
-                    .put(TransformInternalIndex.settings())
-                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .put(TransformInternalIndex.settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, uuid).build()))
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), IndexVersion.current())
                     .build()
             ).numberOfReplicas(0).numberOfShards(1).putMapping(Strings.toString(TransformInternalIndex.mappings()));
             indexMapBuilder.put(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, builder.build());
@@ -73,20 +77,18 @@ public class TransformInternalIndexTests extends ESTestCase {
             throw new UncheckedIOException(e);
         }
         Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.indices(indexMapBuilder.build());
+        metaBuilder.indices(indexMapBuilder);
         ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
         csBuilder.metadata(metaBuilder.build());
 
+        final var index = new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, uuid);
         csBuilder.routingTable(
             RoutingTable.builder()
                 .add(
-                    IndexRoutingTable.builder(
-                        new Index(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME, UUIDs.randomBase64UUID())
-                    )
+                    IndexRoutingTable.builder(index)
                         .addShard(
                             TestShardRouting.newShardRouting(
-                                TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME,
-                                0,
+                                new ShardId(index, 0),
                                 "node_a",
                                 null,
                                 true,
@@ -101,24 +103,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         return csBuilder.build();
     }
 
-    public static ClusterState randomTransformAuditClusterState() {
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMapBuilder = ImmutableOpenMap.builder();
-        try {
-            templateMapBuilder.put(TransformInternalIndexConstants.AUDIT_INDEX, TransformInternalIndex.getAuditIndexTemplateMetadata());
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        Metadata.Builder metaBuilder = Metadata.builder();
-        metaBuilder.templates(templateMapBuilder.build());
-        ClusterState.Builder csBuilder = ClusterState.builder(ClusterName.DEFAULT);
-        csBuilder.metadata(metaBuilder.build());
-        return csBuilder.build();
-    }
-
     @Before
     public void setupClusterStates() {
         stateWithLatestVersionedIndex = randomTransformClusterState();
-        stateWithLatestAuditIndexTemplate = randomTransformAuditClusterState();
     }
 
     public void testHaveLatestVersionedIndexTemplate() {
@@ -137,9 +124,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         Client client = mock(Client.class);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verifyNoMoreInteractions(client);
@@ -168,9 +155,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -205,9 +192,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -243,9 +230,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(1)).threadPool();
@@ -290,9 +277,9 @@ public class TransformInternalIndexTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
         verify(client, times(2)).threadPool();
@@ -307,67 +294,7 @@ public class TransformInternalIndexTests extends ESTestCase {
         verifyNoMoreInteractions(clusterClient);
     }
 
-    public void testHaveLatestAuditIndexTemplate() {
-
-        assertTrue(TransformInternalIndex.hasLatestAuditIndexTemplate(stateWithLatestAuditIndexTemplate));
-        assertFalse(TransformInternalIndex.hasLatestAuditIndexTemplate(ClusterState.EMPTY_STATE));
-    }
-
-    public void testInstallLatestAuditIndexTemplateIfRequired_GivenNotRequired() {
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(stateWithLatestAuditIndexTemplate);
-
-        Client client = mock(Client.class);
-
-        AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
-
-        TransformInternalIndex.installLatestAuditIndexTemplateIfRequired(clusterService, client, testListener);
-
-        assertTrue(gotResponse.get());
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testInstallLatestAuditIndexTemplateIfRequired_GivenRequired() {
-
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-
-        IndicesAdminClient indicesClient = mock(IndicesAdminClient.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(indicesClient).putTemplate(any(), any());
-
-        AdminClient adminClient = mock(AdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesClient);
-        Client client = mock(Client.class);
-        when(client.admin()).thenReturn(adminClient);
-
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(client.threadPool()).thenReturn(threadPool);
-
-        AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
-
-        TransformInternalIndex.installLatestAuditIndexTemplateIfRequired(clusterService, client, testListener);
-
-        assertTrue(gotResponse.get());
-        verify(client, times(1)).threadPool();
-        verify(client, times(1)).admin();
-        verifyNoMoreInteractions(client);
-        verify(adminClient, times(1)).indices();
-        verifyNoMoreInteractions(adminClient);
-        verify(indicesClient, times(1)).putTemplate(any(), any());
-        verifyNoMoreInteractions(indicesClient);
-    }
-
     public void testEnsureLatestIndexAndTemplateInstalled_GivenRequired() {
-
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
@@ -378,12 +305,6 @@ public class TransformInternalIndexTests extends ESTestCase {
             listener.onResponse(new CreateIndexResponse(true, true, TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME));
             return null;
         }).when(indicesClient).create(any(), any());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(indicesClient).putTemplate(any(), any());
 
         AdminClient adminClient = mock(AdminClient.class);
         when(adminClient.indices()).thenReturn(indicesClient);
@@ -395,18 +316,25 @@ public class TransformInternalIndexTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         AtomicBoolean gotResponse = new AtomicBoolean(false);
-        ActionListener<Void> testListener = ActionListener.wrap(aVoid -> gotResponse.set(true), e -> fail(e.getMessage()));
+        ActionListener<Void> testListener = ActionTestUtils.assertNoFailureListener(aVoid -> gotResponse.set(true));
 
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(clusterService, client, testListener);
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, client, Settings.EMPTY, testListener);
 
         assertTrue(gotResponse.get());
-        verify(client, times(2)).threadPool();
-        verify(client, times(2)).admin();
+        verify(client, times(1)).threadPool();
+        verify(client, times(1)).admin();
         verifyNoMoreInteractions(client);
-        verify(adminClient, times(2)).indices();
+        verify(adminClient, times(1)).indices();
         verifyNoMoreInteractions(adminClient);
         verify(indicesClient, times(1)).create(any(), any());
-        verify(indicesClient, times(1)).putTemplate(any(), any());
         verifyNoMoreInteractions(indicesClient);
+    }
+
+    public void testSettings() {
+        Settings settings = TransformInternalIndex.settings(Settings.EMPTY);
+        assertThat(settings.get(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey()), is(nullValue()));
+
+        settings = TransformInternalIndex.settings(Settings.builder().put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        assertThat(settings.getAsBoolean(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), false), is(true));
     }
 }

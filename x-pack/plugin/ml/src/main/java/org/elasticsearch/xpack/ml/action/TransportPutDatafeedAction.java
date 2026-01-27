@@ -12,10 +12,11 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -23,45 +24,65 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
-
 
 public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDatafeedAction.Request, PutDatafeedAction.Response> {
 
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final DatafeedManager datafeedManager;
+    private final ProjectResolver projectResolver;
 
     @Inject
-    public TransportPutDatafeedAction(Settings settings, TransportService transportService,
-                                      ClusterService clusterService, ThreadPool threadPool,
-                                      XPackLicenseState licenseState, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver,
-                                      DatafeedManager datafeedManager) {
-        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, PutDatafeedAction.Request::new,
-                indexNameExpressionResolver, PutDatafeedAction.Response::new, ThreadPool.Names.SAME);
+    public TransportPutDatafeedAction(
+        Settings settings,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        XPackLicenseState licenseState,
+        ActionFilters actionFilters,
+        DatafeedManager datafeedManager,
+        ProjectResolver projectResolver
+    ) {
+        super(
+            PutDatafeedAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutDatafeedAction.Request::new,
+            PutDatafeedAction.Response::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.licenseState = licenseState;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-                new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
         this.datafeedManager = datafeedManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(Task task, PutDatafeedAction.Request request, ClusterState state,
-                                   ActionListener<PutDatafeedAction.Response> listener) {
-        datafeedManager.putDatafeed(request, state, licenseState, securityContext, threadPool, listener);
+    protected void masterOperation(
+        Task task,
+        PutDatafeedAction.Request request,
+        ClusterState state,
+        ActionListener<PutDatafeedAction.Response> listener
+    ) {
+        datafeedManager.putDatafeed(request, state, securityContext, threadPool, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutDatafeedAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

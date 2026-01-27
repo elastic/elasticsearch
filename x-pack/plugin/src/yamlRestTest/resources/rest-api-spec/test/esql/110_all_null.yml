@@ -1,0 +1,263 @@
+---
+setup:
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: "feature added in 8.13"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 5
+          mappings:
+            properties:
+              data:
+                type: long
+              data_d:
+                type: double
+              count:
+                type: long
+              count_d:
+                type: double
+              time:
+                type: long
+              color:
+                type: keyword
+              always_null:
+                type: keyword
+              non_null_out_of_match:
+                type: keyword
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275187, "color": "red" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275188, "color": "blue" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275189, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275190, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275191, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275192, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275193, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275194, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275195, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275196, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275197, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275198, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275199, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275200, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275201, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275202, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275203, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275204, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275205, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275206, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275207, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275208, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275209, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275210, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275211, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275212, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275213, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275214, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275215, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275216, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275217, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275218, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275219, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275220, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275221, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275222, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 40, "data_d": 1, "count_d": 40, "time": 1674835275223, "color": "red", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 42, "data_d": 2, "count_d": 42, "time": 1674835275224, "color": "blue", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 1, "count": 44, "data_d": 1, "count_d": 44, "time": 1674835275225, "color": "green", "non_null_out_of_match": "a" }
+          - { "index": { } }
+          - { "data": 2, "count": 46, "data_d": 2, "count_d": 46, "time": 1674835275226, "color": "red", "non_null_out_of_match": "a" }
+
+---
+row wise and keep null:
+  - do:
+      esql.query:
+        drop_null_columns: false
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: false
+
+  - length: {columns: 8}
+  - match: {columns.0.name: "always_null"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "count"}
+  - match: {columns.2.type: "long"}
+  - match: {columns.3.name: "count_d"}
+  - match: {columns.3.type: "double"}
+  - match: {columns.4.name: "data"}
+  - match: {columns.4.type: "long"}
+  - match: {columns.5.name: "data_d"}
+  - match: {columns.5.type: "double"}
+  - match: {columns.6.name: "non_null_out_of_match"}
+  - match: {columns.6.type: "keyword"}
+  - match: {columns.7.name: "time"}
+  - match: {columns.7.type: "long"}
+  - length: {values: 2}
+  - length: {values.0: 8}
+  - is_false: values.0.0
+  - match: {values.0.1: red}
+
+---
+row wise and drop null:
+  - do:
+      esql.query:
+        drop_null_columns: true
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: false
+
+  - length: {all_columns: 8}
+  - match: {all_columns.0.name: "always_null"}
+  - match: {all_columns.0.type: "keyword"}
+  - match: {all_columns.1.name: "color"}
+  - match: {all_columns.1.type: "keyword"}
+  - match: {all_columns.2.name: "count"}
+  - match: {all_columns.2.type: "long"}
+  - match: {all_columns.3.name: "count_d"}
+  - match: {all_columns.3.type: "double"}
+  - match: {all_columns.4.name: "data"}
+  - match: {all_columns.4.type: "long"}
+  - match: {all_columns.5.name: "data_d"}
+  - match: {all_columns.5.type: "double"}
+  - match: {all_columns.6.name: "non_null_out_of_match"}
+  - match: {all_columns.6.type: "keyword"}
+  - match: {all_columns.7.name: "time"}
+  - match: {all_columns.7.type: "long"}
+  - length: {columns: 6}
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 2}
+  - length: {values.0: 6}
+  - match: {values.0.0: red}
+
+---
+columnar and keep null:
+  - do:
+      esql.query:
+        drop_null_columns: false
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: true
+
+  - length: {columns: 8}
+  - match: {columns.0.name: "always_null"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "color"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "count"}
+  - match: {columns.2.type: "long"}
+  - match: {columns.3.name: "count_d"}
+  - match: {columns.3.type: "double"}
+  - match: {columns.4.name: "data"}
+  - match: {columns.4.type: "long"}
+  - match: {columns.5.name: "data_d"}
+  - match: {columns.5.type: "double"}
+  - match: {columns.6.name: "non_null_out_of_match"}
+  - match: {columns.6.type: "keyword"}
+  - match: {columns.7.name: "time"}
+  - match: {columns.7.type: "long"}
+  - length: {values: 8}
+  - length: {values.0: 2}
+  - is_false: values.0.0
+  - match: {values.1.0: red}
+
+---
+columnar and drop null:
+  - do:
+      esql.query:
+        drop_null_columns: true
+        body:
+          query: 'FROM test | WHERE time <= 1674835275188 | SORT time ASC | LIMIT 2'
+          columnar: true
+
+  - length: {all_columns: 8}
+  - match: {all_columns.0.name: "always_null"}
+  - match: {all_columns.0.type: "keyword"}
+  - match: {all_columns.1.name: "color"}
+  - match: {all_columns.1.type: "keyword"}
+  - match: {all_columns.2.name: "count"}
+  - match: {all_columns.2.type: "long"}
+  - match: {all_columns.3.name: "count_d"}
+  - match: {all_columns.3.type: "double"}
+  - match: {all_columns.4.name: "data"}
+  - match: {all_columns.4.type: "long"}
+  - match: {all_columns.5.name: "data_d"}
+  - match: {all_columns.5.type: "double"}
+  - match: {all_columns.6.name: "non_null_out_of_match"}
+  - match: {all_columns.6.type: "keyword"}
+  - match: {all_columns.7.name: "time"}
+  - match: {all_columns.7.type: "long"}
+  - length: {columns: 6}
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "count"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "count_d"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "data"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "data_d"}
+  - match: {columns.4.type: "double"}
+  - match: {columns.5.name: "time"}
+  - match: {columns.5.type: "long"}
+  - length: {values: 6}
+  - length: {values.0: 2}
+  - match: {values.0.0: red}

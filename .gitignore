@@ -1,4 +1,7 @@
 
+# claude
+.claude
+
 # intellij files
 .idea/
 *.iml
@@ -9,10 +12,11 @@ build-idea/
 out/
 
 # include shared intellij config
-!.idea/scopes/x_pack.xml
+!.idea/eclipseCodeFormatter.xml
+!.idea/externalDependencies.xml
 !.idea/inspectionProfiles/Project_Default.xml
-!.idea/runConfigurations/Debug_Elasticsearch.xml
-!.idea/checkstyle-idea.xml
+!.idea/runConfigurations/
+!.idea/scopes/x_pack.xml
 
 # These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
@@ -42,6 +46,7 @@ build/
 **/.local*
 .vagrant/
 /logs/
+**/target/
 
 # osx stuff
 .DS_Store
@@ -67,3 +72,10 @@ testfixtures_shared/
 
 # Generated
 checkstyle_ide.xml
+x-pack/plugin/esql/src/main/generated-src/generated/
+x-pack/plugin/esql/src/test/resources/org/elasticsearch/xpack/esql/**/golden_tests/**/*.actual
+
+server/src/main/resources/transport/definitions/manifest.txt
+
+# JEnv
+.java-version

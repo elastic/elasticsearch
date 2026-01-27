@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -17,12 +18,13 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.RandomIndexWriter;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -96,11 +98,17 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testGeoField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.GEOPOINT, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.GEOPOINT, iw -> {
             for (int i = 0; i < 10; i++) {
                 Document document = new Document();
                 document.add(new LatLonDocValuesField("field", 10, 10));
@@ -110,7 +118,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDoubleField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.DOUBLE, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.DOUBLE, iw -> {
             for (int i = 0; i < 15; i++) {
                 Document document = new Document();
                 document.add(new DoubleDocValuesField(FIELD_NAME, 23D));
@@ -120,7 +128,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testKeyWordField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.STRING, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.STRING, iw -> {
             for (int i = 0; i < 20; i++) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("stringValue")));
@@ -132,7 +140,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
     public void testNoDocs() throws IOException {
         for (ValueType valueType : ValueType.values()) {
-            testAggregation(new MatchAllDocsQuery(), valueType, iw -> {
+            testAggregation(Queries.ALL_DOCS_INSTANCE, valueType, iw -> {
                 // Intentionally not writing any docs
             }, count -> {
                 assertEquals(0L, count.getValue());
@@ -142,7 +150,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.LONG, iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, ValueType.LONG, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -152,7 +160,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -163,7 +171,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
@@ -198,7 +206,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingString() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing("🍌🍌🍌");
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -211,7 +219,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     public void testUnmappedMissingNumber() throws IOException {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number").missing(1234);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -225,7 +233,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name").field("number")
             .missing(new GeoPoint(42.39561, -71.13051));
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 8)));
             iw.addDocument(singleton(new NumericDocValuesField("unrelatedField", 9)));
@@ -242,7 +250,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         final String fieldName = "rangeField";
         MappedFieldType fieldType = new RangeFieldMapper.RangeFieldType(fieldName, rangeType);
         final ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name").field(fieldName);
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range1)))));
             iw.addDocument(singleton(new BinaryDocValuesField(fieldName, rangeType.encodeRanges(singleton(range2)))));
@@ -259,7 +267,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 8)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 9)));
@@ -276,7 +284,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             Document doc = new Document();
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
             doc.add(new SortedNumericDocValuesField(FIELD_NAME, 7));
@@ -305,7 +313,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("2"))));
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("3"))));
@@ -322,7 +330,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
 
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testAggregation(aggregationBuilder, Queries.ALL_DOCS_INSTANCE, iw -> {
             Document doc = new Document();
             // Note: unlike numerics, lucene de-dupes strings so we increment here
             doc.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("1")));
@@ -382,31 +390,19 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Consumer<InternalValueCount> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
-        switch (valueType) {
-            case BOOLEAN:
-                return new BooleanFieldMapper.BooleanFieldType(name);
-            case STRING:
-                return new KeywordFieldMapper.KeywordFieldType(name);
-            case DOUBLE:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
-            case NUMBER:
-            case NUMERIC:
-            case LONG:
-                return new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
-            case DATE:
-                return new DateFieldMapper.DateFieldType(name);
-            case IP:
-                return new IpFieldMapper.IpFieldType(name);
-            case GEOPOINT:
-                return new GeoPointFieldMapper.GeoPointFieldType(name);
-            case RANGE:
-                return new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
-            default:
-                throw new IllegalArgumentException("Test does not support value type [" + valueType + "]");
-        }
+        return switch (valueType) {
+            case BOOLEAN -> new BooleanFieldMapper.BooleanFieldType(name);
+            case STRING -> new KeywordFieldMapper.KeywordFieldType(name);
+            case DOUBLE -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.DOUBLE);
+            case NUMBER, NUMERIC, LONG -> new NumberFieldMapper.NumberFieldType(name, NumberFieldMapper.NumberType.LONG);
+            case DATE -> new DateFieldMapper.DateFieldType(name);
+            case IP -> new IpFieldMapper.IpFieldType(name);
+            case GEOPOINT -> new GeoPointFieldMapper.GeoPointFieldType(name);
+            case RANGE -> new RangeFieldMapper.RangeFieldType(name, RangeType.DOUBLE);
+        };
     }
 }

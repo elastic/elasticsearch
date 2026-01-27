@@ -8,14 +8,16 @@ package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,10 +26,9 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     final double divisor;
 
     public InternalRate(String name, double sum, double divisor, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.sum = sum;
         this.divisor = divisor;
-        this.format = formatter;
     }
 
     /**
@@ -35,7 +36,6 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
      */
     public InternalRate(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
         divisor = in.readDouble();
     }
@@ -68,19 +68,32 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     }
 
     @Override
-    public InternalRate reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
-        CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        Double divisor = null;
-        for (InternalAggregation aggregation : aggregations) {
-            double value = ((InternalRate) aggregation).sum;
-            kahanSummation.add(value);
-            if (divisor == null) {
-                divisor = ((InternalRate) aggregation).divisor;
+        return new AggregatorReducer() {
+            final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+            Double firstDivisor = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                double value = ((InternalRate) aggregation).sum;
+                kahanSummation.add(value);
+                if (firstDivisor == null) {
+                    firstDivisor = ((InternalRate) aggregation).divisor;
+                }
             }
-        }
-        return new InternalRate(name, kahanSummation.value(), divisor, format, getMetadata());
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
+            }
+        };
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalRate(name, samplingContext.scaleUp(sum), divisor, format, getMetadata());
     }
 
     @Override

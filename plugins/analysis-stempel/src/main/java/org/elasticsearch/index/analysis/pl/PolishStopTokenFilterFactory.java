@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis.pl;
-
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.StopFilter;
@@ -35,11 +35,10 @@ public class PolishStopTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean removeTrailing;
 
     public PolishStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
-        super(indexSettings, name, settings);
+        super(name);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);
-        this.stopWords = Analysis.parseWords(env, settings, "stopwords",
-                PolishAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
+        this.stopWords = Analysis.parseWords(env, settings, "stopwords", PolishAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
     }
 
     @Override

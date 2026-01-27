@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -39,23 +43,25 @@ public class ClusterConnectionManager implements ConnectionManager {
     private static final Logger logger = LogManager.getLogger(ClusterConnectionManager.class);
 
     private final ConcurrentMap<DiscoveryNode, Transport.Connection> connectedNodes = ConcurrentCollections.newConcurrentMap();
-    private final ConcurrentMap<DiscoveryNode, ListenableFuture<Transport.Connection>> pendingConnections
-        = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<DiscoveryNode, SubscribableListener<Transport.Connection>> pendingConnections = ConcurrentCollections
+        .newConcurrentMap();
     private final AbstractRefCounted connectingRefCounter = AbstractRefCounted.of(this::pendingConnectionsComplete);
 
     private final Transport transport;
+    private final ThreadContext threadContext;
     private final ConnectionProfile defaultProfile;
     private final AtomicBoolean closing = new AtomicBoolean(false);
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private final DelegatingNodeConnectionListener connectionListener = new DelegatingNodeConnectionListener();
 
-    public ClusterConnectionManager(Settings settings, Transport transport) {
-        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport);
+    public ClusterConnectionManager(Settings settings, Transport transport, ThreadContext threadContext) {
+        this(ConnectionProfile.buildDefaultConnectionProfile(settings), transport, threadContext);
     }
 
-    public ClusterConnectionManager(ConnectionProfile connectionProfile, Transport transport) {
+    public ClusterConnectionManager(ConnectionProfile connectionProfile, Transport transport, ThreadContext threadContext) {
         this.transport = transport;
         this.defaultProfile = connectionProfile;
+        this.threadContext = threadContext;
     }
 
     @Override
@@ -71,7 +77,20 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public void openConnection(DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Transport.Connection> listener) {
         ConnectionProfile resolvedProfile = ConnectionProfile.resolveConnectionProfile(connectionProfile, defaultProfile);
-        internalOpenConnection(node, resolvedProfile, listener);
+        if (acquireConnectingRef()) {
+            var success = false;
+            final var release = new RunOnce(connectingRefCounter::decRef);
+            try {
+                internalOpenConnection(node, resolvedProfile, ActionListener.runBefore(listener, release::run));
+                success = true;
+            } finally {
+                if (success == false) {
+                    release.run();
+                }
+            }
+        } else {
+            listener.onFailure(new ConnectTransportException(node, "connection manager is closed"));
+        }
     }
 
     /**
@@ -91,7 +110,13 @@ public class ClusterConnectionManager implements ConnectionManager {
         ConnectionValidator connectionValidator,
         ActionListener<Releasable> listener
     ) throws ConnectTransportException {
-        connectToNodeOrRetry(node, connectionProfile, connectionValidator, 0, listener);
+        connectToNodeOrRetry(
+            node,
+            connectionProfile,
+            connectionValidator,
+            0,
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadContext)
+        );
     }
 
     /**
@@ -113,8 +138,8 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        if (connectingRefCounter.tryIncRef() == false) {
-            listener.onFailure(new IllegalStateException("connection manager is closed"));
+        if (acquireConnectingRef() == false) {
+            listener.onFailure(new ConnectTransportException(node, "connection manager is closed"));
             return;
         }
 
@@ -129,18 +154,26 @@ public class ClusterConnectionManager implements ConnectionManager {
             final int failureCount = previousFailureCount + 1;
             if (failureCount < 10) {
                 logger.trace("concurrent connect/disconnect for [{}] ([{}] failures), will try again", node, failureCount);
-                connection.addRemovedListener(listener.delegateFailure((retryDelegate, ignored) -> connectToNodeOrRetry(
-                    node,
-                    connectionProfile,
-                    connectionValidator,
-                    failureCount,
-                    retryDelegate)));
+                connection.addRemovedListener(
+                    delegate.delegateFailure(
+                        (retryDelegate, ignored) -> connectToNodeOrRetry(
+                            node,
+                            connectionProfile,
+                            connectionValidator,
+                            failureCount,
+                            retryDelegate
+                        )
+                    )
+                );
             } else {
                 // A run of bad luck this long is probably not bad luck after all: something's broken, just give up.
                 logger.warn("failed to connect to [{}] after [{}] attempts, giving up", node.descriptionWithoutAttributes(), failureCount);
-                listener.onFailure(new ConnectTransportException(
-                    node,
-                    "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"));
+                delegate.onFailure(
+                    new ConnectTransportException(
+                        node,
+                        "concurrently connecting and disconnecting even after [" + failureCount + "] attempts"
+                    )
+                );
             }
         });
 
@@ -151,8 +184,8 @@ public class ClusterConnectionManager implements ConnectionManager {
             return;
         }
 
-        final ListenableFuture<Transport.Connection> currentListener = new ListenableFuture<>();
-        final ListenableFuture<Transport.Connection> existingListener = pendingConnections.putIfAbsent(node, currentListener);
+        final SubscribableListener<Transport.Connection> currentListener = new SubscribableListener<>();
+        final SubscribableListener<Transport.Connection> existingListener = pendingConnections.putIfAbsent(node, currentListener);
         if (existingListener != null) {
             try {
                 // wait on previous entry to complete connection attempt
@@ -170,7 +203,7 @@ public class ClusterConnectionManager implements ConnectionManager {
         // extra connection to the node. We could _just_ check here, but checking up front skips the work to mark the connection as pending.
         final Transport.Connection existingConnectionRecheck = connectedNodes.get(node);
         if (existingConnectionRecheck != null) {
-            ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+            var future = pendingConnections.remove(node);
             assert future == currentListener : "Listener in pending map is different than the expected listener";
             connectingRefCounter.decRef();
             future.onResponse(existingConnectionRecheck);
@@ -178,10 +211,13 @@ public class ClusterConnectionManager implements ConnectionManager {
         }
 
         final RunOnce releaseOnce = new RunOnce(connectingRefCounter::decRef);
-        internalOpenConnection(node, resolvedProfile, ActionListener.wrap(
-            conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(
-                ignored -> {
+        internalOpenConnection(
+            node,
+            resolvedProfile,
+            ActionListener.wrap(
+                conn -> connectionValidator.validate(conn, resolvedProfile, ActionListener.runAfter(ActionListener.wrap(ignored -> {
                     assert Transports.assertNotTransportThread("connection validator success");
+                    final var managerRefs = AbstractRefCounted.of(conn::onRemoved);
                     try {
                         if (connectedNodes.putIfAbsent(node, conn) != null) {
                             assert false : "redundant connection to " + node;
@@ -189,20 +225,42 @@ public class ClusterConnectionManager implements ConnectionManager {
                             IOUtils.closeWhileHandlingException(conn);
                         } else {
                             logger.debug("connected to node [{}]", node);
+                            managerRefs.mustIncRef();
                             try {
                                 connectionListener.onNodeConnected(node, conn);
                             } finally {
-                                conn.addCloseListener(ActionListener.wrap(() -> {
-                                    connectedNodes.remove(node, conn);
-                                    connectionListener.onNodeDisconnected(node, conn);
-                                    conn.onRemoved();
-                                }));
+                                conn.addCloseListener(new ActionListener<Void>() {
+                                    @Override
+                                    public void onResponse(Void ignored) {
+                                        handleClose(null);
+                                    }
 
-                                conn.addCloseListener(ActionListener.wrap(() -> {
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        handleClose(e);
+                                    }
+
+                                    void handleClose(@Nullable Exception e) {
+                                        connectedNodes.remove(node, conn);
+                                        try {
+                                            connectionListener.onNodeDisconnected(node, e);
+                                        } finally {
+                                            managerRefs.decRef();
+                                        }
+                                    }
+                                });
+
+                                conn.addCloseListener(ActionListener.running(() -> {
                                     if (connectingRefCounter.hasReferences() == false) {
                                         logger.trace("connection manager shut down, closing transport connection to [{}]", node);
                                     } else if (conn.hasReferences()) {
-                                        logger.info("transport connection to [{}] closed by remote", node.descriptionWithoutAttributes());
+                                        logger.info(
+                                            """
+                                                transport connection to [{}] closed by remote; \
+                                                if unexpected, see [{}] for troubleshooting guidance""",
+                                            node.descriptionWithoutAttributes(),
+                                            ReferenceDocs.NETWORK_DISCONNECT_TROUBLESHOOTING
+                                        );
                                         // In production code we only close connections via ref-counting, so this message confirms that a
                                         // 'node-left ... reason: disconnected' event was caused by external factors. Put differently, if a
                                         // node leaves the cluster with "reason: disconnected" but without this message being logged then
@@ -214,8 +272,9 @@ public class ClusterConnectionManager implements ConnectionManager {
                             }
                         }
                     } finally {
-                        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+                        var future = pendingConnections.remove(node);
                         assert future == currentListener : "Listener in pending map is different than the expected listener";
+                        managerRefs.decRef();
                         releaseOnce.run();
                         future.onResponse(conn);
                     }
@@ -224,10 +283,12 @@ public class ClusterConnectionManager implements ConnectionManager {
                     IOUtils.closeWhileHandlingException(conn);
                     failConnectionListener(node, releaseOnce, e, currentListener);
                 }), conn::decRef)),
-            e -> {
-                assert Transports.assertNotTransportThread("internalOpenConnection failure");
-                failConnectionListener(node, releaseOnce, e, currentListener);
-            }));
+                e -> {
+                    assert Transports.assertNotTransportThread("internalOpenConnection failure");
+                    failConnectionListener(node, releaseOnce, e, currentListener);
+                }
+            )
+        );
     }
 
     /**
@@ -318,14 +379,17 @@ public class ClusterConnectionManager implements ConnectionManager {
         closeLatch.countDown();
     }
 
-    private void internalOpenConnection(DiscoveryNode node, ConnectionProfile connectionProfile,
-                                        ActionListener<Transport.Connection> listener) {
+    private void internalOpenConnection(
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        ActionListener<Transport.Connection> listener
+    ) {
         transport.openConnection(node, connectionProfile, listener.map(connection -> {
             assert Transports.assertNotTransportThread("internalOpenConnection success");
             try {
                 connectionListener.onConnectionOpened(connection);
             } finally {
-                connection.addCloseListener(ActionListener.wrap(() -> connectionListener.onConnectionClosed(connection)));
+                connection.addCloseListener(ActionListener.running(() -> connectionListener.onConnectionClosed(connection)));
             }
             if (connection.isClosed()) {
                 throw new ConnectTransportException(node, "a channel closed while connecting");
@@ -338,9 +402,9 @@ public class ClusterConnectionManager implements ConnectionManager {
         DiscoveryNode node,
         RunOnce releaseOnce,
         Exception e,
-        ListenableFuture<Transport.Connection> expectedListener
+        SubscribableListener<Transport.Connection> expectedListener
     ) {
-        ListenableFuture<Transport.Connection> future = pendingConnections.remove(node);
+        final var future = pendingConnections.remove(node);
         releaseOnce.run();
         if (future != null) {
             assert future == expectedListener : "Listener in pending map is different than the expected listener";
@@ -351,6 +415,10 @@ public class ClusterConnectionManager implements ConnectionManager {
     @Override
     public ConnectionProfile getConnectionProfile() {
         return defaultProfile;
+    }
+
+    private boolean acquireConnectingRef() {
+        return closing.get() == false && connectingRefCounter.tryIncRef();
     }
 
 }

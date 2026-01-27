@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion;
@@ -40,17 +41,22 @@ public class FuzzyOptionsTests extends ESTestCase {
 
     protected FuzzyOptions createMutation(FuzzyOptions original) throws IOException {
         final FuzzyOptions.Builder builder = FuzzyOptions.builder();
-        builder.setFuzziness(original.getEditDistance()).setFuzzyPrefixLength(original.getFuzzyPrefixLength())
-                .setFuzzyMinLength(original.getFuzzyMinLength()).setMaxDeterminizedStates(original.getMaxDeterminizedStates())
-                .setTranspositions(original.isTranspositions()).setUnicodeAware(original.isUnicodeAware());
+        builder.setFuzziness(original.getEditDistance())
+            .setFuzzyPrefixLength(original.getFuzzyPrefixLength())
+            .setFuzzyMinLength(original.getFuzzyMinLength())
+            .setMaxDeterminizedStates(original.getMaxDeterminizedStates())
+            .setTranspositions(original.isTranspositions())
+            .setUnicodeAware(original.isUnicodeAware());
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> builder.setFuzziness(randomValueOtherThan(original.getEditDistance(), () -> randomFrom(0, 1, 2))));
 
         mutators.add(
-                () -> builder.setFuzzyPrefixLength(randomValueOtherThan(original.getFuzzyPrefixLength(), () -> randomIntBetween(1, 3))));
+            () -> builder.setFuzzyPrefixLength(randomValueOtherThan(original.getFuzzyPrefixLength(), () -> randomIntBetween(1, 3)))
+        );
         mutators.add(() -> builder.setFuzzyMinLength(randomValueOtherThan(original.getFuzzyMinLength(), () -> randomIntBetween(1, 3))));
-        mutators.add(() -> builder
-                .setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () -> randomIntBetween(1, 10))));
+        mutators.add(
+            () -> builder.setMaxDeterminizedStates(randomValueOtherThan(original.getMaxDeterminizedStates(), () -> randomIntBetween(1, 10)))
+        );
         mutators.add(() -> builder.setTranspositions(original.isTranspositions() == false));
         mutators.add(() -> builder.setUnicodeAware(original.isUnicodeAware() == false));
         randomFrom(mutators).run();
@@ -63,8 +69,11 @@ public class FuzzyOptionsTests extends ESTestCase {
     public void testSerialization() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
             FuzzyOptions testModel = randomFuzzyOptions();
-            FuzzyOptions deserializedModel = copyWriteable(testModel, new NamedWriteableRegistry(Collections.emptyList()),
-                    FuzzyOptions::new);
+            FuzzyOptions deserializedModel = copyWriteable(
+                testModel,
+                new NamedWriteableRegistry(Collections.emptyList()),
+                FuzzyOptions::new
+            );
             assertEquals(testModel, deserializedModel);
             assertEquals(testModel.hashCode(), deserializedModel.hashCode());
             assertNotSame(testModel, deserializedModel);
@@ -73,9 +82,11 @@ public class FuzzyOptionsTests extends ESTestCase {
 
     public void testEqualsAndHashCode() throws IOException {
         for (int i = 0; i < NUMBER_OF_RUNS; i++) {
-            checkEqualsAndHashCode(randomFuzzyOptions(),
-                    original -> copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), FuzzyOptions::new),
-                    this::createMutation);
+            checkEqualsAndHashCode(
+                randomFuzzyOptions(),
+                original -> copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()), FuzzyOptions::new),
+                this::createMutation
+            );
         }
     }
 

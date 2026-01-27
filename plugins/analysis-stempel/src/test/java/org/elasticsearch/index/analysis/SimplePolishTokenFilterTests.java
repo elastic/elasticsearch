@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
@@ -35,9 +36,7 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
 
     private void testToken(String source, String expected) throws IOException {
         Index index = new Index("test", "_na_");
-        Settings settings = Settings.builder()
-                .put("index.analysis.filter.myStemmer.type", "polish_stem")
-                .build();
+        Settings settings = Settings.builder().put("index.analysis.filter.myStemmer.type", "polish_stem").build();
         TestAnalysis analysis = createTestAnalysis(index, settings, new AnalysisStempelPlugin());
 
         TokenFilterFactory filterFactory = analysis.tokenFilter.get("myStemmer");

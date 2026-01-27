@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -47,20 +48,11 @@ public class IpScriptFieldRangeQueryTests extends AbstractIpScriptFieldQueryTest
         InetAddress lower = orig.lowerAddress();
         InetAddress upper = orig.upperAddress();
         switch (randomInt(3)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                lower = randomIp(randomBoolean());
-                break;
-            case 3:
-                upper = randomIp(randomBoolean());
-                break;
-            default:
-                fail();
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> lower = randomIp(randomBoolean());
+            case 3 -> upper = randomIp(randomBoolean());
+            default -> fail();
         }
         if (mustFlip(lower, upper)) {
             InetAddress tmp = lower;

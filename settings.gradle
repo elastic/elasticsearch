@@ -1,21 +1,57 @@
-plugins {
-  id "com.gradle.enterprise" version "3.6.4"
+import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.ArchivedOracleJdkToolchainResolver
+import org.elasticsearch.gradle.internal.toolchain.OracleOpenJdkToolchainResolver
+
+pluginManagement {
+  repositories {
+    mavenCentral()
+    gradlePluginPortal()
+  }
+
+  includeBuild "build-conventions"
+  includeBuild "build-tools"
+  includeBuild "build-tools-internal"
 }
 
-includeBuild "build-conventions"
-includeBuild "build-tools"
-includeBuild "build-tools-internal"
+plugins {
+  id "com.gradle.develocity" version "4.2.2"
+  id 'elasticsearch.java-toolchain'
+  id 'elasticsearch.component-metadata-rules'
+}
+
+enableFeaturePreview "STABLE_CONFIGURATION_CACHE"
 
 rootProject.name = "elasticsearch"
+
+dependencyResolutionManagement {
+  versionCatalogs {
+    buildLibs {
+      from(files("gradle/build.versions.toml"))
+    }
+  }
+}
+
+toolchainManagement {
+  jvm {
+    javaRepositories {
+      repository('bundledOracleOpendJdk') {
+        resolverClass = OracleOpenJdkToolchainResolver
+      }
+      repository('adoptiumJdks') {
+        resolverClass = AdoptiumJdkToolchainResolver
+      }
+      repository('archivedOracleJdks') {
+        resolverClass = ArchivedOracleJdkToolchainResolver
+      }
+    }
+  }
+}
 
 List projects = [
   'rest-api-spec',
   'docs',
   'client:rest',
-  'client:rest-high-level',
-  'client:rest-high-level:qa:ssl-enabled',
   'client:sniffer',
-  'client:transport',
   'client:test',
   'client:client-benchmark-noop-api-plugin',
   'client:benchmark',
@@ -27,43 +63,60 @@ List projects = [
   'distribution:archives:linux-aarch64-tar',
   'distribution:archives:linux-tar',
   'distribution:docker',
-  'distribution:docker:cloud-docker-export',
-  'distribution:docker:cloud-docker-aarch64-export',
   'distribution:docker:cloud-ess-docker-export',
   'distribution:docker:cloud-ess-docker-aarch64-export',
   'distribution:docker:docker-aarch64-export',
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
-  'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-export',
+  'distribution:docker:wolfi-docker-aarch64-export',
+  'distribution:docker:wolfi-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-export',
+  'distribution:docker:cloud-ess-fips-docker-aarch64-export',
   'distribution:packages:aarch64-deb',
   'distribution:packages:deb',
   'distribution:packages:aarch64-rpm',
   'distribution:packages:rpm',
-  'distribution:bwc:bugfix',
-  'distribution:bwc:maintenance',
-  'distribution:bwc:minor',
-  'distribution:bwc:staged',
+  'distribution:bwc:major1',
+  'distribution:bwc:major2',
+  'distribution:bwc:major3',
+  'distribution:bwc:major4',
+  'distribution:bwc:minor1',
+  'distribution:bwc:minor2',
+  'distribution:bwc:minor3',
+  'distribution:bwc:minor4',
+  'distribution:bwc:main',
   'distribution:tools:java-version-checker',
-  'distribution:tools:launchers',
+  'distribution:tools:cli-launcher',
+  'distribution:tools:server-cli',
+  'distribution:tools:windows-service-cli',
   'distribution:tools:plugin-cli',
+  'distribution:tools:plugin-cli:bc',
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
+  'distribution:tools:ansi-console',
   'server',
-  'server:cli',
   'test:framework',
+  'test:fixtures:aws-ec2-fixture',
+  'test:fixtures:aws-fixture-utils',
+  'test:fixtures:aws-sts-fixture',
   'test:fixtures:azure-fixture',
+  'test:fixtures:ec2-imds-fixture',
   'test:fixtures:gcs-fixture',
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
   'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
+  'test:fixtures:testcontainer-utils',
   'test:fixtures:geoip-fixture',
   'test:fixtures:url-fixture',
-  'test:fixtures:nginx-fixture',
-  'test:logger-usage'
+  'test:logger-usage',
+  'test:test-clusters',
+  'test:x-content',
+  'test:yaml-rest-runner',
+  'test:metadata-extractor',
+  'test:immutable-collections-patch'
 ]
 
 /**
@@ -76,9 +129,19 @@ void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
+  if (new File(dir, 'settings.gradle').exists()) return;
   if (findProject(dir) != null) return;
 
   final String projectName = "${path}:${dir.name}"
+
+  // This project has a problem with availability of Docker images after
+  // release. Disabling individual tasks is tricky because it uses test
+  // fixtures, so instead just skip the project entirely until we can
+  // work out a way forward.
+  if (projectName.equals(":qa:apm")) {
+    return
+  }
+
   include projectName
   if (path.isEmpty() || path.startsWith(':example-plugins')) {
     project(projectName).projectDir = dir
@@ -88,28 +151,18 @@ void addSubProjects(String path, File dir) {
   }
 }
 
-
-// include example plugins first, so adding plugin dirs below won't muck with :example-plugins
-File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')
-for (File example : examplePluginsDir.listFiles()) {
-  if (example.isDirectory() == false) continue;
-  if (example.name.startsWith('build') || example.name.startsWith('.')) continue;
-  addSubProjects(':example-plugins', example)
-}
-project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugins/examples')
-
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 addSubProjects('', new File(rootProject.projectDir, 'x-pack'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
+addSubProjects('', new File(rootProject.projectDir, 'x-pack/extras/plugins'))
 
 include projects.toArray(new String[0])
 
-project(":libs").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-}
+project(":libs:native:libraries").name = "native-libraries"
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"
@@ -122,3 +175,5 @@ if (extraProjects.exists()) {
     addSubProjects('', extraProjectDir)
   }
 }
+
+include 'qa:vector'

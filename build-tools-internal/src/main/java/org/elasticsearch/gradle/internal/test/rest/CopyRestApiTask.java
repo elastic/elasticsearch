@@ -1,16 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.util.SerializableFunction;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -18,6 +17,7 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -25,15 +25,14 @@ import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
-import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
+import org.gradle.api.tasks.util.internal.PatternSetFactory;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 
@@ -55,8 +54,8 @@ public class CopyRestApiTask extends DefaultTask {
     private boolean skipHasRestTestCheck;
     private FileCollection config;
     private FileCollection additionalConfig;
-    private Function<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
-    private Function<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> configToFileTree = FileCollection::getAsFileTree;
+    private SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree = FileCollection::getAsFileTree;
 
     private final PatternFilterable patternSet;
     private final ProjectLayout projectLayout;
@@ -65,14 +64,14 @@ public class CopyRestApiTask extends DefaultTask {
     @Inject
     public CopyRestApiTask(
         ProjectLayout projectLayout,
-        Factory<PatternSet> patternSetFactory,
+        PatternSetFactory patternSetFactory,
         FileSystemOperations fileSystemOperations,
         ObjectFactory objectFactory
     ) {
         this.include = objectFactory.listProperty(String.class);
         this.outputResourceDir = objectFactory.directoryProperty();
         this.additionalYamlTestsDir = objectFactory.directoryProperty();
-        this.patternSet = patternSetFactory.create();
+        this.patternSet = patternSetFactory.createPatternSet();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
     }
@@ -88,6 +87,7 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
@@ -146,13 +146,16 @@ public class CopyRestApiTask extends DefaultTask {
         try {
             // check source folder for tests
             if (sourceResourceDir != null && new File(sourceResourceDir, REST_TEST_PREFIX).exists()) {
-                return Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
             // check output for cases where tests are copied programmatically
             File yamlTestOutputDir = new File(additionalYamlTestsDir.get().getAsFile(), REST_TEST_PREFIX);
             if (yamlTestOutputDir.exists()) {
-                return Files.walk(yamlTestOutputDir.toPath()).anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(yamlTestOutputDir.toPath())) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
         } catch (IOException e) {
             throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);
@@ -176,11 +179,11 @@ public class CopyRestApiTask extends DefaultTask {
         this.additionalConfig = additionalConfig;
     }
 
-    public void setConfigToFileTree(Function<FileCollection, FileTree> configToFileTree) {
+    public void setConfigToFileTree(SerializableFunction<FileCollection, FileTree> configToFileTree) {
         this.configToFileTree = configToFileTree;
     }
 
-    public void setAdditionalConfigToFileTree(Function<FileCollection, FileTree> additionalConfigToFileTree) {
+    public void setAdditionalConfigToFileTree(SerializableFunction<FileCollection, FileTree> additionalConfigToFileTree) {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 

@@ -7,18 +7,18 @@
 
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -39,11 +39,25 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            (a) -> new ShardFollowTask((String) a[0],
-                new ShardId((String) a[1], (String) a[2], (int) a[3]), new ShardId((String) a[4], (String) a[5], (int) a[6]),
-                (Integer) a[7], (Integer) a[8], (Integer) a[9], (Integer) a[10], (ByteSizeValue) a[11], (ByteSizeValue) a[12],
-                (Integer) a[13], (ByteSizeValue) a[14], (TimeValue) a[15], (TimeValue) a[16], (Map<String, String>) a[17]));
+    private static final ConstructingObjectParser<ShardFollowTask, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        (a) -> new ShardFollowTask(
+            (String) a[0],
+            new ShardId((String) a[1], (String) a[2], (int) a[3]),
+            new ShardId((String) a[4], (String) a[5], (int) a[6]),
+            (Integer) a[7],
+            (Integer) a[8],
+            (Integer) a[9],
+            (Integer) a[10],
+            (ByteSizeValue) a[11],
+            (ByteSizeValue) a[12],
+            (Integer) a[13],
+            (ByteSizeValue) a[14],
+            (TimeValue) a[15],
+            (TimeValue) a[16],
+            (Map<String, String>) a[17]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REMOTE_CLUSTER_FIELD);
@@ -63,22 +77,33 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     private final Map<String, String> headers;
 
     public ShardFollowTask(
-            final String remoteCluster,
-            final ShardId followShardId,
-            final ShardId leaderShardId,
-            final int maxReadRequestOperationCount,
-            final int maxWriteRequestOperationCount,
-            final int maxOutstandingReadRequests,
-            final int maxOutstandingWriteRequests,
-            final ByteSizeValue maxReadRequestSize,
-            final ByteSizeValue maxWriteRequestSize,
-            final int maxWriteBufferCount,
-            final ByteSizeValue maxWriteBufferSize,
-            final TimeValue maxRetryDelay,
-            final TimeValue readPollTimeout,
-            final Map<String, String> headers) {
-        super(maxReadRequestOperationCount, maxWriteRequestOperationCount, maxOutstandingReadRequests, maxOutstandingWriteRequests,
-            maxReadRequestSize, maxWriteRequestSize, maxWriteBufferCount, maxWriteBufferSize, maxRetryDelay, readPollTimeout);
+        final String remoteCluster,
+        final ShardId followShardId,
+        final ShardId leaderShardId,
+        final int maxReadRequestOperationCount,
+        final int maxWriteRequestOperationCount,
+        final int maxOutstandingReadRequests,
+        final int maxOutstandingWriteRequests,
+        final ByteSizeValue maxReadRequestSize,
+        final ByteSizeValue maxWriteRequestSize,
+        final int maxWriteBufferCount,
+        final ByteSizeValue maxWriteBufferSize,
+        final TimeValue maxRetryDelay,
+        final TimeValue readPollTimeout,
+        final Map<String, String> headers
+    ) {
+        super(
+            maxReadRequestOperationCount,
+            maxWriteRequestOperationCount,
+            maxOutstandingReadRequests,
+            maxOutstandingWriteRequests,
+            maxReadRequestSize,
+            maxWriteRequestSize,
+            maxWriteBufferCount,
+            maxWriteBufferSize,
+            maxRetryDelay,
+            readPollTimeout
+        );
         this.remoteCluster = remoteCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
@@ -97,7 +122,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         this.remoteCluster = remoteCluster;
         this.followShardId = followShardId;
         this.leaderShardId = leaderShardId;
-        this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        this.headers = in.readImmutableMap(StreamInput::readString);
     }
 
     public String getRemoteCluster() {
@@ -127,7 +152,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         followShardId.writeTo(out);
         leaderShardId.writeTo(out);
         super.writeTo(out);
-        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString);
     }
 
     public static ShardFollowTask fromXContent(XContentParser parser) {
@@ -155,21 +180,15 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         ShardFollowTask that = (ShardFollowTask) o;
-        return Objects.equals(remoteCluster, that.remoteCluster) &&
-                Objects.equals(followShardId, that.followShardId) &&
-                Objects.equals(leaderShardId, that.leaderShardId) &&
-                Objects.equals(headers, that.headers);
+        return Objects.equals(remoteCluster, that.remoteCluster)
+            && Objects.equals(followShardId, that.followShardId)
+            && Objects.equals(leaderShardId, that.leaderShardId)
+            && Objects.equals(headers, that.headers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-                super.hashCode(),
-                remoteCluster,
-                followShardId,
-                leaderShardId,
-                headers
-        );
+        return Objects.hash(super.hashCode(), remoteCluster, followShardId, leaderShardId, headers);
     }
 
     public String toString() {
@@ -177,7 +196,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 }

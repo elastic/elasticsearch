@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -20,12 +21,12 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
  */
 public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetRequest, GetResponse, GetRequestBuilder> {
 
-    public GetRequestBuilder(ElasticsearchClient client, GetAction action) {
-        super(client, action, new GetRequest());
+    public GetRequestBuilder(ElasticsearchClient client) {
+        super(client, TransportGetAction.TYPE, new GetRequest());
     }
 
-    public GetRequestBuilder(ElasticsearchClient client, GetAction action, @Nullable String index) {
-        super(client, action, new GetRequest(index));
+    public GetRequestBuilder(ElasticsearchClient client, @Nullable String index) {
+        super(client, TransportGetAction.TYPE, new GetRequest(index));
     }
 
     /**
@@ -71,7 +72,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
         FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
-        request.fetchSourceContext(new FetchSourceContext(fetch, context.includes(), context.excludes()));
+        request.fetchSourceContext(FetchSourceContext.of(fetch, context.includes(), context.excludes()));
         return this;
     }
 
@@ -84,8 +85,9 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
+        );
     }
 
     /**
@@ -97,7 +99,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
         FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
-        request.fetchSourceContext(new FetchSourceContext(context.fetchSource(), includes, excludes));
+        request.fetchSourceContext(FetchSourceContext.of(context.fetchSource(), includes, excludes));
         return this;
     }
 

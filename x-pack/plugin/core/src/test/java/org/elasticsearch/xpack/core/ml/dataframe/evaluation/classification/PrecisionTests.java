@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
 
@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
+public class PrecisionTests extends AbstractXContentSerializingTestCase<Precision> {
 
     private static final EvaluationParameters EVALUATION_PARAMETERS = new EvaluationParameters(100);
     private static final EvaluationFields EVALUATION_FIELDS = new EvaluationFields("foo", "bar", null, null, null, true);
@@ -41,6 +41,11 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     @Override
     protected Precision createTestInstance() {
         return createRandom();
+    }
+
+    @Override
+    protected Precision mutateInstance(Precision instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override
@@ -58,12 +63,14 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testProcess() {
-        Aggregations aggs = new Aggregations(Arrays.asList(
-            mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME),
-            mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
-            mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
-            mockSingleValue("some_other_single_metric_agg", 0.2377)
-        ));
+        InternalAggregations aggs = InternalAggregations.from(
+            Arrays.asList(
+                mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME),
+                mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
+                mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
+                mockSingleValue("some_other_single_metric_agg", 0.2377)
+            )
+        );
 
         Precision precision = new Precision();
         precision.process(aggs);
@@ -74,19 +81,20 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
 
     public void testProcess_GivenMissingAgg() {
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
+            InternalAggregations aggs = InternalAggregations.from(
+                Arrays.asList(mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME), mockSingleValue("some_other_single_metric_agg", 0.2377))
+            );
             Precision precision = new Precision();
             precision.process(aggs);
             assertThat(precision.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
-                mockSingleValue("some_other_single_metric_agg", 0.2377)
-            ));
+            InternalAggregations aggs = InternalAggregations.from(
+                Arrays.asList(
+                    mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123),
+                    mockSingleValue("some_other_single_metric_agg", 0.2377)
+                )
+            );
             Precision precision = new Precision();
             precision.process(aggs);
             assertThat(precision.getResult(), isEmpty());
@@ -95,19 +103,20 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
 
     public void testProcess_GivenAggOfWrongType() {
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME),
-                mockFilters(Precision.AVG_PRECISION_AGG_NAME)
-            ));
+            InternalAggregations aggs = InternalAggregations.from(
+                Arrays.asList(mockFilters(Precision.BY_PREDICTED_CLASS_AGG_NAME), mockFilters(Precision.AVG_PRECISION_AGG_NAME))
+            );
             Precision precision = new Precision();
             precision.process(aggs);
             assertThat(precision.getResult(), isEmpty());
         }
         {
-            Aggregations aggs = new Aggregations(Arrays.asList(
-                mockSingleValue(Precision.BY_PREDICTED_CLASS_AGG_NAME, 1.0),
-                mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123)
-            ));
+            InternalAggregations aggs = InternalAggregations.from(
+                Arrays.asList(
+                    mockSingleValue(Precision.BY_PREDICTED_CLASS_AGG_NAME, 1.0),
+                    mockSingleValue(Precision.AVG_PRECISION_AGG_NAME, 0.8123)
+                )
+            );
             Precision precision = new Precision();
             precision.process(aggs);
             assertThat(precision.getResult(), isEmpty());
@@ -115,8 +124,9 @@ public class PrecisionTests extends AbstractSerializingTestCase<Precision> {
     }
 
     public void testProcess_GivenCardinalityTooHigh() {
-        Aggregations aggs =
-            new Aggregations(Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1)));
+        InternalAggregations aggs = InternalAggregations.from(
+            Collections.singletonList(mockTerms(Precision.ACTUAL_CLASSES_NAMES_AGG_NAME, Collections.emptyList(), 1))
+        );
         Precision precision = new Precision();
         precision.aggs(EVALUATION_PARAMETERS, EVALUATION_FIELDS);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> precision.process(aggs));

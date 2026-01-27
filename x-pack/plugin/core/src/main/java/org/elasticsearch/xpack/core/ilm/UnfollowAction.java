@@ -6,25 +6,24 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Converts a CCR following index into a normal, standalone index, once the index is ready to be safely separated.
- *
+ * <p>
  * "Readiness" is composed of two conditions:
  * 1) The index must have {@link LifecycleSettings#LIFECYCLE_INDEXING_COMPLETE} set to {@code true}, which is
  *      done automatically by {@link RolloverAction} (or manually).
@@ -38,12 +37,15 @@ public final class UnfollowAction implements LifecycleAction {
     static final String OPEN_FOLLOWER_INDEX_STEP_NAME = "open-follower-index";
     static final String CONDITIONAL_UNFOLLOW_STEP = BranchingStep.NAME + "-check-unfollow-prerequisites";
 
-    public UnfollowAction() {}
+    public static final UnfollowAction INSTANCE = new UnfollowAction();
+
+    private UnfollowAction() {}
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preUnfollowKey = new StepKey(phase, NAME, CONDITIONAL_UNFOLLOW_STEP);
         StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
+        StepKey waitUntilTimeSeriesEndTimePassesStep = new StepKey(phase, NAME, WaitUntilTimeSeriesEndTimePassesStep.NAME);
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
@@ -53,21 +55,27 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey openFollowerIndex = new StepKey(phase, NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
-        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(preUnfollowKey, indexingComplete, nextStepKey,
-            (index, clusterState) -> {
-                IndexMetadata followerIndex = clusterState.metadata().index(index);
-                Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
-                // if the index has no CCR metadata we'll skip the unfollow action completely
-                return customIndexMetadata == null;
-            });
-        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
-        WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
-        PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
-        CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
-        UnfollowFollowerIndexStep step5 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
-        OpenIndexStep step6 = new OpenIndexStep(openFollowerIndex, waitForYellowStep, client);
-        WaitForIndexColorStep step7 = new WaitForIndexColorStep(waitForYellowStep, nextStepKey, ClusterHealthStatus.YELLOW);
-        return Arrays.asList(conditionalSkipUnfollowStep, step1, step2, step3, step4, step5, step6, step7);
+        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(preUnfollowKey, indexingComplete, nextStepKey, (index, project) -> {
+            IndexMetadata followerIndex = project.index(index);
+            Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
+            // if the index has no CCR metadata we'll skip the unfollow action completely
+            return customIndexMetadata == null;
+        });
+        WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitUntilTimeSeriesEndTimePassesStep);
+
+        WaitUntilTimeSeriesEndTimePassesStep step2 = new WaitUntilTimeSeriesEndTimePassesStep(
+            waitUntilTimeSeriesEndTimePassesStep,
+            waitForFollowShardTasks,
+            Instant::now
+        );
+
+        WaitForFollowShardTasksStep step3 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
+        PauseFollowerIndexStep step4 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
+        CloseFollowerIndexStep step5 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
+        UnfollowFollowerIndexStep step6 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
+        OpenIndexStep step7 = new OpenIndexStep(openFollowerIndex, waitForYellowStep, client);
+        WaitForIndexColorStep step8 = new WaitForIndexColorStep(waitForYellowStep, nextStepKey, ClusterHealthStatus.YELLOW);
+        return List.of(conditionalSkipUnfollowStep, step1, step2, step3, step4, step5, step6, step7, step8);
     }
 
     @Override
@@ -81,12 +89,10 @@ public final class UnfollowAction implements LifecycleAction {
         return NAME;
     }
 
-    public UnfollowAction(StreamInput in) throws IOException {}
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
 
-    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, UnfollowAction::new);
+    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static UnfollowAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

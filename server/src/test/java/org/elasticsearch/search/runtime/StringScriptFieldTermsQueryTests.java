@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
@@ -41,18 +42,13 @@ public class StringScriptFieldTermsQueryTests extends AbstractStringScriptFieldQ
         String fieldName = orig.fieldName();
         Set<String> terms = orig.terms();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
                 terms = new TreeSet<>(orig.terms());
                 terms.add(randomAlphaOfLength(7));
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new StringScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }

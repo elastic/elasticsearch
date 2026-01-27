@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -16,6 +17,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
@@ -31,30 +33,36 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
     public void testDuelESLucene() throws Exception {
         AbstractTermVectorsTestCase.TestFieldSetting[] testFieldSettings = getFieldSettings();
         createIndexBasedOnFieldSettings("test", "alias", testFieldSettings);
-        //we generate as many docs as many shards we have
+        // we generate as many docs as many shards we have
         TestDoc[] testDocs = generateTestDocs("test", testFieldSettings);
 
-        DirectoryReader directoryReader = indexDocsWithLucene(testDocs);
-        AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
+        DirectoryReader directoryReader = null;
+        try {
+            directoryReader = indexDocsWithLucene(testDocs);
 
-        MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
-        for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
-            requestBuilder.add(getRequestForConfig(test).request());
-        }
+            AbstractTermVectorsTestCase.TestConfig[] testConfigs = generateTestConfigs(20, testDocs, testFieldSettings);
 
-        MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
-
-        for (int i = 0; i < testConfigs.length; i++) {
-            TestConfig test = testConfigs[i];
-            MultiTermVectorsItemResponse item = responseItems[i];
-            if (test.expectedException != null) {
-                assertTrue(item.isFailed());
-                continue;
-            } else if (item.isFailed()) {
-                fail(item.getFailure().getCause().getMessage());
+            MultiTermVectorsRequestBuilder requestBuilder = client().prepareMultiTermVectors();
+            for (AbstractTermVectorsTestCase.TestConfig test : testConfigs) {
+                requestBuilder.add(getRequestForConfig(test).request());
             }
-            Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
-            validateResponse(item.getResponse(), luceneTermVectors, test);
+
+            MultiTermVectorsItemResponse[] responseItems = requestBuilder.get().getResponses();
+
+            for (int i = 0; i < testConfigs.length; i++) {
+                TestConfig test = testConfigs[i];
+                MultiTermVectorsItemResponse item = responseItems[i];
+                if (test.expectedException != null) {
+                    assertTrue(item.isFailed());
+                    continue;
+                } else if (item.isFailed()) {
+                    fail(item.getFailure().getCause().getMessage());
+                }
+                Fields luceneTermVectors = getTermVectorsFromLucene(directoryReader, test.doc);
+                validateResponse(item.getResponse(), luceneTermVectors, test);
+            }
+        } finally {
+            IOUtils.close(directoryReader);
         }
     }
 
@@ -62,15 +70,14 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         TermVectorsRequestBuilder requestBuilder = client().prepareTermVectors("testX", Integer.toString(1));
         MultiTermVectorsRequestBuilder mtvBuilder = client().prepareMultiTermVectors();
         mtvBuilder.add(requestBuilder.request());
-        MultiTermVectorsResponse response = mtvBuilder.execute().actionGet();
+        MultiTermVectorsResponse response = mtvBuilder.get();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getFailure().getCause(), instanceOf(IndexNotFoundException.class));
         assertThat(response.getResponses()[0].getFailure().getCause().getMessage(), equalTo("no such index [testX]"));
     }
 
     public void testMultiTermVectorsWithVersion() throws Exception {
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ensureGreen();
 
         MultiTermVectorsResponse response = client().prepareMultiTermVectors().add(indexOrAlias(), "1").get();
@@ -78,73 +85,71 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2))
-                .get();
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(Versions.MATCH_ANY))
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1))
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2))
+            .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
         assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[]{"value1"});
+        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[] { "value1" });
         assertThat(response.getResponses()[1].getId(), equalTo("1"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[1].getFailure(), nullValue());
         assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
+        checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[] { "value1" });
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
         assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(ElasticsearchException.class));
         assertThat(response.getResponses()[2].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
 
-        //Version from Lucene index
+        // Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field")
-                    .version(Versions.MATCH_ANY).realtime(false))
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1).realtime(false))
-                .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2).realtime(false))
-                .get();
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(Versions.MATCH_ANY).realtime(false))
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(1).realtime(false))
+            .add(new TermVectorsRequest(indexOrAlias(), "1").selectedFields("field").version(2).realtime(false))
+            .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("1"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[]{"value1"});
+        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[] { "value1" });
         assertThat(response.getResponses()[1].getId(), equalTo("1"));
         assertThat(response.getResponses()[1].getFailure(), nullValue());
         assertThat(response.getResponses()[1].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[]{"value1"});
+        checkTermTexts(response.getResponses()[1].getResponse().getFields().terms("field"), new String[] { "value1" });
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
         assertThat(response.getResponses()[2].getFailure().getCause(), instanceOf(ElasticsearchException.class));
         assertThat(response.getResponses()[2].getFailure().getCause().getCause(), instanceOf(VersionConflictEngineException.class));
-
 
         for (int i = 0; i < 3; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
 
         // Version from translog
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
-                .get();
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
+            .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("2"));
         assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[]{"value2"});
+        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[] { "value2" });
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
@@ -154,23 +159,22 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[2].getResponse().getFields().terms("field"), new String[]{"value2"});
+        checkTermTexts(response.getResponses()[2].getResponse().getFields().terms("field"), new String[] { "value2" });
 
-
-        //Version from Lucene index
+        // Version from Lucene index
         refresh();
         response = client().prepareMultiTermVectors()
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
-                .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
-                .get();
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(Versions.MATCH_ANY))
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(1))
+            .add(new TermVectorsRequest(indexOrAlias(), "2").selectedFields("field").version(2))
+            .get();
         assertThat(response.getResponses().length, equalTo(3));
         // [0] version doesn't matter, which is the default
         assertThat(response.getResponses()[0].getFailure(), nullValue());
         assertThat(response.getResponses()[0].getId(), equalTo("2"));
         assertThat(response.getResponses()[0].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[]{"value2"});
+        checkTermTexts(response.getResponses()[0].getResponse().getFields().terms("field"), new String[] { "value2" });
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
@@ -180,7 +184,7 @@ public class MultiTermVectorsIT extends AbstractTermVectorsTestCase {
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
         assertThat(response.getResponses()[2].getResponse().isExists(), equalTo(true));
-        checkTermTexts(response.getResponses()[2].getResponse().getFields().terms("field"), new String[]{"value2"});
+        checkTermTexts(response.getResponses()[2].getResponse().getFields().terms("field"), new String[] { "value2" });
     }
 
     private static String indexOrAlias() {

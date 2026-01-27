@@ -13,7 +13,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,25 +28,23 @@ public class CountCorrelationFunctionTests extends ESTestCase {
     public void testExecute() {
         AtomicLong xs = new AtomicLong(1);
         CountCorrelationIndicator x = new CountCorrelationIndicator(
-            Stream.generate(xs::incrementAndGet)
-                .limit(100)
-                .mapToDouble(l -> (double)l).toArray(),
+            Stream.generate(xs::incrementAndGet).limit(100).mapToDouble(l -> (double) l).toArray(),
             null,
             1000
         );
         CountCorrelationFunction countCorrelationFunction = new CountCorrelationFunction(x);
         AtomicLong ys = new AtomicLong(0);
         CountCorrelationIndicator yValues = new CountCorrelationIndicator(
-            Stream.generate(() -> Math.min(ys.incrementAndGet(), 10)).limit(100).mapToDouble(l -> (double)l).toArray(),
+            Stream.generate(() -> Math.min(ys.incrementAndGet(), 10)).limit(100).mapToDouble(l -> (double) l).toArray(),
             x.getFractions(),
-           1000
+            1000
         );
         double value = countCorrelationFunction.execute(yValues);
         assertThat(value, greaterThan(0.0));
 
         AtomicLong otherYs = new AtomicLong(0);
         CountCorrelationIndicator lesserYValues = new CountCorrelationIndicator(
-            Stream.generate(() -> Math.min(otherYs.incrementAndGet(), 5)).limit(100).mapToDouble(l -> (double)l).toArray(),
+            Stream.generate(() -> Math.min(otherYs.incrementAndGet(), 5)).limit(100).mapToDouble(l -> (double) l).toArray(),
             x.getFractions(),
             1000
         );
@@ -59,8 +56,10 @@ public class CountCorrelationFunctionTests extends ESTestCase {
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(multiBucketAgg);
         CountCorrelationFunction function = new CountCorrelationFunction(CountCorrelationIndicatorTests.randomInstance());
-        PipelineAggregationBuilder.ValidationContext validationContext =
-            PipelineAggregationBuilder.ValidationContext.forTreeRoot(aggBuilders, Collections.emptyList(), null);
+        PipelineAggregationBuilder.ValidationContext validationContext = PipelineAggregationBuilder.ValidationContext.forTreeRoot(
+            aggBuilders,
+            null
+        );
         function.validate(validationContext, "terms>metric_agg");
 
         assertThat(

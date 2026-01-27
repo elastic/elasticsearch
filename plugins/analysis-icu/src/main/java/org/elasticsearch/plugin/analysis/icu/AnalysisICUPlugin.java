@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -12,16 +13,8 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.IcuAnalyzerProvider;
-import org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory;
-import org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory;
-import org.elasticsearch.index.analysis.IcuTokenizerFactory;
-import org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;

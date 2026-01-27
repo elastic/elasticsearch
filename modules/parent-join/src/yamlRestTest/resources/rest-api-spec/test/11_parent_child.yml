@@ -13,13 +13,13 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  {"foo": "bar", "join_field": {"name" : "parent"} }
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         routing: "1"
         body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }
 
@@ -28,14 +28,14 @@ setup:
 
 ---
 teardown:
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: null
 
 ---
@@ -68,19 +68,19 @@ teardown:
 
 ---
 "HasChild disallow expensive queries":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "implemented in 7.7.0"
 
   ### Update setting to false
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.allow_expensive_queries: "false"
         flat_settings: true
 
-  - match: {transient: {search.allow_expensive_queries: "false"}}
+  - match: {persistent: {search.allow_expensive_queries: "false"}}
 
   - do:
       catch: /\[joining\] queries cannot be executed when \'search.allow_expensive_queries\' is set to false./

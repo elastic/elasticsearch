@@ -7,19 +7,16 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
@@ -29,10 +26,13 @@ class BatchedRecordsIterator extends BatchedResultsIterator<AnomalyRecord> {
 
     @Override
     protected Result<AnomalyRecord> map(SearchHit hit) {
-        BytesReference source = hit.getSourceRef();
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
-                LoggingDeprecationHandler.INSTANCE, stream)){
+        try (
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                hit.getSourceRef(),
+                XContentType.JSON
+            )
+        ) {
             AnomalyRecord record = AnomalyRecord.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), record);
         } catch (IOException e) {

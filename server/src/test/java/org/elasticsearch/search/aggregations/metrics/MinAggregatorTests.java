@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -24,16 +25,15 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
@@ -50,7 +50,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
@@ -147,59 +147,65 @@ public class MinAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
 
     public void testMatchesSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(2, min.getValue(), 0);
+            assertEquals(2, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(2, min.getValue(), 0);
+            assertEquals(2, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(3, min.getValue(), 0);
+            assertEquals(3, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testCase(new DocValuesFieldExistsQuery("number"), iw -> {
+        testCase(new FieldExistsQuery("number"), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(3, min.getValue(), 0);
+            assertEquals(3, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -210,7 +216,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(1, min.getValue(), 0);
+            assertEquals(1, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -221,7 +227,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -232,10 +238,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new IpFieldMapper.IpFieldType(fieldName);
         boolean v4 = randomBoolean();
-        expectThrows(IllegalArgumentException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
             iw.addDocument(singleton(new SortedSetDocValuesField(fieldName, new BytesRef(InetAddressPoint.encode(randomIp(v4))))));
-        }, min -> fail("expected an exception"), fieldType));
+        }, min -> fail("expected an exception"), new AggTestConfig(aggregationBuilder, fieldType)));
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -243,13 +249,13 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(0.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(0.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testUnsupportedType() {
@@ -257,16 +263,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("not_a_number");
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testCase(
-                aggregationBuilder,
-                new MatchAllDocsQuery(),
-                iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); },
-                fieldType
-            )
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
+            iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo"))));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, new AggTestConfig(aggregationBuilder, fieldType)));
         assertEquals("Field [not_a_number] of type [keyword] is not supported for aggregation [min]", e.getMessage());
     }
 
@@ -275,10 +274,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        expectThrows(NumberFormatException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); }, fieldType));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, new AggTestConfig(aggregationBuilder, fieldType)));
     }
 
     public void testUnmappedWithBadMissingField() {
@@ -286,10 +285,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        expectThrows(NumberFormatException.class, () -> testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); }, fieldType));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, new AggTestConfig(aggregationBuilder, fieldType)));
     }
 
     public void testEmptyBucket() throws IOException {
@@ -300,28 +299,28 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(histogram, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("min"));
-            InternalMin min = (InternalMin) histo.getBuckets().get(0).getAggregations().asMap().get("min");
-            assertEquals(1.0, min.getValue(), 0);
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("min"));
+            Min min = (Min) histo.getBuckets().get(0).getAggregations().get("min");
+            assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("min"));
-            min = (InternalMin) histo.getBuckets().get(1).getAggregations().asMap().get("min");
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(1).getAggregations().get("min");
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("min"));
-            min = (InternalMin) histo.getBuckets().get(2).getAggregations().asMap().get("min");
-            assertEquals(3.0, min.getValue(), 0);
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("min"));
+            min = (Min) histo.getBuckets().get(2).getAggregations().get("min");
+            assertEquals(3.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
-        }, fieldType);
+        }, new AggTestConfig(histogram, fieldType));
     }
 
     public void testFormatter() throws IOException {
@@ -329,14 +328,14 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(1.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
             assertEquals("0001.0", min.getValueAsString());
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testGetProperty() throws IOException {
@@ -346,50 +345,20 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(globalBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(2, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("min"));
+            assertNotNull(global.getAggregations().get("min"));
 
-            InternalMin min = (InternalMin) global.getAggregations().asMap().get("min");
-            assertEquals(1.0, min.getValue(), 0);
+            Min min = (Min) global.getAggregations().get("min");
+            assertEquals(1.0, min.value(), 0);
             assertThat(global.getProperty("min"), equalTo(min));
             assertThat(global.getProperty("min.value"), equalTo(1.0));
             assertThat(min.getProperty("value"), equalTo(1.0));
-        }, fieldType);
-    }
-
-    public void testSingleValuedFieldPartiallyUnmapped() throws IOException {
-
-        MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
-        MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
-
-        try (Directory directory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
-            indexWriter.close();
-
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(2.0, min.getValue(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-            }
-        }
+        }, new AggTestConfig(globalBuilder, fieldType));
     }
 
     public void testSingleValuedFieldPartiallyUnmappedWithMissing() throws IOException {
@@ -402,22 +371,12 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 7)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 2)));
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
+            indexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
             indexWriter.close();
 
-            RandomIndexWriter unmappedIndexWriter = new RandomIndexWriter(random(), unmappedDirectory);
-            unmappedIndexWriter.addDocument(singleton(new NumericDocValuesField("unrelated", 100)));
-            unmappedIndexWriter.close();
-
-            try (
-                IndexReader indexReader = DirectoryReader.open(directory);
-                IndexReader unamappedIndexReader = DirectoryReader.open(unmappedDirectory)
-            ) {
-
-                MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
-                IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
-
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(-19.0, min.getValue(), 0);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                Min min = searchAndReduce(indexReader, new AggTestConfig(aggregationBuilder, fieldType));
+                assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
         }
@@ -429,15 +388,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-10.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(-10.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testSingleValuedFieldWithValueScriptAndMissing() throws IOException {
@@ -447,16 +406,17 @@ public class MinAggregatorTests extends AggregatorTestCase {
             .missing(-100L)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, INVERT_SCRIPT, Collections.emptyMap()));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        // Note: this comes straight from missing, and is not inverted from script
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
             iw.addDocument(singleton(new NumericDocValuesField("unrelated", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-100.0, min.getValue(), 0); // Note: this comes straight from missing, and is not inverted from script
+        }, (Consumer<Min>) min -> {
+            assertEquals(-100.0, min.value(), 0); // Note: this comes straight from missing, and is not inverted from script
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testSingleValuedFieldWithValueScriptAndParams() throws IOException {
@@ -465,15 +425,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.singletonMap("inc", 5)));
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(6.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(6.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testScript() throws IOException {
@@ -483,15 +443,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
             new Script(ScriptType.INLINE, MockScriptEngine.NAME, SCRIPT_NAME, Collections.emptyMap())
         );
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(19.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(19.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testMultiValuedField() throws IOException {
@@ -499,7 +459,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -507,10 +467,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(2.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(2.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testMultiValuedFieldWithScript() throws IOException {
@@ -519,7 +479,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -527,10 +487,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-12.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(-12.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testMultiValuedFieldWithScriptParams() throws IOException {
@@ -539,7 +499,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
 
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             final int numDocs = 10;
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -547,10 +507,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(7.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(7.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
-        }, fieldType);
+        }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
     public void testOrderByEmptyAggregation() throws IOException {
@@ -565,28 +525,28 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         int numDocs = 10;
-        testCase(termsBuilder, new MatchAllDocsQuery(), iw -> {
+        testCase(iw -> {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
         }, (Consumer<InternalTerms<?, LongTerms.Bucket>>) terms -> {
-            for (int i = 0; i < numDocs; i++) {
+            for (int i1 = 0; i1 < numDocs; i1++) {
                 List<LongTerms.Bucket> buckets = terms.getBuckets();
-                Terms.Bucket bucket = buckets.get(i);
+                Terms.Bucket bucket = buckets.get(i1);
                 assertNotNull(bucket);
-                assertEquals((long) i + 1, bucket.getKeyAsNumber());
+                assertEquals((long) i1 + 1, bucket.getKeyAsNumber());
                 assertEquals(1L, bucket.getDocCount());
 
-                Filter filter = bucket.getAggregations().get("filter");
+                SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                 assertNotNull(filter);
                 assertEquals(0L, filter.getDocCount());
 
-                InternalMin min = filter.getAggregations().get("min");
+                Min min = filter.getAggregations().get("min");
                 assertNotNull(min);
-                assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+                assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(min));
             }
-        }, fieldType);
+        }, new AggTestConfig(termsBuilder, fieldType));
     }
 
     public void testCaching() throws IOException {
@@ -601,12 +561,11 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(aggregationBuilder, context);
-                assertTrue(context.isCacheable());
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
+                    createAggregator(aggregationBuilder, context);
+                    assertTrue(context.isCacheable());
+                }
             }
         }
     }
@@ -627,16 +586,16 @@ public class MinAggregatorTests extends AggregatorTestCase {
             indexWriter.addDocument(singleton(new NumericDocValuesField("number", 3)));
             indexWriter.close();
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
+                    createAggregator(nonDeterministicAggregationBuilder, context);
+                    assertFalse(context.isCacheable());
+                }
 
-                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(nonDeterministicAggregationBuilder, context);
-                assertFalse(context.isCacheable());
-
-                context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
-                createAggregator(aggregationBuilder, context);
-                assertTrue(context.isCacheable());
+                try (AggregationContext context = createAggregationContext(indexReader, Queries.ALL_DOCS_INSTANCE, fieldType)) {
+                    createAggregator(aggregationBuilder, context);
+                    assertTrue(context.isCacheable());
+                }
             }
         }
     }
@@ -714,10 +673,10 @@ public class MinAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMin> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Min> verify)
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, fieldType).withQuery(query));
     }
 }

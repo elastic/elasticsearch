@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
@@ -11,6 +12,8 @@ package org.elasticsearch.gradle.internal.test;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
+import org.elasticsearch.gradle.internal.test.rest.LegacyJavaRestTestPlugin;
+import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
 import org.elasticsearch.gradle.internal.test.rest.RestTestUtil;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -20,7 +23,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
-
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
 import java.util.Arrays;
@@ -30,7 +32,11 @@ import java.util.Map;
  * Configures the build to compile tests against Elasticsearch's test framework
  * and run REST tests. Use BuildPlugin if you want to build main code as well
  * as tests.
+ *
+ * @deprecated use {@link InternalClusterTestPlugin}, {@link LegacyJavaRestTestPlugin} or
+ * {@link LegacyYamlRestTestPlugin} instead.
  */
+@Deprecated
 public class StandaloneRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
@@ -41,13 +47,13 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         }
 
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getPluginManager().apply(RestTestBasePlugin.class);
+        project.getPluginManager().apply(LegacyRestTestBasePlugin.class);
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask.class);
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
-        final SourceSet testSourceSet = sourceSets.create("test");
+        final SourceSet testSourceSet = sourceSets.maybeCreate("test");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.setTestClassesDirs(testSourceSet.getOutput().getClassesDirs());
@@ -55,8 +61,8 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         });
 
         // create a compileOnly configuration as others might expect it
-        project.getConfigurations().create("compileOnly");
-        RestTestUtil.setupTestDependenciesDefaults(project, testSourceSet);
+        project.getConfigurations().maybeCreate("compileOnly");
+        RestTestUtil.setupJavaRestTestDependenciesDefaults(project, testSourceSet);
 
         EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
         eclipse.getClasspath().setSourceSets(Arrays.asList(testSourceSet));
@@ -66,7 +72,7 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
             );
 
         IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-        idea.getModule().getTestSourceDirs().addAll(testSourceSet.getJava().getSrcDirs());
+        idea.getModule().getTestSources().from(testSourceSet.getJava().getSrcDirs());
         idea.getModule()
             .getScopes()
             .put(

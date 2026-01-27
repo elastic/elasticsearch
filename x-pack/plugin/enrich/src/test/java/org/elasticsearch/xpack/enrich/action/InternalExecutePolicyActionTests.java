@@ -10,14 +10,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.util.Set;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -28,7 +30,14 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
 
     @Before
     public void instantiateTransportAction() {
-        transportAction = new InternalExecutePolicyAction.Transport(mock(TransportService.class), mock(ActionFilters.class), null, null);
+        TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
+        transportAction = new InternalExecutePolicyAction.Transport(
+            transportService,
+            mock(ActionFilters.class),
+            null,
+            TestProjectResolvers.alwaysThrow(),
+            null
+        );
     }
 
     public void testSelectNodeForPolicyExecution() {
@@ -91,21 +100,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("no ingest nodes in this cluster"));
     }
 
-    public void testSelectNodeForPolicyExecutionMixedVersions() {
-        var node1 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
-        var node2 = newNode(randomAlphaOfLength(4), Version.V_7_14_0);
-        var node3 = newNode(randomAlphaOfLength(4));
-        var discoNodes = DiscoveryNodes.builder()
-            .add(node1)
-            .add(node2)
-            .add(node3)
-            .masterNodeId(node3.getId())
-            .localNodeId(node3.getId())
-            .build();
-        var e = expectThrows(IllegalStateException.class, () -> transportAction.selectNodeForPolicyExecution(discoNodes));
-        assertThat(e.getMessage(), equalTo("no suitable node was found to perform enrich policy execution"));
-    }
-
     public void testSelectNodeForPolicyExecutionPickLocalNodeIfNotElectedMaster() {
         var node1 = newNode(randomAlphaOfLength(4));
         var node2 = newNode(randomAlphaOfLength(4));
@@ -135,6 +129,6 @@ public class InternalExecutePolicyActionTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles, Version version) {
-        return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, version);
+        return DiscoveryNodeUtils.builder(nodeId).roles(roles).version(version).build();
     }
 }

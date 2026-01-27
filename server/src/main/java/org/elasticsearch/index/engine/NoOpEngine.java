@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -16,13 +17,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
+import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -43,7 +46,21 @@ public final class NoOpEngine extends ReadOnlyEngine {
     private final DocsStats docsStats;
 
     public NoOpEngine(EngineConfig config) {
-        super(config, null, null, true, Function.identity(), true, true);
+        this(
+            config,
+            config.isPromotableToPrimary() && config.getTranslogConfig().hasTranslog() ? null : new TranslogStats(0, 0, 0, 0, 0),
+            config.isPromotableToPrimary()
+                ? null
+                : new SeqNoStats(
+                    config.getGlobalCheckpointSupplier().getAsLong(),
+                    config.getGlobalCheckpointSupplier().getAsLong(),
+                    config.getGlobalCheckpointSupplier().getAsLong()
+                )
+        );
+    }
+
+    public NoOpEngine(EngineConfig config, @Nullable TranslogStats translogStats, SeqNoStats seqNoStats) {
+        super(config, seqNoStats, translogStats, true, Function.identity(), true, true);
         this.segmentsStats = new SegmentsStats();
         Directory directory = store.directory();
         try (DirectoryReader reader = openDirectory(directory)) {
@@ -89,13 +106,12 @@ public final class NoOpEngine extends ReadOnlyEngine {
             }
 
             @Override
-            public IndexCommit getIndexCommit()  {
+            public IndexCommit getIndexCommit() {
                 return indexCommit;
             }
 
             @Override
-            protected void doClose() {
-            }
+            protected void doClose() {}
 
             @Override
             public CacheHelper getReaderCacheHelper() {
@@ -131,8 +147,7 @@ public final class NoOpEngine extends ReadOnlyEngine {
     public void trimUnreferencedTranslogFiles() {
         final Store store = this.engineConfig.getStore();
         store.incRef();
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
+        try (var ignored = acquireEnsureOpenRef()) {
             final List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
             if (commits.size() == 1 && translogStats.getTranslogSizeInBytes() > translogStats.getUncommittedSizeInBytes()) {
                 final Map<String, String> commitUserData = getLastCommittedSegmentInfos().getUserData();
@@ -144,13 +159,26 @@ public final class NoOpEngine extends ReadOnlyEngine {
                 final long localCheckpoint = Long.parseLong(commitUserData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
                 final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
                 translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
-                try (Translog translog = new Translog(translogConfig, translogUuid, translogDeletionPolicy,
-                    engineConfig.getGlobalCheckpointSupplier(), engineConfig.getPrimaryTermSupplier(), seqNo -> {})) {
+                try (
+                    Translog translog = new Translog(
+                        translogConfig,
+                        translogUuid,
+                        translogDeletionPolicy,
+                        engineConfig.getGlobalCheckpointSupplier(),
+                        engineConfig.getPrimaryTermSupplier(),
+                        seqNo -> {},
+                        TranslogOperationAsserter.DEFAULT
+                    )
+                ) {
                     translog.trimUnreferencedReaders();
                     // refresh the translog stats
                     this.translogStats = translog.stats();
-                    assert translog.currentFileGeneration() == translog.getMinFileGeneration() : "translog was not trimmed "
-                        + " current gen " + translog.currentFileGeneration() + " != min gen " + translog.getMinFileGeneration();
+                    assert translog.currentFileGeneration() == translog.getMinFileGeneration()
+                        : "translog was not trimmed "
+                            + " current gen "
+                            + translog.currentFileGeneration()
+                            + " != min gen "
+                            + translog.getMinFileGeneration();
                 }
             }
         } catch (final Exception e) {

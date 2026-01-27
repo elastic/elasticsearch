@@ -1,37 +1,48 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.nodes;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeActionTests;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelHelper;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ReachabilityChecker;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -39,20 +50,28 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-import java.util.function.Supplier;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
+import java.util.function.ObjLongConsumer;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
@@ -63,79 +82,44 @@ public class TransportNodesActionTests extends ESTestCase {
     private CapturingTransport transport;
     private TransportService transportService;
 
-    public void testRequestIsSentToEachNode() throws Exception {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+    public void testRequestIsSentToEachNode() {
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
+            getTestTransportNodesAction();
         TestNodesRequest request = new TestNodesRequest();
-        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.new AsyncAction(null, request, listener).start();
+        action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         int numNodes = clusterService.state().getNodes().getSize();
         // check a request was sent to the right number of nodes
         assertEquals(numNodes, capturedRequests.size());
+        assertTrue(capturedRequests.values().stream().flatMap(Collection::stream).noneMatch(cr -> cr.request().hasReferences()));
     }
 
     public void testNodesSelectors() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
+            getTestTransportNodesAction();
         int numSelectors = randomIntBetween(1, 5);
         Set<String> nodeSelectors = new HashSet<>();
         for (int i = 0; i < numSelectors; i++) {
-            nodeSelectors.add(randomFrom(NodeSelector.values()).selector);
+            nodeSelectors.add(randomFrom("_local", "_master", "master:true", "data:true", "attr:value"));
         }
         int numNodeIds = randomIntBetween(0, 3);
-        String[] nodeIds = clusterService.state().nodes().getNodes().keys().toArray(String.class);
+        String[] nodeIds = clusterService.state().nodes().getNodes().keySet().toArray(new String[0]);
         for (int i = 0; i < numNodeIds; i++) {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
         }
-        String[] finalNodesIds = nodeSelectors.toArray(new String[nodeSelectors.size()]);
+        String[] finalNodesIds = nodeSelectors.toArray(String[]::new);
         TestNodesRequest request = new TestNodesRequest(finalNodesIds);
-        action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
+        action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         assertEquals(clusterService.state().nodes().resolveNodes(finalNodesIds).length, capturedRequests.size());
     }
 
-    public void testNewResponseNullArray() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
-        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
-        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), new TestNodesRequest(), null, future);
-        expectThrows(NullPointerException.class, future::actionGet);
-    }
-
-    public void testNewResponse() {
-        TestTransportNodesAction action = getTestTransportNodesAction();
-        TestNodesRequest request = new TestNodesRequest();
-        List<TestNodeResponse> expectedNodeResponses = mockList(TestNodeResponse::new, randomIntBetween(0, 2));
-        expectedNodeResponses.add(new TestNodeResponse());
-        List<FailedNodeException> failures = mockList(
-            () -> new FailedNodeException(
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                new IllegalStateException(randomAlphaOfLength(8))),
-            randomIntBetween(0, 2));
-
-        List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
-        allResponses.addAll(failures);
-
-        Collections.shuffle(allResponses, random());
-
-        AtomicReferenceArray<?> atomicArray = new AtomicReferenceArray<>(allResponses.toArray());
-
-        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
-        action.newResponse(new Task(1, "test", "test", "", null, emptyMap()), request, atomicArray, future);
-        TestNodesResponse response = future.actionGet();
-
-        assertSame(request, response.request);
-        // note: I shuffled the overall list, so it's not possible to guarantee that it's in the right order
-        assertTrue(expectedNodeResponses.containsAll(response.getNodes()));
-        assertTrue(failures.containsAll(response.failures()));
-    }
-
-    public void testCustomResolving() throws Exception {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action =
+    public void testCustomResolving() {
+        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Void> action =
             getDataNodesOnlyTransportNodesAction(transportService);
         TestNodesRequest request = new TestNodesRequest(randomBoolean() ? null : generateRandomStringArray(10, 5, false, true));
-        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        action.new AsyncAction(null, request, listener).start();
+        action.execute(null, request, new PlainActionFuture<>());
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
         // check requests were only sent to data nodes
         for (String nodeTarget : capturedRequests.keySet()) {
@@ -144,54 +128,343 @@ public class TransportNodesActionTests extends ESTestCase {
         assertEquals(clusterService.state().nodes().getDataNodes().size(), capturedRequests.size());
     }
 
-    public void testTaskCancellationThrowsException() {
-        TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> action = getTestTransportNodesAction();
-        List<String> nodeIds = new ArrayList<>();
-        for (DiscoveryNode node : clusterService.state().nodes()) {
-            nodeIds.add(node.getId());
-        }
+    public void testResponseAggregation() {
+        final TestTransportNodesAction action = getTestTransportNodesAction();
 
-        TestNodesRequest request = new TestNodesRequest(nodeIds.toArray(new String[0]));
-        PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
-        CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
-        TaskCancelHelper.cancel(cancellableTask, "simulated");
-        action.doExecute(cancellableTask, request, listener);
-        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
-        for (List<CapturingTransport.CapturedRequest> requests : capturedRequests.values()) {
-            for (CapturingTransport.CapturedRequest capturedRequest : requests) {
+        final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        action.execute(null, new TestNodesRequest(), listener.delegateFailure((l, response) -> {
+            assertTrue(response.getNodes().stream().allMatch(TestNodeResponse::hasReferences));
+            assertTrue(response.hasReferences());
+            l.onResponse(response);
+        }));
+        assertFalse(listener.isDone());
+
+        final Set<String> failedNodeIds = new HashSet<>();
+        final Set<DiscoveryNode> successfulNodes = new HashSet<>();
+
+        for (CapturingTransport.CapturedRequest capturedRequest : transport.getCapturedRequestsAndClear()) {
+            if (randomBoolean()) {
+                successfulNodes.add(capturedRequest.node());
+                final var response = new TestNodeResponse(capturedRequest.node());
+                transport.handleResponse(capturedRequest.requestId(), response);
+                response.decRef();
+                assertFalse(response.hasReferences()); // response is copied (via the wire protocol) so this instance is released
+            } else {
+                failedNodeIds.add(capturedRequest.node().getId());
                 if (randomBoolean()) {
-                    transport.handleResponse(capturedRequest.requestId, new TestNodeResponse(capturedRequest.node));
+                    transport.handleRemoteError(capturedRequest.requestId(), new ElasticsearchException("simulated"));
                 } else {
-                    transport.handleRemoteError(capturedRequest.requestId, new TaskCancelledException("simulated"));
+                    transport.handleLocalError(capturedRequest.requestId(), new ElasticsearchException("simulated"));
                 }
             }
         }
 
-        assertTrue(listener.isDone());
-        expectThrows(ExecutionException.class, TaskCancelledException.class, listener::get);
+        final TestNodesResponse response = listener.actionGet(10, TimeUnit.SECONDS);
+
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
+
+        for (TestNodeResponse nodeResponse : response.getNodes()) {
+            assertThat(successfulNodes, Matchers.hasItem(nodeResponse.getNode()));
+        }
+        assertEquals(successfulNodes.size(), response.getNodes().size());
+
+        assertNotEquals(failedNodeIds.isEmpty(), response.hasFailures());
+        for (FailedNodeException failure : response.failures()) {
+            assertThat(failedNodeIds, Matchers.hasItem(failure.nodeId()));
+            if (failure.getCause() instanceof ElasticsearchException elasticsearchException) {
+                final var cause = elasticsearchException.unwrapCause();
+                assertEquals("simulated", cause.getMessage());
+            } else {
+                throw new AssertionError("unexpected exception", failure);
+            }
+        }
+        assertEquals(failedNodeIds.size(), response.failures().size());
     }
 
-    private <T> List<T> mockList(Supplier<T> supplier, int size) {
-        List<T> failures = new ArrayList<>(size);
-        for (int i = 0; i < size; ++i) {
-            failures.add(supplier.get());
+    public void testResponsesReleasedOnCancellation() {
+        final TestTransportNodesAction action = getTestTransportNodesAction();
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), listener.delegateResponse((l, e) -> {
+            assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+            l.onFailure(e);
+        }));
+
+        final List<CapturingTransport.CapturedRequest> capturedRequests = new ArrayList<>(
+            Arrays.asList(transport.getCapturedRequestsAndClear())
+        );
+        Randomness.shuffle(capturedRequests);
+
+        final AtomicInteger liveResponseCount = new AtomicInteger();
+        final Function<DiscoveryNode, TestNodeResponse> responseCreator = node -> {
+            liveResponseCount.incrementAndGet();
+            final var testNodeResponse = new TestNodeResponse(node);
+            testNodeResponse.addCloseListener(ActionListener.running(liveResponseCount::decrementAndGet));
+            return testNodeResponse;
+        };
+
+        final ObjLongConsumer<TestNodeResponse> responseSender = (response, requestId) -> {
+            try {
+                // transport.handleResponse may de/serialize the response, releasing it early, so send the response straight to the handler
+                transport.getTransportResponseHandler(requestId).handleResponse(response);
+            } finally {
+                response.decRef();
+            }
+        };
+
+        final ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        final Runnable nextRequestProcessor = () -> {
+            var capturedRequest = capturedRequests.remove(0);
+            if (randomBoolean()) {
+                responseSender.accept(
+                    reachabilityChecker.register(responseCreator.apply(capturedRequest.node())),
+                    capturedRequest.requestId()
+                );
+            } else {
+                // handleRemoteError may de/serialize the exception, releasing it early, so just use handleLocalError
+                transport.handleLocalError(
+                    capturedRequest.requestId(),
+                    reachabilityChecker.register(new ElasticsearchException("simulated"))
+                );
+            }
+        };
+
+        assertThat(capturedRequests.size(), greaterThan(2));
+        final var responsesBeforeCancellation = between(1, capturedRequests.size() - 2);
+        for (int i = 0; i < responsesBeforeCancellation; i++) {
+            nextRequestProcessor.run();
         }
-        return failures;
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+
+        // responses captured before cancellation are now unreachable
+        reachabilityChecker.ensureUnreachable();
+        assertEquals(0, liveResponseCount.get());
+
+        while (capturedRequests.size() > 0) {
+            // a response sent after cancellation is dropped immediately
+            assertFalse(listener.isDone());
+            nextRequestProcessor.run();
+            reachabilityChecker.ensureUnreachable();
+            assertEquals(0, liveResponseCount.get());
+        }
+
+        expectThrows(TaskCancelledException.class, () -> listener.actionGet(10, TimeUnit.SECONDS));
+        assertTrue(cancellableTask.isCancelled()); // keep task alive
     }
 
-    private enum NodeSelector {
-        LOCAL("_local"), ELECTED_MASTER("_master"), MASTER_ELIGIBLE("master:true"), DATA("data:true"), CUSTOM_ATTRIBUTE("attr:value");
+    public void testActionContextReleasedOnCancellation() {
+        final var reachabilityChecker = new ReachabilityChecker();
+        final TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse, Object> action =
+            new TransportNodesAction<>(
+                "indices:admin/test",
+                clusterService,
+                transportService,
+                new ActionFilters(Collections.emptySet()),
+                TestNodeRequest::new,
+                THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+            ) {
+                @Override
+                protected TestNodesResponse newResponse(
+                    TestNodesRequest request,
+                    List<TestNodeResponse> testNodeResponses,
+                    List<FailedNodeException> failures
+                ) {
+                    return fail(null, "should not be called");
+                }
 
-        private final String selector;
+                @Override
+                protected TestNodeRequest newNodeRequest(TestNodesRequest request) {
+                    return new TestNodeRequest();
+                }
 
-        NodeSelector(String selector) {
-            this.selector = selector;
+                @Override
+                protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+                    return new TestNodeResponse(in);
+                }
+
+                @Override
+                protected TestNodeResponse nodeOperation(TestNodeRequest request, Task task) {
+                    return new TestNodeResponse();
+                }
+
+                @Override
+                protected Object createActionContext(Task task, TestNodesRequest request) {
+                    return reachabilityChecker.register(new Object());
+                }
+            };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final PlainActionFuture<TestNodesResponse> listener = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), listener);
+
+        reachabilityChecker.checkReachable();
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        reachabilityChecker.ensureUnreachable();
+
+        for (CapturingTransport.CapturedRequest capturedRequest : transport.getCapturedRequestsAndClear()) {
+            transport.handleLocalError(capturedRequest.requestId(), new ElasticsearchException("simulated"));
         }
+
+        expectThrows(TaskCancelledException.class, () -> listener.actionGet(10, TimeUnit.SECONDS));
+        assertTrue(cancellableTask.isCancelled()); // keep task alive
+    }
+
+    public void testCompletionShouldNotBeInterferedByCancellationAfterProcessingBegins() throws Exception {
+        final var barrier = new CyclicBarrier(2);
+        final var action = new TestTransportNodesAction(
+            clusterService,
+            transportService,
+            new ActionFilters(Set.of()),
+            TestNodeRequest::new,
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
+        ) {
+            @Override
+            protected void newResponseAsync(
+                Task task,
+                TestNodesRequest request,
+                Void unused,
+                List<TestNodeResponse> testNodeResponses,
+                List<FailedNodeException> failures,
+                ActionListener<TestNodesResponse> listener
+            ) {
+                boolean waited = false;
+                // Process node responses in a loop and ensure no ConcurrentModificationException will be thrown due to
+                // concurrent cancellation coming after the loop has started, see also #128852
+                for (var response : testNodeResponses) {
+                    if (waited == false) {
+                        waited = true;
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                }
+                super.newResponseAsync(task, request, unused, testNodeResponses, failures, listener);
+            }
+        };
+
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap());
+        final var cancelledFuture = new PlainActionFuture<Void>();
+        cancellableTask.addListener(() -> cancelledFuture.onResponse(null));
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        for (var capturedRequest : transport.getCapturedRequestsAndClear()) {
+            completeOneRequest(capturedRequest);
+        }
+
+        // Wait for the overall response to start processing the node responses in a loop and then cancel the task.
+        // The cancellation should not interfere with the node response processing.
+        safeAwait(barrier);
+        TaskCancelHelper.cancel(cancellableTask, "simulated");
+        safeGet(cancelledFuture);
+
+        // Let the process continue, and it should be successful
+        safeAwait(barrier);
+        assertResponseReleased(safeGet(future));
+    }
+
+    public void testConcurrentlyCompletionAndCancellation() throws InterruptedException {
+        final var action = getTestTransportNodesAction();
+
+        final CountDownLatch onCancelledLatch = new CountDownLatch(1);
+        final CancellableTask cancellableTask = new CancellableTask(randomLong(), "transport", "action", "", null, emptyMap()) {
+            @Override
+            protected void onCancelled() {
+                onCancelledLatch.countDown();
+            }
+        };
+
+        final PlainActionFuture<TestNodesResponse> future = new PlainActionFuture<>();
+        action.execute(cancellableTask, new TestNodesRequest(), future);
+
+        final List<TestNodeResponse> nodeResponses = new ArrayList<>();
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        // Complete all but the last request for racing completion with cancellation
+        for (int i = 0; i < capturedRequests.length - 1; i++) {
+            final var capturedRequest = capturedRequests[i];
+            nodeResponses.add(completeOneRequest(capturedRequest));
+        }
+
+        final var raceBarrier = new CyclicBarrier(3);
+        final var lastResponseFuture = new PlainActionFuture<TestNodeResponse>();
+        final Thread completeThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            lastResponseFuture.onResponse(completeOneRequest(capturedRequests[capturedRequests.length - 1]));
+        });
+        final Thread cancelThread = new Thread(() -> {
+            safeAwait(raceBarrier);
+            TaskCancelHelper.cancel(cancellableTask, "simulated");
+        });
+        completeThread.start();
+        cancelThread.start();
+        safeAwait(raceBarrier);
+
+        // We expect either a successful response or a cancellation exception. All node responses should be released in both cases.
+        try {
+            final var testNodesResponse = future.actionGet(SAFE_AWAIT_TIMEOUT);
+            assertThat(testNodesResponse.getNodes(), hasSize(capturedRequests.length));
+            assertResponseReleased(testNodesResponse);
+        } catch (Exception e) {
+            final var taskCancelledException = (TaskCancelledException) ExceptionsHelper.unwrap(e, TaskCancelledException.class);
+            assertNotNull("expect task cancellation exception, but got\n" + ExceptionsHelper.stackTrace(e), taskCancelledException);
+            assertThat(e.getMessage(), containsString("task cancelled [simulated]"));
+            assertTrue(cancellableTask.isCancelled());
+            // Wait for the latch, the listener for releasing node responses is called before it.
+            // We need to wait for the latch because the cancellation may be detected in CancellableFanOut#onCompletion with
+            // the responseHandled flag being true. The flag is set by the cancellation listener which is still in process of
+            // draining existing responses.
+            safeAwait(onCancelledLatch);
+            // All previously captured responses are released due to cancellation
+            assertTrue(nodeResponses.stream().allMatch(r -> r.hasReferences() == false));
+            // Wait for the last response to be gathered and assert it is also released by either the concurrent cancellation or
+            // not tracked in onItemResponse at all due to already cancelled
+            assertFalse(safeGet(lastResponseFuture).hasReferences());
+        }
+
+        completeThread.join(10_000);
+        cancelThread.join(10_000);
+        assertFalse(completeThread.isAlive());
+        assertFalse(cancelThread.isAlive());
+    }
+
+    private void assertResponseReleased(TestNodesResponse response) {
+        final var allResponsesReleasedListener = new SubscribableListener<Void>();
+        try (var listeners = new RefCountingListener(allResponsesReleasedListener)) {
+            response.addCloseListener(listeners.acquire());
+            for (final var nodeResponse : response.getNodes()) {
+                nodeResponse.addCloseListener(listeners.acquire());
+            }
+        }
+        safeAwait(allResponsesReleasedListener);
+        assertTrue(response.getNodes().stream().noneMatch(TestNodeResponse::hasReferences));
+        assertFalse(response.hasReferences());
+    }
+
+    private TestNodeResponse completeOneRequest(CapturingTransport.CapturedRequest capturedRequest) {
+        final var response = new TestNodeResponse(capturedRequest.node());
+        try {
+            transport.getTransportResponseHandler(capturedRequest.requestId()).handleResponse(response);
+        } finally {
+            response.decRef();
+        }
+        return response;
     }
 
     @BeforeClass
     public static void startThreadPool() {
-        THREAD_POOL = new TestThreadPool(TransportBroadcastByNodeActionTests.class.getSimpleName());
+        THREAD_POOL = new TestThreadPool(TransportNodesActionTests.class.getSimpleName());
     }
 
     @AfterClass
@@ -206,8 +479,14 @@ public class TransportNodesActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
-        transportService = transport.createTransportService(clusterService.getSettings(), THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null, Collections.emptySet());
+        transportService = transport.createTransportService(
+            clusterService.getSettings(),
+            THREAD_POOL,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> clusterService.localNode(),
+            null,
+            Collections.emptySet()
+        );
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -240,47 +519,53 @@ public class TransportNodesActionTests extends ESTestCase {
 
     public TestTransportNodesAction getTestTransportNodesAction() {
         return new TestTransportNodesAction(
-                THREAD_POOL,
-                clusterService,
-                transportService,
-                new ActionFilters(Collections.emptySet()),
-                TestNodesRequest::new,
-                TestNodeRequest::new,
-                ThreadPool.Names.SAME
+            clusterService,
+            transportService,
+            new ActionFilters(Collections.emptySet()),
+            TestNodeRequest::new,
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
     public DataNodesOnlyTransportNodesAction getDataNodesOnlyTransportNodesAction(TransportService transportService) {
         return new DataNodesOnlyTransportNodesAction(
-            THREAD_POOL,
             clusterService,
             transportService,
             new ActionFilters(Collections.emptySet()),
-            TestNodesRequest::new,
             TestNodeRequest::new,
-            ThreadPool.Names.SAME
+            THREAD_POOL.executor(ThreadPool.Names.GENERIC)
         );
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
         String node = "node_" + nodeId;
-        return new DiscoveryNode(node, node, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
+        return DiscoveryNodeUtils.builder(node).name(node).attributes(attributes).roles(roles).build();
     }
 
-    private static class TestTransportNodesAction
-        extends TransportNodesAction<TestNodesRequest, TestNodesResponse, TestNodeRequest, TestNodeResponse> {
+    private static class TestTransportNodesAction extends TransportNodesAction<
+        TestNodesRequest,
+        TestNodesResponse,
+        TestNodeRequest,
+        TestNodeResponse,
+        Void> {
 
-        TestTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-                transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                 Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super("indices:admin/test", threadPool, clusterService, transportService, actionFilters,
-                request, nodeRequest, nodeExecutor, TestNodeResponse.class);
+        TestTransportNodesAction(
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            Executor nodeExecutor
+        ) {
+            super("indices:admin/test", clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
-        protected TestNodesResponse newResponse(TestNodesRequest request,
-                                                List<TestNodeResponse> responses, List<FailedNodeException> failures) {
-            return new TestNodesResponse(clusterService.getClusterName(), request, responses, failures);
+        protected TestNodesResponse newResponse(
+            TestNodesRequest request,
+            List<TestNodeResponse> responses,
+            List<FailedNodeException> failures
+        ) {
+            return new TestNodesResponse(clusterService.getClusterName(), responses, failures);
         }
 
         @Override
@@ -289,7 +574,7 @@ public class TransportNodesActionTests extends ESTestCase {
         }
 
         @Override
-        protected TestNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        protected TestNodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             return new TestNodeResponse(in);
         }
 
@@ -300,25 +585,25 @@ public class TransportNodesActionTests extends ESTestCase {
 
     }
 
-    private static class DataNodesOnlyTransportNodesAction
-        extends TestTransportNodesAction {
+    private static class DataNodesOnlyTransportNodesAction extends TestTransportNodesAction {
 
-        DataNodesOnlyTransportNodesAction(ThreadPool threadPool, ClusterService clusterService, TransportService
-            transportService, ActionFilters actionFilters, Writeable.Reader<TestNodesRequest> request,
-                                          Writeable.Reader<TestNodeRequest> nodeRequest, String nodeExecutor) {
-            super(threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor);
+        DataNodesOnlyTransportNodesAction(
+            ClusterService clusterService,
+            TransportService transportService,
+            ActionFilters actionFilters,
+            Writeable.Reader<TestNodeRequest> nodeRequest,
+            Executor nodeExecutor
+        ) {
+            super(clusterService, transportService, actionFilters, nodeRequest, nodeExecutor);
         }
 
         @Override
-        protected void resolveRequest(TestNodesRequest request, ClusterState clusterState) {
-            request.setConcreteNodes(clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode.class));
+        protected DiscoveryNode[] resolveRequest(TestNodesRequest request, ClusterState clusterState) {
+            return clusterState.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         }
     }
 
-    private static class TestNodesRequest extends BaseNodesRequest<TestNodesRequest> {
-        TestNodesRequest(StreamInput in) throws IOException {
-            super(in);
-        }
+    private static class TestNodesRequest extends BaseNodesRequest {
         TestNodesRequest(String... nodesIds) {
             super(nodesIds);
         }
@@ -326,33 +611,83 @@ public class TransportNodesActionTests extends ESTestCase {
 
     private static class TestNodesResponse extends BaseNodesResponse<TestNodeResponse> {
 
-        private final TestNodesRequest request;
+        private final SubscribableListener<Void> onClose = new SubscribableListener<>();
+        private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> onClose.onResponse(null)));
 
-        TestNodesResponse(ClusterName clusterName, TestNodesRequest request, List<TestNodeResponse> nodeResponses,
-                          List<FailedNodeException> failures) {
+        TestNodesResponse(ClusterName clusterName, List<TestNodeResponse> nodeResponses, List<FailedNodeException> failures) {
             super(clusterName, nodeResponses, failures);
-            this.request = request;
         }
 
         @Override
         protected List<TestNodeResponse> readNodesFrom(StreamInput in) throws IOException {
-            return in.readList(TestNodeResponse::new);
+            return in.readCollectionAsList(TestNodeResponse::new);
         }
 
         @Override
         protected void writeNodesTo(StreamOutput out, List<TestNodeResponse> nodes) throws IOException {
-            out.writeList(nodes);
+            out.writeCollection(nodes);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        void addCloseListener(ActionListener<Void> listener) {
+            onClose.addListener(listener);
         }
     }
 
-    private static class TestNodeRequest extends TransportRequest {
+    private static class TestNodeRequest extends AbstractTransportRequest {
+        private final RefCounted refCounted = AbstractRefCounted.of(() -> {});
+
         TestNodeRequest() {}
+
         TestNodeRequest(StreamInput in) throws IOException {
             super(in);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
         }
     }
 
     private static class TestNodeResponse extends BaseNodeResponse {
+
+        private final SubscribableListener<Void> onClose = new SubscribableListener<>();
+        private final RefCounted refCounted = LeakTracker.wrap(AbstractRefCounted.of(() -> onClose.onResponse(null)));
+
         TestNodeResponse() {
             this(mock(DiscoveryNode.class));
         }
@@ -364,15 +699,29 @@ public class TransportNodesActionTests extends ESTestCase {
         protected TestNodeResponse(StreamInput in) throws IOException {
             super(in);
         }
-    }
 
-    private static class OtherNodeResponse extends BaseNodeResponse {
-        OtherNodeResponse() {
-            super(mock(DiscoveryNode.class));
+        @Override
+        public void incRef() {
+            refCounted.incRef();
         }
 
-        protected OtherNodeResponse(StreamInput in) throws IOException {
-            super(in);
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean decRef() {
+            return refCounted.decRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        void addCloseListener(ActionListener<Void> listener) {
+            onClose.addListener(listener);
         }
     }
 

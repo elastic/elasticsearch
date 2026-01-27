@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.sql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
 import org.elasticsearch.xpack.sql.expression.function.SqlFunctionRegistry;
@@ -67,30 +67,32 @@ public class PlanExecutor {
         return new SqlSession(cfg, client, functionRegistry, indexResolver, preAnalyzer, verifier, optimizer, planner, this);
     }
 
-    public void searchSource(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params,
-            ActionListener<SearchSourceBuilder> listener) {
+    public void searchSource(
+        SqlConfiguration cfg,
+        String sql,
+        List<SqlTypedParamValue> params,
+        ActionListener<SearchSourceBuilder> listener
+    ) {
         metrics.translate();
 
-        newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
-            if (exec instanceof EsQueryExec) {
-                EsQueryExec e = (EsQueryExec) exec;
-                listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
+        newSession(cfg).sqlExecutable(sql, params, listener.delegateFailureAndWrap((delegate, exec) -> {
+            if (exec instanceof EsQueryExec e) {
+                delegate.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             }
             // try to provide a better resolution of what failed
             else {
                 String message = null;
                 if (exec instanceof LocalExec) {
-                    message = "Cannot generate a query DSL for an SQL query that either " +
-                            "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
+                    message = "Cannot generate a query DSL for an SQL query that either "
+                        + "its WHERE clause evaluates to FALSE or doesn't operate on a table (missing a FROM clause)";
                 } else if (exec instanceof CommandExec) {
-                    message = "Cannot generate a query DSL for a special SQL command " +
-                            "(e.g.: DESCRIBE, SHOW)";
+                    message = "Cannot generate a query DSL for a special SQL command " + "(e.g.: DESCRIBE, SHOW)";
                 } else {
                     message = "Cannot generate a query DSL";
                 }
-                listener.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
+                delegate.onFailure(new PlanningException(message + ", sql statement: [{}]", sql));
             }
-        }, listener::onFailure));
+        }));
     }
 
     public void sql(SqlConfiguration cfg, String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
@@ -108,14 +110,21 @@ public class PlanExecutor {
         metrics.total(metric);
         metrics.paging(metric);
 
-        cursor.nextPage(cfg, client, writableRegistry, wrap(listener::onResponse, ex -> {
+        nextPageInternal(cfg, cursor, wrap(listener::onResponse, ex -> {
             metrics.failed(metric);
             listener.onFailure(ex);
         }));
     }
 
-    public void cleanCursor(SqlConfiguration cfg, Cursor cursor, ActionListener<Boolean> listener) {
-        cursor.clear(cfg, client, listener);
+    /**
+     * `nextPage` for internal callers (not from the APIs) without metrics reporting.
+     */
+    public void nextPageInternal(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
+        cursor.nextPage(cfg, client, listener);
+    }
+
+    public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {
+        cursor.clear(client, listener);
     }
 
     public Client client() {

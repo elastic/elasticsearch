@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,11 +26,11 @@ import java.util.Objects;
 /**
  * Request to perform a search ranking evaluation.
  */
-public class RankEvalRequest extends ActionRequest implements IndicesRequest.Replaceable {
+public final class RankEvalRequest extends LegacyActionRequest implements IndicesRequest.Replaceable {
 
     private RankEvalSpec rankingEvaluationSpec;
 
-    private IndicesOptions indicesOptions  = SearchRequest.DEFAULT_INDICES_OPTIONS;
+    private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
     private String[] indices = Strings.EMPTY_ARRAY;
 
     private SearchType searchType = SearchType.DEFAULT;
@@ -45,13 +45,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec = new RankEvalSpec(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            searchType = SearchType.fromId(in.readByte());
-        }
+        searchType = SearchType.fromId(in.readByte());
     }
 
-    RankEvalRequest() {
-    }
+    RankEvalRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
@@ -127,9 +124,7 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
         rankingEvaluationSpec.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeByte(searchType.id());
-        }
+        out.writeByte(searchType.id());
     }
 
     @Override
@@ -141,10 +136,10 @@ public class RankEvalRequest extends ActionRequest implements IndicesRequest.Rep
             return false;
         }
         RankEvalRequest that = (RankEvalRequest) o;
-        return Objects.equals(indicesOptions, that.indicesOptions) &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec) &&
-                Objects.equals(searchType, that.searchType);
+        return Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(rankingEvaluationSpec, that.rankingEvaluationSpec)
+            && Objects.equals(searchType, that.searchType);
     }
 
     @Override

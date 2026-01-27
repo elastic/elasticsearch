@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,38 +33,48 @@ public enum AllocationDecision implements Writeable {
      */
     THROTTLED((byte) 1),
     /**
+     * It is _not_ preferred to allocate a shard to this node, preference should be given to a YES node.
+     * This can happen when the shard allocation to a node is allowed, but the node resource usage is
+     * already high. Preference can be overridden if a shard's current allocation is no longer allowed
+     * and no other node responded YES to the shard relocation.
+     */
+    NOT_PREFERRED((byte) 2),
+    /**
      * The shard cannot be allocated, which can happen for any number of reasons,
      * including the allocation deciders gave a NO decision for allocating.
      */
-    NO((byte) 2),
+    NO((byte) 3),
     /**
      * The shard could not be rebalanced to another node despite rebalancing
      * being allowed, because moving the shard to the other node would not form
      * a better cluster balance.
      */
-    WORSE_BALANCE((byte) 3),
+    WORSE_BALANCE((byte) 4),
     /**
      * Waiting on getting shard data from all nodes before making a decision
      * about where to allocate the shard.
      */
-    AWAITING_INFO((byte) 4),
+    AWAITING_INFO((byte) 5),
     /**
      * The allocation decision has been delayed waiting for a replica with a shard copy
      * that left the cluster to rejoin.
      */
-    ALLOCATION_DELAYED((byte) 5),
+    ALLOCATION_DELAYED((byte) 6),
     /**
      * The shard was denied allocation because there were no valid shard copies
      * found for it amongst the nodes in the cluster.
      */
-    NO_VALID_SHARD_COPY((byte) 6),
+    NO_VALID_SHARD_COPY((byte) 7),
     /**
      * No attempt was made to allocate the shard
      */
-    NO_ATTEMPT((byte) 7);
+    NO_ATTEMPT((byte) 8);
 
+    final byte id;
 
-    private final byte id;
+    public static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
+        "add_not_preferred_allocation_decision"
+    );
 
     AllocationDecision(byte id) {
         this.id = id;
@@ -70,31 +82,52 @@ public enum AllocationDecision implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByte(id);
+        if (out.getTransportVersion().supports(ADD_NOT_PREFERRED_ALLOCATION_DECISION) == false) {
+            if (id == NOT_PREFERRED.id) {
+                // NOT_PREFERRED was originally hidden / unimplemented converted to YES. So for older versions continue to use YES.
+                out.write(YES.id);
+            } else if (id > THROTTLED.id) {
+                // NOT_PREFERRED was placed after THROTTLE in the enum list, so any subsequent values were pushed +1. Shift the enum value
+                // back for older versions.
+                out.write(id - 1);
+            } else {
+                assert id == YES.id || id == THROTTLED.id;
+                out.write(id);
+            }
+        } else {
+            out.writeByte(id);
+        }
     }
 
     public static AllocationDecision readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
-        switch (id) {
-            case 0:
-                return YES;
-            case 1:
-                return THROTTLED;
-            case 2:
-                return NO;
-            case 3:
-                return WORSE_BALANCE;
-            case 4:
-                return AWAITING_INFO;
-            case 5:
-                return ALLOCATION_DELAYED;
-            case 6:
-                return NO_VALID_SHARD_COPY;
-            case 7:
-                return NO_ATTEMPT;
-            default:
-                throw new IllegalArgumentException("Unknown value [" + id + "]");
+        if (in.getTransportVersion().supports(ADD_NOT_PREFERRED_ALLOCATION_DECISION) == false) {
+            // This is the old enum, without NOT_PREFERRED.
+            return switch (id) {
+                case 0 -> YES;
+                case 1 -> THROTTLED;
+                case 2 -> NO;
+                case 3 -> WORSE_BALANCE;
+                case 4 -> AWAITING_INFO;
+                case 5 -> ALLOCATION_DELAYED;
+                case 6 -> NO_VALID_SHARD_COPY;
+                case 7 -> NO_ATTEMPT;
+                default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
+            };
         }
+
+        return switch (id) {
+            case 0 -> YES;
+            case 1 -> THROTTLED;
+            case 2 -> NOT_PREFERRED;
+            case 3 -> NO;
+            case 4 -> WORSE_BALANCE;
+            case 5 -> AWAITING_INFO;
+            case 6 -> ALLOCATION_DELAYED;
+            case 7 -> NO_VALID_SHARD_COPY;
+            case 8 -> NO_ATTEMPT;
+            default -> throw new IllegalArgumentException("Unknown value [" + id + "]");
+        };
     }
 
     /**
@@ -104,21 +137,14 @@ public enum AllocationDecision implements Writeable {
         if (allocationStatus == null) {
             return YES;
         } else {
-            switch (allocationStatus) {
-                case DECIDERS_THROTTLED:
-                    return THROTTLED;
-                case FETCHING_SHARD_DATA:
-                    return AWAITING_INFO;
-                case DELAYED_ALLOCATION:
-                    return ALLOCATION_DELAYED;
-                case NO_VALID_SHARD_COPY:
-                    return NO_VALID_SHARD_COPY;
-                case NO_ATTEMPT:
-                    return NO_ATTEMPT;
-                default:
-                    assert allocationStatus == AllocationStatus.DECIDERS_NO : "unhandled AllocationStatus type [" + allocationStatus + "]";
-                    return NO;
-            }
+            return switch (allocationStatus) {
+                case DECIDERS_THROTTLED -> THROTTLED;
+                case FETCHING_SHARD_DATA -> AWAITING_INFO;
+                case DELAYED_ALLOCATION -> ALLOCATION_DELAYED;
+                case NO_VALID_SHARD_COPY -> NO_VALID_SHARD_COPY;
+                case NO_ATTEMPT -> NO_ATTEMPT;
+                case DECIDERS_NO -> NO;
+            };
         }
     }
 
@@ -126,15 +152,12 @@ public enum AllocationDecision implements Writeable {
      * Gets an {@link AllocationDecision} from a {@link Decision.Type}
      */
     public static AllocationDecision fromDecisionType(Decision.Type type) {
-        switch (type) {
-            case YES:
-                return YES;
-            case THROTTLE:
-                return THROTTLED;
-            default:
-                assert type == Decision.Type.NO;
-                return NO;
-        }
+        return switch (type) {
+            case YES -> YES;
+            case NOT_PREFERRED -> NOT_PREFERRED;
+            case THROTTLE -> THROTTLED;
+            case NO -> NO;
+        };
     }
 
     @Override

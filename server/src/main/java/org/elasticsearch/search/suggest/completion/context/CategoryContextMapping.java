@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
@@ -13,12 +14,13 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A {@link ContextMapping} that uses a simple string as a criteria
@@ -98,8 +99,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
      *  </ul>
      */
     @Override
-    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser)
-            throws IOException, ElasticsearchParseException {
+    public Set<String> parseContext(DocumentParserContext documentParserContext, XContentParser parser) throws IOException,
+        ElasticsearchParseException {
         final Set<String> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
@@ -110,12 +111,14 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
                     contexts.add(parser.text());
                 } else {
                     throw new ElasticsearchParseException(
-                            "context array must have string, number or boolean values, but was [" + token + "]");
+                        "context array must have string, number or boolean values, but was [" + token + "]"
+                    );
                 }
             }
         } else {
             throw new ElasticsearchParseException(
-                    "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]");
+                "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]"
+            );
         }
         return contexts;
     }
@@ -124,21 +127,20 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     public Set<String> parseContext(LuceneDocument document) {
         Set<String> values = null;
         if (fieldName != null) {
-            IndexableField[] fields = document.getFields(fieldName);
-            values = new HashSet<>(fields.length);
+            List<IndexableField> fields = document.getFields(fieldName);
+            values = Sets.newHashSetWithExpectedSize(fields.size());
             // TODO we should be checking mapped field types, not lucene field types
             for (IndexableField field : fields) {
-                if (field instanceof SortedDocValuesField ||
-                        field instanceof SortedSetDocValuesField ||
-                        field instanceof StoredField) {
+                if (field instanceof SortedDocValuesField || field instanceof SortedSetDocValuesField || field instanceof StoredField) {
                     // Ignore doc values and stored fields
                 } else if (field instanceof KeywordFieldMapper.KeywordField) {
                     values.add(field.binaryValue().utf8ToString());
                 } else if (field.stringValue() != null) {
                     values.add(field.stringValue());
                 } else {
-                    throw new IllegalArgumentException("Failed to parse context field [" + fieldName +
-                            "], only keyword and text fields are accepted");
+                    throw new IllegalArgumentException(
+                        "Failed to parse context field [" + fieldName + "], only keyword and text fields are accepted"
+                    );
                 }
             }
         }
@@ -173,7 +175,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         internalInternalQueryContexts.addAll(
             queryContexts.stream()
                 .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
-                .collect(Collectors.toList()));
+                .toList()
+        );
         return internalInternalQueryContexts;
     }
 

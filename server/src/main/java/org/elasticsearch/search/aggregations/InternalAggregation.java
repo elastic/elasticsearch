@@ -1,23 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.search.sort.SortValue;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -26,131 +29,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.IntConsumer;
-import java.util.function.Supplier;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, NamedWriteable {
-    /**
-     * Builds {@link ReduceContext}.
-     */
-    public interface ReduceContextBuilder {
-        /**
-         * Build a {@linkplain ReduceContext} to perform a partial reduction.
-         */
-        ReduceContext forPartialReduction();
-
-        /**
-         * Build a {@linkplain ReduceContext} to perform the final reduction.
-         */
-        ReduceContext forFinalReduction();
-    }
-
-    public static class ReduceContext {
-        private final BigArrays bigArrays;
-        private final ScriptService scriptService;
-        private final IntConsumer multiBucketConsumer;
-        private final PipelineTree pipelineTreeRoot;
-        /**
-         * Supplies the pipelines when the result of the reduce is serialized
-         * to node versions that need pipeline aggregators to be serialized
-         * to them.
-         */
-        private final Supplier<PipelineTree> pipelineTreeForBwcSerialization;
-
-        /**
-         * Build a {@linkplain ReduceContext} to perform a partial reduction.
-         */
-        public static ReduceContext forPartialReduction(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization
-        ) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
-        }
-
-        /**
-         * Build a {@linkplain ReduceContext} to perform the final reduction.
-         * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
-         */
-        public static ReduceContext forFinalReduction(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot
-        ) {
-            return new ReduceContext(
-                bigArrays,
-                scriptService,
-                multiBucketConsumer,
-                requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"),
-                () -> pipelineTreeRoot
-            );
-        }
-
-        private ReduceContext(
-            BigArrays bigArrays,
-            ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot,
-            Supplier<PipelineTree> pipelineTreeForBwcSerialization
-        ) {
-            this.bigArrays = bigArrays;
-            this.scriptService = scriptService;
-            this.multiBucketConsumer = multiBucketConsumer;
-            this.pipelineTreeRoot = pipelineTreeRoot;
-            this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
-        }
-
-        /**
-         * Returns <code>true</code> iff the current reduce phase is the final reduce phase. This indicates if operations like
-         * pipeline aggregations should be applied or if specific features like {@code minDocCount} should be taken into account.
-         * Operations that are potentially losing information can only be applied during the final reduce phase.
-         */
-        public boolean isFinalReduce() {
-            return pipelineTreeRoot != null;
-        }
-
-        public BigArrays bigArrays() {
-            return bigArrays;
-        }
-
-        public ScriptService scriptService() {
-            return scriptService;
-        }
-
-        /**
-         * The root of the tree of pipeline aggregations for this request.
-         */
-        public PipelineTree pipelineTreeRoot() {
-            return pipelineTreeRoot;
-        }
-
-        /**
-         * Supplies the pipelines when the result of the reduce is serialized
-         * to node versions that need pipeline aggregators to be serialized
-         * to them.
-         */
-        public Supplier<PipelineTree> pipelineTreeForBwcSerialization() {
-            return pipelineTreeForBwcSerialization;
-        }
-
-        /**
-         * Adds {@code count} buckets to the global count for the request and fails if this number is greater than
-         * the maximum number of buckets allowed in a response
-         */
-        public void consumeBucketsAndMaybeBreak(int size) {
-            multiBucketConsumer.accept(size);
-        }
-
-    }
-
     protected final String name;
-
     protected final Map<String, Object> metadata;
 
     /**
@@ -167,8 +51,15 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
-        name = in.readString();
-        metadata = in.readMap();
+        final String name = in.readString();
+        final Map<String, Object> metadata = in.readGenericMap();
+        if (in instanceof DelayableWriteable.Deduplicator d) {
+            this.name = d.deduplicate(name);
+            this.metadata = metadata == null || metadata.isEmpty() ? metadata : d.deduplicate(metadata);
+        } else {
+            this.name = name;
+            this.metadata = metadata;
+        }
     }
 
     @Override
@@ -220,7 +111,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      */
     public InternalAggregation reducePipelines(
         InternalAggregation reducedAggs,
-        ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         PipelineTree pipelinesForThisAgg
     ) {
         assert reduceContext.isFinalReduce();
@@ -231,26 +122,66 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     }
 
     /**
-     * Reduces the given aggregations to a single one and returns it. In <b>most</b> cases, the assumption will be the all given
-     * aggregations are of the same type (the same type as this aggregation). For best efficiency, when implementing,
-     * try reusing an existing instance (typically the first in the given list) to save on redundant object
-     * construction.
-     *
-     * @see #mustReduceOnSingleInternalAgg()
+     * Return an object that reduces several aggregations to a single one. This method handles the cases when the aggregation
+     * returns false in {@link #canLeadReduction()}. Otherwise, it calls {@link #getLeaderReducer(AggregationReduceContext, int)}
      */
-    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
+    public final AggregatorReducer getReducer(AggregationReduceContext reduceContext, int size) {
+        if (canLeadReduction()) {
+            return getLeaderReducer(reduceContext, size);
+        }
+        InternalAggregation current = this;
+        return new AggregatorReducer() {
+
+            AggregatorReducer aggregatorReducer = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                if (aggregatorReducer != null) {
+                    aggregatorReducer.accept(aggregation);
+                } else if (aggregation.canLeadReduction()) {
+                    aggregatorReducer = aggregation.getReducer(reduceContext, size);
+                    aggregatorReducer.accept(aggregation);
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return aggregatorReducer == null ? current : aggregatorReducer.get();
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(aggregatorReducer);
+            }
+        };
+    }
 
     /**
-     * Signal the framework if the {@linkplain InternalAggregation#reduce(List, ReduceContext)} phase needs to be called
+     * Return an object that Reduces several aggregations to a single one. This method is called when {@link #canLeadReduction()}
+     * returns true and expects an reducer that produces the right result.
+     */
+    protected abstract AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size);
+
+    /**
+     * Called by the parent sampling context. Should only ever be called once as some aggregations scale their internal values
+     * @param samplingContext the current sampling context
+     * @return new aggregation with the sampling context applied, could be the same aggregation instance if nothing needs to be done
+     */
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        throw new UnsupportedOperationException(getWriteableName() + " aggregation [" + getName() + "] does not support sampling");
+    }
+
+    /**
+     * Signal the framework if the {@linkplain AggregatorReducer} phase needs to be called
      * when there is only one {@linkplain InternalAggregation}.
      */
     protected abstract boolean mustReduceOnSingleInternalAgg();
 
     /**
-     * Return true if this aggregation is mapped, and can lead a reduction.  If this agg returns
-     * false, it should return itself if asked to lead a reduction
+     * Return true if this aggregation can lead a reduction (ie, is not unmapped or empty).  If this agg returns
+     * false, it should return itself if asked to lead a reduction.
      */
-    public boolean isMapped() {
+    public boolean canLeadReduction() {
         return true;
     }
 
@@ -341,7 +272,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     /**
      * Get value to use when sorting by this aggregation.
      */
-    public double sortValue(String key) {
+    public SortValue sortValue(String key) {
         // subclasses will override this with a real implementation if they can be sorted
         throw new IllegalArgumentException("Can't sort a [" + getType() + "] aggregation [" + getName() + "]");
     }
@@ -349,7 +280,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
     /**
      * Get value to use when sorting by a descendant of this aggregation.
      */
-    public double sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
+    public SortValue sortValue(AggregationPath.PathElement head, Iterator<AggregationPath.PathElement> tail) {
         // subclasses will override this with a real implementation if you can sort on a descendant
         throw new IllegalArgumentException("Can't sort by a descendant of a [" + getType() + "] aggregation [" + head + "]");
     }

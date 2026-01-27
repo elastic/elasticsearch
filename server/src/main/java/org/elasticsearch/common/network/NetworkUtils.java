@@ -1,15 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Predicates;
 
 import java.io.IOException;
 import java.net.Inet4Address;
@@ -42,7 +45,11 @@ public abstract class NetworkUtils {
      * @deprecated transition mechanism only
      */
     @Deprecated
-    static final boolean PREFER_V6 = Boolean.parseBoolean(System.getProperty("java.net.preferIPv6Addresses", "false"));
+    static final boolean PREFER_V6 = preferIPv6Addresses();
+
+    private static boolean preferIPv6Addresses() {
+        return Booleans.parseBooleanLenient(System.getProperty("java.net.preferIPv6Addresses", "false"), false);
+    }
 
     /**
      * True if we can bind to a v6 address. Its silly, but for *binding* we have a need to know
@@ -118,12 +125,7 @@ public abstract class NetworkUtils {
     static List<NetworkInterface> getInterfaces() throws SocketException {
         List<NetworkInterface> all = new ArrayList<>();
         addAllInterfaces(all, Collections.list(NetworkInterface.getNetworkInterfaces()));
-        Collections.sort(all, new Comparator<NetworkInterface>() {
-            @Override
-            public int compare(NetworkInterface left, NetworkInterface right) {
-                return Integer.compare(left.getIndex(), right.getIndex());
-            }
-        });
+        all.sort(Comparator.comparingInt(NetworkInterface::getIndex));
         return all;
     }
 
@@ -183,16 +185,17 @@ public abstract class NetworkUtils {
     /** Returns all global scope addresses for interfaces that are up. */
     static InetAddress[] getGlobalAddresses() throws IOException {
         return filterAllAddresses(
-                address -> address.isLoopbackAddress() == false
-                        && address.isSiteLocalAddress() == false
-                        && address.isLinkLocalAddress() == false,
-                "no up-and-running global-scope (public) addresses found");
+            address -> address.isLoopbackAddress() == false
+                && address.isSiteLocalAddress() == false
+                && address.isLinkLocalAddress() == false,
+            "no up-and-running global-scope (public) addresses found"
+        );
     }
 
     /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
     public static InetAddress[] getAllAddresses() throws IOException {
-        return filterAllAddresses(address -> true, "no up-and-running addresses found");
+        return filterAllAddresses(Predicates.always(), "no up-and-running addresses found");
     }
 
     static Optional<NetworkInterface> maybeGetInterfaceByName(List<NetworkInterface> networkInterfaces, String name) {
@@ -204,18 +207,34 @@ public abstract class NetworkUtils {
         Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), interfaceName);
 
         if (networkInterface.isPresent() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched no network interfaces; valid values include [" +
-                    getInterfaces().stream().map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
-                            .collect(Collectors.joining(", ")) + "]");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched no network interfaces; valid values include ["
+                    + getInterfaces().stream()
+                        .map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
+                        .collect(Collectors.joining(", "))
+                    + "]"
+            );
         }
         if (networkInterface.get().isUp() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface is not up and running");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface is not up and running"
+            );
         }
         List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface has no internet addresses");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface has no internet addresses"
+            );
         }
         return list.toArray(new InetAddress[list.size()]);
     }

@@ -23,15 +23,12 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsServer;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
-import javax.net.ssl.TrustManagerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -45,10 +42,21 @@ import java.security.PrivilegedAction;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateFactory;
 import java.security.spec.PKCS8EncodedKeySpec;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLHandshakeException;
+import javax.net.ssl.TrustManagerFactory;
+
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -81,7 +89,6 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
     }
 
     public void testBuilderUsesDefaultSSLContext() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final SSLContext defaultSSLContext = SSLContext.getDefault();
         try {
             try (RestClient client = buildRestClient()) {
@@ -89,14 +96,52 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
                     client.performRequest(new Request("GET", "/"));
                     fail("connection should have been rejected due to SSL handshake");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(SSLHandshakeException.class));
+                    if (inFipsJvm()) {
+                        // Bouncy Castle throw a different exception
+                        assertThat(e, instanceOf(IOException.class));
+                        assertThat(e.getCause(), instanceOf(javax.net.ssl.SSLException.class));
+                    } else {
+                        assertThat(e, instanceOf(SSLHandshakeException.class));
+                    }
                 }
             }
-
             SSLContext.setDefault(getSslContext());
             try (RestClient client = buildRestClient()) {
                 Response response = client.performRequest(new Request("GET", "/"));
                 assertEquals(200, response.getStatusLine().getStatusCode());
+            }
+        } finally {
+            SSLContext.setDefault(defaultSSLContext);
+        }
+    }
+
+    public void testBuilderSetsThreadName() throws Exception {
+        final SSLContext defaultSSLContext = SSLContext.getDefault();
+        try {
+            SSLContext.setDefault(getSslContext());
+            try (RestClient client = buildRestClient()) {
+                final CountDownLatch latch = new CountDownLatch(1);
+                client.performRequestAsync(new Request("GET", "/"), new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        assertThat(
+                            Thread.currentThread().getName(),
+                            allOf(
+                                startsWith(RestClientBuilder.THREAD_NAME_PREFIX),
+                                containsString("elasticsearch"),
+                                containsString("rest-client")
+                            )
+                        );
+                        assertEquals(200, response.getStatusLine().getStatusCode());
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        throw new AssertionError("unexpected", exception);
+                    }
+                });
+                assertTrue(latch.await(10, TimeUnit.SECONDS));
             }
         } finally {
             SSLContext.setDefault(defaultSSLContext);
@@ -110,18 +155,25 @@ public class RestClientBuilderIntegTests extends RestClientTestCase {
 
     private static SSLContext getSslContext() throws Exception {
         SSLContext sslContext = SSLContext.getInstance(getProtocol());
-        try (InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
-             InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")) {
+        try (
+            InputStream certFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test.crt");
+            InputStream keyStoreFile = RestClientBuilderIntegTests.class.getResourceAsStream("/test_truststore.jks")
+        ) {
             // Build a keystore of default type programmatically since we can't use JKS keystores to
             // init a KeyManagerFactory in FIPS 140 JVMs.
             KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
             keyStore.load(null, "password".toCharArray());
             CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class
-                .getResource("/test.der").toURI())));
+            PKCS8EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(
+                Files.readAllBytes(Paths.get(RestClientBuilderIntegTests.class.getResource("/test.der").toURI()))
+            );
             KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            keyStore.setKeyEntry("mykey", keyFactory.generatePrivate(privateKeySpec), "password".toCharArray(),
-                new Certificate[]{certFactory.generateCertificate(certFile)});
+            keyStore.setKeyEntry(
+                "mykey",
+                keyFactory.generatePrivate(privateKeySpec),
+                "password".toCharArray(),
+                new Certificate[] { certFactory.generateCertificate(certFile) }
+            );
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, "password".toCharArray());
             KeyStore trustStore = KeyStore.getInstance("JKS");

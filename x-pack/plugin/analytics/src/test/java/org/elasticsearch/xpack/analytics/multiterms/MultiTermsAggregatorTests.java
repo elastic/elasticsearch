@@ -15,17 +15,19 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -39,7 +41,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -112,11 +114,17 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     public void testIntegersFloatsAndStrings() throws IOException {
-        testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
@@ -166,7 +174,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNullFields() throws IOException {
-        testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
             iw.addDocument(
                 List.of(new FloatDocValuesField(FLOAT_FIELD, 1.0f), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
             );
@@ -205,7 +213,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMissingFields() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).setMissing("z").build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setMissing(0).build(),
@@ -262,7 +270,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSortedNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
                 List.of(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")), new SortedNumericDocValuesField(INT_FIELD, 1))
             );
@@ -287,7 +295,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMultiValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
                 List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
@@ -325,7 +333,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     public void testScripts() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setScript(
@@ -414,7 +422,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSort() throws IOException {
-        testCase(new MatchAllDocsQuery(), new String[] { INT_FIELD, KEYWORD_FIELD }, b -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, new String[] { INT_FIELD, KEYWORD_FIELD }, b -> {
             b.order(BucketOrder.aggregation("max_float", true));
             b.subAggregation(new MaxAggregationBuilder("max_float").field(FLOAT_FIELD));
         }, iw -> {
@@ -458,25 +466,25 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
             assertThat(h.getBuckets().get(0).getKey(), contains(equalTo(3L), equalTo("b")));
             assertThat(h.getBuckets().get(0).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(0).getAggregations().get("max_float"))).value(), closeTo(2.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(0).getAggregations().get("max_float"))).value(), closeTo(2.0, 0.00001));
 
             assertThat(h.getBuckets().get(1).getKey(), contains(equalTo(1L), equalTo("a")));
             assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(1).getAggregations().get("max_float"))).value(), closeTo(3.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(1).getAggregations().get("max_float"))).value(), closeTo(3.0, 0.00001));
 
             assertThat(h.getBuckets().get(2).getKey(), contains(equalTo(2L), equalTo("a")));
             assertThat(h.getBuckets().get(2).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(2).getAggregations().get("max_float"))).value(), closeTo(4.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(2).getAggregations().get("max_float"))).value(), closeTo(4.0, 0.00001));
 
             assertThat(h.getBuckets().get(3).getKey(), contains(equalTo(3L), equalTo("a")));
             assertThat(h.getBuckets().get(3).getDocCount(), equalTo(2L));
-            assertThat(((InternalMax) (h.getBuckets().get(3).getAggregations().get("max_float"))).value(), closeTo(5.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(3).getAggregations().get("max_float"))).value(), closeTo(5.0, 0.00001));
         });
     }
 
     public void testFormatter() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
@@ -515,7 +523,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     public void testDates() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
@@ -542,7 +550,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     public void testMinDocCount() throws IOException {
         testCase(
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
@@ -572,13 +580,9 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> testCase(
-                    new MatchAllDocsQuery(),
-                    terms,
-                    null,
-                    iw -> { iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3))); },
-                    h -> fail("Should have thrown exception")
-                )
+                () -> testCase(Queries.ALL_DOCS_INSTANCE, terms, null, iw -> {
+                    iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3)));
+                }, h -> fail("Should have thrown exception"))
             );
             if (terms == null) {
                 assertEquals("[terms] must not be null: [my_terms]", ex.getMessage());
@@ -591,6 +595,33 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             }
         }
 
+    }
+
+    public void testShardSize() throws IOException {
+        testCase(
+            Queries.ALL_DOCS_INSTANCE,
+            List.of(
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).build(),
+                new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build()
+            ),
+            ab -> ab.size(1).shardSize(1),
+            iw -> {
+                for (int i = 0; i < 100; i++) {
+                    iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 1)));
+                    if (i < 80) {
+                        iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 2)));
+                    }
+                    if (i < 60) {
+                        iw.addDocument(docWithDate("2020-01-01", new NumericDocValuesField(INT_FIELD, 3)));
+                    }
+                }
+            },
+            h -> {
+                assertThat(h.getBuckets(), hasSize(1));
+                assertThat(h.getBuckets().get(0).getDocCount(), equalTo(100L));
+            },
+            false
+        );
     }
 
     private void testCase(
@@ -614,6 +645,17 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalMultiTerms> verify
     ) throws IOException {
+        testCase(query, terms, builderSetup, buildIndex, verify, randomBoolean());
+    }
+
+    private void testCase(
+        Query query,
+        List<MultiValuesSourceFieldConfig> terms,
+        Consumer<MultiTermsAggregationBuilder> builderSetup,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalMultiTerms> verify,
+        boolean withSplitLeavesIntoSeparateAggregators
+    ) throws IOException {
         MappedFieldType dateType = dateFieldType(DATE_FIELD);
         MappedFieldType intType = new NumberFieldMapper.NumberFieldType(INT_FIELD, NumberFieldMapper.NumberType.INTEGER);
         MappedFieldType floatType = new NumberFieldMapper.NumberFieldType(FLOAT_FIELD, NumberFieldMapper.NumberType.FLOAT);
@@ -634,7 +676,9 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 builder.size(randomIntBetween(10, 200));
             }
         }
-        testCase(builder, query, buildIndex, verify, dateType, intType, floatType, keywordType);
+        AggTestConfig aggTestConfig = new AggTestConfig(builder, dateType, intType, floatType, keywordType).withQuery(query)
+            .withSplitLeavesIntoSeperateAggregators(withSplitLeavesIntoSeparateAggregators);
+        testCase(buildIndex, verify, aggTestConfig);
     }
 
     @Override
@@ -645,7 +689,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType dateFieldType(String name) {
         return new DateFieldMapper.DateFieldType(
             name,
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFormatter.forPattern("strict_date"),

@@ -1,30 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.get;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.RandomCreateIndexGenerator;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Predicate;
 
-public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSettingsResponse> {
+public class GetSettingsResponseTests extends ESTestCase {
 
-    @Override
     protected GetSettingsResponse createTestInstance() {
         HashMap<String, Settings> indexToSettings = new HashMap<>();
         HashMap<String, Settings> indexToDefaultSettings = new HashMap<>();
@@ -33,7 +29,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
 
         Set<String> indexNames = new HashSet<String>();
         int numIndices = randomIntBetween(1, 5);
-        for (int x=0;x<numIndices;x++) {
+        for (int x = 0; x < numIndices; x++) {
             String indexName = randomAlphaOfLength(5);
             indexNames.add(indexName);
         }
@@ -48,9 +44,6 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             builder.put("index.refresh_interval", "1s");
             indexToSettings.put(indexName, builder.build());
         }
-        ImmutableOpenMap<String, Settings> immutableIndexToSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToSettings).build();
-
 
         if (randomBoolean()) {
             for (String indexName : indexToSettings.keySet()) {
@@ -59,26 +52,11 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             }
         }
 
-        ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings =
-            ImmutableOpenMap.<String, Settings>builder().putAll(indexToDefaultSettings).build();
-
-        return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);
+        return new GetSettingsResponse(indexToSettings, indexToDefaultSettings);
     }
 
-    @Override
-    protected Writeable.Reader<GetSettingsResponse> instanceReader() {
-        return GetSettingsResponse::new;
-    }
-
-    @Override
-    protected GetSettingsResponse doParseInstance(XContentParser parser) throws IOException {
-        return GetSettingsResponse.fromXContent(parser);
-    }
-
-    @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        //we do not want to add new fields at the root (index-level), or inside settings blocks
-        return f -> f.equals("") || f.contains(".settings") || f.contains(".defaults");
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), response -> 2 + response.getIndexToSettings().size());
     }
 
 }

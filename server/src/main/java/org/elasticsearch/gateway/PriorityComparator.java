@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -11,7 +12,6 @@ package org.elasticsearch.gateway;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
 import java.util.Comparator;
@@ -32,36 +32,26 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
 
     @Override
     public final int compare(ShardRouting o1, ShardRouting o2) {
-        final String o1Index = o1.getIndexName();
-        final String o2Index = o2.getIndexName();
+        final Index o1Index = o1.index();
+        final Index o2Index = o2.index();
         int cmp = 0;
         if (o1Index.equals(o2Index) == false) {
-            final IndexMetadata metadata01 = getMetadata(o1.index());
-            final IndexMetadata metadata02 = getMetadata(o2.index());
+            final IndexMetadata metadata01 = getMetadata(o1Index);
+            final IndexMetadata metadata02 = getMetadata(o2Index);
             cmp = Boolean.compare(metadata02.isSystem(), metadata01.isSystem());
 
             if (cmp == 0) {
-                final Settings settingsO1 = metadata01.getSettings();
-                final Settings settingsO2 = metadata02.getSettings();
-                cmp = Long.compare(priority(settingsO2), priority(settingsO1));
+                cmp = Long.compare(metadata02.priority(), metadata01.priority());
 
                 if (cmp == 0) {
-                    cmp = Long.compare(timeCreated(settingsO2), timeCreated(settingsO1));
+                    cmp = Long.compare(metadata02.getCreationDate(), metadata01.getCreationDate());
                     if (cmp == 0) {
-                        cmp = o2Index.compareTo(o1Index);
+                        cmp = o2Index.getName().compareTo(o1Index.getName());
                     }
                 }
             }
         }
         return cmp;
-    }
-
-    private static int priority(Settings settings) {
-        return IndexMetadata.INDEX_PRIORITY_SETTING.get(settings);
-    }
-
-    private static long timeCreated(Settings settings) {
-        return settings.getAsLong(IndexMetadata.SETTING_CREATION_DATE, -1L);
     }
 
     protected abstract IndexMetadata getMetadata(Index index);
@@ -73,7 +63,7 @@ public abstract class PriorityComparator implements Comparator<ShardRouting> {
         return new PriorityComparator() {
             @Override
             protected IndexMetadata getMetadata(Index index) {
-                return allocation.metadata().getIndexSafe(index);
+                return allocation.metadata().indexMetadata(index);
             }
         };
     }

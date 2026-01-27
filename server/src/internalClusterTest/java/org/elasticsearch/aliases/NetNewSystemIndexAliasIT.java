@@ -1,33 +1,34 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aliases;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
@@ -43,13 +44,13 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
         {
             final IndexRequest request = new IndexRequest(SYSTEM_INDEX_NAME);
             request.source("some_field", "some_value");
-            IndexResponse resp = client().index(request).get();
+            DocWriteResponse resp = client().index(request).get();
             assertThat(resp.status().getStatus(), is(201));
         }
         ensureGreen();
 
-        GetAliasesRequest getAliasesRequest = new GetAliasesRequest();
-        GetAliasesResponse aliasResponse = client().admin().indices().getAliases(getAliasesRequest).get();
+        GetAliasesRequest getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
+        GetAliasesResponse aliasResponse = indicesAdmin().getAliases(getAliasesRequest).get();
         assertThat(aliasResponse.getAliases().size(), is(0));
     }
 
@@ -68,6 +69,7 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 {
                     builder.startObject("_meta");
                     builder.field("version", Version.CURRENT.toString());
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, 1);
                     builder.endObject();
 
                     builder.field("dynamic", "strict");
@@ -81,17 +83,17 @@ public class NetNewSystemIndexAliasIT extends ESIntegTestCase {
                 }
                 builder.endObject();
 
-                return Collections.singletonList(SystemIndexDescriptor.builder()
-                    .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                    .setPrimaryIndex(SYSTEM_INDEX_NAME)
-                    .setDescription("Test system index")
-                    .setOrigin(getClass().getName())
-                    .setVersionMetaKey("version")
-                    .setMappings(builder)
-                    .setSettings(SETTINGS)
-                    .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-                    .setNetNew()
-                    .build()
+                return Collections.singletonList(
+                    SystemIndexDescriptor.builder()
+                        .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                        .setPrimaryIndex(SYSTEM_INDEX_NAME)
+                        .setDescription("Test system index")
+                        .setOrigin(getClass().getName())
+                        .setMappings(builder)
+                        .setSettings(SETTINGS)
+                        .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
+                        .setNetNew()
+                        .build()
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);

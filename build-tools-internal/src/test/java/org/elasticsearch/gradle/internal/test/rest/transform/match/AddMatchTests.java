@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.transform.match;
@@ -13,6 +14,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.hamcrest.CoreMatchers;
 import org.junit.Test;
@@ -20,6 +23,12 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 public class AddMatchTests extends TransformTests {
 
@@ -30,10 +39,10 @@ public class AddMatchTests extends TransformTests {
     public void testAddAllNotSupported() throws Exception {
         String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
-        JsonNode addNode = MAPPER.convertValue("_doc", JsonNode.class);
+        var addNode = SerializableJsonNode.of("_doc", JsonNode.class);
         assertEquals(
             "adding matches is only supported for named tests",
-            expectThrows(
+            assertThrows(
                 NullPointerException.class,
                 () -> transformTests(tests, Collections.singletonList(new AddMatch("_type", addNode, null)))
             ).getMessage()
@@ -44,7 +53,7 @@ public class AddMatchTests extends TransformTests {
     public void testAddByTest() throws Exception {
         String testName = "/rest/transform/match/match_original.yml";
         List<ObjectNode> tests = getTests(testName);
-        JsonNode addNode = MAPPER.convertValue(123456789, JsonNode.class);
+        var addNode = SerializableJsonNode.of(123456789, JsonNode.class);
         validateTest(tests, true);
         List<ObjectNode> transformedTests = transformTests(
             tests,
@@ -88,7 +97,6 @@ public class AddMatchTests extends TransformTests {
                 if (lastTestHasAddedObject.get() == false && matchObject.get("my_number") != null) {
                     lastTestHasAddedObject.set(true);
                 }
-
             }
         });
         assertTrue(lastTestHasMatchObject.get());

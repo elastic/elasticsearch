@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -20,12 +21,12 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 
-public class Table {
+public final class Table {
 
     private List<Cell> headers = new ArrayList<>();
-    private List<List<Cell>> rows = new ArrayList<>();
-    private Map<String, List<Cell>> map = new HashMap<>();
-    private Map<String, Cell> headerMap = new HashMap<>();
+    private final List<List<Cell>> rows = new ArrayList<>();
+    private final Map<String, List<Cell>> map = new HashMap<>();
+    private final Map<String, Cell> headerMap = new HashMap<>();
     private List<Cell> currentCells;
     private boolean inHeaders = false;
     private boolean withTime = false;
@@ -45,7 +46,6 @@ public class Table {
         addCell("timestamp", "alias:ts,hms,hhmmss;desc:time in HH:MM:SS");
         return this;
     }
-
 
     public Table endHeaders() {
         if (currentCells == null || currentCells.isEmpty()) {
@@ -201,7 +201,7 @@ public class Table {
         return headerAliasMap;
     }
 
-    public static class Cell {
+    public static final class Cell {
         public final Object value;
         public final Map<String, String> attr;
 

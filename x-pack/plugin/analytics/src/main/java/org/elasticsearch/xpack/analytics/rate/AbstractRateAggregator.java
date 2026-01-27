@@ -29,10 +29,12 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     private final Rounding.DateTimeUnit rateUnit;
     protected final RateMode rateMode;
     private final SizedBucketAggregator sizedBucketAggregator;
+    protected final boolean computeWithDocCount;
 
     protected DoubleArray sums;
     protected DoubleArray compensations;
 
+    @SuppressWarnings("this-escape")
     public AbstractRateAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
@@ -55,23 +57,25 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
         this.sizedBucketAggregator = findSizedBucketAncestor();
+        // If no fields or scripts have been defined in the agg, rate should be computed based on bucket doc_counts
+        this.computeWithDocCount = valuesSourceConfig.fieldContext() == null && valuesSourceConfig.script() == null;
     }
 
     private SizedBucketAggregator findSizedBucketAncestor() {
-        SizedBucketAggregator sizedBucketAggregator = null;
+        SizedBucketAggregator aggregator = null;
         for (Aggregator ancestor = parent; ancestor != null; ancestor = ancestor.parent()) {
             if (ancestor instanceof SizedBucketAggregator) {
-                sizedBucketAggregator = (SizedBucketAggregator) ancestor;
+                aggregator = (SizedBucketAggregator) ancestor;
                 break;
             }
         }
-        if (sizedBucketAggregator == null) {
+        if (aggregator == null) {
             throw new IllegalArgumentException(
                 "The rate aggregation can only be used inside a date histogram aggregation or "
                     + "composite aggregation with one date histogram value source"
             );
         }
-        return sizedBucketAggregator;
+        return aggregator;
     }
 
     @Override
@@ -112,5 +116,4 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
     public void doClose() {
         Releasables.close(sums, compensations);
     }
-
 }

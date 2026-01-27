@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -28,8 +29,10 @@ public class AnalyzerCasterTests extends ESTestCase {
         assertEquals(expected, cast.targetType);
 
         if (mustBeExplicit) {
-            ClassCastException error = expectThrows(ClassCastException.class,
-                    () -> AnalyzerCaster.getLegalCast(location, actual, expected, false, false));
+            ClassCastException error = expectThrows(
+                ClassCastException.class,
+                () -> AnalyzerCaster.getLegalCast(location, actual, expected, false, false)
+            );
             assertTrue(error.getMessage().startsWith("Cannot cast"));
         } else {
             cast = AnalyzerCaster.getLegalCast(location, actual, expected, false, false);

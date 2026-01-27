@@ -6,13 +6,9 @@
  */
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -21,9 +17,15 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.TimeSeriesValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,10 +34,10 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SIZE_FIELD;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";
@@ -48,7 +50,12 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
         registry.registerUsage(NAME);
-        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, false);
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, TimeSeriesValuesSourceType.COUNTER),
+            TopMetricsAggregator::buildNumericMetricValues,
+            false
+        );
         registry.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
@@ -93,6 +100,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         PARSER.declareInt(optionalConstructorArg(), SIZE_FIELD);
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.parserBuilder(
             true,
+            false,
             false,
             false,
             false
@@ -142,18 +150,28 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
      */
     public TopMetricsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
-        @SuppressWarnings("unchecked")
-        List<SortBuilder<?>> sortBuilders = (List<SortBuilder<?>>) (List<?>) in.readNamedWriteableList(SortBuilder.class);
+        @SuppressWarnings({ "unchecked", "HiddenField" })
+        List<SortBuilder<?>> sortBuilders = (List<SortBuilder<?>>) (List<?>) in.readNamedWriteableCollectionAsList(SortBuilder.class);
         this.sortBuilders = sortBuilders;
         this.size = in.readVInt();
-        this.metricFields = in.readList(MultiValuesSourceFieldConfig::new);
+        this.metricFields = in.readCollectionAsList(MultiValuesSourceFieldConfig::new);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteableList(sortBuilders);
+        out.writeNamedWriteableCollection(sortBuilders);
         out.writeVInt(size);
-        out.writeList(metricFields);
+        out.writeCollection(metricFields);
+    }
+
+    @Override
+    public TopMetricsAggregationBuilder subAggregations(Builder subFactories) {
+        throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
     }
 
     @Override
@@ -211,6 +229,11 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
 
     @Override
     public Optional<Set<String>> getOutputFieldNames() {
-        return Optional.of(metricFields.stream().map(mf -> mf.getFieldName()).collect(Collectors.toSet()));
+        return Optional.of(metricFields.stream().map(MultiValuesSourceFieldConfig::getFieldName).collect(Collectors.toSet()));
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.zero();
     }
 }

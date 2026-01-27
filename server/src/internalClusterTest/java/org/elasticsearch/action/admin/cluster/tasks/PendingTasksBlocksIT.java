@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.tasks;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
@@ -21,6 +23,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class PendingTasksBlocksIT extends ESIntegTestCase {
 
     public void testPendingTasksWithIndexBlocks() {
@@ -28,12 +31,17 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // This test checks that the Pending Cluster Tasks operation is never blocked, even if an index is read only or whatever.
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA,
-            SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_BLOCKS_METADATA,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
-                PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
-                assertNotNull(response.getPendingTasks());
+                PendingClusterTasksResponse response = getClusterPendingTasks();
+                assertNotNull(response.pendingTasks());
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
@@ -48,8 +56,8 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
 
         try {
             setClusterReadOnly(true);
-            PendingClusterTasksResponse response = client().admin().cluster().preparePendingClusterTasks().get();
-            assertNotNull(response.getPendingTasks());
+            PendingClusterTasksResponse response = getClusterPendingTasks();
+            assertNotNull(response.pendingTasks());
         } finally {
             setClusterReadOnly(false);
         }
@@ -62,13 +70,11 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
         }
 
         // restart the cluster but prevent it from performing state recovery
-        final int nodeCount = client().admin().cluster().prepareNodesInfo("data:true").get().getNodes().size();
+        final int nodeCount = clusterAdmin().prepareNodesInfo("data:true").get().getNodes().size();
         internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) {
-                return Settings.builder()
-                    .put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), nodeCount + 1)
-                    .build();
+                return Settings.builder().put(GatewayService.RECOVER_AFTER_DATA_NODES_SETTING.getKey(), nodeCount + 1).build();
             }
 
             @Override
@@ -77,7 +83,7 @@ public class PendingTasksBlocksIT extends ESIntegTestCase {
             }
         });
 
-        assertNotNull(client().admin().cluster().preparePendingClusterTasks().get().getPendingTasks());
+        assertNotNull(getClusterPendingTasks().pendingTasks());
 
         // starting one more node allows the cluster to recover
         internalCluster().startNode();

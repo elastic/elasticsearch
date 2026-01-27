@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.core.ml.stats;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats.Fields;
 
 import java.io.IOException;
@@ -233,13 +232,23 @@ public class ForecastStatsTests extends AbstractWireSerializingTestCase<Forecast
     }
 
     @Override
+    protected ForecastStats mutateInstance(ForecastStats instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
     protected Reader<ForecastStats> instanceReader() {
         return ForecastStats::new;
     }
 
     public ForecastStats createForecastStats(long minTotal, long maxTotal) {
-        ForecastStats forecastStats = new ForecastStats(randomLongBetween(minTotal, maxTotal), createStatsAccumulator(),
-                createStatsAccumulator(), createStatsAccumulator(), createCountAccumulator());
+        ForecastStats forecastStats = new ForecastStats(
+            randomLongBetween(minTotal, maxTotal),
+            createStatsAccumulator(),
+            createStatsAccumulator(),
+            createStatsAccumulator(),
+            createCountAccumulator()
+        );
 
         return forecastStats;
     }

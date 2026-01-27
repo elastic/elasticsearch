@@ -8,19 +8,18 @@ package org.elasticsearch.xpack.security.crypto.tool;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -31,7 +30,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
-public class SystemKeyTool extends EnvironmentAwareCommand {
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+
+class SystemKeyTool extends EnvironmentAwareCommand {
 
     static final String KEY_ALGO = "HmacSHA512";
     static final int KEY_SIZE = 1024;
@@ -43,23 +45,13 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         arguments = parser.nonOptions("key path");
     }
 
-    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Sets.newHashSet(PosixFilePermission.OWNER_READ,
-            PosixFilePermission.OWNER_WRITE);
-
-    public static void main(String[] args) throws Exception {
-        final SystemKeyTool tool = new SystemKeyTool();
-        int status = main(tool, args, Terminal.DEFAULT);
-        if (status != ExitCodes.OK) {
-            exit(status);
-        }
-    }
-
-    static int main(SystemKeyTool tool, String[] args, Terminal terminal) throws Exception {
-        return tool.main(args, terminal);
-    }
+    public static final Set<PosixFilePermission> PERMISSION_OWNER_READ_WRITE = Set.of(
+        PosixFilePermission.OWNER_READ,
+        PosixFilePermission.OWNER_WRITE
+    );
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Path keyPath;
 
         if (options.hasArgument(arguments)) {
@@ -82,8 +74,10 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         PosixFileAttributeView view = Files.getFileAttributeView(keyPath, PosixFileAttributeView.class);
         if (view != null) {
             view.setPermissions(PERMISSION_OWNER_READ_WRITE);
-            terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, "
-                    + "permissions are set to owner read/write only");
+            terminal.println(
+                "Ensure the generated key can be read by the user that Elasticsearch runs as, "
+                    + "permissions are set to owner read/write only"
+            );
         }
     }
 
@@ -100,7 +94,6 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
             throw new ElasticsearchException("failed to generate key", e);
         }
     }
-
 
     @SuppressForbidden(reason = "Parsing command line path")
     private static Path parsePath(String path) {

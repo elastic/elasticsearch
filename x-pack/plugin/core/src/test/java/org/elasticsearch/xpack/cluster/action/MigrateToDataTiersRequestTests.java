@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.cluster.action;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import java.io.IOException;
-
 public class MigrateToDataTiersRequestTests extends AbstractWireSerializingTestCase<MigrateToDataTiersRequest> {
 
     @Override
@@ -21,11 +19,22 @@ public class MigrateToDataTiersRequestTests extends AbstractWireSerializingTestC
 
     @Override
     protected MigrateToDataTiersRequest createTestInstance() {
-        return new MigrateToDataTiersRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return new MigrateToDataTiersRequest(TEST_REQUEST_TIMEOUT, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     @Override
-    protected MigrateToDataTiersRequest mutateInstance(MigrateToDataTiersRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+    protected MigrateToDataTiersRequest mutateInstance(MigrateToDataTiersRequest instance) {
+        boolean isDryRun = instance.isDryRun();
+        String legacyTemplateToDelete = instance.getLegacyTemplateToDelete();
+        String nodeAttributeName = instance.getNodeAttributeName();
+        switch (between(0, 2)) {
+            case 0 -> isDryRun = isDryRun == false;
+            case 1 -> legacyTemplateToDelete = randomValueOtherThan(legacyTemplateToDelete, () -> randomAlphaOfLength(10));
+            case 2 -> nodeAttributeName = randomValueOtherThan(nodeAttributeName, () -> randomAlphaOfLength(10));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        MigrateToDataTiersRequest mutated = new MigrateToDataTiersRequest(TEST_REQUEST_TIMEOUT, legacyTemplateToDelete, nodeAttributeName);
+        mutated.setDryRun(isDryRun);
+        return mutated;
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
@@ -11,12 +12,8 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
@@ -30,7 +27,10 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
 
 /**
  * A {@link SslKeyConfig} that builds a Key Manager from a keystore file.
@@ -55,8 +55,15 @@ public class StoreKeyConfig implements SslKeyConfig {
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).
      * @param configBasePath The base path for configuration files (used for error handling)
      */
-    public StoreKeyConfig(String path, char[] storePassword, String type, @Nullable Function<KeyStore, KeyStore> filter,
-                          char[] keyPassword, String algorithm, Path configBasePath) {
+    public StoreKeyConfig(
+        String path,
+        char[] storePassword,
+        String type,
+        @Nullable Function<KeyStore, KeyStore> filter,
+        char[] keyPassword,
+        String algorithm,
+        Path configBasePath
+    ) {
         this.keystorePath = Objects.requireNonNull(path, "Keystore path cannot be null");
         this.storePassword = Objects.requireNonNull(storePassword, "Keystore password cannot be null (but may be empty)");
         this.type = Objects.requireNonNull(type, "Keystore type cannot be null");
@@ -113,24 +120,22 @@ public class StoreKeyConfig implements SslKeyConfig {
                 return null;
             })
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     @Override
     public Collection<StoredCertificate> getConfiguredCertificates() {
         final Path path = resolvePath();
         final KeyStore keyStore = readKeyStore(path);
-        return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex))
-            .flatMap(entry -> {
-                final List<StoredCertificate> certificates = new ArrayList<>();
-                boolean firstElement = true;
-                for (X509Certificate certificate : entry.getX509CertificateChain()) {
-                    certificates.add(new StoredCertificate(certificate, keystorePath, type, entry.getAlias(), firstElement));
-                    firstElement = false;
-                }
-                return certificates.stream();
-            })
-            .collect(Collectors.toUnmodifiableList());
+        return KeyStoreUtil.stream(keyStore, ex -> keystoreException(path, ex)).flatMap(entry -> {
+            final List<StoredCertificate> certificates = new ArrayList<>();
+            boolean firstElement = true;
+            for (X509Certificate certificate : entry.getX509CertificateChain()) {
+                certificates.add(new StoredCertificate(certificate, keystorePath, type, entry.getAlias(), firstElement));
+                firstElement = false;
+            }
+            return certificates.stream();
+        }).toList();
     }
 
     @Override
@@ -160,7 +165,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     private KeyStore readKeyStore(Path path) {
         try {
             return KeyStoreUtil.readKeyStore(path, type, storePassword);
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure("[" + type + "] keystore", List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException("[" + type + "] keystore", List.of(path), e);
@@ -185,7 +190,7 @@ public class StoreKeyConfig implements SslKeyConfig {
     /**
      * Verifies that the keystore contains at least 1 private key entry.
      */
-    private void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
+    private static void checkKeyStore(KeyStore keyStore, Path path) throws KeyStoreException {
         Enumeration<String> aliases = keyStore.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();

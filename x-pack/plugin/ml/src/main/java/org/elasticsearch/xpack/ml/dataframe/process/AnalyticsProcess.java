@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.xpack.ml.process.NativeProcess;
 
 import java.io.IOException;

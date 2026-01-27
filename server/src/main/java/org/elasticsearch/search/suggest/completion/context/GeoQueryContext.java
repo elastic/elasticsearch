@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -102,14 +103,23 @@ public final class GeoQueryContext implements ToXContentObject {
 
     private static final ObjectParser<GeoQueryContext.Builder, Void> GEO_CONTEXT_PARSER = new ObjectParser<>(NAME);
     static {
-        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext,
-                geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
-                new ParseField(CONTEXT_VALUE), ObjectParser.ValueType.OBJECT);
+        GEO_CONTEXT_PARSER.declareField(
+            (parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)),
+            new ParseField(CONTEXT_VALUE),
+            ObjectParser.ValueType.OBJECT
+        );
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext.Builder::setBoost, new ParseField(CONTEXT_BOOST));
-        GEO_CONTEXT_PARSER.declareField((parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
-            new ParseField(CONTEXT_PRECISION), ObjectParser.ValueType.INT);
-        GEO_CONTEXT_PARSER.declareFieldArray(GeoQueryContext.Builder::setNeighbours, (parser, builder) -> parsePrecision(parser),
-            new ParseField(CONTEXT_NEIGHBOURS), ObjectParser.ValueType.INT_ARRAY);
+        GEO_CONTEXT_PARSER.declareField(
+            (parser, builder, context) -> builder.setPrecision(parsePrecision(parser)),
+            new ParseField(CONTEXT_PRECISION),
+            ObjectParser.ValueType.INT
+        );
+        GEO_CONTEXT_PARSER.declareFieldArray(
+            GeoQueryContext.Builder::setNeighbours,
+            (parser, builder) -> parsePrecision(parser),
+            new ParseField(CONTEXT_NEIGHBOURS),
+            ObjectParser.ValueType.INT_ARRAY
+        );
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLat, new ParseField("lat"));
         GEO_CONTEXT_PARSER.declareDouble(GeoQueryContext.Builder::setLon, new ParseField("lon"));
     }
@@ -147,8 +157,7 @@ public final class GeoQueryContext implements ToXContentObject {
         private int precision = 12;
         private List<Integer> neighbours = Collections.emptyList();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         /**
          * Sets the query-time boost for the context
@@ -199,11 +208,13 @@ public final class GeoQueryContext implements ToXContentObject {
         }
 
         private double lat = Double.NaN;
+
         void setLat(double lat) {
             this.lat = lat;
         }
 
         private double lon = Double.NaN;
+
         void setLon(double lon) {
             this.lon = lon;
         }

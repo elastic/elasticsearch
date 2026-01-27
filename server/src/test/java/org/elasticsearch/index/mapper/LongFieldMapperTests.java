@@ -1,24 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.LongFieldScript;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
 
-import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
 
@@ -28,14 +32,14 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "1e999999999", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-9223372036854775809", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-1e999999999", "out of range for a long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
-            OutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long")
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "9223372036854775808", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "1e999999999", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-9223372036854775809", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, "-1e999999999", "out of range for a long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("9223372036854775808"), "out of range of long"),
+            NumberTypeOutOfRangeSpec.of(NumberFieldMapper.NumberType.LONG, new BigInteger("-9223372036854775809"), "out of range of long")
         );
     }
 
@@ -56,8 +60,7 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("script", "test");
                 b.field("coerce", "true");
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
+            assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [coerce] cannot be set in conjunction with field [script]"));
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -65,8 +68,10 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("script", "test");
                 b.field("null_value", 7);
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]")
+            );
         }
         {
             Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
@@ -74,8 +79,10 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
                 b.field("script", "test");
                 b.field("ignore_malformed", "true");
             })));
-            assertThat(e.getMessage(),
-                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+            assertThat(
+                e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
+            );
         }
     }
 
@@ -84,17 +91,20 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         ParsedDocument doc = mapper.parse(
             source(b -> b.rawField("field", new BytesArray("9223372036854775808").streamInput(), XContentType.JSON))
         );
-        assertEquals(0, doc.rootDoc().getFields("field").length);
+        assertThat(doc.rootDoc().getFields("field"), empty());
     }
 
     public void testLongIndexingCoercesIntoRange() throws Exception {
         // the following two strings are in-range for a long after coercion
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "9223372036854775807.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
         doc = mapper.parse(source(b -> b.field("field", "-9223372036854775808.9")));
-        assertThat(doc.rootDoc().getFields("field"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("field"), hasSize(1));
     }
+
+    // This is the biggest long that double can represent exactly
+    public static final long MAX_SAFE_LONG_FOR_DOUBLE = 1L << 53;
 
     @Override
     protected Number randomNumber() {
@@ -104,12 +114,55 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
         if (randomBoolean()) {
             return randomDouble();
         }
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/70585", true);
-        return randomDoubleBetween(Long.MIN_VALUE, Long.MAX_VALUE, true);
+        // TODO: increase the range back to full LONG range once https://github.com/elastic/elasticsearch/issues/132893 is fixed
+        return randomDoubleBetween(-MAX_SAFE_LONG_FOR_DOUBLE, MAX_SAFE_LONG_FOR_DOUBLE, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
-    public void testFetchCoerced() throws IOException {
-        assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
+    protected IngestScriptSupport ingestScriptSupport() {
+        return new IngestScriptSupport() {
+            @Override
+            @SuppressWarnings("unchecked")
+            protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+                if (context == LongFieldScript.CONTEXT) {
+                    return (T) LongFieldScript.PARSE_FROM_SOURCE;
+                }
+                throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+            }
+
+            @Override
+            protected LongFieldScript.Factory emptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {}
+                };
+            }
+
+            @Override
+            protected LongFieldScript.Factory nonEmptyFieldScript() {
+                return (fieldName, params, searchLookup, onScriptError) -> ctx -> new LongFieldScript(
+                    fieldName,
+                    params,
+                    searchLookup,
+                    OnScriptError.FAIL,
+                    ctx
+                ) {
+                    @Override
+                    public void execute() {
+                        emit(1);
+                    }
+                };
+            }
+        };
     }
+
+    protected boolean supportsBulkLongBlockReading() {
+        return true;
+    }
+
 }

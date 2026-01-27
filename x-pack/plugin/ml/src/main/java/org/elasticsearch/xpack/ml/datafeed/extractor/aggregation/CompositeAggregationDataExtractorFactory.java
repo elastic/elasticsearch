@@ -6,20 +6,21 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
+import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
 
     private final Client client;
     private final DatafeedConfig datafeedConfig;
+    private final QueryBuilder extraFilters;
     private final Job job;
     private final DatafeedTimingStatsReporter timingStatsReporter;
     private final String compositeAggName;
@@ -43,19 +45,21 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
     private final QueryBuilder parsedQuery;
 
     public CompositeAggregationDataExtractorFactory(
-            Client client,
-            DatafeedConfig datafeedConfig,
-            Job job,
-            NamedXContentRegistry xContentRegistry,
-            DatafeedTimingStatsReporter timingStatsReporter,
-            AggregatedSearchRequestBuilder requestBuilder
+        Client client,
+        DatafeedConfig datafeedConfig,
+        QueryBuilder extraFilters,
+        Job job,
+        NamedXContentRegistry xContentRegistry,
+        DatafeedTimingStatsReporter timingStatsReporter,
+        AggregatedSearchRequestBuilder requestBuilder
     ) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
+        this.extraFilters = extraFilters;
         this.job = Objects.requireNonNull(job);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
         this.parsedQuery = datafeedConfig.getParsedQuery(xContentRegistry);
-        AggregationBuilder aggregationBuilder = ExtractorUtils.getHistogramAggregation(
+        AggregationBuilder aggregationBuilder = DatafeedConfigUtils.getHistogramAggregation(
             datafeedConfig.getParsedAggregations(xContentRegistry).getAggregatorFactories()
         );
         if (aggregationBuilder instanceof CompositeAggregationBuilder == false) {
@@ -91,6 +95,10 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
 
     @Override
     public DataExtractor newExtractor(long start, long end) {
+        QueryBuilder queryBuilder = parsedQuery;
+        if (extraFilters != null) {
+            queryBuilder = QueryBuilders.boolQuery().filter(queryBuilder).filter(extraFilters);
+        }
         CompositeAggregationBuilder compositeAggregationBuilder = new CompositeAggregationBuilder(
             compositeAggName,
             compositeValuesSourceBuilders
@@ -98,21 +106,22 @@ public class CompositeAggregationDataExtractorFactory implements DataExtractorFa
         compositeAggregationBuilder.size(numBuckets);
         subAggs.forEach(compositeAggregationBuilder::subAggregation);
         subPipelineAggs.forEach(compositeAggregationBuilder::subAggregation);
-        long histogramInterval = ExtractorUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
+        long histogramInterval = DatafeedConfigUtils.getHistogramIntervalMillis(compositeAggregationBuilder);
         CompositeAggregationDataExtractorContext dataExtractorContext = new CompositeAggregationDataExtractorContext(
-                job.getId(),
-                job.getDataDescription().getTimeField(),
-                job.getAnalysisConfig().analysisFields(),
-                datafeedConfig.getIndices(),
-                parsedQuery,
-                compositeAggregationBuilder,
-                this.dateHistogramGroupSourceName,
-                Intervals.alignToCeil(start, histogramInterval),
-                Intervals.alignToFloor(end, histogramInterval),
-                job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
-                datafeedConfig.getHeaders(),
-                datafeedConfig.getIndicesOptions(),
-                datafeedConfig.getRuntimeMappings());
+            job.getId(),
+            job.getDataDescription().getTimeField(),
+            job.getAnalysisConfig().analysisFields(),
+            datafeedConfig.getIndices(),
+            queryBuilder,
+            compositeAggregationBuilder,
+            this.dateHistogramGroupSourceName,
+            Intervals.alignToCeil(start, histogramInterval),
+            Intervals.alignToFloor(end, histogramInterval),
+            job.getAnalysisConfig().getSummaryCountFieldName().equals(DatafeedConfig.DOC_COUNT),
+            datafeedConfig.getHeaders(),
+            datafeedConfig.getIndicesOptions(),
+            datafeedConfig.getRuntimeMappings()
+        );
         return new CompositeAggregationDataExtractor(
             compositeAggregationBuilder,
             client,

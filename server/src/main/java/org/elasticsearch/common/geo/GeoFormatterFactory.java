@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
@@ -47,9 +48,10 @@ public class GeoFormatterFactory<T> {
     public GeoFormatterFactory(List<FormatterFactory<T>> factories) {
         Map<String, Function<String, Function<List<T>, List<Object>>>> factoriesBuilder = new HashMap<>();
         for (FormatterFactory<T> factory : factories) {
-            if(factoriesBuilder.put(factory.getName(), factory.getFormatterBuilder()) != null) {
-                throw new IllegalArgumentException("More then one formatter factory with the name [" + factory.getName() +
-                    "] was configured");
+            if (factoriesBuilder.put(factory.getName(), factory.getFormatterBuilder()) != null) {
+                throw new IllegalArgumentException(
+                    "More then one formatter factory with the name [" + factory.getName() + "] was configured"
+                );
             }
 
         }
@@ -65,7 +67,7 @@ public class GeoFormatterFactory<T> {
      */
     public Function<List<T>, List<Object>> getFormatter(String format, Function<T, Geometry> toGeometry) {
         final int start = format.indexOf('(');
-        if (start == -1)  {
+        if (start == -1) {
             return GeometryFormatterFactory.getFormatter(format, toGeometry);
         }
         final String formatName = format.substring(0, start);

@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -38,10 +38,11 @@ final class SoftDeletesPolicy {
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     SoftDeletesPolicy(
-            final LongSupplier globalCheckpointSupplier,
-            final long minRetainedSeqNo,
-            final long retentionOperations,
-            final Supplier<RetentionLeases> retentionLeasesSupplier) {
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
@@ -63,8 +64,15 @@ final class SoftDeletesPolicy {
      */
     synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("Local checkpoint can't go backwards; " +
-                "new checkpoint [" + newCheckpoint + "]," + "current checkpoint [" + localCheckpointOfSafeCommit + "]");
+            throw new IllegalArgumentException(
+                "Local checkpoint can't go backwards; "
+                    + "new checkpoint ["
+                    + newCheckpoint
+                    + "],"
+                    + "current checkpoint ["
+                    + localCheckpointOfSafeCommit
+                    + "]"
+            );
         }
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
@@ -108,20 +116,21 @@ final class SoftDeletesPolicy {
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            final long minimumRetainingSequenceNumber = retentionLeases
-                    .leases()
-                    .stream()
-                    .mapToLong(RetentionLease::retainingSequenceNumber)
-                    .min()
-                    .orElse(Long.MAX_VALUE);
+            final long minimumRetainingSequenceNumber = retentionLeases.leases()
+                .stream()
+                .mapToLong(RetentionLease::retainingSequenceNumber)
+                .min()
+                .orElse(Long.MAX_VALUE);
             /*
              * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
              * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
              * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
              * those checkpoints.
              */
-            final long minSeqNoForQueryingChanges =
-                    Math.min(1 + globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
+            final long minSeqNoForQueryingChanges = Math.min(
+                1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
+                minimumRetainingSequenceNumber
+            );
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
 
             /*
@@ -137,8 +146,8 @@ final class SoftDeletesPolicy {
      * Returns a soft-deletes retention query that will be used in {@link org.apache.lucene.index.SoftDeletesRetentionMergePolicy}
      * Documents including tombstones are soft-deleted and matched this query will be retained and won't cleaned up by merges.
      */
-    Query getRetentionQuery() {
-        return LongPoint.newRangeQuery(SeqNoFieldMapper.NAME, getMinRetainedSeqNo(), Long.MAX_VALUE);
+    Query getRetentionQuery(SeqNoFieldMapper.SeqNoIndexOptions seqNoIndexOptions) {
+        return SeqNoFieldMapper.rangeQueryForSeqNo(seqNoIndexOptions, getMinRetainedSeqNo(), Long.MAX_VALUE);
     }
 
 }

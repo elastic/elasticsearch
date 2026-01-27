@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.termvectors;
@@ -25,21 +26,18 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.action.document.RestTermVectorsAction;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
@@ -50,6 +48,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TermVectorsUnitTests extends ESTestCase {
@@ -105,11 +104,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields fields = dr.getTermVectors(doc);
+        Fields fields = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(fields, null, flags, fields);
         outResponse.setExists(true);
@@ -140,11 +139,11 @@ public class TermVectorsUnitTests extends ESTestCase {
         writer.commit();
         writer.close();
         DirectoryReader dr = DirectoryReader.open(dir);
-        IndexSearcher s = new IndexSearcher(dr);
+        IndexSearcher s = newSearcher(dr);
         TopDocs search = s.search(new TermQuery(new Term("id", "abc")), 1);
         ScoreDoc[] scoreDocs = search.scoreDocs;
         int doc = scoreDocs[0].doc;
-        Fields termVectors = dr.getTermVectors(doc);
+        Fields termVectors = s.getIndexReader().termVectors().get(doc);
         EnumSet<Flag> flags = EnumSet.of(Flag.Positions, Flag.Offsets);
         outResponse.setFields(termVectors, null, flags, termVectors);
         dr.close();
@@ -161,8 +160,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRestRequestParsing() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : ["a",  "b","c"], "offsets":false, "positions":false, "payloads":true}""");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
@@ -198,8 +197,8 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testRequestParsingThrowsException() throws Exception {
-        BytesReference inputBytes = new BytesArray(
-                " {\"fields\" : \"a,  b,c   \", \"offsets\":false, \"positions\":false, \"payloads\":true, \"meaningless_term\":2}");
+        BytesReference inputBytes = new BytesArray("""
+            {"fields" : "a,  b,c   ", "offsets":false, "positions":false, "payloads":true, "meaningless_term":2}""");
         TermVectorsRequest tvr = new TermVectorsRequest(null, null);
         boolean threwException = false;
         try {
@@ -241,70 +240,25 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
             assertThat(request.preference(), equalTo(pref));
             assertThat(request.routing(), equalTo(null));
-            assertEquals(new BytesArray("{}"), request.doc());
-            assertEquals(XContentType.JSON, request.xContentType());
-        }
-    }
-
-    public void testStreamRequestLegacyVersion() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            TermVectorsRequest request = new TermVectorsRequest("index", "id");
-            request.offsets(random().nextBoolean());
-            request.fieldStatistics(random().nextBoolean());
-            request.payloads(random().nextBoolean());
-            request.positions(random().nextBoolean());
-            request.termStatistics(random().nextBoolean());
-            String pref = random().nextBoolean() ? "somePreference" : null;
-            request.preference(pref);
-            request.doc(new BytesArray("{}"), randomBoolean(), XContentType.JSON);
-
-            // write using older version which contains types
-            ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
-            OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(Version.V_7_2_0);
-            request.writeTo(out);
-
-            // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
-            ByteArrayInputStream esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-            InputStreamStreamInput esBuffer = new InputStreamStreamInput(esInBuffer);
-            TaskId.readFromStream(esBuffer);
-            if (esBuffer.readBoolean()) {
-                new ShardId(esBuffer);
-            }
-            esBuffer.readOptionalString();
-            assertThat(esBuffer.readString(), equalTo("_doc"));
-
-            // now read the stream as normal to check it is parsed correct if received from an older node
-            esInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
-            esBuffer = new InputStreamStreamInput(esInBuffer);
-            esBuffer.setVersion(Version.V_7_2_0);
-            TermVectorsRequest req2 = new TermVectorsRequest(esBuffer);
-
-            assertThat(request.offsets(), equalTo(req2.offsets()));
-            assertThat(request.fieldStatistics(), equalTo(req2.fieldStatistics()));
-            assertThat(request.payloads(), equalTo(req2.payloads()));
-            assertThat(request.positions(), equalTo(req2.positions()));
-            assertThat(request.termStatistics(), equalTo(req2.termStatistics()));
-            assertThat(request.preference(), equalTo(pref));
-            assertThat(request.routing(), equalTo(null));
-            assertEquals(new BytesArray("{}"), request.doc());
+            assertThat(request.doc(), equalBytes(new BytesArray("{}")));
             assertEquals(XContentType.JSON, request.xContentType());
         }
     }
 
     public void testMultiParser() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
-        MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-        checkParsedParameters(request);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
 
         bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
-        request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), data);
-
-        checkParsedParameters(request);
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray(bytes))) {
+            MultiTermVectorsRequest request = new MultiTermVectorsRequest();
+            request.add(new TermVectorsRequest(), parser);
+            checkParsedParameters(request);
+        }
     }
 
     void checkParsedParameters(MultiTermVectorsRequest request) {
@@ -322,7 +276,7 @@ public class TermVectorsUnitTests extends ESTestCase {
             assertThat(singleRequest.offsets(), equalTo(false));
             assertThat(singleRequest.termStatistics(), equalTo(true));
             assertThat(singleRequest.fieldStatistics(), equalTo(false));
-            assertThat(singleRequest.id(),Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
+            assertThat(singleRequest.id(), Matchers.anyOf(Matchers.equalTo("1"), Matchers.equalTo("2")));
             assertThat(singleRequest.selectedFields(), equalTo(fields));
         }
     }

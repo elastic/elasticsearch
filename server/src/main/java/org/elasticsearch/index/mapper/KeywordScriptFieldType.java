@@ -1,24 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.MultiTermQuery.RewriteMethod;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
@@ -28,14 +33,16 @@ import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
+import org.elasticsearch.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -49,20 +56,25 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         }
 
         @Override
-        AbstractScriptFieldType<?> createFieldType(String name,
-                                                   StringFieldScript.Factory factory,
-                                                   Script script,
-                                                   Map<String, String> meta) {
-            return new KeywordScriptFieldType(name, factory, script, meta);
+        protected AbstractScriptFieldType<?> createFieldType(
+            String name,
+            StringFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta,
+            OnScriptError onScriptError
+        ) {
+            return new KeywordScriptFieldType(name, factory, script, meta, onScriptError);
         }
 
         @Override
-        StringFieldScript.Factory getParseFromSourceFactory() {
+        protected StringFieldScript.Factory getParseFromSourceFactory() {
             return StringFieldScript.PARSE_FROM_SOURCE;
         }
 
         @Override
-        StringFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+        protected StringFieldScript.Factory getCompositeLeafFactory(
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
             return StringFieldScript.leafAdapter(parentScriptFactory);
         }
     }
@@ -75,9 +87,17 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         String name,
         StringFieldScript.Factory scriptFactory,
         Script script,
-        Map<String, String> meta
+        Map<String, String> meta,
+        OnScriptError onScriptError
     ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta,
+            scriptFactory.isParsedFromSource()
+        );
     }
 
     @Override
@@ -95,14 +115,54 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         return binaryValue.utf8ToString();
     }
 
+    private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+        return new FallbackSyntheticSourceBlockLoader.SingleValueReader<BytesRef>(null) {
+            @Override
+            public void convertValue(Object value, List<BytesRef> accumulator) {
+                accumulator.add((BytesRef) value);
+            }
+
+            @Override
+            public void parseNonNullValue(XContentParser parser, List<BytesRef> accumulator) throws IOException {
+                assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "Unexpected token " + parser.currentToken();
+
+                var utfBytes = parser.optimizedText().bytes();
+                accumulator.add(new BytesRef(utfBytes.bytes(), utfBytes.offset(), utfBytes.length()));
+            }
+
+            @Override
+            public void writeToBlock(List<BytesRef> values, BlockLoader.Builder blockBuilder) {
+                var bytesRefBuilder = (BlockLoader.BytesRefBuilder) blockBuilder;
+
+                for (var value : values) {
+                    bytesRefBuilder.appendBytesRef(value);
+                }
+            }
+        };
+    }
+
     @Override
-    public StringScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new StringScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+    public BlockLoader blockLoader(BlockLoaderContext blContext) {
+        var fallbackSyntheticSourceBlockLoader = fallbackSyntheticSourceBlockLoader(
+            blContext,
+            BlockLoader.BlockFactory::bytesRefs,
+            this::fallbackSyntheticSourceBlockLoaderReader
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new KeywordScriptBlockDocValuesReader.KeywordScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
+    }
+
+    @Override
+    public StringScriptFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
+        return new StringScriptFieldData.Builder(name(), leafFactory(fieldDataContext.lookupSupplier().get()), KeywordDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -113,9 +173,10 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        SearchExecutionContext context
+        SearchExecutionContext context,
+        @Nullable MultiTermQuery.RewriteMethod rewriteMethod
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return StringScriptFieldFuzzyQuery.build(
             script,
             leafFactory(context),
@@ -129,7 +190,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query prefixQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 
@@ -143,7 +204,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldRangeQuery(
             script,
             leafFactory(context),
@@ -164,7 +225,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         RewriteMethod method,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         if (matchFlags != 0) {
             throw new IllegalArgumentException("Match flags not yet implemented [" + matchFlags + "]");
         }
@@ -181,7 +242,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
             leafFactory(context),
@@ -193,7 +254,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldTermQuery(
             script,
             leafFactory(context),
@@ -205,20 +266,20 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 
     @Override
     public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
 
     @Override
     public Query normalizedWildcardQuery(String value, RewriteMethod method, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, false);
     }
 }

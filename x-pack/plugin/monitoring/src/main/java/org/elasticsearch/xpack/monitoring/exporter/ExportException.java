@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.monitoring.exporter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,12 +53,9 @@ public class ExportException extends ElasticsearchException implements Iterable<
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeVInt(exceptions.size());
-        for (ExportException e : exceptions) {
-            e.writeTo(out);
-        }
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
+        out.writeCollection(exceptions);
     }
 
     @Override

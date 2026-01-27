@@ -1,17 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -58,8 +58,12 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
                 };
             }
         };
-        persistentTasksClusterService = new PersistentTasksClusterService(clusterService.getSettings(), registry, clusterService,
-            threadPool);
+        persistentTasksClusterService = new PersistentTasksClusterService(
+            clusterService.getSettings(),
+            registry,
+            clusterService,
+            threadPool
+        );
     }
 
     @AfterClass
@@ -87,7 +91,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
     protected static ClusterState createClusterStateWithTasks(final int nbNodes, final int nbTasks) {
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
         for (int i = 0; i < nbNodes; i++) {
-            nodes.add(new DiscoveryNode("_node_" + i, buildNewFakeTransportAddress(), Version.CURRENT));
+            nodes.add(DiscoveryNodeUtils.create("_node_" + i));
         }
 
         PersistentTasksCustomMetadata.Builder tasks = PersistentTasksCustomMetadata.builder();
@@ -95,9 +99,7 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
             tasks.addTask("_task_" + i, "test", null, new PersistentTasksCustomMetadata.Assignment(null, "initialized"));
         }
 
-        Metadata metadata = Metadata.builder()
-            .putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build())
-            .build();
+        Metadata metadata = Metadata.builder().putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build()).build();
 
         return ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).build();
     }
@@ -115,10 +117,12 @@ public abstract class PersistentTasksDecidersTestCase extends ESTestCase {
 
     /** Asserts that the cluster state contains nbTasks tasks that verify the given predicate **/
     @SuppressWarnings("rawtypes")
-    protected static void assertPersistentTasks(final long nbTasks,
-                                              final ClusterState clusterState,
-                                              final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+    protected static void assertPersistentTasks(
+        final long nbTasks,
+        final ClusterState clusterState,
+        final Predicate<PersistentTasksCustomMetadata.PersistentTask> predicate
+    ) {
+        PersistentTasksCustomMetadata tasks = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         assertNotNull("Persistent tasks must be not null", tasks);
         assertEquals(nbTasks, tasks.tasks().stream().filter(predicate).count());
     }

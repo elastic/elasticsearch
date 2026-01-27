@@ -8,36 +8,31 @@ package org.elasticsearch.xpack.core.common.notifications;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
@@ -46,162 +41,136 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
-    static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
+    protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final OriginSettingClient client;
     private final String nodeName;
-    private final String auditIndex;
-    private final String templateName;
-    private final Version versionComposableTemplateExpected;
-    private final Supplier<PutIndexTemplateRequest> legacyTemplateSupplier;
-    private final Supplier<PutComposableIndexTemplateAction.Request> templateSupplier;
+    private final String auditIndexWriteAlias;
     private final AbstractAuditMessageFactory<T> messageFactory;
-    private final AtomicBoolean hasLatestTemplate;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final AtomicBoolean indexAndAliasCreated;
 
     private Queue<ToXContent> backlog;
-    private final ClusterService clusterService;
-    private final AtomicBoolean putTemplateInProgress;
+    private final AtomicBoolean indexAndAliasCreationInProgress;
+    private final ExecutorService executorService;
 
-    protected AbstractAuditor(OriginSettingClient client,
-                              String auditIndex,
-                              Version versionComposableTemplateExpected,
-                              IndexTemplateConfig legacyTemplateConfig,
-                              IndexTemplateConfig templateConfig,
-                              String nodeName,
-                              AbstractAuditMessageFactory<T> messageFactory,
-                              ClusterService clusterService) {
-
-        this(client, auditIndex, templateConfig.getTemplateName(), versionComposableTemplateExpected,
-            () -> new PutIndexTemplateRequest(legacyTemplateConfig.getTemplateName())
-                .source(legacyTemplateConfig.loadBytes(), XContentType.JSON).masterNodeTimeout(MASTER_TIMEOUT),
-            () -> {
-                try {
-                    return new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName())
-                        .indexTemplate(ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateConfig.loadBytes())))
-                        .masterNodeTimeout(MASTER_TIMEOUT);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
-                }
-            },
-            nodeName, messageFactory, clusterService);
+    protected AbstractAuditor(
+        OriginSettingClient client,
+        String auditIndexWriteAlias,
+        String nodeName,
+        AbstractAuditMessageFactory<T> messageFactory,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ExecutorService executorService
+    ) {
+        this.client = Objects.requireNonNull(client);
+        this.auditIndexWriteAlias = Objects.requireNonNull(auditIndexWriteAlias);
+        this.messageFactory = Objects.requireNonNull(messageFactory);
+        this.nodeName = Objects.requireNonNull(nodeName);
+        this.clusterService = Objects.requireNonNull(clusterService);
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
+        this.backlog = new ConcurrentLinkedQueue<>();
+        this.indexAndAliasCreated = new AtomicBoolean();
+        this.indexAndAliasCreationInProgress = new AtomicBoolean();
+        this.executorService = executorService;
     }
 
-    protected AbstractAuditor(OriginSettingClient client,
-                              String auditIndex,
-                              String templateName,
-                              Version versionComposableTemplateExpected,
-                              Supplier<PutIndexTemplateRequest> legacyTemplateSupplier,
-                              Supplier<PutComposableIndexTemplateAction.Request> templateSupplier,
-                              String nodeName,
-                              AbstractAuditMessageFactory<T> messageFactory,
-                              ClusterService clusterService) {
-        this.client = Objects.requireNonNull(client);
-        this.auditIndex = Objects.requireNonNull(auditIndex);
-        this.templateName = Objects.requireNonNull(templateName);
-        this.versionComposableTemplateExpected = versionComposableTemplateExpected;
-        this.legacyTemplateSupplier = Objects.requireNonNull(legacyTemplateSupplier);
-        this.templateSupplier = Objects.requireNonNull(templateSupplier);
-        this.messageFactory = Objects.requireNonNull(messageFactory);
-        this.clusterService = Objects.requireNonNull(clusterService);
-        this.nodeName = Objects.requireNonNull(nodeName);
-        this.backlog = new ConcurrentLinkedQueue<>();
-        this.hasLatestTemplate = new AtomicBoolean();
-        this.putTemplateInProgress = new AtomicBoolean();
+    public void audit(Level level, String resourceId, String message) {
+        indexDoc(messageFactory.newMessage(resourceId, message, level, new Date(), nodeName));
     }
 
     public void info(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.INFO, new Date(), nodeName));
+        audit(Level.INFO, resourceId, message);
     }
 
     public void warning(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.WARNING, new Date(), nodeName));
+        audit(Level.WARNING, resourceId, message);
     }
 
     public void error(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
+        audit(Level.ERROR, resourceId, message);
     }
 
-    private void onIndexResponse(IndexResponse response) {
+    /**
+     * Calling reset will cause the auditor to check the required
+     * index and alias exist and recreate if necessary
+     */
+    public void reset() {
+        indexAndAliasCreated.set(false);
+        // create a new backlog in case documents need
+        // to be temporarily stored when the new index/alias is created
+        backlog = new ConcurrentLinkedQueue<>();
+    }
+
+    private static void onIndexResponse(DocWriteResponse response) {
         logger.trace("Successfully wrote audit message");
     }
 
-    private void onIndexFailure(Exception exception) {
+    private static void onIndexFailure(Exception exception) {
         logger.debug("Failed to write audit message", exception);
     }
 
     protected void indexDoc(ToXContent toXContent) {
-        if (hasLatestTemplate.get()) {
+        if (indexAndAliasCreated.get()) {
             writeDoc(toXContent);
             return;
         }
 
-        if (MlIndexAndAlias.hasIndexTemplate(clusterService.state(), templateName, templateName, versionComposableTemplateExpected)) {
+        // install template & create index with alias
+        var createListener = ActionListener.<Boolean>wrap(success -> {
+            indexAndAliasCreationInProgress.set(false);
             synchronized (this) {
-                // synchronized so nothing can be added to backlog while this value changes
-                hasLatestTemplate.set(true);
-            }
-            writeDoc(toXContent);
-            return;
-        }
-
-        ActionListener<Boolean> putTemplateListener = ActionListener.wrap(
-            r -> {
-                synchronized (this) {
-                    // synchronized so nothing can be added to backlog while this value changes
-                    hasLatestTemplate.set(true);
-                }
-                logger.info("Auditor template [{}] successfully installed", templateName);
+                // synchronized so nothing can be added to backlog while writing it
+                indexAndAliasCreated.set(true);
                 writeBacklog();
-                putTemplateInProgress.set(false);
-            },
-            e -> {
-                logger.warn("Error putting latest template [{}]", templateName);
-                putTemplateInProgress.set(false);
             }
-        );
+
+        }, e -> { indexAndAliasCreationInProgress.set(false); });
 
         synchronized (this) {
-            if (hasLatestTemplate.get() == false) {
+            if (indexAndAliasCreated.get() == false) {
                 // synchronized so that hasLatestTemplate does not change value
                 // between the read and adding to the backlog
-                assert backlog != null;
                 if (backlog != null) {
                     if (backlog.size() >= MAX_BUFFER_SIZE) {
                         backlog.remove();
                     }
                     backlog.add(toXContent);
                 } else {
-                    logger.error("Latest audit template missing but the back log has been written");
+                    logger.error("Audit message cannot be added to the backlog");
                 }
 
                 // stop multiple invocations
-                if (putTemplateInProgress.compareAndSet(false, true)) {
-                    MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, versionComposableTemplateExpected,
-                        legacyTemplateSupplier.get(), templateSupplier.get(), putTemplateListener);
+                if (indexAndAliasCreationInProgress.compareAndSet(false, true)) {
+                    installTemplateAndCreateIndex(createListener);
                 }
-                return;
             }
         }
-
-        indexDoc(toXContent);
-     }
+    }
 
     private void writeDoc(ToXContent toXContent) {
-        client.index(indexRequest(toXContent), ActionListener.wrap(
-            this::onIndexResponse,
-            this::onIndexFailure
-        ));
+        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
+            if (e instanceof IndexNotFoundException) {
+                executorService.execute(() -> {
+                    reset();
+                    indexDoc(toXContent);
+                });
+            } else {
+                onIndexFailure(e);
+            }
+        }));
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {
-        IndexRequest indexRequest = new IndexRequest(auditIndex);
+        IndexRequest indexRequest = new IndexRequest(auditIndexWriteAlias);
         indexRequest.source(toXContentBuilder(toXContent));
         indexRequest.timeout(TimeValue.timeValueSeconds(5));
+        indexRequest.setRequireAlias(true);
         return indexRequest;
     }
 
-    private XContentBuilder toXContentBuilder(ToXContent toXContent) {
+    private static XContentBuilder toXContentBuilder(ToXContent toXContent) {
         try (XContentBuilder jsonBuilder = jsonBuilder()) {
             return toXContent.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         } catch (IOException e) {
@@ -214,9 +183,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     protected void writeBacklog() {
-        assert backlog != null;
         if (backlog == null) {
-            logger.error("Message back log has already been written");
+            logger.debug("Message back log has already been written");
             return;
         }
 
@@ -227,21 +195,46 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
             doc = backlog.poll();
         }
 
-        client.bulk(bulkRequest, ActionListener.wrap(
-            bulkItemResponses -> {
-                if (bulkItemResponses.hasFailures()) {
-                    logger.warn("Failures bulk indexing the message back log: {}", bulkItemResponses.buildFailureMessage());
-                } else {
-                    logger.trace("Successfully wrote audit message backlog after upgrading template");
-                }
-                backlog = null;
-            },
-            this::onIndexFailure
-        ));
+        client.bulk(bulkRequest, ActionListener.wrap(bulkItemResponses -> {
+            if (bulkItemResponses.hasFailures()) {
+                logger.warn("Failures bulk indexing the message back log: {}", bulkItemResponses.buildFailureMessage());
+            } else {
+                logger.trace("Successfully wrote audit message backlog");
+            }
+            backlog = null;
+        }, AbstractAuditor::onIndexFailure));
     }
 
     // for testing
     int backLogSize() {
         return backlog.size();
     }
+
+    private void installTemplateAndCreateIndex(ActionListener<Boolean> listener) {
+        SubscribableListener.<Boolean>newForked(l -> {
+            MlIndexAndAlias.installIndexTemplateIfRequired(clusterService.state(), client, templateVersion(), putTemplateRequest(), l);
+        }).<Boolean>andThen((l, success) -> {
+            var indexDetails = indexDetails();
+            MlIndexAndAlias.createIndexAndAliasIfNecessary(
+                client,
+                clusterService.state(),
+                indexNameExpressionResolver,
+                indexDetails.indexPrefix(),
+                indexDetails.indexVersion(),
+                auditIndexWriteAlias,
+                MASTER_TIMEOUT,
+                ActiveShardCount.DEFAULT,
+                l
+            );
+
+        }).addListener(listener);
+    }
+
+    protected abstract TransportPutComposableIndexTemplateAction.Request putTemplateRequest();
+
+    protected abstract int templateVersion();
+
+    protected abstract IndexDetails indexDetails();
+
+    public record IndexDetails(String indexPrefix, String indexVersion) {};
 }

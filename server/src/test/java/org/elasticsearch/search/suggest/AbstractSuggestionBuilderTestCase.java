@@ -1,32 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -41,19 +37,24 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -153,29 +154,44 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testBuild() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
-            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
-            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
-                    indexSettings);
+            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+                new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
+                indexSettings
+            );
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-                new HashMap<>() {
-                    @Override
-                    public NamedAnalyzer get(Object key) {
-                        return new NamedAnalyzer(key.toString(), AnalyzerScope.INDEX, new SimpleAnalyzer());
-                    }
-                },
-                Collections.emptyMap(),
-                Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = (type, name) -> new NamedAnalyzer(name, AnalyzerScope.INDEX, new SimpleAnalyzer());
+            ;
             MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-            when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
-                    ((Script) invocation.getArguments()[0]).getIdOrCode()));
+            when(scriptService.compile(any(Script.class), any())).then(
+                invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
+            );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
-            SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings, null,
-                null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                    System::currentTimeMillis, null, null, () -> true, null, emptyMap());
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
+            SearchExecutionContext mockContext = new SearchExecutionContext(
+                0,
+                0,
+                idxSettings,
+                null,
+                null,
+                mapperService,
+                lookup,
+                null,
+                scriptService,
+                parserConfig(),
+                namedWriteableRegistry,
+                null,
+                null,
+                System::currentTimeMillis,
+                null,
+                null,
+                () -> true,
+                null,
+                emptyMap(),
+                MapperMetrics.NOOP
+            );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
@@ -201,17 +217,38 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public void testBuildWithUnmappedField() {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (randomBoolean()) {
             builder.put(IndexSettings.ALLOW_UNMAPPED.getKey(), randomBoolean());
         }
         Settings indexSettings = builder.build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
-            indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
+            new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
+            indexSettings
+        );
 
-        SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,  null,
-            null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
-            System::currentTimeMillis, null, null, () -> true, null, emptyMap());
+        SearchExecutionContext mockContext = new SearchExecutionContext(
+            0,
+            0,
+            idxSettings,
+            null,
+            null,
+            mock(MapperService.class),
+            MappingLookup.EMPTY,
+            null,
+            null,
+            parserConfig(),
+            namedWriteableRegistry,
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap(),
+            MapperMetrics.NOOP
+        );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());
         }
@@ -228,7 +265,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     protected MappedFieldType mockFieldType(String fieldName) {
         MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName);
+        when(fieldType.name()).thenReturn(fieldName.intern()); // intern field name to not trip assertions that ensure all field names are
+                                                               // interned
         NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
         TextSearchInfo tsi = new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer);
         when(fieldType.getTextSearchInfo()).thenReturn(tsi);
@@ -249,24 +287,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         // change ither one of the shared SuggestionBuilder parameters, or delegate to the specific tests mutate method
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
-            case 0:
-                mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
-                break;
-            case 1:
-                mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
-                break;
-            case 2:
-                mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
-                break;
-            case 3:
-                mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
-                break;
-            case 4:
-                mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
-                break;
-            case 5:
-                mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
-                break;
+                case 0 -> mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 1 -> mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 2 -> mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 3 -> mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
+                case 4 -> mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));
+                case 5 -> mutation.shardSize(randomValueOtherThan(mutation.shardSize(), () -> randomIntBetween(1, 20)));
             }
         } else {
             mutateSpecificParameters(firstBuilder);
@@ -282,8 +308,11 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
     @SuppressWarnings("unchecked")
     protected SB copy(SB original) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry,
-                (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
+        return copyWriteable(
+            original,
+            namedWriteableRegistry,
+            (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName())
+        );
     }
 
     @Override

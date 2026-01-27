@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent.builder;
@@ -13,17 +14,19 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -43,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TimeZone;
 
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -96,7 +100,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.startObject();
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -104,7 +109,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"foo":{"test":"value"},"foo1":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -112,7 +118,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.field("test", "value");
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder), equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"}}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"}}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -121,8 +128,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"test1":"value1"}"""));
         }
         {
             XContentBuilder xContentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -132,8 +139,8 @@ public class XContentBuilderTests extends ESTestCase {
             xContentBuilder.rawField("foo1", new BytesArray("{\"test\":\"value\"}").streamInput());
             xContentBuilder.field("test1", "value1");
             xContentBuilder.endObject();
-            assertThat(Strings.toString(xContentBuilder),
-                equalTo("{\"test\":\"value\",\"foo\":{\"test\":\"value\"},\"foo1\":{\"test\":\"value\"},\"test1\":\"value1\"}"));
+            assertThat(Strings.toString(xContentBuilder), equalTo("""
+                {"test":"value","foo":{"test":"value"},"foo1":{"test":"value"},"test1":"value1"}"""));
         }
     }
 
@@ -160,28 +167,29 @@ public class XContentBuilderTests extends ESTestCase {
         gen.writeStartObject();
         gen.writeStringField("name", "something");
         gen.flush();
-        bos.write(", source : { test : \"value\" }".getBytes("UTF8"));
+        bos.write(", source : { test : \"value\" }".getBytes(StandardCharsets.UTF_8));
         gen.writeStringField("name2", "something2");
         gen.writeEndObject();
         gen.close();
 
         String sData = bos.bytes().utf8ToString();
-        assertThat(sData, equalTo("{\"name\":\"something\", source : { test : \"value\" },\"name2\":\"something2\"}"));
+        assertThat(sData, equalTo("""
+            {"name":"something", source : { test : "value" },"name2":"something2"}"""));
     }
 
     public void testByteConversion() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().field("test_name", (Byte)(byte)120).endObject();
+        builder.startObject().field("test_name", (Byte) (byte) 120).endObject();
         assertThat(BytesReference.bytes(builder).utf8ToString(), equalTo("{\"test_name\":120}"));
     }
 
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
-        String expectedDate = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(date.getTime());
+        String expectedDate = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(date.toInstant());
         Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
-        String expectedCalendar = XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(calendar.getTimeInMillis());
+        String expectedCalendar = XContentElasticsearchExtension.DEFAULT_FORMATTER.format(calendar.toInstant());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject().timeField("date", date).endObject();
+        builder.startObject().timestampField("date", date).endObject();
         assertThat(Strings.toString(builder), equalTo("{\"date\":\"" + expectedDate + "\"}"));
 
         builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -203,10 +211,7 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testCopyCurrentStructure() throws Exception {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        builder.startObject()
-                .field("test", "test field")
-                .startObject("filter")
-                .startObject("terms");
+        builder.startObject().field("test", "test field").startObject("filter").startObject("terms");
 
         // up to 20k random terms
         int numTerms = randomInt(20000) + 1;
@@ -308,34 +313,38 @@ public class XContentBuilderTests extends ESTestCase {
 
     public void testIndentIsPlatformIndependent() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" +
-                "  \"test\" : \"foo\",\n" +
-                "  \"foo\" : {\n" +
-                "    \"foobar\" : \"boom\"\n" +
-                "  }\n" +
-                "}", string);
+        assertEquals("""
+            {
+              "test" : "foo",
+              "foo" : {
+                "foobar" : "boom"
+              }
+            }""", string);
 
         builder = XContentFactory.contentBuilder(XContentType.YAML).prettyPrint();
-        builder.startObject().field("test","foo").startObject("foo").field("foobar", "boom").endObject().endObject();
+        builder.startObject().field("test", "foo").startObject("foo").field("foobar", "boom").endObject().endObject();
         string = Strings.toString(builder);
-        assertEquals("---\n" +
-                "test: \"foo\"\n" +
-                "foo:\n" +
-                "  foobar: \"boom\"\n", string);
+        assertEquals("""
+            ---
+            test: "foo"
+            foo:
+              foobar: "boom"
+            """, string);
     }
 
     public void testRenderGeoPoint() throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
-        builder.startObject().field("foo").value(new GeoPoint(1,2)).endObject();
+        builder.startObject().field("foo").value(new GeoPoint(1, 2)).endObject();
         String string = Strings.toString(builder);
-        assertEquals("{\n" +
-                "  \"foo\" : {\n" +
-                "    \"lat\" : 1.0,\n" +
-                "    \"lon\" : 2.0\n" +
-                "  }\n" +
-                "}", string.trim());
+        assertEquals("""
+            {
+              "foo" : {
+                "lat" : 1.0,
+                "lon" : 2.0
+              }
+            }""", string.trim());
     }
 
     public void testWriteMapWithNullKeys() throws IOException {
@@ -343,7 +352,7 @@ public class XContentBuilderTests extends ESTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -353,7 +362,7 @@ public class XContentBuilderTests extends ESTestCase {
         try {
             builder.map(Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -364,7 +373,7 @@ public class XContentBuilderTests extends ESTestCase {
             builder.startObject();
             builder.field("map", Collections.singletonMap(null, "test"));
             fail("write map should have failed");
-        } catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field name cannot be null"));
         }
     }
@@ -411,7 +420,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         TestWritableValue(InputStream in) throws IOException {
             final int size = in.read();
-            this.values = new HashMap<>(size);
+            this.values = Maps.newMapWithExpectedSize(size);
             for (int i = 0; i < size; i++) {
                 final int keySize = in.read();
                 final String key = new String(in.readNBytes(keySize), StandardCharsets.ISO_8859_1);
@@ -453,8 +462,7 @@ public class XContentBuilderTests extends ESTestCase {
         final Map<String, Object> actualValues = XContentHelper.convertToMap(bytes, true).v2();
         assertThat(actualValues, aMapWithSize(fields));
         for (Map.Entry<String, Object> e : expectedValues.entrySet()) {
-            if (e.getValue() instanceof TestWritableValue) {
-                final TestWritableValue expectedValue = (TestWritableValue) e.getValue();
+            if (e.getValue() instanceof final TestWritableValue expectedValue) {
                 assertThat(actualValues.get(e.getKey()), instanceOf(String.class));
                 final byte[] decoded = Base64.getDecoder().decode((String) actualValues.get(e.getKey()));
                 final TestWritableValue actualValue = new TestWritableValue(new InputStream() {
@@ -471,5 +479,70 @@ public class XContentBuilderTests extends ESTestCase {
                 assertThat(actualValues, hasEntry(e.getKey(), e.getValue()));
             }
         }
+    }
+
+    private static class NonXContentable {}
+
+    private static class XContentable implements ToXContent {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return null;
+        }
+    }
+
+    private enum XContentableEnum {
+        A,
+        B,
+        C
+    }
+
+    private void assertNotXContentable(Object o, Class<?> type) {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(o));
+        assertThat(e.getMessage(), equalTo("Cannot write type [" + type.getCanonicalName() + "] to x-content"));
+    }
+
+    public void testIsXContentable() throws IOException {
+        assertNotXContentable(new NonXContentable(), NonXContentable.class);
+    }
+
+    public void testSetIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Set.of("a", "b"));
+        assertNotXContentable(Set.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testListIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(List.of("a", "b"));
+        assertNotXContentable(List.of(new NonXContentable()), NonXContentable.class);
+    }
+
+    public void testMapIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(Map.of("a", "b", "c", "d"));
+        assertNotXContentable(Map.of("a", new NonXContentable()), NonXContentable.class);
+
+        Map<Object, Object> nonStringKey = Map.of(1, 2);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> XContentBuilder.ensureToXContentable(nonStringKey));
+        assertThat(e.getMessage(), equalTo("Cannot write non-String map key [java.lang.Integer] to x-content"));
+    }
+
+    public void testObjectArrayIsXContentable() throws IOException {
+        XContentBuilder.ensureToXContentable(new Object[] { "a", "b" });
+        assertNotXContentable(new Object[] { new NonXContentable() }, NonXContentable.class);
+    }
+
+    public void testIterableIsXContentable() {
+        XContentBuilder.ensureToXContentable((Iterable<String>) () -> List.of("a", "b").iterator());
+        assertNotXContentable((Iterable<NonXContentable>) () -> List.of(new NonXContentable()).iterator(), NonXContentable.class);
+    }
+
+    public void testPathIsXContentable() {
+        XContentBuilder.ensureToXContentable(createTempDir());
+    }
+
+    public void testXContentIsXContentable() {
+        XContentBuilder.ensureToXContentable(new XContentable());
+    }
+
+    public void testEnumIsXContentable() {
+        XContentBuilder.ensureToXContentable(XContentableEnum.A);
     }
 }

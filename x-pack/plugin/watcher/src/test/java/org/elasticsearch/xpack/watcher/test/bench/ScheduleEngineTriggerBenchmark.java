@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.watcher.test.bench;
 
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.condition.InternalAlwaysCondition;
@@ -52,13 +52,24 @@ public class ScheduleEngineTriggerBenchmark {
         }
         System.out.println("Running benchmark with numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval);
 
-        Settings settings = Settings.builder()
-                .put("name", "test")
-                .build();
+        Settings settings = Settings.builder().put("name", "test").build();
         List<Watch> watches = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
-            watches.add(new Watch("job_" + i, new ScheduleTrigger(interval(interval + "s")), new ExecutableNoneInput(),
-                    InternalAlwaysCondition.INSTANCE, null, null, Collections.emptyList(), null, null, 1L, 1L));
+            watches.add(
+                new Watch(
+                    "job_" + i,
+                    new ScheduleTrigger(interval(interval + "s")),
+                    new ExecutableNoneInput(),
+                    InternalAlwaysCondition.INSTANCE,
+                    null,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    null,
+                    1L,
+                    1L
+                )
+            );
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
 
@@ -78,8 +89,13 @@ public class ScheduleEngineTriggerBenchmark {
                 if (running.get()) {
                     for (TriggerEvent event : events) {
                         ScheduleTriggerEvent scheduleTriggerEvent = (ScheduleTriggerEvent) event;
-                        measure(total, triggerMetric, tooEarlyMetric, event.triggeredTime().toInstant().toEpochMilli(),
-                                scheduleTriggerEvent.scheduledTime().toInstant().toEpochMilli());
+                        measure(
+                            total,
+                            triggerMetric,
+                            tooEarlyMetric,
+                            event.triggeredTime().toInstant().toEpochMilli(),
+                            scheduleTriggerEvent.scheduledTime().toInstant().toEpochMilli()
+                        );
                     }
                 }
             }
@@ -90,24 +106,39 @@ public class ScheduleEngineTriggerBenchmark {
         Thread.sleep(benchTime);
         running.set(false);
         scheduler.stop();
-        System.out.println("done, triggered [" + total.get() + "] times, delayed triggered [" + triggerMetric.count() +
-                "] times, avg [" + triggerMetric.mean() + "] ms");
+        System.out.println(
+            "done, triggered ["
+                + total.get()
+                + "] times, delayed triggered ["
+                + triggerMetric.count()
+                + "] times, avg ["
+                + triggerMetric.mean()
+                + "] ms"
+        );
         results.add(new Stats(total.get(), triggerMetric.count(), triggerMetric.mean(), tooEarlyMetric.count(), tooEarlyMetric.mean()));
 
         System.out.println("       Name     | # triggered | # delayed | avg delay | # too early triggered | avg too early delay");
         System.out.println("--------------- | ----------- | --------- | --------- | --------------------- | ------------------ ");
         for (Stats stats : results) {
             System.out.printf(
-                    Locale.ENGLISH,
-                    "%11d | %9d | %9d | %21d | %18d\n",
-                    stats.numberOfTimesTriggered, stats.numberOfTimesDelayed, stats.avgDelayTime,
-                    stats.numberOfEarlyTriggered, stats.avgEarlyDelayTime
+                Locale.ENGLISH,
+                "%11d | %9d | %9d | %21d | %18d\n",
+                stats.numberOfTimesTriggered,
+                stats.numberOfTimesDelayed,
+                stats.avgDelayTime,
+                stats.numberOfEarlyTriggered,
+                stats.avgEarlyDelayTime
             );
         }
     }
 
-    private static void measure(AtomicInteger total, MeanMetric triggerMetric, MeanMetric tooEarlyMetric, long triggeredTime,
-                                long scheduledTime) {
+    private static void measure(
+        AtomicInteger total,
+        MeanMetric triggerMetric,
+        MeanMetric tooEarlyMetric,
+        long triggeredTime,
+        long scheduledTime
+    ) {
         total.incrementAndGet();
         if (Long.compare(triggeredTime, scheduledTime) != 0) {
             long delta = triggeredTime - scheduledTime;
@@ -126,8 +157,13 @@ public class ScheduleEngineTriggerBenchmark {
         final long numberOfEarlyTriggered;
         final long avgEarlyDelayTime;
 
-        Stats(int numberOfTimesTriggered, long numberOfTimesDelayed, double avgDelayTime,
-              long numberOfEarlyTriggered, double avgEarlyDelayTime) {
+        Stats(
+            int numberOfTimesTriggered,
+            long numberOfTimesDelayed,
+            double avgDelayTime,
+            long numberOfEarlyTriggered,
+            double avgEarlyDelayTime
+        ) {
             this.numberOfTimesTriggered = numberOfTimesTriggered;
             this.numberOfTimesDelayed = numberOfTimesDelayed;
             this.avgDelayTime = Math.round(avgDelayTime);

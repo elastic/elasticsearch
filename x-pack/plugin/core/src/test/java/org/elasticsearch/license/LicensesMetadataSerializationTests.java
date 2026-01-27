@@ -6,25 +6,26 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContent.Params;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContent.Params;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -38,7 +39,7 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
@@ -48,65 +49,64 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
 
     public void testXContentSerializationOneSignedLicenseWithUsedTrial() throws Exception {
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
-        LicensesMetadata licensesMetadata = new LicensesMetadata(license, Version.CURRENT);
+        LicensesMetadata licensesMetadata = new LicensesMetadata(license, TrialLicenseVersion.CURRENT);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(licensesMetadataFromXContent.getLicense(), equalTo(license));
-        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), Version.CURRENT);
+        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     public void testLicenseMetadataParsingDoesNotSwallowOtherMetadata() throws Exception {
-        new Licensing(Settings.EMPTY); // makes sure LicensePlugin is registered in Custom Metadata
         License license = TestUtils.generateSignedLicense(TimeValue.timeValueHours(2));
-        LicensesMetadata licensesMetadata = new LicensesMetadata(license, Version.CURRENT);
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repo", "fs", Settings.EMPTY);
-        RepositoriesMetadata repositoriesMetadata = new RepositoriesMetadata(Collections.singletonList(repositoryMetadata));
+        LicensesMetadata licensesMetadata = new LicensesMetadata(license, TrialLicenseVersion.CURRENT);
+        NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(Map.of());
+
         final Metadata.Builder metadataBuilder = Metadata.builder();
         if (randomBoolean()) { // random order of insertion
             metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
         } else {
-            metadataBuilder.putCustom(repositoriesMetadata.getWriteableName(), repositoriesMetadata);
+            metadataBuilder.putCustom(nodesShutdownMetadata.getWriteableName(), nodesShutdownMetadata);
             metadataBuilder.putCustom(licensesMetadata.getWriteableName(), licensesMetadata);
         }
         // serialize metadata
         XContentBuilder builder = XContentFactory.jsonBuilder();
         Params params = new ToXContent.MapParams(Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY));
         builder.startObject();
-        builder = metadataBuilder.build().toXContent(builder, params);
+        builder = ChunkedToXContent.wrapAsToXContent(metadataBuilder.build()).toXContent(builder, params);
         builder.endObject();
         // deserialize metadata again
         Metadata metadata = Metadata.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
         assertThat(metadata.custom(licensesMetadata.getWriteableName()), notNullValue());
-        assertThat(metadata.custom(repositoriesMetadata.getWriteableName()), notNullValue());
+        assertThat(metadata.custom(nodesShutdownMetadata.getWriteableName()), notNullValue());
     }
 
     public void testXContentSerializationOneTrial() throws Exception {
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .issuedTo("customer")
-                .maxNodes(5)
-                .issueDate(issueDate)
-                .type(randomBoolean() ? "trial" : "basic")
-                .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
+            .uid(UUID.randomUUID().toString())
+            .issuedTo("customer")
+            .maxNodes(5)
+            .issueDate(issueDate)
+            .type(randomBoolean() ? "trial" : "basic")
+            .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
         final License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
-        LicensesMetadata licensesMetadata = new LicensesMetadata(trialLicense, Version.CURRENT);
+        LicensesMetadata licensesMetadata = new LicensesMetadata(trialLicense, TrialLicenseVersion.CURRENT);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.startObject("licenses");
-        licensesMetadata.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        ChunkedToXContent.wrapAsToXContent(licensesMetadata).toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
         LicensesMetadata licensesMetadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(licensesMetadataFromXContent.getLicense(), equalTo(trialLicense));
-        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), Version.CURRENT);
+        assertEquals(licensesMetadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     public void testLicenseTombstoneFromXContext() throws Exception {
@@ -125,12 +125,12 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
         builder.startObject();
         builder.startObject("licenses");
         builder.nullField("license");
-        builder.field("trial_license", Version.CURRENT.toString());
+        builder.field("trial_license", TrialLicenseVersion.CURRENT);
         builder.endObject();
         builder.endObject();
         LicensesMetadata metadataFromXContent = getLicensesMetadataFromXContent(createParser(builder));
         assertThat(metadataFromXContent.getLicense(), equalTo(LicensesMetadata.LICENSE_TOMBSTONE));
-        assertEquals(metadataFromXContent.getMostRecentTrialVersion(), Version.CURRENT);
+        assertEquals(metadataFromXContent.getMostRecentTrialVersion(), TrialLicenseVersion.CURRENT);
     }
 
     private static LicensesMetadata getLicensesMetadataFromXContent(XContentParser parser) throws Exception {
@@ -144,9 +144,8 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Stream.concat(
-                new Licensing(Settings.EMPTY).getNamedXContent().stream(),
-                ClusterModule.getNamedXWriteables().stream()
-        ).collect(Collectors.toList()));
+        return new NamedXContentRegistry(
+            CollectionUtils.concatLists(new XPackPlugin(Settings.EMPTY).getNamedXContent(), ClusterModule.getNamedXWriteables())
+        );
     }
 }

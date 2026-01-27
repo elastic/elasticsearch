@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.security.action.privilege;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesAction;
@@ -33,9 +34,12 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
     private final NativePrivilegeStore privilegeStore;
 
     @Inject
-    public TransportGetPrivilegesAction(ActionFilters actionFilters, NativePrivilegeStore privilegeStore,
-                                        TransportService transportService) {
-        super(GetPrivilegesAction.NAME, transportService, actionFilters, GetPrivilegesRequest::new);
+    public TransportGetPrivilegesAction(
+        ActionFilters actionFilters,
+        NativePrivilegeStore privilegeStore,
+        TransportService transportService
+    ) {
+        super(GetPrivilegesAction.NAME, transportService, actionFilters, GetPrivilegesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.privilegeStore = privilegeStore;
     }
 
@@ -49,10 +53,11 @@ public class TransportGetPrivilegesAction extends HandledTransportAction<GetPriv
         }
 
         final Collection<String> applications = isNullOrEmpty(request.application()) ? null : Collections.singleton(request.application());
-        this.privilegeStore.getPrivileges(applications, names, ActionListener.wrap(
-            privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)),
-            listener::onFailure
-        ));
+        this.privilegeStore.getPrivileges(
+            applications,
+            names,
+            ActionListener.wrap(privileges -> listener.onResponse(new GetPrivilegesResponse(privileges)), listener::onFailure)
+        );
     }
 
 }

@@ -6,15 +6,18 @@
  */
 package org.elasticsearch.xpack.security.transport.filter;
 
-import org.elasticsearch.core.SuppressForbidden;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -28,11 +31,14 @@ import static org.hamcrest.Matchers.is;
 // no client nodes as they all get rejected on network connections
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
+
+    private static final int NUMBER_OF_CLIENT_PORTS = Constants.WINDOWS ? 300 : 100;
+
     private static int randomClientPort;
 
     @BeforeClass
     public static void getRandomPort() {
-        randomClientPort = randomIntBetween(49000, 65500); // ephemeral port
+        randomClientPort = randomIntBetween(49152, 65535 - NUMBER_OF_CLIENT_PORTS); // ephemeral port
     }
 
     @Override
@@ -42,27 +48,41 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("transport.profiles.client.port", randomClientPortRange)
-                // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
-                .put("transport.profiles.client.bind_host", "localhost")
-                .put("transport.profiles.client.xpack.security.filter.deny", "_all")
-                .put(IPFilter.TRANSPORT_FILTER_DENY_SETTING.getKey(), "_all")
-                .build();
+        String randomClientPortRange = randomClientPort + "-" + (randomClientPort + NUMBER_OF_CLIENT_PORTS);
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("transport.profiles.client.port", randomClientPortRange)
+            // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
+            .put("transport.profiles.client.bind_host", "localhost")
+            .put("transport.profiles.client.xpack.security.filter.deny", "_all")
+            .put(IPFilter.TRANSPORT_FILTER_DENY_SETTING.getKey(), "_all")
+            .build();
+    }
+
+    @Before
+    public void waitForSecurityIndex() throws Exception {
+        assertSecurityIndexActive();
+    }
+
+    @After
+    public void cleanupSecurityIndex() throws Exception {
+        super.deleteSecurityIndex();
     }
 
     public void testThatIpFilteringIsIntegratedIntoNettyPipelineViaHttp() throws Exception {
-        TransportAddress transportAddress =
-                randomFrom(internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses());
-        try (Socket socket = new Socket()){
+        internalCluster().startNode();
+        TransportAddress transportAddress = randomFrom(
+            internalCluster().getDataNodeInstance(HttpServerTransport.class).boundAddress().boundAddresses()
+        );
+        try (Socket socket = new Socket()) {
             trySocketConnection(socket, transportAddress.address());
             assertThat(socket.isClosed(), is(true));
         }
     }
 
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
-        try (Socket socket = new Socket()){
+        internalCluster().startNode();
+        try (Socket socket = new Socket()) {
             trySocketConnection(socket, getProfileAddress("client"));
             assertThat(socket.isClosed(), is(true));
         }
@@ -81,8 +101,9 @@ public class IpFilteringIntegrationTests extends SecurityIntegTestCase {
     }
 
     private static InetSocketAddress getProfileAddress(String profile) {
-        TransportAddress transportAddress =
-                randomFrom(internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses());
+        TransportAddress transportAddress = randomFrom(
+            internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddresses()
+        );
         return transportAddress.address();
     }
 }

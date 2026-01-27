@@ -1,35 +1,22 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
-apply plugin: 'elasticsearch.java-rest-test'
 
 esplugin {
-  name 'rest-handler'
-  description 'An example plugin showing how to register a REST handler'
-  classname 'org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'rest-handler'
+  description = 'An example plugin showing how to register a REST handler'
+  classname ='org.elasticsearch.example.resthandler.ExampleRestHandlerPlugin'
+  licenseFile = layout.settingsDirectory.file('AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt').asFile
+  noticeFile = layout.settingsDirectory.file('NOTICE.txt').asFile
 }
 
-// No unit tests in this example
-tasks.named("test").configure { enabled = false }
-
-def fixture = tasks.register("exampleFixture", org.elasticsearch.gradle.internal.test.AntFixture) {
-  dependsOn sourceSets.javaRestTest.runtimeClasspath
-  env 'CLASSPATH', "${-> project.sourceSets.javaRestTest.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.example.resthandler.ExampleFixture', baseDir, 'TEST'
-}
-
-tasks.named("javaRestTest").configure {
-  dependsOn fixture
-  nonInputProperties.systemProperty 'external.address', "${-> fixture.get().addressAndPort}"
+dependencies {
+  yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-core:${log4jVersion}"
 }

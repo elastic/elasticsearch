@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 /**
  * Request builder for checking a user's privileges
  */
-public class GetUserPrivilegesRequestBuilder
-        extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
+public class GetUserPrivilegesRequestBuilder extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
 
     public GetUserPrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, GetUserPrivilegesAction.INSTANCE, new GetUserPrivilegesRequest());
@@ -24,6 +24,11 @@ public class GetUserPrivilegesRequestBuilder
      */
     public GetUserPrivilegesRequestBuilder username(String username) {
         request.username(username);
+        return this;
+    }
+
+    public GetUserPrivilegesRequestBuilder unwrapLimitedRole(RoleReference.ApiKeyRoleType innerRoleType) {
+        request.unwrapLimitedRole(innerRoleType);
         return this;
     }
 }

@@ -1,19 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -31,7 +32,7 @@ public class SearchProfileResultsBuilder {
      * profiling information.
      */
     public SearchProfileResults build(Collection<? extends SearchPhaseResult> fetchResults) {
-        Map<String, SearchProfileShardResult> mergedShardResults = new HashMap<>(queryPhaseResults.size());
+        Map<String, SearchProfileShardResult> mergedShardResults = Maps.newMapWithExpectedSize(queryPhaseResults.size());
         for (SearchPhaseResult r : fetchResults) {
             FetchSearchResult fr = r.fetchResult();
             String key = fr.getSearchShardTarget().toString();

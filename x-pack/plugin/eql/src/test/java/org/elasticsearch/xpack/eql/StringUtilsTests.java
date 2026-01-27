@@ -27,8 +27,10 @@ public class StringUtilsTests extends ESTestCase {
         String escape = Character.toString(1);
         LikePattern pattern = toLikePattern(string);
         assertEquals(string, pattern.exactMatch());
-        assertEquals("a" + escape + "%bc" + escape + "%" + escape + "%" +
-            "12" + escape + "_" + "3" + escape + "_" + escape + "_", pattern.pattern());
+        assertEquals(
+            "a" + escape + "%bc" + escape + "%" + escape + "%" + "12" + escape + "_" + "3" + escape + "_" + escape + "_",
+            pattern.pattern()
+        );
         assertEquals(string, pattern.asLuceneWildcard());
     }
 

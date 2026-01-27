@@ -31,6 +31,8 @@ import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Set;
+
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -72,10 +74,10 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
         filter.apply(task, action, request, listener, chain);
 
         filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(true, false)));
-        ElasticsearchStatusException e =
-            expectThrows(
-                ElasticsearchStatusException.class,
-                () -> filter.apply(task, action, request, listener, chain));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> filter.apply(task, action, request, listener, chain)
+        );
 
         filter.setUpgradeResetFlags(createClusterChangedEvent(createClusterState(false, false)));
         filter.apply(task, action, request, listener, chain);
@@ -114,7 +116,7 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     public void testOrder_UpgradeFilterIsExecutedAfterSecurityFilter() {
         MlUpgradeModeActionFilter upgradeModeFilter = new MlUpgradeModeActionFilter(clusterService);
-        SecurityActionFilter securityFilter = new SecurityActionFilter(null, null, null, null, mock(ThreadPool.class), null, null);
+        SecurityActionFilter securityFilter = new SecurityActionFilter(null, null, null, null, mock(ThreadPool.class), null, null, Set::of);
 
         ActionFilter[] actionFiltersInOrderOfExecution = new ActionFilters(Sets.newHashSet(upgradeModeFilter, securityFilter)).filters();
         assertThat(actionFiltersInOrderOfExecution, is(arrayContaining(securityFilter, upgradeModeFilter)));
@@ -126,8 +128,10 @@ public class MlUpgradeModeActionFilterTests extends ESTestCase {
 
     private static ClusterState createClusterState(boolean isUpgradeMode, boolean isResetMode) {
         return ClusterState.builder(new ClusterName("MlUpgradeModeActionFilterTests"))
-            .metadata(Metadata.builder().putCustom(MlMetadata.TYPE,
-                new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build()))
+            .metadata(
+                Metadata.builder()
+                    .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(isUpgradeMode).isResetMode(isResetMode).build())
+            )
             .build();
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -26,27 +28,40 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.iterableWithSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportPutRoleMappingActionTests extends ESTestCase {
 
     private NativeRoleMappingStore store;
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
+    private ProjectStateRoleMapper projectStateRoleMapper;
 
     @SuppressWarnings("unchecked")
     @Before
     public void setupMocks() {
         store = mock(NativeRoleMappingStore.class);
-        TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store);
+        TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        projectStateRoleMapper = mock();
+        when(projectStateRoleMapper.hasMapping(any())).thenReturn(false);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store, projectStateRoleMapper);
 
         requestRef = new AtomicReference<>(null);
 
@@ -57,17 +72,12 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             ActionListener<Boolean> listener = (ActionListener<Boolean>) args[1];
             listener.onResponse(true);
             return null;
-        }).when(store).putRoleMapping(any(PutRoleMappingRequest.class), any(ActionListener.class)
-        );
+        }).when(store).putRoleMapping(any(PutRoleMappingRequest.class), any(ActionListener.class));
     }
 
     public void testPutValidMapping() throws Exception {
-        final FieldExpression expression = new FieldExpression(
-                "username",
-                Collections.singletonList(new FieldExpression.FieldValue("*"))
-        );
-        final PutRoleMappingResponse response = put("anarchy", expression, "superuser",
-                Collections.singletonMap("dumb", true));
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        final PutRoleMappingResponse response = put("anarchy", expression, "superuser", Collections.singletonMap("dumb", true));
 
         assertThat(response.isCreated(), equalTo(true));
 
@@ -77,12 +87,47 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
         assertThat(mapping.getName(), equalTo("anarchy"));
         assertThat(mapping.getRoles(), iterableWithSize(1));
         assertThat(mapping.getRoles(), contains("superuser"));
-        assertThat(mapping.getMetadata().size(), equalTo(1));
+        assertThat(mapping.getMetadata(), aMapWithSize(1));
         assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
     }
 
-    private PutRoleMappingResponse put(String name, FieldExpression expression, String role,
-                                       Map<String, Object> metadata) throws Exception {
+    public void testValidMappingClashingClusterStateMapping() throws Exception {
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        final PutRoleMappingResponse response = put("anarchy", expression, "superuser", Collections.singletonMap("dumb", true));
+        when(projectStateRoleMapper.hasMapping(any())).thenReturn(true);
+
+        assertThat(response.isCreated(), equalTo(true));
+
+        final ExpressionRoleMapping mapping = requestRef.get().getMapping();
+        assertThat(mapping.getExpression(), is(expression));
+        assertThat(mapping.isEnabled(), equalTo(true));
+        assertThat(mapping.getName(), equalTo("anarchy"));
+        assertThat(mapping.getRoles(), iterableWithSize(1));
+        assertThat(mapping.getRoles(), contains("superuser"));
+        assertThat(mapping.getMetadata(), aMapWithSize(1));
+        assertThat(mapping.getMetadata().get("dumb"), equalTo(true));
+    }
+
+    public void testInvalidSuffix() {
+        final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
+        String name = ExpressionRoleMapping.addReadOnlySuffix("anarchy");
+        final var ex = expectThrows(IllegalArgumentException.class, () -> {
+            put(name, expression, "superuser", Collections.singletonMap("dumb", true));
+        });
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Invalid mapping name ["
+                    + name
+                    + "]. ["
+                    + ExpressionRoleMapping.READ_ONLY_ROLE_MAPPING_SUFFIX
+                    + "] is not an allowed suffix"
+            )
+        );
+    }
+
+    private PutRoleMappingResponse put(String name, FieldExpression expression, String role, Map<String, Object> metadata)
+        throws Exception {
         final PutRoleMappingRequest request = new PutRoleMappingRequest();
         request.setName(name);
         request.setRoles(Arrays.asList(role));

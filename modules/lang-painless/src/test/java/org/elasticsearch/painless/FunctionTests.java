@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class FunctionTests extends ScriptTestCase {
 
@@ -38,11 +40,11 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testEmpty() {
-        Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
-            exec("void test(int x) {} test()");
-        });
-        assertThat(expected.getMessage(), containsString(
-                "invalid function definition: found no statements for function [test] with [1] parameters"));
+        Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> { exec("void test(int x) {} test()"); });
+        assertThat(
+            expected.getMessage(),
+            containsString("invalid function definition: found no statements for function [test] with [1] parameters")
+        );
     }
 
     public void testReturnsAreUnboxedIfNeeded() {
@@ -74,11 +76,9 @@ public class FunctionTests extends ScriptTestCase {
     }
 
     public void testInfiniteLoop() {
-        Error expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("void test() {boolean x = true; while (x) {}} test()");
-        });
-        assertThat(expected.getMessage(),
-                containsString("The maximum number of statements that can be executed in a loop has been reached."));
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void test() {boolean x = true; while (x) {}} test()"); });
+        assertThat(e.realCause.getClass(), equalTo(PainlessError.class));
+        assertThat(e.getMessage(), containsString("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
     public void testReturnVoid() {
@@ -86,8 +86,10 @@ public class FunctionTests extends ScriptTestCase {
         Exception expected = expectScriptThrows(IllegalArgumentException.class, () -> {
             exec("int test(StringBuilder b, int i) {b.setLength(i)} test(new StringBuilder(), 1)");
         });
-        assertEquals("invalid function definition: " +
-                "not all paths provide a return value for function [test] with [2] parameters", expected.getMessage());
+        assertEquals(
+            "invalid function definition: " + "not all paths provide a return value for function [test] with [2] parameters",
+            expected.getMessage()
+        );
         expected = expectScriptThrows(ClassCastException.class, () -> {
             exec("int test(StringBuilder b, int i) {return b.setLength(i)} test(new StringBuilder(), 1)");
         });

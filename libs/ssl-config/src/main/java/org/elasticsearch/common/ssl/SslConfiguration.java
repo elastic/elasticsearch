@@ -1,19 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,13 +22,27 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
+
 /**
  * A object encapsulating all necessary configuration for an SSL context (client or server).
- * The configuration itself is immutable, but the {@link #getKeyConfig() key config} and
- * {@link #getTrustConfig() trust config} may depend on reading key and certificate material
+ * The configuration itself is immutable, but the {@link #keyConfig() key config} and
+ * {@link #trustConfig() trust config} may depend on reading key and certificate material
  * from files (see {@link #getDependentFiles()}, and the content of those files may change.
  */
-public class SslConfiguration {
+public record SslConfiguration(
+    String settingPrefix,
+    boolean explicitlyConfigured,
+    SslTrustConfig trustConfig,
+    SslKeyConfig keyConfig,
+    SslVerificationMode verificationMode,
+    SslClientAuthenticationMode clientAuth,
+    List<String> ciphers,
+    List<String> supportedProtocols,
+    long handshakeTimeoutMillis
+) {
 
     /**
      * An ordered map of protocol algorithms to SSLContext algorithms. The map is ordered from most
@@ -40,14 +51,10 @@ public class SslConfiguration {
      * Java Security Standard Algorithm Names Documentation for Java 11</a>.
      */
     static final Map<String, String> ORDERED_PROTOCOL_ALGORITHM_MAP;
+
     static {
         LinkedHashMap<String, String> protocolAlgorithmMap = new LinkedHashMap<>();
-        try {
-            SSLContext.getInstance("TLSv1.3");
-            protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
-        } catch (NoSuchAlgorithmException e) {
-            // ignore since we support JVMs using BCJSSE in FIPS mode which doesn't support TLSv1.3
-        }
+        protocolAlgorithmMap.put("TLSv1.3", "TLSv1.3");
         protocolAlgorithmMap.put("TLSv1.2", "TLSv1.2");
         protocolAlgorithmMap.put("TLSv1.1", "TLSv1.1");
         protocolAlgorithmMap.put("TLSv1", "TLSv1");
@@ -57,17 +64,18 @@ public class SslConfiguration {
         ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
     }
 
-    private final boolean explicitlyConfigured;
-    private final SslTrustConfig trustConfig;
-    private final SslKeyConfig keyConfig;
-    private final SslVerificationMode verificationMode;
-    private final SslClientAuthenticationMode clientAuth;
-    private final List<String> ciphers;
-    private final List<String> supportedProtocols;
-
-    public SslConfiguration(boolean explicitlyConfigured, SslTrustConfig trustConfig, SslKeyConfig keyConfig,
-                            SslVerificationMode verificationMode, SslClientAuthenticationMode clientAuth,
-                            List<String> ciphers, List<String> supportedProtocols) {
+    public SslConfiguration(
+        String settingPrefix,
+        boolean explicitlyConfigured,
+        SslTrustConfig trustConfig,
+        SslKeyConfig keyConfig,
+        SslVerificationMode verificationMode,
+        SslClientAuthenticationMode clientAuth,
+        List<String> ciphers,
+        List<String> supportedProtocols,
+        long handshakeTimeoutMillis
+    ) {
+        this.settingPrefix = settingPrefix;
         this.explicitlyConfigured = explicitlyConfigured;
         if (ciphers == null || ciphers.isEmpty()) {
             throw new SslConfigException("cannot configure SSL/TLS without any supported cipher suites");
@@ -79,32 +87,16 @@ public class SslConfiguration {
         this.keyConfig = Objects.requireNonNull(keyConfig, "key config cannot be null");
         this.verificationMode = Objects.requireNonNull(verificationMode, "verification mode cannot be null");
         this.clientAuth = Objects.requireNonNull(clientAuth, "client authentication cannot be null");
+        if (handshakeTimeoutMillis < 1L) {
+            throw new SslConfigException("handshake timeout must be at least 1ms");
+        }
+        this.handshakeTimeoutMillis = handshakeTimeoutMillis;
         this.ciphers = Collections.unmodifiableList(ciphers);
         this.supportedProtocols = Collections.unmodifiableList(supportedProtocols);
     }
 
-    public SslTrustConfig getTrustConfig() {
-        return trustConfig;
-    }
-
-    public SslKeyConfig getKeyConfig() {
-        return keyConfig;
-    }
-
-    public SslVerificationMode getVerificationMode() {
-        return verificationMode;
-    }
-
-    public SslClientAuthenticationMode getClientAuth() {
-        return clientAuth;
-    }
-
     public List<String> getCipherSuites() {
         return ciphers;
-    }
-
-    public List<String> getSupportedProtocols() {
-        return supportedProtocols;
     }
 
     /**
@@ -132,7 +124,7 @@ public class SslConfiguration {
 
     /**
      * Dynamically create a new SSL context based on the current state of the configuration.
-     * Because the {@link #getKeyConfig() key config} and {@link #getTrustConfig() trust config} may change based on the
+     * Because the {@link #keyConfig() key config} and {@link #trustConfig() trust config} may change based on the
      * contents of their referenced files (see {@link #getDependentFiles()}, consecutive calls to this method may
      * return ssl-contexts with different configurations.
      */
@@ -150,7 +142,7 @@ public class SslConfiguration {
 
     /**
      * Picks the best (highest security / most recent standard) SSL/TLS protocol (/version) that is supported by the
-     * {@link #getSupportedProtocols() configured protocols}.
+     * {@link #supportedProtocols() configured protocols}.
      */
     private String contextProtocol() {
         if (supportedProtocols.isEmpty()) {
@@ -161,41 +153,8 @@ public class SslConfiguration {
                 return entry.getValue();
             }
         }
-        throw new SslConfigException("no supported SSL/TLS protocol was found in the configured supported protocols: "
-            + supportedProtocols);
-    }
-
-    @Override
-    public String toString() {
-        return getClass().getSimpleName() + '{' +
-            "trustConfig=" + trustConfig +
-            ", keyConfig=" + keyConfig +
-            ", verificationMode=" + verificationMode +
-            ", clientAuth=" + clientAuth +
-            ", ciphers=" + ciphers +
-            ", supportedProtocols=" + supportedProtocols +
-            '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        final SslConfiguration that = (SslConfiguration) o;
-        return Objects.equals(this.trustConfig, that.trustConfig) &&
-            Objects.equals(this.keyConfig, that.keyConfig) &&
-            this.verificationMode == that.verificationMode &&
-            this.clientAuth == that.clientAuth &&
-            Objects.equals(this.ciphers, that.ciphers) &&
-            Objects.equals(this.supportedProtocols, that.supportedProtocols);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
-    }
-
-    public boolean isExplicitlyConfigured() {
-        return explicitlyConfigured;
+        throw new SslConfigException(
+            "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
+        );
     }
 }

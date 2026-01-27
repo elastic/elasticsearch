@@ -1,31 +1,50 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  description 'Ingest processor that uses lookup geo data based on IP adresses using the MaxMind geo database'
-  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+  description = 'Ingest processor that uses lookup geo data based on IP addresses using the MaxMind geo database'
+  classname ='org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+
+  bundleSpec.from("${project.buildDir}/ingest-geoip") {
+    into '/'
+  }
+}
+
+tasks.named('internalClusterTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.ingest.geoip.AbstractGeoIpIT'
+  baseClass 'org.elasticsearch.test.ESTestCase'
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:2.13.1')
+  implementation('com.maxmind.geoip2:geoip2:4.2.1')
   // geoip2 dependencies:
-  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
-  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
-  api('com.maxmind.db:maxmind-db:1.3.1')
+  runtimeOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  runtimeOnly("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  // when you upgrade maxmind dependency, please also do so in libs/logstash-bridge/build.gradle
+  // elastic_integration plugin embeds this module but references through logstash-bridge
+  implementation('com.maxmind.db:maxmind-db:3.1.1')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
-  internalClusterTestImplementation project(path: ":modules:reindex")
+  internalClusterTestImplementation project(':modules:reindex')
+  internalClusterTestImplementation project(':test:fixtures:geoip-fixture')
+  yamlRestTestImplementation project(':test:fixtures:geoip-fixture')
+
+  clusterModules project(':modules:reindex')
 }
 
 restResources {
@@ -34,63 +53,11 @@ restResources {
   }
 }
 
-def useFixture = providers.environmentVariable("geoip_use_service")
-  .forUseAtConfigurationTime()
-  .map { s -> Boolean.parseBoolean(s) == false }
-  .getOrElse(true)
-
-def fixtureAddress = {
-  assert useFixture: 'closure should not be used without a fixture'
-  int ephemeralPort = tasks.getByPath(":test:fixtures:geoip-fixture:postProcessFixture").ext."test.fixtures.geoip-fixture.tcp.80"
-  assert ephemeralPort > 0
-  return "http://127.0.0.1:${ephemeralPort}/"
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs << '-Xlint:-classfile'
 }
 
-if (useFixture) {
-  apply plugin: 'elasticsearch.test.fixtures'
-  testFixtures.useFixture(':test:fixtures:geoip-fixture', 'geoip-fixture')
-}
-
-tasks.named("internalClusterTest").configure {
-  if (useFixture) {
-    nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
-  }
-}
-
-tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {
-  from { zipTree(configurations.testCompileClasspath.files.find { it.name.contains('geolite2-databases') }) }
-  into "${project.buildDir}/ingest-geoip"
-  include "*.mmdb"
-}
-
-tasks.named("bundlePlugin").configure {
-  dependsOn("copyDefaultGeoIp2DatabaseFiles")
-  from("${project.buildDir}/ingest-geoip") {
-    into '/'
-  }
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:
-    'org.apache.http.HttpEntity',
-    'org.apache.http.HttpHost',
-    'org.apache.http.HttpResponse',
-    'org.apache.http.StatusLine',
-    'org.apache.http.auth.UsernamePasswordCredentials',
-    'org.apache.http.client.config.RequestConfig$Builder',
-    'org.apache.http.client.config.RequestConfig',
-    'org.apache.http.client.methods.CloseableHttpResponse',
-    'org.apache.http.client.methods.HttpGet',
-    'org.apache.http.client.utils.URIBuilder',
-    'org.apache.http.impl.auth.BasicScheme',
-    'org.apache.http.impl.client.CloseableHttpClient',
-    'org.apache.http.impl.client.HttpClientBuilder',
-    'org.apache.http.util.EntityUtils'
-  )
-}
-
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+if (OS.current() == OS.WINDOWS) {
   tasks.named("test").configure {
     // Windows cannot cleanup database files properly unless it loads everything on heap.
     // See https://github.com/maxmind/MaxMind-DB-Reader-java#file-lock-on-windows for more information
@@ -98,12 +65,40 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   }
 }
 
+tasks.named("internalClusterTest") {
+  onlyIf("OS != windows") { OS.current() != OS.WINDOWS }
+}
+
+tasks.named('forbiddenApisTest').configure {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  modifyBundledSignatures { bundledSignatures ->
+    bundledSignatures -= 'jdk-non-portable'
+    bundledSignatures += 'jdk-internal'
+    bundledSignatures
+  }
+}
+
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.mmdb'
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: /geoip.*/, to: 'maxmind-geolite2-eula'
   mapping from: /maxmind-db.*/, to: 'maxmind-db-reader'
+  mapping from: /jackson.*/, to: 'jackson'
+}
+
+tasks.named("dependencyLicenses").configure {
   ignoreFile 'elastic-geoip-database-service-agreement-LICENSE.txt'
 }
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("ingest_geoip/40_geoip_databases/Test adding, getting, and removing geoip databases",
+    "get databases behavior began returning more results in 8.16")
+  task.skipTest("ingest_geoip/60_ip_location_databases/Test adding, getting, and removing ip location databases",
+    "get databases behavior began returning more results in 9.2.1")
+})

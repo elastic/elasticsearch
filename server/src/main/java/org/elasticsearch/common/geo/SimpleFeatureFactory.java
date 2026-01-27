@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.geo;
 
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.CountingStreamOutput;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -53,11 +55,7 @@ public class SimpleFeatureFactory {
         if (posLat > extent || posLat < 0) {
             return EMPTY;
         }
-        final int[] commands = new int[3];
-        commands[0] = encodeCommand(MOVETO, 1);
-        commands[1] = BitUtil.zigZagEncode(posLon);
-        commands[2] = BitUtil.zigZagEncode(posLat);
-        return writeCommands(commands, 1, 3);
+        return point(posLon, posLat);
     }
 
     /**
@@ -100,7 +98,6 @@ public class SimpleFeatureFactory {
      * Returns a {@code byte[]} containing the mvt representation of the provided rectangle
      */
     public byte[] box(double minLon, double maxLon, double minLat, double maxLat) throws IOException {
-        int[] commands = new int[11];
         final int minX = Math.max(0, lon(minLon));
         if (minX > extent) {
             return EMPTY;
@@ -110,29 +107,24 @@ public class SimpleFeatureFactory {
             return EMPTY;
         }
         final int maxX = Math.min(extent, lon(maxLon));
-        if (maxX < 0 || minX == maxX) {
+        if (maxX < 0) {
             return EMPTY;
         }
         final int maxY = Math.max(0, lat(maxLat));
-        if (maxY < 0 || minY == maxY) {
+        if (maxY < 0) {
             return EMPTY;
         }
-        commands[0] = encodeCommand(MOVETO, 1);
-        commands[1] = BitUtil.zigZagEncode(minX);
-        commands[2] = BitUtil.zigZagEncode(minY);
-        commands[3] = encodeCommand(LINETO, 3);
-        // 1
-        commands[4] = BitUtil.zigZagEncode(maxX - minX);
-        commands[5] = BitUtil.zigZagEncode(0);
-        // 2
-        commands[6] = BitUtil.zigZagEncode(0);
-        commands[7] = BitUtil.zigZagEncode(maxY - minY);
-        // 3
-        commands[8] = BitUtil.zigZagEncode(minX - maxX);
-        commands[9] = BitUtil.zigZagEncode(0);
-        // close
-        commands[10] = encodeCommand(CLOSEPATH, 1);
-        return writeCommands(commands, 3, 11);
+        if (minX == maxX) {
+            if (minY == maxY) {
+                return point(minX, minY);
+            } else {
+                return line(minX, minY, minX, maxY);
+            }
+        } else if (minY == maxY) {
+            return line(minX, minY, maxX, minY);
+        } else {
+            return box(minX, maxX, minY, maxY);
+        }
     }
 
     private int lat(double lat) {
@@ -143,21 +135,59 @@ public class SimpleFeatureFactory {
         return (int) Math.round(pointXScale * SphericalMercatorUtils.lonToSphericalMercator(lon) + pointXTranslate);
     }
 
+    private static byte[] point(int x, int y) throws IOException {
+        final int[] commands = new int[3];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(x);
+        commands[2] = BitUtil.zigZagEncode(y);
+        return writeCommands(commands, 1, 3);
+    }
+
+    private static byte[] line(int x1, int y1, int x2, int y2) throws IOException {
+        final int[] commands = new int[6];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(x1);
+        commands[2] = BitUtil.zigZagEncode(y1);
+
+        commands[3] = encodeCommand(LINETO, 1);
+        commands[4] = BitUtil.zigZagEncode(x2 - x1);
+        commands[5] = BitUtil.zigZagEncode(y2 - y1);
+        return writeCommands(commands, 2, 6);
+    }
+
+    private static byte[] box(int minX, int maxX, int minY, int maxY) throws IOException {
+        final int[] commands = new int[11];
+        commands[0] = encodeCommand(MOVETO, 1);
+        commands[1] = BitUtil.zigZagEncode(minX);
+        commands[2] = BitUtil.zigZagEncode(minY);
+        commands[3] = encodeCommand(LINETO, 3);
+        // 1
+        commands[4] = BitUtil.zigZagEncode(0);
+        commands[5] = BitUtil.zigZagEncode(maxY - minY);
+        // 2
+        commands[6] = BitUtil.zigZagEncode(maxX - minX);
+        commands[7] = BitUtil.zigZagEncode(0);
+        // 3
+        commands[8] = BitUtil.zigZagEncode(0);
+        commands[9] = BitUtil.zigZagEncode(minY - maxY);
+        // close
+        commands[10] = encodeCommand(CLOSEPATH, 1);
+        return writeCommands(commands, 3, 11);
+    }
+
     private static int encodeCommand(int id, int length) {
         return (id & 0x7) | (length << 3);
     }
 
     private static byte[] writeCommands(final int[] commands, final int type, final int length) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
+        try (BytesStreamOutput output = new BytesStreamOutput(); CountingStreamOutput counting = new CountingStreamOutput()) {
             for (int i = 0; i < length; i++) {
-                output.writeVInt(commands[i]);
+                counting.writeVInt(commands[i]);
             }
-            final int dataSize = output.size();
-            output.reset();
             output.writeVInt(24);
             output.writeVInt(type);
             output.writeVInt(34);
-            output.writeVInt(dataSize);
+            output.writeVInt(Math.toIntExact(counting.size()));
             for (int i = 0; i < length; i++) {
                 output.writeVInt(commands[i]);
             }

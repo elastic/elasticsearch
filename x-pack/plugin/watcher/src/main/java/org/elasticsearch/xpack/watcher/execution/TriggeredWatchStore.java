@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -21,19 +21,21 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -61,9 +63,9 @@ public class TriggeredWatchStore {
 
     private final TimeValue defaultBulkTimeout;
     private final TimeValue defaultSearchTimeout;
-    private final BulkProcessor bulkProcessor;
+    private final BulkProcessor2 bulkProcessor;
 
-    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor bulkProcessor) {
+    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser, BulkProcessor2 bulkProcessor) {
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = ClientHelper.clientWithOrigin(client, WATCHER_ORIGIN);
         this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueMinutes(5));
@@ -75,7 +77,7 @@ public class TriggeredWatchStore {
 
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BulkResponse> listener) throws IOException {
         if (triggeredWatches.isEmpty()) {
-            listener.onResponse(new BulkResponse(new BulkItemResponse[]{}, 0));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0));
             return;
         }
 
@@ -83,7 +85,7 @@ public class TriggeredWatchStore {
     }
 
     public BulkResponse putAll(final List<TriggeredWatch> triggeredWatches) throws IOException {
-        PlainActionFuture<BulkResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         putAll(triggeredWatches, future);
         return future.actionGet(defaultBulkTimeout);
     }
@@ -94,7 +96,7 @@ public class TriggeredWatchStore {
      * @return                  The bulk request for the triggered watches
      * @throws IOException      If a triggered watch could not be parsed to JSON, this exception is thrown
      */
-    private BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
+    private static BulkRequest createBulkRequest(final List<TriggeredWatch> triggeredWatches) throws IOException {
         BulkRequest request = new BulkRequest();
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
             IndexRequest indexRequest = new IndexRequest(TriggeredWatchStoreField.INDEX_NAME).id(triggeredWatch.id().value());
@@ -149,18 +151,14 @@ public class TriggeredWatchStore {
         Set<String> ids = watches.stream().map(Watch::id).collect(Collectors.toSet());
         Collection<TriggeredWatch> triggeredWatches = new ArrayList<>(ids.size());
 
-        SearchRequest searchRequest = new SearchRequest(TriggeredWatchStoreField.INDEX_NAME)
-            .scroll(scrollTimeout)
+        SearchRequest searchRequest = new SearchRequest(TriggeredWatchStoreField.INDEX_NAME).scroll(scrollTimeout)
             .preference(Preference.LOCAL.toString())
-            .source(new SearchSourceBuilder()
-                .size(scrollSize)
-                .sort(SortBuilders.fieldSort("_doc"))
-                .version(true));
+            .source(new SearchSourceBuilder().size(scrollSize).sort(SortBuilders.fieldSort("_doc")).version(true));
 
         SearchResponse response = null;
         try {
             response = client.search(searchRequest).actionGet(defaultSearchTimeout);
-            logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits().value);
+            logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits().value());
             while (response.getHits().getHits().length != 0) {
                 for (SearchHit hit : response.getHits()) {
                     Wid wid = new Wid(hit.getId());
@@ -171,12 +169,15 @@ public class TriggeredWatchStore {
                 }
                 SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
                 request.scroll(scrollTimeout);
+                response.decRef();
                 response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
             if (response != null) {
+                final String scrollId = response.getScrollId();
+                response.decRef();
                 ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-                clearScrollRequest.addScrollId(response.getScrollId());
+                clearScrollRequest.addScrollId(scrollId);
                 client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
             }
         }
@@ -184,9 +185,11 @@ public class TriggeredWatchStore {
         return triggeredWatches;
     }
 
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
     public static boolean validate(ClusterState state) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metadata());
-        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
-            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+        return indexMetadata == null
+            || (indexMetadata.getState() == IndexMetadata.State.OPEN
+                && state.routingTable(ProjectId.DEFAULT).index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

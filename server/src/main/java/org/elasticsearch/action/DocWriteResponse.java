@@ -1,56 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, ToXContentObject {
 
-    private static final String _SHARDS = "_shards";
-    private static final String _INDEX = "_index";
-    private static final String _ID = "_id";
-    private static final String _VERSION = "_version";
-    private static final String _SEQ_NO = "_seq_no";
-    private static final String _PRIMARY_TERM = "_primary_term";
-    private static final String RESULT = "result";
-    private static final String FORCED_REFRESH = "forced_refresh";
+    public static final String _SHARDS = "_shards";
+    public static final String _INDEX = "_index";
+    public static final String _ID = "_id";
+    public static final String _VERSION = "_version";
+    public static final String _SEQ_NO = "_seq_no";
+    public static final String _PRIMARY_TERM = "_primary_term";
+    public static final String RESULT = "result";
+    public static final String FORCED_REFRESH = "forced_refresh";
 
     /**
      * An enum that represents the results of CRUD operations, primarily used to communicate the type of
@@ -79,22 +75,16 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             return lowercase;
         }
 
-        public static Result readFrom(StreamInput in) throws IOException{
+        public static Result readFrom(StreamInput in) throws IOException {
             Byte opcode = in.readByte();
-            switch(opcode){
-                case 0:
-                    return CREATED;
-                case 1:
-                    return UPDATED;
-                case 2:
-                    return DELETED;
-                case 3:
-                    return NOT_FOUND;
-                case 4:
-                    return NOOP;
-                default:
-                    throw new IllegalArgumentException("Unknown result code: " + opcode);
-            }
+            return switch (opcode) {
+                case 0 -> CREATED;
+                case 1 -> UPDATED;
+                case 2 -> DELETED;
+                case 3 -> NOT_FOUND;
+                case 4 -> NOOP;
+                default -> throw new IllegalArgumentException("Unknown result code: " + opcode);
+            };
         }
 
         @Override
@@ -124,10 +114,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     protected DocWriteResponse(ShardId shardId, StreamInput in) throws IOException {
         super(in);
         this.shardId = shardId;
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -137,16 +123,12 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /**
-     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.IndexAction} and BwC
+     * Needed for deserialization of single item requests in {@link org.elasticsearch.action.index.TransportIndexAction} and BwC
      * deserialization path
      */
     protected DocWriteResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
-        if (in.getVersion().before(Version.V_8_0_0)) {
-            String type = in.readString();
-            assert MapperService.SINGLE_MAPPING_NAME.equals(type) : "Expected [_doc] but received [" + type + "]";
-        }
         id = in.readString();
         version = in.readZLong();
         seqNo = in.readZLong();
@@ -222,7 +204,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     /** returns the rest status for this response (based on {@link ShardInfo#status()} */
-    @Override
     public RestStatus status() {
         return getShardInfo().status();
     }
@@ -235,19 +216,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
      * @return the relative URI for the location of the document
      */
     public String getLocation(@Nullable String routing) {
-        final String encodedIndex;
-        final String encodedType;
-        final String encodedId;
-        final String encodedRouting;
-        try {
-            // encode the path components separately otherwise the path separators will be encoded
-            encodedIndex = URLEncoder.encode(getIndex(), "UTF-8");
-            encodedType = URLEncoder.encode(MapperService.SINGLE_MAPPING_NAME, "UTF-8");
-            encodedId = URLEncoder.encode(getId(), "UTF-8");
-            encodedRouting = routing == null ? null : URLEncoder.encode(routing, "UTF-8");
-        } catch (final UnsupportedEncodingException e) {
-            throw new AssertionError(e);
-        }
+        // encode the path components separately otherwise the path separators will be encoded
+        final String encodedIndex = URLEncoder.encode(getIndex(), StandardCharsets.UTF_8);
+        final String encodedType = URLEncoder.encode(MapperService.SINGLE_MAPPING_NAME, StandardCharsets.UTF_8);
+        final String encodedId = URLEncoder.encode(getId(), StandardCharsets.UTF_8);
+        final String encodedRouting = routing == null ? null : URLEncoder.encode(routing, StandardCharsets.UTF_8);
         final String routingStart = "?routing=";
         final int bufferSizeExcludingRouting = 3 + encodedIndex.length() + encodedType.length() + encodedId.length();
         final int bufferSize;
@@ -267,6 +240,10 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         return location.toString();
     }
 
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        return IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+    }
+
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);
         writeWithoutShardId(out);
@@ -280,9 +257,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     private void writeWithoutShardId(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeString(MapperService.SINGLE_MAPPING_NAME);
-        }
         out.writeString(id);
         out.writeZLong(version);
         out.writeZLong(seqNo);
@@ -294,9 +268,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
@@ -305,9 +276,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        builder.field(_ID, id)
-                .field(_VERSION, version)
-                .field(RESULT, getResult().getLowercase());
+        builder.field(_ID, id).field(_VERSION, version).field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {
             builder.field(FORCED_REFRESH, true);
         }
@@ -317,54 +286,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             builder.field(_PRIMARY_TERM, getPrimaryTerm());
         }
         return builder;
-    }
-
-    /**
-     * Parse the output of the {@link #innerToXContent(XContentBuilder, Params)} method.
-     *
-     * This method is intended to be called by subclasses and must be called multiple times to parse all the information concerning
-     * {@link DocWriteResponse} objects. It always parses the current token, updates the given parsing context accordingly
-     * if needed and then immediately returns.
-     */
-    protected static void parseInnerToXContent(XContentParser parser, Builder context) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-
-        String currentFieldName = parser.currentName();
-        token = parser.nextToken();
-
-        if (token.isValue()) {
-            if (_INDEX.equals(currentFieldName)) {
-                // index uuid and shard id are unknown and can't be parsed back for now.
-                context.setShardId(new ShardId(new Index(parser.text(), IndexMetadata.INDEX_UUID_NA_VALUE), -1));
-            } else if (_ID.equals(currentFieldName)) {
-                context.setId(parser.text());
-            } else if (_VERSION.equals(currentFieldName)) {
-                context.setVersion(parser.longValue());
-            } else if (RESULT.equals(currentFieldName)) {
-                String result = parser.text();
-                for (Result r :  Result.values()) {
-                    if (r.getLowercase().equals(result)) {
-                        context.setResult(r);
-                        break;
-                    }
-                }
-            } else if (FORCED_REFRESH.equals(currentFieldName)) {
-                context.setForcedRefresh(parser.booleanValue());
-            } else if (_SEQ_NO.equals(currentFieldName)) {
-                context.setSeqNo(parser.longValue());
-            } else if (_PRIMARY_TERM.equals(currentFieldName)) {
-                context.setPrimaryTerm(parser.longValue());
-            }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            if (_SHARDS.equals(currentFieldName)) {
-                context.setShardInfo(ShardInfo.fromXContent(parser));
-            } else {
-                parser.skipChildren(); // skip potential inner objects for forward compatibility
-            }
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            parser.skipChildren(); // skip potential inner arrays for forward compatibility
-        }
     }
 
     /**

@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.security.support;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Collection;
 import java.util.Map;
@@ -27,8 +29,7 @@ public class CacheInvalidatorRegistry {
     private final Map<String, CacheInvalidator> cacheInvalidators = new ConcurrentHashMap<>();
     private final Map<String, Set<String>> cacheAliases = new ConcurrentHashMap<>();
 
-    public CacheInvalidatorRegistry() {
-    }
+    public CacheInvalidatorRegistry() {}
 
     public void registerCacheInvalidator(String name, CacheInvalidator cacheInvalidator) {
         if (cacheInvalidators.containsKey(name)) {
@@ -55,19 +56,29 @@ public class CacheInvalidatorRegistry {
             }
             final Set<String> names = cacheAliases.get(alias);
             if (false == cacheInvalidators.keySet().containsAll(names)) {
-                throw new IllegalStateException("cache names not found: ["
-                    + Strings.collectionToCommaDelimitedString(Sets.difference(names, cacheInvalidators.keySet())) + "]");
+                throw new IllegalStateException(
+                    "cache names not found: ["
+                        + Strings.collectionToCommaDelimitedString(Sets.difference(names, cacheInvalidators.keySet()))
+                        + "]"
+                );
             }
         }
     }
 
-    public void onSecurityIndexStateChange(SecurityIndexManager.State previousState, SecurityIndexManager.State currentState) {
+    @FixForMultiProject
+    public void onSecurityIndexStateChange(
+        ProjectId projectId,
+        SecurityIndexManager.IndexState previousState,
+        SecurityIndexManager.IndexState currentState
+    ) {
         if (isMoveFromRedToNonRed(previousState, currentState)
             || isIndexDeleted(previousState, currentState)
             || Objects.equals(previousState.indexUUID, currentState.indexUUID) == false
             || previousState.isIndexUpToDate != currentState.isIndexUpToDate) {
-            cacheInvalidators.values().stream()
-                .filter(CacheInvalidator::shouldClearOnSecurityIndexStateChange).forEach(CacheInvalidator::invalidateAll);
+            cacheInvalidators.values()
+                .stream()
+                .filter(CacheInvalidator::shouldClearOnSecurityIndexStateChange)
+                .forEach(CacheInvalidator::invalidateAll);
         }
     }
 

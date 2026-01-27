@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.termsenum.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportResponse;
@@ -20,21 +21,35 @@ import java.util.List;
  */
 class NodeTermsEnumResponse extends TransportResponse {
 
-    private String error;
-    private boolean complete;
-
-    private List<TermCount> terms;
-    private String nodeId;
+    private final String error;
+    private final boolean complete;
+    private final List<String> terms;
+    private final String nodeId;
 
     NodeTermsEnumResponse(StreamInput in) throws IOException {
-        super(in);
-        terms = in.readList(TermCount::new);
+        terms = in.readStringCollectionAsList();
         error = in.readOptionalString();
         complete = in.readBoolean();
         nodeId = in.readString();
     }
 
-    NodeTermsEnumResponse(String nodeId, List<TermCount> terms, String error, boolean complete) {
+    public static NodeTermsEnumResponse empty(String nodeId) {
+        return new NodeTermsEnumResponse(nodeId, List.of(), null, true);
+    }
+
+    public static NodeTermsEnumResponse complete(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, true);
+    }
+
+    public static NodeTermsEnumResponse partial(String nodeId, List<String> terms) {
+        return new NodeTermsEnumResponse(nodeId, terms, null, false);
+    }
+
+    public static NodeTermsEnumResponse error(String nodeId, List<String> terms, Exception error) {
+        return new NodeTermsEnumResponse(nodeId, terms, ExceptionsHelper.stackTrace(error), false);
+    }
+
+    private NodeTermsEnumResponse(String nodeId, List<String> terms, String error, boolean complete) {
         this.nodeId = nodeId;
         this.terms = terms;
         this.error = error;
@@ -43,13 +58,13 @@ class NodeTermsEnumResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(terms);
+        out.writeStringCollection(terms);
         out.writeOptionalString(error);
         out.writeBoolean(complete);
         out.writeString(nodeId);
     }
 
-    public List<TermCount> terms() {
+    public List<String> terms() {
         return this.terms;
     }
 

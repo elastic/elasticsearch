@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
@@ -11,10 +12,10 @@ package org.elasticsearch.common;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -38,8 +39,8 @@ public class ParsingException extends ElasticsearchException {
         int lineNumber = UNKNOWN_POSITION;
         int columnNumber = UNKNOWN_POSITION;
         if (contentLocation != null) {
-            lineNumber = contentLocation.lineNumber;
-            columnNumber = contentLocation.columnNumber;
+            lineNumber = contentLocation.lineNumber();
+            columnNumber = contentLocation.columnNumber();
         }
         this.columnNumber = columnNumber;
         this.lineNumber = lineNumber;
@@ -55,7 +56,7 @@ public class ParsingException extends ElasticsearchException {
         this.columnNumber = col;
     }
 
-    public ParsingException(StreamInput in) throws IOException{
+    public ParsingException(StreamInput in) throws IOException {
         super(in);
         lineNumber = in.readInt();
         columnNumber = in.readInt();
@@ -93,8 +94,8 @@ public class ParsingException extends ElasticsearchException {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+    protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
+        super.writeTo(out, nestedExceptionsWriter);
         out.writeInt(lineNumber);
         out.writeInt(columnNumber);
     }

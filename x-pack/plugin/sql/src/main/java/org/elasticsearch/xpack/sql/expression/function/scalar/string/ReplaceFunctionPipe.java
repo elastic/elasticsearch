@@ -103,7 +103,7 @@ public class ReplaceFunctionPipe extends Pipe {
 
         ReplaceFunctionPipe other = (ReplaceFunctionPipe) obj;
         return Objects.equals(input, other.input)
-                && Objects.equals(pattern, other.pattern)
-                && Objects.equals(replacement, other.replacement);
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(replacement, other.replacement);
     }
 }

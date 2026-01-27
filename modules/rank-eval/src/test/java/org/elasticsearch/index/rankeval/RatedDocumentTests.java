@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -56,8 +57,11 @@ public class RatedDocumentTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         RatedDocument original = createRatedDocument();
-        RatedDocument deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                RatedDocument::new);
+        RatedDocument deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            RatedDocument::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -75,17 +79,10 @@ public class RatedDocumentTests extends ESTestCase {
         String docId = original.getDocID();
 
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            rating = randomValueOtherThan(rating, () -> randomInt());
-            break;
-        case 1:
-            index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
-            break;
-        case 2:
-            docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow two parameters mutated");
+            case 0 -> rating = randomValueOtherThan(rating, () -> randomInt());
+            case 1 -> index = randomValueOtherThan(index, () -> randomAlphaOfLength(10));
+            case 2 -> docId = randomValueOtherThan(docId, () -> randomAlphaOfLength(10));
+            default -> throw new IllegalStateException("The test should only allow two parameters mutated");
         }
         return new RatedDocument(index, docId, rating);
     }

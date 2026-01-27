@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.recovery;
 
@@ -11,10 +12,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -28,8 +30,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     private final AtomicInteger currentAsTarget = new AtomicInteger();
     private final AtomicLong throttleTimeInNanos = new AtomicLong();
 
-    public RecoveryStats() {
-    }
+    public RecoveryStats() {}
 
     public RecoveryStats(StreamInput in) throws IOException {
         currentAsSource.set(in.readVInt());
@@ -118,8 +119,28 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RecoveryStats that = (RecoveryStats) o;
+        return currentAsSource() == that.currentAsSource()
+            && currentAsTarget() == that.currentAsTarget()
+            && Objects.equals(throttleTime(), that.throttleTime());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(currentAsSource(), currentAsTarget(), throttleTime());
+    }
+
+    @Override
     public String toString() {
-        return "recoveryStats, currentAsSource [" + currentAsSource() + "],currentAsTarget ["
-                + currentAsTarget() + "], throttle [" + throttleTime() + "]";
+        return "recoveryStats, currentAsSource ["
+            + currentAsSource()
+            + "],currentAsTarget ["
+            + currentAsTarget()
+            + "], throttle ["
+            + throttleTime()
+            + "]";
     }
 }

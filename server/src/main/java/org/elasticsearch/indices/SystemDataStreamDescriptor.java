@@ -1,32 +1,52 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.system.SystemResourceDescriptor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.indices.AssociatedIndexDescriptor.buildAutomaton;
+import java.util.stream.Stream;
 
 /**
- * Describes a {@link DataStream} that is reserved for use by a system component. The data stream will be managed by the system and also
- * protected by the system against user modification so that system features are not broken by inadvertent user operations.
+ * Describes a {@link DataStream} that is reserved for use by a system feature.
+ *
+ * <p>A system data stream is managed by the system and protected by the system against user modifications so that system features are
+ * not broken by inadvertent user operations.
+ *
+ * <p>Unlike a {@link SystemIndexDescriptor}, a SystemDataStreamDescriptor does not take an index pattern. Rather, it derives the expected
+ * backing index pattern from the data stream name.
+ *
+ * <p>A SystemDataStreamDescriptor defines a list of allowed product origins. If that list is empty, only system operations can read,
+ * write to, or modify the system data stream. If there are entries in the list, then a special request header must be used in any
+ * request that accesses the system data stream, either through plugin-provided APIs or through data stream APIs.
+ *
+ * <p>A SystemDataStreamDescriptor may be internal or external. If internal, the system feature must define APIs for interacting with
+ * the system data stream. If external, the system feature will allow use of the data stream API, assuming the correct permissions
+ * and product origin flag.
+ *
+ * <p>One interesting implementation detail is that the SystemDataStreamDescriptor manages its own templates for the data stream, so
+ * although they have names, they are never listed in the index template or component template APIs.
+ *
+ * <p>The descriptor also provides names for the thread pools that Elasticsearch should use to read, search, or modify the descriptor’s
+ * indices.
  */
-public class SystemDataStreamDescriptor {
+public class SystemDataStreamDescriptor implements SystemResourceDescriptor {
 
     private final String dataStreamName;
     private final String description;
@@ -34,8 +54,8 @@ public class SystemDataStreamDescriptor {
     private final ComposableIndexTemplate composableIndexTemplate;
     private final Map<String, ComponentTemplate> componentTemplates;
     private final List<String> allowedElasticProductOrigins;
+    private final String origin;
     private final ExecutorNames executorNames;
-    private final CharacterRunAutomaton characterRunAutomaton;
 
     /**
      * Creates a new descriptor for a system data descriptor
@@ -48,38 +68,39 @@ public class SystemDataStreamDescriptor {
      *                           {@link ComposableIndexTemplate}
      * @param allowedElasticProductOrigins a list of product origin values that are allowed to access this data stream if the
      *                                     type is {@link Type#EXTERNAL}. Must not be {@code null}
+     * @param origin specifies the origin to use when creating or updating the data stream
      * @param executorNames thread pools that should be used for operations on the system data stream
      */
-    public SystemDataStreamDescriptor(String dataStreamName, String description, Type type,
-                                      ComposableIndexTemplate composableIndexTemplate, Map<String, ComponentTemplate> componentTemplates,
-                                      List<String> allowedElasticProductOrigins,
-                                      ExecutorNames executorNames) {
+    public SystemDataStreamDescriptor(
+        String dataStreamName,
+        String description,
+        Type type,
+        ComposableIndexTemplate composableIndexTemplate,
+        Map<String, ComponentTemplate> componentTemplates,
+        List<String> allowedElasticProductOrigins,
+        String origin,
+        ExecutorNames executorNames
+    ) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
         if (dataStreamName.length() < 2) {
-            throw new IllegalArgumentException(
-                "system data stream name [" + dataStreamName + "] but must at least 2 characters in length"
-            );
+            throw new IllegalArgumentException("system data stream name [" + dataStreamName + "] but must at least 2 characters in length");
         }
         if (dataStreamName.charAt(0) != '.') {
-            throw new IllegalArgumentException(
-                "system data stream name [" + dataStreamName + "] but must start with the character [.]"
-            );
+            throw new IllegalArgumentException("system data stream name [" + dataStreamName + "] but must start with the character [.]");
         }
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
         this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");
         this.componentTemplates = componentTemplates == null ? Map.of() : Map.copyOf(componentTemplates);
-        this.allowedElasticProductOrigins =
-            Objects.requireNonNull(allowedElasticProductOrigins, "allowedElasticProductOrigins must not be null");
+        this.allowedElasticProductOrigins = Objects.requireNonNull(
+            allowedElasticProductOrigins,
+            "allowedElasticProductOrigins must not be null"
+        );
         if (type == Type.EXTERNAL && allowedElasticProductOrigins.isEmpty()) {
             throw new IllegalArgumentException("External system data stream without allowed products is not a valid combination");
         }
-        this.executorNames = Objects.nonNull(executorNames)
-            ? executorNames
-            : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
-
-        this.characterRunAutomaton = new CharacterRunAutomaton(
-            buildAutomaton(backingIndexPatternForDataStream(this.dataStreamName)));
+        this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS;
+        this.origin = origin;
     }
 
     public String getDataStreamName() {
@@ -91,15 +112,27 @@ public class SystemDataStreamDescriptor {
      * @param metadata Metadata in which to look for indices
      * @return List of names of backing indices
      */
+    @Deprecated
     public List<String> getBackingIndexNames(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (this.characterRunAutomaton.run(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
+        return getBackingIndexNames(metadata.getProject());
+    }
 
-        return Collections.unmodifiableList(matchingIndices);
+    /**
+     * Retrieve backing indices for this system data stream
+     * @param projectMetadata Project metadata in which to look for indices
+     * @return List of names of backing indices
+     */
+    public List<String> getBackingIndexNames(ProjectMetadata projectMetadata) {
+        DataStream dataStream = projectMetadata.dataStreams().get(dataStreamName);
+        if (dataStream == null) {
+            return Collections.emptyList();
+        }
+        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(Index::getName).toList();
+    }
+
+    @Override
+    public List<String> getMatchingIndices(ProjectMetadata metadata) {
+        return getBackingIndexNames(metadata);
     }
 
     public String getDescription() {
@@ -110,6 +143,17 @@ public class SystemDataStreamDescriptor {
         return composableIndexTemplate;
     }
 
+    @Override
+    public String getOrigin() {
+        return origin;
+    }
+
+    @Override
+    public boolean isAutomaticallyManaged() {
+        return true;
+    }
+
+    @Override
     public boolean isExternal() {
         return type == Type.EXTERNAL;
     }
@@ -119,9 +163,10 @@ public class SystemDataStreamDescriptor {
     }
 
     private static String backingIndexPatternForDataStream(String dataStream) {
-        return DataStream.BACKING_INDEX_PREFIX + dataStream + "-*";
+        return ".(migrated-){0,}[fd]s-" + dataStream + "-*";
     }
 
+    @Override
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
     }
@@ -134,6 +179,7 @@ public class SystemDataStreamDescriptor {
      * Get the names of the thread pools that should be used for operations on this data stream.
      * @return Names for get, search, and write executors.
      */
+    @Override
     public ExecutorNames getThreadPoolNames() {
         return this.executorNames;
     }

@@ -1,19 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
-import java.security.AccessControlException;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -23,7 +21,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A {@link org.elasticsearch.common.ssl.SslTrustConfig} that reads a list of PEM encoded trusted certificates (CAs) from the file
@@ -81,13 +81,12 @@ public final class PemTrustConfig implements SslTrustConfig {
             final KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
             return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
         } catch (GeneralSecurityException e) {
-            throw new SslConfigException(
-                "cannot create trust using PEM certificates [" + SslFileUtil.pathsToString(paths) + "]", e);
+            throw new SslConfigException("cannot create trust using PEM certificates [" + SslFileUtil.pathsToString(paths) + "]", e);
         }
     }
 
     private List<Path> resolveFiles() {
-        return this.certificateAuthorities.stream().map(this::resolveFile).collect(Collectors.toUnmodifiableList());
+        return this.certificateAuthorities.stream().map(this::resolveFile).toList();
     }
 
     private Path resolveFile(String other) {
@@ -97,7 +96,7 @@ public final class PemTrustConfig implements SslTrustConfig {
     private List<Certificate> readCertificates(List<Path> paths) {
         try {
             return PemUtils.readCertificates(paths);
-        } catch (AccessControlException e) {
+        } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);
@@ -130,4 +129,8 @@ public final class PemTrustConfig implements SslTrustConfig {
         return Objects.hash(certificateAuthorities);
     }
 
+    @Override
+    public boolean hasExplicitConfig() {
+        return true;
+    }
 }

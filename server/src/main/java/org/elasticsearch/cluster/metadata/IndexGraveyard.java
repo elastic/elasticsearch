@@ -1,29 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -32,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
@@ -44,7 +48,7 @@ import java.util.Objects;
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
  */
-public final class IndexGraveyard implements Metadata.Custom {
+public final class IndexGraveyard implements Metadata.ProjectCustom {
 
     /**
      * Setting for the maximum tombstones allowed in the cluster state;
@@ -53,9 +57,11 @@ public final class IndexGraveyard implements Metadata.Custom {
      * deletions while a node was offline, when it comes back online, it will have
      * missed index deletions that it may need to process.
      */
-    public static final Setting<Integer> SETTING_MAX_TOMBSTONES = Setting.intSetting("cluster.indices.tombstones.size",
-                                                                                     500, // the default maximum number of tombstones
-                                                                                     Setting.Property.NodeScope);
+    public static final Setting<Integer> SETTING_MAX_TOMBSTONES = Setting.intSetting(
+        "cluster.indices.tombstones.size",
+        500, // the default maximum number of tombstones
+        Setting.Property.NodeScope
+    );
 
     public static final String TYPE = "index-graveyard";
     private static final ParseField TOMBSTONES_FIELD = new ParseField("tombstones");
@@ -73,7 +79,7 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     public IndexGraveyard(final StreamInput in) throws IOException {
-        this.tombstones = Collections.unmodifiableList(in.readList(Tombstone::new));
+        this.tombstones = in.readCollectionAsImmutableList(Tombstone::new);
     }
 
     @Override
@@ -82,8 +88,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -93,7 +99,7 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public boolean equals(Object obj) {
-        return (obj instanceof IndexGraveyard) && Objects.equals(tombstones, ((IndexGraveyard)obj).tombstones);
+        return (obj instanceof IndexGraveyard) && Objects.equals(tombstones, ((IndexGraveyard) obj).tombstones);
     }
 
     @Override
@@ -121,12 +127,8 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-        builder.startArray(TOMBSTONES_FIELD.getPreferredName());
-        for (Tombstone tombstone : tombstones) {
-            tombstone.toXContent(builder, params);
-        }
-        return builder.endArray();
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
+        return ChunkedToXContentHelper.array(TOMBSTONES_FIELD.getPreferredName(), tombstones.iterator());
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {
@@ -140,15 +142,15 @@ public final class IndexGraveyard implements Metadata.Custom {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeList(tombstones);
+        out.writeCollection(tombstones);
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(final Metadata.Custom previous) {
+    public Diff<Metadata.ProjectCustom> diff(final Metadata.ProjectCustom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(final StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(final StreamInput in) throws IOException {
         return new IndexGraveyardDiff(in);
     }
 
@@ -248,13 +250,13 @@ public final class IndexGraveyard implements Metadata.Custom {
     /**
      * A class representing a diff of two IndexGraveyard objects.
      */
-    public static final class IndexGraveyardDiff implements NamedDiff<Metadata.Custom> {
+    public static final class IndexGraveyardDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         private final List<Tombstone> added;
         private final int removedCount;
 
         IndexGraveyardDiff(final StreamInput in) throws IOException {
-            added = Collections.unmodifiableList(in.readList((streamInput) -> new Tombstone(streamInput)));
+            added = in.readCollectionAsImmutableList(Tombstone::new);
             removedCount = in.readVInt();
         }
 
@@ -297,16 +299,17 @@ public final class IndexGraveyard implements Metadata.Custom {
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeList(added);
+            out.writeCollection(added);
             out.writeVInt(removedCount);
         }
 
         @Override
-        public IndexGraveyard apply(final Metadata.Custom previous) {
+        public IndexGraveyard apply(final Metadata.ProjectCustom previous) {
             final IndexGraveyard old = (IndexGraveyard) previous;
             if (removedCount > old.tombstones.size()) {
-                throw new IllegalStateException("IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" +
-                                                old.tombstones.size() + "] tombstones.");
+                throw new IllegalStateException(
+                    "IndexGraveyardDiff cannot remove [" + removedCount + "] entries from [" + old.tombstones.size() + "] tombstones."
+                );
             }
             final List<Tombstone> newTombstones = new ArrayList<>(old.tombstones.subList(removedCount, old.tombstones.size()));
             for (Tombstone tombstone : added) {
@@ -329,6 +332,11 @@ public final class IndexGraveyard implements Metadata.Custom {
         public String getWriteableName() {
             return TYPE;
         }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
     }
 
     /**
@@ -342,8 +350,11 @@ public final class IndexGraveyard implements Metadata.Custom {
         private static final ObjectParser<Tombstone.Builder, Void> TOMBSTONE_PARSER;
         static {
             TOMBSTONE_PARSER = new ObjectParser<>("tombstoneEntry", Tombstone.Builder::new);
-            TOMBSTONE_PARSER.declareObject(Tombstone.Builder::index, (parser, context) -> Index.fromXContent(parser),
-                    new ParseField(INDEX_KEY));
+            TOMBSTONE_PARSER.declareObject(
+                Tombstone.Builder::index,
+                (parser, context) -> Index.fromXContent(parser),
+                new ParseField(INDEX_KEY)
+            );
             TOMBSTONE_PARSER.declareLong(Tombstone.Builder::deleteDateInMillis, new ParseField(DELETE_DATE_IN_MILLIS_KEY));
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
@@ -422,7 +433,7 @@ public final class IndexGraveyard implements Metadata.Custom {
             builder.startObject();
             builder.field(INDEX_KEY);
             index.toXContent(builder, params);
-            builder.timeField(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
+            builder.timestampFieldsFromUnixEpochMillis(DELETE_DATE_IN_MILLIS_KEY, DELETE_DATE_KEY, deleteDateInMillis);
             return builder.endObject();
         }
 

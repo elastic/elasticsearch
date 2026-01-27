@@ -1,24 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -26,6 +19,15 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,10 +43,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SuggestionTests extends ESTestCase {
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static final Class<Suggestion<? extends Entry<? extends Option>>>[] SUGGESTION_TYPES = new Class[] {
-        TermSuggestion.class, PhraseSuggestion.class, CompletionSuggestion.class
-    };
+        TermSuggestion.class,
+        PhraseSuggestion.class,
+        CompletionSuggestion.class };
 
     public static Suggestion<? extends Entry<? extends Option>> createTestItem() {
         return createTestItem(randomFrom(SUGGESTION_TYPES));
@@ -114,9 +117,12 @@ public class SuggestionTests extends ESTestCase {
                 // We also exclude options that contain SearchHits, as all unknown fields
                 // on a root level of SearchHit are interpreted as meta-fields and will be kept.
                 Predicate<String> excludeFilter = path -> path.isEmpty()
-                        || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
-                        || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                        || path.contains("options");
+                    || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
+                    || path.endsWith("highlight")
+                    || path.contains("fields")
+                    || path.contains("_source")
+                    || path.contains("inner_hits")
+                    || path.contains("options");
                 mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
             } else {
                 mutated = originalBytes;
@@ -126,7 +132,7 @@ public class SuggestionTests extends ESTestCase {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-                parsed = Suggestion.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSuggestion(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
             }
@@ -149,36 +155,44 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            assertNull(Suggestion.fromXContent(parser));
+            assertNull(SearchResponseUtils.parseSuggestion(parser));
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
     }
 
     public void testUnknownSuggestionTypeThrows() throws IOException {
         XContent xContent = JsonXContent.jsonXContent;
-        String suggestionString = ("{"
-            + "  \"unknownType#suggestionName\": ["
-            + "    {"
-            + "      \"text\": \"entryText\","
-            + "      \"offset\": 42,"
-            + "      \"length\": 313,"
-            + "      \"options\": ["
-            + "        {"
-            + "          \"text\": \"someText\","
-            + "          \"highlighted\": \"somethingHighlighted\","
-            + "          \"score\": 1.3,"
-            + "          \"collate_match\": true"
-            + "        }"
-            + "      ]"
-            + "    }"
-            + "  ]"
-            + "}").replaceAll("\\s+", "");
-        try (XContentParser parser = xContent.createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, suggestionString)) {
+        String suggestionString = ("""
+            {
+              "unknownType#suggestionName": [
+                {
+                  "text": "entryText",
+                  "offset": 42,
+                  "length": 313,
+                  "options": [
+                    {
+                      "text": "someText",
+                      "highlighted": "somethingHighlighted",
+                      "score": 1.3,
+                      "collate_match": true
+                    }
+                  ]
+                }
+              ]
+            }""").replaceAll("\\s+", "");
+        try (
+            XContentParser parser = xContent.createParser(
+                XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
+                suggestionString
+            )
+        ) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
+            NamedObjectNotFoundException e = expectThrows(
+                NamedObjectNotFoundException.class,
+                () -> SearchResponseUtils.parseSuggestion(parser)
+            );
             assertEquals("[1:31] unknown field [unknownType]", e.getMessage());
         }
     }
@@ -186,60 +200,66 @@ public class SuggestionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         {
-            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
-                1.3f, true);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(
+                new Text("someText"),
+                new Text("somethingHighlighted"),
+                1.3f,
+                true
+            );
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(("{"
-                + "  \"phrase#suggestionName\": ["
-                + "    {"
-                + "      \"text\": \"entryText\","
-                + "      \"offset\": 42,"
-                + "      \"length\": 313,"
-                + "      \"options\": ["
-                + "        {"
-                + "          \"text\": \"someText\","
-                + "          \"highlighted\": \"somethingHighlighted\","
-                + "          \"score\": 1.3,"
-                + "          \"collate_match\": true"
-                + "        }"
-                + "      ]"
-                + "    }"
-                + "  ]"
-                + "}").replaceAll("\\s+", ""),
-                xContent.utf8ToString()
-            );
+            assertEquals("""
+                {
+                  "phrase#suggestionName": [
+                    {
+                      "text": "entryText",
+                      "offset": 42,
+                      "length": 313,
+                      "options": [
+                        {
+                          "text": "someText",
+                          "highlighted": "somethingHighlighted",
+                          "score": 1.3,
+                          "collate_match": true
+                        }
+                      ]
+                    }
+                  ]
+                }""".replaceAll("\\s+", ""), xContent.utf8ToString());
         }
         {
-            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
-                    1.3f, true);
+            PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(
+                new Text("someText"),
+                new Text("somethingHighlighted"),
+                1.3f,
+                true
+            );
             PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313, 1.0);
             entry.addOption(option);
             PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(("{"
-                + "  \"phrase#suggestionName\": ["
-                + "    {"
-                + "      \"text\": \"entryText\","
-                + "      \"offset\": 42,"
-                + "      \"length\": 313,"
-                + "      \"options\": ["
-                + "        {"
-                + "          \"text\": \"someText\","
-                + "          \"highlighted\": \"somethingHighlighted\","
-                + "          \"score\": 1.3,"
-                + "          \"collate_match\": true"
-                + "        }"
-                + "      ]"
-                + "    }"
-                + "  ]"
-                + "}").replaceAll("\\s+", ""),
-                xContent.utf8ToString()
-            );
+            assertEquals("""
+                {
+                  "phrase#suggestionName": [
+                    {
+                      "text": "entryText",
+                      "offset": 42,
+                      "length": 313,
+                      "options": [
+                        {
+                          "text": "someText",
+                          "highlighted": "somethingHighlighted",
+                          "score": 1.3,
+                          "collate_match": true
+                        }
+                      ]
+                    }
+                  ]
+                }""".replaceAll("\\s+", ""), xContent.utf8ToString());
         }
         {
             TermSuggestion.Entry.Option option = new TermSuggestion.Entry.Option(new Text("someText"), 10, 1.3f);
@@ -248,25 +268,17 @@ public class SuggestionTests extends ESTestCase {
             TermSuggestion suggestion = new TermSuggestion("suggestionName", 5, SortBy.SCORE);
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(
-                ("{"
-                    + "  \"term#suggestionName\": ["
-                    + "    {"
-                    + "      \"text\": \"entryText\","
-                    + "      \"offset\": 42,"
-                    + "      \"length\": 313,"
-                    + "      \"options\": ["
-                    + "        {"
-                    + "          \"text\": \"someText\","
-                    + "          \"score\": 1.3,"
-                    + "          \"freq\": 10"
-                    + "        }"
-                    + "      ]"
-                    + "    }"
-                    + "  ]"
-                    + "}").replaceAll("\\s+", ""),
-                xContent.utf8ToString()
-            );
+            assertEquals("""
+                {
+                  "term#suggestionName": [
+                    {
+                      "text": "entryText",
+                      "offset": 42,
+                      "length": 313,
+                      "options": [ { "text": "someText", "score": 1.3, "freq": 10 } ]
+                    }
+                  ]
+                }""".replaceAll("\\s+", ""), xContent.utf8ToString());
         }
         {
             Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
@@ -276,29 +288,25 @@ public class SuggestionTests extends ESTestCase {
             CompletionSuggestion suggestion = new CompletionSuggestion("suggestionName", 5, randomBoolean());
             suggestion.addTerm(entry);
             BytesReference xContent = toXContent(suggestion, XContentType.JSON, params, randomBoolean());
-            assertEquals(
-                ("{"
-                    + "  \"completion#suggestionName\": ["
-                    + "    {"
-                    + "      \"text\": \"entryText\","
-                    + "      \"offset\": 42,"
-                    + "      \"length\": 313,"
-                    + "      \"options\": ["
-                    + "        {"
-                    + "          \"text\": \"someText\","
-                    + "          \"score\": 1.3,"
-                    + "          \"contexts\": {"
-                    + "            \"key\": ["
-                    + "              \"value\""
-                    + "            ]"
-                    + "          }"
-                    + "        }"
-                    + "      ]"
-                    + "    }"
-                    + "  ]"
-                    + "}").replaceAll("\\s+", ""),
-                xContent.utf8ToString()
-            );
+            assertEquals("""
+                {
+                  "completion#suggestionName": [
+                    {
+                      "text": "entryText",
+                      "offset": 42,
+                      "length": 313,
+                      "options": [
+                        {
+                          "text": "someText",
+                          "score": 1.3,
+                          "contexts": {
+                            "key": [ "value" ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }""".replaceAll("\\s+", ""), xContent.utf8ToString());
         }
     }
 }

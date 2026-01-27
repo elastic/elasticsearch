@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -58,24 +60,33 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
-        if (val instanceof List) {
-            List<?> list = (List<?>) val;
+        if (val instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
-                if (value instanceof String) {
-                    newList.add(process((String) value));
+                if (value instanceof String string) {
+                    newList.add(process(string));
                 } else {
-                    throw new IllegalArgumentException("value [" + value + "] of type [" + value.getClass().getName() +
-                        "] in list field [" + field + "] cannot be cast to [" + String.class.getName() + "]");
+                    throw new IllegalArgumentException(
+                        "value ["
+                            + value
+                            + "] of type ["
+                            + value.getClass().getName()
+                            + "] in list field ["
+                            + field
+                            + "] cannot be cast to ["
+                            + String.class.getName()
+                            + "]"
+                    );
                 }
             }
             newValue = newList;
         } else {
-            if (val instanceof String) {
-                newValue = process((String) val);
+            if (val instanceof String string) {
+                newValue = process(string);
             } else {
-                throw new IllegalArgumentException("field [" + field + "] of type [" + val.getClass().getName() + "] cannot be cast to [" +
-                    String.class.getName() + "]");
+                throw new IllegalArgumentException(
+                    "field [" + field + "] of type [" + val.getClass().getName() + "] cannot be cast to [" + String.class.getName() + "]"
+                );
             }
 
         }
@@ -94,8 +105,13 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
         }
 
         @Override
-        public AbstractStringProcessor<?> create(Map<String, Processor.Factory> registry, String tag,
-                                                 String description, Map<String, Object> config) throws Exception {
+        public AbstractStringProcessor<?> create(
+            Map<String, Processor.Factory> registry,
+            String tag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(processorType, tag, config, "field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(processorType, tag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(processorType, tag, config, "target_field", field);
@@ -103,8 +119,13 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             return newProcessor(tag, description, config, field, ignoreMissing, targetField);
         }
 
-        protected abstract AbstractStringProcessor<?> newProcessor(String processorTag, String description,
-                                                                   Map<String, Object> config, String field,
-                                                                   boolean ignoreMissing, String targetField);
+        protected abstract AbstractStringProcessor<?> newProcessor(
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        );
     }
 }

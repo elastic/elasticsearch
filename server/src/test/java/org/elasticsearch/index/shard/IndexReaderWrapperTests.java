@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -12,7 +13,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldFilterLeafReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -22,9 +22,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.apache.lucene.tests.index.FieldFilterLeafReader;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
@@ -50,18 +51,30 @@ public class IndexReaderWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        IndexSearcher searcher = newSearcher(open);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         final AtomicInteger closeCalls = new AtomicInteger(0);
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper =
-            reader -> new FieldMaskingReader("field", reader, closeCalls);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
+            "field",
+            reader,
+            closeCalls
+        );
         final int sourceRefCount = open.getRefCount();
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         final AtomicBoolean closeCalled = new AtomicBoolean(false);
-        final Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-            IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-            () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
+        final Engine.Searcher wrap = IndexShard.wrapSearcher(
+            new Engine.Searcher(
+                "foo",
+                open,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                () -> closeCalled.set(true)
+            ),
+            mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+            wrapper
+        );
         assertEquals(1, wrap.getIndexReader().getRefCount());
         ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
             if (key == open.getReaderCacheHelper().getKey()) {
@@ -69,7 +82,7 @@ public class IndexReaderWrapperTests extends ESTestCase {
             }
             outerCount.incrementAndGet();
         });
-        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        assertEquals(0, wrap.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         wrap.close();
         assertFalse("wrapped reader is closed", wrap.getIndexReader().tryIncRef());
         assertEquals(sourceRefCount, open.getRefCount());
@@ -92,20 +105,32 @@ public class IndexReaderWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        IndexSearcher searcher = newSearcher(open);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         final AtomicInteger closeCalls = new AtomicInteger(0);
-        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper =
-            reader -> new FieldMaskingReader("field", reader, closeCalls);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = reader -> new FieldMaskingReader(
+            "field",
+            reader,
+            closeCalls
+        );
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         AtomicBoolean closeCalled = new AtomicBoolean(false);
-        try (Engine.Searcher wrap =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                () -> closeCalled.set(true)), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
-            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> {
-                cache.remove(key);
-            });
+        try (
+            Engine.Searcher wrap = IndexShard.wrapSearcher(
+                new Engine.Searcher(
+                    "foo",
+                    open,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    () -> closeCalled.set(true)
+                ),
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+                wrapper
+            )
+        ) {
+            ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), key -> { cache.remove(key); });
             TopDocs search = wrap.search(new TermQuery(new Term("field", "doc")), 1);
             cache.put(wrap.getIndexReader().getReaderCacheHelper().getKey(), search);
         }
@@ -127,15 +152,29 @@ public class IndexReaderWrapperTests extends ESTestCase {
         doc.add(new TextField("field", "doc", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
         writer.addDocument(doc);
         DirectoryReader open = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        IndexSearcher searcher = new IndexSearcher(open);
-        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value);
+        IndexSearcher searcher = newSearcher(open);
+        assertEquals(1, searcher.search(new TermQuery(new Term("field", "doc")), 1).totalHits.value());
         searcher.setSimilarity(iwc.getSimilarity());
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = directoryReader -> directoryReader;
-        try (Engine.Searcher engineSearcher =  IndexShard.wrapSearcher(new Engine.Searcher("foo", open,
-                IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(),
-                open::close), mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper)) {
-            final Engine.Searcher wrap = IndexShard.wrapSearcher(engineSearcher,
-                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class), wrapper);
+        try (
+            Engine.Searcher engineSearcher = IndexShard.wrapSearcher(
+                new Engine.Searcher(
+                    "foo",
+                    open,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    open
+                ),
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+                wrapper
+            )
+        ) {
+            final Engine.Searcher wrap = IndexShard.wrapSearcher(
+                engineSearcher,
+                mock(ShardFieldUsageTracker.FieldUsageStatsTrackingSession.class),
+                wrapper
+            );
             assertNotSame(wrap, engineSearcher);
             assertThat(wrap.getDirectoryReader(), instanceOf(FieldUsageTrackingDirectoryReader.class));
         }

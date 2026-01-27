@@ -13,7 +13,7 @@
  *
  * The {@link org.elasticsearch.xpack.ilm.IndexLifecycleService} goes through the indices that have ILM policies configured, retrieves
  * the current execution {@link org.elasticsearch.xpack.core.ilm.Step.StepKey} from the index's
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState} and dispatches the step execution to the appropriate
+ * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState} and dispatches the step execution to the appropriate
  * {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner} method.
  * This happens in:
  * <ul>
@@ -45,7 +45,7 @@
  * <ul>
  *     <li>
  *          {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#maybeRunAsyncAction(
- *                      org.elasticsearch.cluster.ClusterState,
+ *                      org.elasticsearch.cluster.ProjectState,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata,
  *                      java.lang.String, org.elasticsearch.xpack.core.ilm.Step.StepKey
  *                  )}
@@ -53,6 +53,7 @@
  *     </li>
  *     <li>
  *         {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPolicyAfterStateChange(
+ *                      org.elasticsearch.cluster.metadata.ProjectId,
  *                      java.lang.String,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                  )}
@@ -61,8 +62,8 @@
  *     </li>
  *     <li>
  *        {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#runPeriodicStep(
+ *                      org.elasticsearch.cluster.ProjectState,
  *                      java.lang.String,
- *                      org.elasticsearch.cluster.metadata.Metadata,
  *                      org.elasticsearch.cluster.metadata.IndexMetadata
  *                 )}
  *        handles the execution of async {@link org.elasticsearch.xpack.core.ilm.AsyncWaitStep}
@@ -75,7 +76,7 @@
  * and then rollover the index {@link org.elasticsearch.xpack.core.ilm.RolloverStep} followed by some more house-keeping steps).
  *
  * The ILM runner will advance last executed state (as indicated in
- * {@link org.elasticsearch.xpack.core.ilm.LifecycleExecutionState#getStep()}) and execute the next step of the index policy as
+ * {@link org.elasticsearch.cluster.metadata.LifecycleExecutionState#step()}) and execute the next step of the index policy as
  * defined in the {@link org.elasticsearch.xpack.ilm.PolicyStepsRegistry}.
  * Once all the steps of a policy are executed successfully the policy execution will reach the
  * {@link org.elasticsearch.xpack.core.ilm.TerminalPolicyStep} and any changes made to the policy definition will not have any effect on
@@ -90,8 +91,7 @@
  * successfully (see {@link org.elasticsearch.xpack.ilm.IndexLifecycleRunner#onErrorMaybeRetryFailedStep}). In order to see all retryable
  * steps see {@link org.elasticsearch.xpack.core.ilm.Step#isRetryable()}.
  * For steps that are not retryable the failed step can manually be retried using
- * {@link org.elasticsearch.xpack.ilm.IndexLifecycleService#moveClusterStateToPreviouslyFailedStep}.
+ * {@link org.elasticsearch.xpack.ilm.IndexLifecycleService#moveIndicesToPreviouslyFailedStep}.
  *
  */
 package org.elasticsearch.xpack.ilm;
-

@@ -8,40 +8,77 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * The request object used by the Explain Lifecycle API.
- *
+ * <p>
  * Multiple indices may be queried in the same request using the
  * {@link #indices(String...)} method
  */
-public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycleRequest> {
+public class ExplainLifecycleRequest extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
+    private String[] indices = Strings.EMPTY_ARRAY;
+    private IndicesOptions indicesOptions;
     private boolean onlyErrors = false;
     private boolean onlyManaged = false;
 
-    public ExplainLifecycleRequest() {
-        super();
+    public ExplainLifecycleRequest(TimeValue masterTimeout) {
+        super(masterTimeout);
+        indicesOptions = IndicesOptions.strictExpandOpen();
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     public ExplainLifecycleRequest(StreamInput in) throws IOException {
         super(in);
+        indices = in.readStringArray();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
         onlyErrors = in.readBoolean();
         onlyManaged = in.readBoolean();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(onlyErrors);
-        out.writeBoolean(onlyManaged);
+    public ExplainLifecycleRequest indices(String... indices) {
+        this.indices = indices;
+        return this;
+    }
+
+    public ExplainLifecycleRequest indicesOptions(IndicesOptions indicesOptions) {
+        this.indicesOptions = indicesOptions;
+        return this;
+    }
+
+    @Override
+    public String[] indices() {
+        return indices;
+    }
+
+    @Override
+    public IndicesOptions indicesOptions() {
+        return indicesOptions;
+    }
+
+    @Override
+    public boolean includeDataStreams() {
+        return true;
     }
 
     public boolean onlyErrors() {
@@ -68,6 +105,11 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
     }
 
     @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(indices()), indicesOptions(), onlyErrors, onlyManaged);
     }
@@ -81,16 +123,23 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
             return false;
         }
         ExplainLifecycleRequest other = (ExplainLifecycleRequest) obj;
-        return Objects.deepEquals(indices(), other.indices()) &&
-                Objects.equals(indicesOptions(), other.indicesOptions()) &&
-                Objects.equals(onlyErrors(), other.onlyErrors()) &&
-                Objects.equals(onlyManaged(), other.onlyManaged());
+        return Objects.deepEquals(indices(), other.indices())
+            && Objects.equals(indicesOptions(), other.indicesOptions())
+            && Objects.equals(onlyErrors(), other.onlyErrors())
+            && Objects.equals(onlyManaged(), other.onlyManaged());
     }
 
     @Override
     public String toString() {
-        return "ExplainLifecycleRequest [indices()=" + Arrays.toString(indices()) + ", indicesOptions()=" + indicesOptions() +
-            ", onlyErrors()=" + onlyErrors() + ", onlyManaged()=" + onlyManaged() + "]";
+        return "ExplainLifecycleRequest [indices()="
+            + Arrays.toString(indices())
+            + ", indicesOptions()="
+            + indicesOptions()
+            + ", onlyErrors()="
+            + onlyErrors()
+            + ", onlyManaged()="
+            + onlyManaged()
+            + "]";
     }
 
 }

@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,14 +49,14 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     protected AbstractAggregationBuilder(StreamInput in) throws IOException {
         super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
-        metadata = in.readMap();
+        metadata = in.readGenericMap();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         factoriesBuilder.writeTo(out);
-        out.writeMap(metadata);
+        out.writeGenericMap(metadata);
         doWriteTo(out);
     }
 
@@ -115,7 +116,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public Map<String, Object> getMetadata() {
-        return metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+        return metadata == null ? null : Collections.unmodifiableMap(metadata);
     }
 
     @Override

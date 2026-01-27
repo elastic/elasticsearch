@@ -1,0 +1,8 @@
+ccruser:
+  cluster:
+    - read_ccr
+  indices:
+    - names: [ 'allowed-index', 'clean-leader', 'forget-leader', 'logs-eu*', 'testautofollowpatterns-eu*' ]
+      privileges:
+        - manage
+        - read

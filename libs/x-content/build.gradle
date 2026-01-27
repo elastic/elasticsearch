@@ -1,31 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.embedded-providers'
+
+embeddedProviders {
+  impl 'x-content', project(':libs:x-content:impl')
+}
 
 dependencies {
-  api project(':libs:elasticsearch-core')
-
-  api "org.yaml:snakeyaml:${versions.snakeyaml}"
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
-
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  api project(':libs:core')
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+    exclude group: 'org.elasticsearch', module: 'x-content'
   }
-
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -45,5 +40,3 @@ tasks.named("thirdPartyAudit").configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /jackson-.*/, to: 'jackson'
 }
-
-tasks.named("jarHell").configure { enabled = false }

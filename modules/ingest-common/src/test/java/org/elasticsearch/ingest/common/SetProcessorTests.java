@@ -1,21 +1,21 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.ingest.IngestDocument.Metadata;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
+import org.elasticsearch.ingest.TestIngestDocument;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.ingest.ValueSource;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ingest.IngestDocument.Metadata;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -35,6 +36,9 @@ public class SetProcessorTests extends ESTestCase {
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        while (Metadata.isMetadata(fieldName)) {
+            fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        }
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, true, false);
         processor.execute(ingestDocument);
@@ -44,7 +48,7 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetNewFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        //used to verify that there are no conflicts between subsequent fields going to be added
+        // used to verify that there are no conflicts between subsequent fields going to be added
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
@@ -58,17 +62,15 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
         Processor processor = createSetProcessor("field.inner", "value", null, true, false);
-        try {
-            processor.execute(ingestDocument);
-            fail("processor execute should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as " +
-                    "part of path [field.inner]"));
-        }
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(
+            exception.getMessage(),
+            equalTo("cannot set [inner] with parent object of type [java.lang.String] as part of path [field.inner]")
+        );
     }
 
     public void testSetNewFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
         Processor processor = createSetProcessor(fieldName, fieldValue, null, false, false);
@@ -78,7 +80,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = "foo";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
         Processor processor = createSetProcessor(fieldName, "bar", null, false, false);
@@ -88,7 +90,7 @@ public class SetProcessorTests extends ESTestCase {
     }
 
     public void testSetExistingNullFieldWithOverrideDisabled() throws Exception {
-        IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());
+        IngestDocument ingestDocument = TestIngestDocument.emptyIngestDocument();
         Object fieldValue = null;
         Object newValue = "bar";
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
@@ -103,7 +105,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(randomMetadata.getFieldName(), "_value", null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), Matchers.equalTo("_value"));
+        assertThat(ingestDocument.getFieldValue(randomMetadata.getFieldName(), String.class), equalTo("_value"));
     }
 
     public void testSetMetadataVersion() throws Exception {
@@ -111,7 +113,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION.getFieldName(), version, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), Matchers.equalTo(version));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION.getFieldName(), Long.class), equalTo(version));
     }
 
     public void testSetMetadataVersionType() throws Exception {
@@ -119,7 +121,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.VERSION_TYPE.getFieldName(), versionType, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), Matchers.equalTo(versionType));
+        assertThat(ingestDocument.getFieldValue(Metadata.VERSION_TYPE.getFieldName(), String.class), equalTo(versionType));
     }
 
     public void testSetMetadataIfSeqNo() throws Exception {
@@ -127,7 +129,7 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), Matchers.equalTo(ifSeqNo));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_SEQ_NO.getFieldName(), Long.class), equalTo(ifSeqNo));
     }
 
     public void testSetMetadataIfPrimaryTerm() throws Exception {
@@ -135,14 +137,15 @@ public class SetProcessorTests extends ESTestCase {
         Processor processor = createSetProcessor(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm, null, true, false);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+        assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), equalTo(ifPrimaryTerm));
     }
 
     public void testSetDynamicTemplates() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int iters = between(1, 3);
         for (int i = 0; i < iters; i++) {
-            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3)).boxed()
+            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3))
+                .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> randomFrom("int", "geo_point", "keyword")));
             Processor processor = createSetProcessor(Metadata.DYNAMIC_TEMPLATES.getFieldName(), dynamicTemplates, null, true, false);
             processor.execute(ingestDocument);
@@ -175,21 +178,6 @@ public class SetProcessorTests extends ESTestCase {
             assertMapEquals(copiedValue, fieldValue);
         } else {
             assertThat(copiedValue, equalTo(fieldValue));
-        }
-    }
-
-    private static void assertMapEquals(Object actual, Object expected) {
-        if (expected instanceof Map) {
-            Map<?, ?> expectedMap = (Map<?, ?>) expected;
-            Map<?, ?> actualMap = (Map<?, ?>) actual;
-            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
-            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
-                if (entry.getValue() instanceof Map) {
-                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
-                } else {
-                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
-                }
-            }
         }
     }
 
@@ -251,9 +239,44 @@ public class SetProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue(targetField, Object.class), equalTo(preservedDate));
     }
 
-    private static Processor createSetProcessor(String fieldName, Object fieldValue, String copyFrom, boolean overrideEnabled,
-        boolean ignoreEmptyValue) {
-        return new SetProcessor(randomAlphaOfLength(10), null, new TestTemplateService.MockTemplateScript.Factory(fieldName),
-                ValueSource.wrap(fieldValue, TestTemplateService.instance()), copyFrom, overrideEnabled, ignoreEmptyValue);
+    public void testSetEmptyField() {
+        // edge case: it's valid (according to the current validation) to *create* a set processor that has an empty string as its 'field',
+        // but it will fail at ingest execution time.
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        Processor processor = createSetProcessor("", "some_value", null, false, false);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));
+        assertThat(exception.getMessage(), equalTo("path cannot be null nor empty"));
+    }
+
+    private static Processor createSetProcessor(
+        String fieldName,
+        Object fieldValue,
+        String copyFrom,
+        boolean overrideEnabled,
+        boolean ignoreEmptyValue
+    ) {
+        return new SetProcessor(
+            randomAlphaOfLength(10),
+            null,
+            new TestTemplateService.MockTemplateScript.Factory(fieldName),
+            ValueSource.wrap(fieldValue, TestTemplateService.instance()),
+            copyFrom,
+            overrideEnabled,
+            ignoreEmptyValue
+        );
+    }
+
+    private static void assertMapEquals(Object actual, Object expected) {
+        if (expected instanceof Map<?, ?> expectedMap) {
+            Map<?, ?> actualMap = (Map<?, ?>) actual;
+            assertThat(actualMap.keySet().toArray(), arrayContainingInAnyOrder(expectedMap.keySet().toArray()));
+            for (Map.Entry<?, ?> entry : actualMap.entrySet()) {
+                if (entry.getValue() instanceof Map) {
+                    assertMapEquals(entry.getValue(), expectedMap.get(entry.getKey()));
+                } else {
+                    assertThat(entry.getValue(), equalTo(expectedMap.get(entry.getKey())));
+                }
+            }
+        }
     }
 }

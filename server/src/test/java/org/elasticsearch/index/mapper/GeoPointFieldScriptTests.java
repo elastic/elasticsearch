@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
@@ -25,10 +26,11 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldScript.Factory> {
-    public static final GeoPointFieldScript.Factory DUMMY = (fieldName, params, lookup) -> ctx -> new GeoPointFieldScript(
+    public static final GeoPointFieldScript.Factory DUMMY = (fieldName, params, lookup, onScriptError) -> ctx -> new GeoPointFieldScript(
         fieldName,
         params,
         lookup,
+        OnScriptError.FAIL,
         ctx
     ) {
         @Override
@@ -47,6 +49,11 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
         return DUMMY;
     }
 
+    @Override
+    protected GeoPointFieldScript.Factory fromSource() {
+        return GeoPointFieldScript.PARSE_FROM_SOURCE;
+    }
+
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
@@ -54,13 +61,14 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
                 GeoPointFieldScript script = new GeoPointFieldScript(
                     "test",
                     Map.of(),
-                    new SearchLookup(field -> null, (ft, lookup) -> null),
+                    new SearchLookup(field -> null, (ft, lookup, fdt) -> null, (ctx, doc) -> null),
+                    OnScriptError.FAIL,
                     reader.leaves().get(0)
                 ) {
                     @Override
                     public void execute() {
                         for (int i = 0; i <= AbstractFieldScript.MAX_VALUES; i++) {
-                            emit(0, 0);
+                            new Emit(this).emit(0, 0);
                         }
                     }
                 };

@@ -7,10 +7,12 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
+import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer.PreAnalysis;
+import org.elasticsearch.xpack.ql.analyzer.TableInfo;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
@@ -19,11 +21,10 @@ import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.sql.analysis.analyzer.PreAnalyzer.PreAnalysis;
-import org.elasticsearch.xpack.sql.analysis.analyzer.TableInfo;
+import org.elasticsearch.xpack.sql.analysis.analyzer.AnalyzerContext;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Verifier;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
+import org.elasticsearch.xpack.sql.index.IndexCompatibility;
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
@@ -34,7 +35,8 @@ import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.Strings.hasText;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public class SqlSession implements Session {
 
@@ -50,13 +52,17 @@ public class SqlSession implements Session {
 
     private final SqlConfiguration configuration;
 
-    public SqlSession(SqlConfiguration configuration, Client client, FunctionRegistry functionRegistry,
-            IndexResolver indexResolver,
-            PreAnalyzer preAnalyzer,
-            Verifier verifier,
-            Optimizer optimizer,
-            Planner planner,
-            PlanExecutor planExecutor) {
+    public SqlSession(
+        SqlConfiguration configuration,
+        Client client,
+        FunctionRegistry functionRegistry,
+        IndexResolver indexResolver,
+        PreAnalyzer preAnalyzer,
+        Verifier verifier,
+        Optimizer optimizer,
+        Planner planner,
+        PlanExecutor planExecutor
+    ) {
         this.client = configuration.taskId() != null ? new ParentTaskAssigningClient(client, configuration.taskId()) : client;
         this.functionRegistry = functionRegistry;
 
@@ -108,8 +114,13 @@ public class SqlSession implements Session {
             return;
         }
 
-        preAnalyze(parsed, c -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, c, verifier);
+        preAnalyze(parsed, r -> {
+            AnalyzerContext context = new AnalyzerContext(
+                configuration,
+                functionRegistry,
+                IndexCompatibility.compatible(r, configuration.version())
+            );
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.analyze(parsed, verify);
         }, listener);
     }
@@ -121,7 +132,8 @@ public class SqlSession implements Session {
         }
 
         preAnalyze(parsed, r -> {
-            Analyzer analyzer = new Analyzer(configuration, functionRegistry, r, verifier);
+            AnalyzerContext context = new AnalyzerContext(configuration, functionRegistry, r);
+            Analyzer analyzer = new Analyzer(context, verifier);
             return analyzer.debugAnalyze(parsed);
         }, listener);
     }
@@ -142,14 +154,22 @@ public class SqlSession implements Session {
             TableIdentifier table = tableInfo.id();
 
             String cluster = table.cluster();
+            cluster = hasText(cluster) ? cluster : configuration.catalog();
 
-            if (Strings.hasText(cluster) && indexResolver.clusterName().equals(cluster) == false) {
-                listener.onFailure(new MappingException("Cannot inspect indices in cluster/catalog [{}]", cluster));
-            }
+            String indexPattern = hasText(cluster) && cluster.equals(configuration.clusterName()) == false
+                ? buildRemoteIndexName(cluster, table.index())
+                : table.index();
 
             boolean includeFrozen = configuration.includeFrozen() || tableInfo.isFrozen();
-            indexResolver.resolveAsMergedMapping(table.index(), null, includeFrozen, configuration.runtimeMappings(),
-                    wrap(indexResult -> listener.onResponse(action.apply(indexResult)), listener::onFailure));
+            indexResolver.resolveAsMergedMapping(
+                indexPattern,
+                IndexResolver.ALL_FIELDS,
+                includeFrozen,
+                configuration.runtimeMappings(),
+                configuration.crossProject(),
+                configuration.projectRouting(),
+                listener.delegateFailureAndWrap((l, indexResult) -> l.onResponse(action.apply(indexResult)))
+            );
         } else {
             try {
                 // occurs when dealing with local relations (SELECT 5+2)
@@ -161,15 +181,15 @@ public class SqlSession implements Session {
     }
 
     public void optimizedPlan(LogicalPlan verified, ActionListener<LogicalPlan> listener) {
-        analyzedPlan(verified, true, wrap(v -> listener.onResponse(optimizer.optimize(v)), listener::onFailure));
+        analyzedPlan(verified, true, listener.delegateFailureAndWrap((l, v) -> l.onResponse(optimizer.optimize(v))));
     }
 
     public void physicalPlan(LogicalPlan optimized, boolean verify, ActionListener<PhysicalPlan> listener) {
-        optimizedPlan(optimized, wrap(o -> listener.onResponse(planner.plan(o, verify)), listener::onFailure));
+        optimizedPlan(optimized, listener.delegateFailureAndWrap((l, o) -> l.onResponse(planner.plan(o, verify))));
     }
 
     public void sql(String sql, List<SqlTypedParamValue> params, ActionListener<Page> listener) {
-        sqlExecutable(sql, params, wrap(e -> e.execute(this, listener), listener::onFailure));
+        sqlExecutable(sql, params, listener.delegateFailureAndWrap((l, e) -> e.execute(this, l)));
     }
 
     public void sqlExecutable(String sql, List<SqlTypedParamValue> params, ActionListener<PhysicalPlan> listener) {

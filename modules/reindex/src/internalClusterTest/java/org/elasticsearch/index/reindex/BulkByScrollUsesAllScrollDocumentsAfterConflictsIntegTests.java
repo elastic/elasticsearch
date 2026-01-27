@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -15,19 +16,16 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexTestCase;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -35,6 +33,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -51,9 +51,10 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.lucene.uid.Versions.MATCH_DELETED;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -95,19 +96,23 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         internalCluster().startMasterOnlyNode();
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
+        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        ensureStableCluster(3);
     }
 
     public void testUpdateByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final boolean scriptEnabled = randomBoolean();
-        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            indexName,
             indexName,
             scriptEnabled,
             updateByQuery(),
             true,
             (bulkByScrollResponse, updatedDocCount) -> {
                 assertThat(bulkByScrollResponse.getUpdated(), is((long) updatedDocCount));
-        });
+            }
+        );
     }
 
     public void testReindex() throws Exception {
@@ -122,35 +127,44 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         reindexRequestBuilder.destination().setVersion(MATCH_DELETED);
 
         final boolean scriptEnabled = randomBoolean();
-        executeConcurrentUpdatesOnSubsetOfDocs(sourceIndex,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            sourceIndex,
             targetIndex,
             scriptEnabled,
             reindexRequestBuilder,
             false,
             (bulkByScrollResponse, reindexDocCount) -> {
-            assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
-        });
+                assertThat(bulkByScrollResponse.getCreated(), is((long) reindexDocCount));
+            }
+        );
     }
 
     public void testDeleteByQuery() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        executeConcurrentUpdatesOnSubsetOfDocs(indexName,
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            indexName,
             indexName,
             false,
             deleteByQuery(),
             true,
             (bulkByScrollResponse, deletedDocCount) -> {
                 assertThat(bulkByScrollResponse.getDeleted(), is((long) deletedDocCount));
-        });
+            }
+        );
     }
 
-    <R extends AbstractBulkByScrollRequest<R>,
-     Self extends AbstractBulkByScrollRequestBuilder<R, Self>> void executeConcurrentUpdatesOnSubsetOfDocs(String sourceIndex,
-        String targetIndex,
-        boolean scriptEnabled,
-        AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
-        boolean useOptimisticConcurrency,
-        BiConsumer<BulkByScrollResponse, Integer> resultConsumer) throws Exception {
+    <
+        R extends AbstractBulkByScrollRequest<R>,
+        Self extends AbstractBulkByScrollRequestBuilder<R, Self>>
+        void
+        executeConcurrentUpdatesOnSubsetOfDocs(
+            String sourceIndex,
+            String targetIndex,
+            boolean scriptEnabled,
+            AbstractBulkByScrollRequestBuilder<R, Self> requestBuilder,
+            boolean useOptimisticConcurrency,
+            BiConsumer<BulkByScrollResponse, Integer> resultConsumer
+        ) throws Exception {
         createIndexWithSingleShard(sourceIndex);
 
         final int numDocs = 100;
@@ -169,7 +183,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
                 source.put(RETURN_NOOP_FIELD, true);
                 noopDocs++;
             }
-            indexRequests.add(client().prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
+            indexRequests.add(prepareIndex(sourceIndex).setId(Integer.toString(i)).setSource(source));
         }
         indexRandom(true, indexRequests);
 
@@ -183,27 +197,24 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // Block the write thread pool
         writeThreadPool.submit(() -> {
-            try {
-                barrier.await();
-                latch.await();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            safeAwait(barrier);
+            safeAwait(latch);
         });
         // Ensure that the write thread blocking task is currently executing
         barrier.await();
 
-        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
-            .setSize(numDocs) // Get all indexed docs
-            .addSort(SORTING_FIELD, SortOrder.DESC)
-            .execute()
-            .actionGet();
-
-        // Modify a subset of the target documents concurrently
-        final List<SearchHit> originalDocs = Arrays.asList(searchResponse.getHits().getHits());
         int conflictingOps = randomIntBetween(maxDocs, numDocs);
-        final List<SearchHit> docsModifiedConcurrently = randomSubsetOf(conflictingOps, originalDocs);
-
+        final int finalConflictingOps = conflictingOps;
+        final List<SearchHit> docsModifiedConcurrently = new ArrayList<>();
+        assertResponse(
+            prepareSearch(sourceIndex).setSize(numDocs) // Get all indexed docs
+                .addSort(SORTING_FIELD, SortOrder.DESC),
+            response -> {
+                // Modify a subset of the target documents concurrently
+                final List<SearchHit> originalDocs = Arrays.asList(response.getHits().asUnpooled().getHits());
+                docsModifiedConcurrently.addAll(randomSubsetOf(finalConflictingOps, originalDocs));
+            }
+        );
         BulkRequest conflictingUpdatesBulkRequest = new BulkRequest();
         for (SearchHit searchHit : docsModifiedConcurrently) {
             if (scriptEnabled && searchHit.getSourceAsMap().containsKey(RETURN_NOOP_FIELD)) {
@@ -213,14 +224,17 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         }
 
         // The bulk request is enqueued before the update by query
-        final ActionFuture<BulkResponse> bulkFuture = client().bulk(conflictingUpdatesBulkRequest);
+        // Since #77731 TransportBulkAction is dispatched into the Write thread pool,
+        // this test makes use of a deterministic task order in the data node write
+        // thread pool. To ensure that ordering, execute the TransportBulkAction
+        // in a coordinator node preventing that additional tasks are scheduled into
+        // the data node write thread pool.
+        final ActionFuture<BulkResponse> bulkFuture = internalCluster().coordOnlyNodeClient().bulk(conflictingUpdatesBulkRequest);
 
         // Ensure that the concurrent writes are enqueued before the update by query request is sent
         assertBusy(() -> assertThat(writeThreadPool.getQueue().size(), equalTo(1)));
 
-        requestBuilder.source(sourceIndex)
-            .maxDocs(maxDocs)
-            .abortOnVersionConflict(false);
+        requestBuilder.source(sourceIndex).maxDocs(maxDocs).abortOnVersionConflict(false);
 
         if (scriptEnabled) {
             final Script script = new Script(ScriptType.INLINE, SCRIPT_LANG, NOOP_GENERATOR, Collections.emptyMap());
@@ -253,10 +267,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
     }
 
     private void createIndexWithSingleShard(String index) throws Exception {
-        final Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .build();
+        final Settings indexSettings = indexSettings(1, 0).build();
         final XContentBuilder mappings = jsonBuilder();
         {
             mappings.startObject();
@@ -284,11 +295,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
 
         // Use explicit mappings so we don't have to create those on demands and the task ordering
         // can change to wait for mapping updates
-        assertAcked(
-            prepareCreate(index)
-                .setSettings(indexSettings)
-                .setMapping(mappings)
-        );
+        assertAcked(prepareCreate(index).setSettings(indexSettings).setMapping(mappings));
     }
 
     private IndexRequest createUpdatedIndexRequest(SearchHit searchHit, String targetIndex, boolean useOptimisticUpdate) {

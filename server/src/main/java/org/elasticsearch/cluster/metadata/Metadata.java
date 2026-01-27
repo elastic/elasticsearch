@@ -1,154 +1,195 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.AliasesRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.DiffableUtils.MapDiff;
 import org.elasticsearch.cluster.NamedDiffable;
 import org.elasticsearch.cluster.NamedDiffableValueSerializer;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.common.xcontent.NamedObjectNotFoundException;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.ProjectTags;
+import org.elasticsearch.xcontent.NamedObjectNotFoundException;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 /**
  * {@link Metadata} is the part of the {@link ClusterState} which persists across restarts. This persistence is XContent-based, so a
  * round-trip through XContent must be faithful in {@link XContentContext#GATEWAY} context.
+ * <p>
+ * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
+ * </p>
  */
-public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
+public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
-    public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> { };
+    public static final Runnable ON_NEXT_INDEX_FIND_MAPPINGS_NOOP = () -> {};
     public static final String ALL = "_all";
     public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    // TODO multi-project: verify that usages are really expected to work on the default project only,
+    // and that they are not a stop-gap solution to make the tests pass
+    public static final ProjectId DEFAULT_PROJECT_ID = ProjectId.DEFAULT;
 
     public enum XContentContext {
-        /* Custom metadata should be returns as part of API call */
+        /* Custom metadata should be returned as part of API call */
         API,
 
         /* Custom metadata should be stored as part of the persistent cluster state */
         GATEWAY,
 
         /* Custom metadata should be stored as part of a snapshot */
-        SNAPSHOT
+        SNAPSHOT;
+
+        public static XContentContext from(ToXContent.Params params) {
+            return valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
+        }
     }
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call but will not be persisted
      */
-    public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+    public static final EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and will be persisted between
      * node restarts, but will not be a part of a snapshot global state
      */
-    public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+    public static final EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call and stored as a part of
      * a snapshot global state, but will not be persisted between node restarts
      */
-    public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+    public static final EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
 
     /**
      * Indicates that this custom metadata will be returned as part of an API call, stored as a part of
      * a snapshot global state, and will be persisted between node restarts
      */
-    public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
+    public static final EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    /**
-     * Custom metadata that persists (via XContent) across restarts. The deserialization method for each implementation must be registered
-     * with the {@link NamedXContentRegistry}.
-     */
-    public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
+    public interface MetadataCustom<T> extends NamedDiffable<T>, ChunkedToXContent {
 
         EnumSet<XContentContext> context();
+
+        /**
+         * @return true if this custom could be restored from snapshot
+         */
+        default boolean isRestorable() {
+            return context().contains(XContentContext.SNAPSHOT);
+        }
     }
 
-    public interface NonRestorableCustom extends Custom {
+    /**
+     * Cluster-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ClusterCustom extends MetadataCustom<ClusterCustom> {}
+
+    /**
+     * Project-level custom metadata that persists (via XContent) across restarts.
+     * The deserialization method for each implementation must be registered with the {@link NamedXContentRegistry}.
+     */
+    public interface ProjectCustom extends MetadataCustom<ProjectCustom> {}
+
+    public interface TaggedProjectCustom extends ProjectCustom {
+        ProjectTags tags();
+
+        String tagPrefix();
     }
 
-    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
-        Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
+        "cluster.blocks.read_only",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)",
-        false, false, false, RestStatus.FORBIDDEN,
-        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(
+        6,
+        "cluster read-only (api)",
+        false,
+        false,
+        false,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
+    );
 
-    public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING =
-        Setting.boolSetting("cluster.blocks.read_only_allow_delete", false, Property.Dynamic, Property.NodeScope);
+    public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING = Setting.boolSetting(
+        "cluster.blocks.read_only_allow_delete",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK =
-        new ClusterBlock(13, "cluster read-only / allow delete (api)",
-        false, false, true, RestStatus.FORBIDDEN,
-            EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(
+        13,
+        "cluster read-only / allow delete (api)",
+        false,
+        false,
+        true,
+        RestStatus.FORBIDDEN,
+        EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE)
+    );
 
     public static final Metadata EMPTY_METADATA = builder().build();
 
@@ -160,77 +201,260 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     public static final String CONTEXT_MODE_API = XContentContext.API.toString();
 
+    public static final String DEDUPLICATED_MAPPINGS_PARAM = "deduplicated_mappings";
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
 
-    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
+    private static final NamedDiffableValueSerializer<ClusterCustom> CLUSTER_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(
+        ClusterCustom.class
+    );
+    private static final NamedDiffableValueSerializer<Metadata.ProjectCustom> PROJECT_CUSTOM_VALUE_SERIALIZER =
+        new NamedDiffableValueSerializer<>(Metadata.ProjectCustom.class);
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static final NamedDiffableValueSerializer BWC_CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer(MetadataCustom.class) {
+        @Override
+        public MetadataCustom read(StreamInput in, String key) throws IOException {
+            final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+            final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+            if (clusterScopedNames.contains(key)) {
+                return in.readNamedWriteable(ClusterCustom.class, key);
+            } else if (projectScopedNames.contains(key)) {
+                return in.readNamedWriteable(ProjectCustom.class, key);
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + key + "]");
+            }
+        }
+    };
+
+    private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
 
     private final String clusterUUID;
     private final boolean clusterUUIDCommitted;
     private final long version;
 
     private final CoordinationMetadata coordinationMetadata;
+    private final Map<ProjectId, ProjectMetadata> projectMetadata;
 
     private final Settings transientSettings;
     private final Settings persistentSettings;
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
-    private final ImmutableOpenMap<String, IndexMetadata> indices;
-    private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final ImmutableOpenMap<String, Metadata.ClusterCustom> customs;
+    private final ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata;
 
-    private final transient int totalNumberOfShards; // Transient ? not serializable anyway?
-    private final int totalOpenIndexShards;
-
-    private final String[] allIndices;
-    private final String[] visibleIndices;
-    private final String[] allOpenIndices;
-    private final String[] visibleOpenIndices;
-    private final String[] allClosedIndices;
-    private final String[] visibleClosedIndices;
-
-    private final SortedMap<String, IndexAbstraction> indicesLookup;
-
-    Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
-             Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
-             ImmutableOpenMap<String, IndexMetadata> indices, ImmutableOpenMap<String, IndexTemplateMetadata> templates,
-             ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
-             String[] visibleOpenIndices, String[] allClosedIndices, String[] visibleClosedIndices,
-             SortedMap<String, IndexAbstraction> indicesLookup) {
+    private Metadata(
+        String clusterUUID,
+        boolean clusterUUIDCommitted,
+        long version,
+        CoordinationMetadata coordinationMetadata,
+        Map<ProjectId, ProjectMetadata> projectMetadata,
+        Settings transientSettings,
+        Settings persistentSettings,
+        Settings settings,
+        DiffableStringMap hashesOfConsistentSettings,
+        ImmutableOpenMap<String, ClusterCustom> customs,
+        ImmutableOpenMap<String, ReservedStateMetadata> reservedStateMetadata
+    ) {
         this.clusterUUID = clusterUUID;
         this.clusterUUIDCommitted = clusterUUIDCommitted;
         this.version = version;
         this.coordinationMetadata = coordinationMetadata;
+        this.projectMetadata = projectMetadata;
         this.transientSettings = transientSettings;
         this.persistentSettings = persistentSettings;
-        this.settings = Settings.builder().put(persistentSettings).put(transientSettings).build();
+        this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
-        this.indices = indices;
         this.customs = customs;
-        this.templates = templates;
-        int totalNumberOfShards = 0;
-        int totalOpenIndexShards = 0;
-        for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-            totalNumberOfShards += cursor.value.getTotalNumberOfShards();
-            if (IndexMetadata.State.OPEN.equals(cursor.value.getState())) {
-                totalOpenIndexShards += cursor.value.getTotalNumberOfShards();
-            }
-        }
-        this.totalNumberOfShards = totalNumberOfShards;
-        this.totalOpenIndexShards = totalOpenIndexShards;
+        this.reservedStateMetadata = reservedStateMetadata;
+    }
 
-        this.allIndices = allIndices;
-        this.visibleIndices = visibleIndices;
-        this.allOpenIndices = allOpenIndices;
-        this.visibleOpenIndices = visibleOpenIndices;
-        this.allClosedIndices = allClosedIndices;
-        this.visibleClosedIndices = visibleClosedIndices;
-        this.indicesLookup = indicesLookup;
+    /**
+     * Temporary exception indicating a call to {@link #getSingleProject} when there are multiple projects.
+     * This can be used to filter out exceptions due to code not converted over yet.
+     * To be removed when {@link #getSingleProject} is removed.
+     */
+    @FixForMultiProject
+    public static class MultiProjectPendingException extends UnsupportedOperationException {
+        public MultiProjectPendingException(String message) {
+            super(message);
+        }
+    }
+
+    private boolean isSingleProject() {
+        return projectMetadata.size() == 1 && projectMetadata.containsKey(DEFAULT_PROJECT_ID);
+    }
+
+    /**
+     * TODO: Revisit as part of multi-project (do we need it for BWC APIs / transport versions, or can we remove it)
+     * If we keep it, then we need to audit every case in which it is called to ensure they don't need to work in
+     * multi-project environments.
+     */
+    @FixForMultiProject
+    private ProjectMetadata getSingleProject() {
+        if (projectMetadata.isEmpty()) {
+            throw new UnsupportedOperationException("There are no projects");
+        } else if (projectMetadata.size() != 1) {
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+        }
+        final ProjectMetadata defaultProject = projectMetadata.get(DEFAULT_PROJECT_ID);
+        if (defaultProject == null) {
+            throw new UnsupportedOperationException(
+                "There is 1 project, but it has id " + projectMetadata.keySet() + " rather than " + DEFAULT_PROJECT_ID
+            );
+        }
+        return defaultProject;
+    }
+
+    public Metadata withIncrementedVersion() {
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version + 1,
+            coordinationMetadata,
+            projectMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
+    }
+
+    /**
+     * Given an index and lifecycle state, returns a metadata where the lifecycle state will be
+     * associated with the given index.
+     *
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
+     *
+     * @param index A non-null index
+     * @param lifecycleState A non-null lifecycle execution state
+     * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
+     */
+    public Metadata withLifecycleState(Index index, LifecycleExecutionState lifecycleState) {
+        return updateSingleProject(project -> project.withLifecycleState(index, lifecycleState));
+    }
+
+    public Metadata withCoordinationMetadata(CoordinationMetadata coordinationMetadata) {
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            projectMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
+    }
+
+    public Metadata withLastCommittedValues(
+        boolean clusterUUIDCommitted,
+        CoordinationMetadata.VotingConfiguration lastCommittedConfiguration
+    ) {
+        if (clusterUUIDCommitted == this.clusterUUIDCommitted
+            && lastCommittedConfiguration.equals(this.coordinationMetadata.getLastCommittedConfiguration())) {
+            return this;
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            CoordinationMetadata.builder(coordinationMetadata).lastCommittedConfiguration(lastCommittedConfiguration).build(),
+            projectMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
+    }
+
+    /**
+     * Creates a copy of this instance with the given {@code index} added.
+     * @param index index to add
+     * @return copy with added index
+     */
+    public Metadata withAddedIndex(IndexMetadata index) {
+        return updateSingleProject(project -> project.withAddedIndex(index));
+    }
+
+    private Metadata updateSingleProject(Function<ProjectMetadata, ProjectMetadata> update) {
+        if (projectMetadata.size() == 1) {
+            var entry = this.projectMetadata.entrySet().iterator().next();
+            var newProject = update.apply(entry.getValue());
+            return newProject == entry.getValue()
+                ? this
+                : new Metadata(
+                    clusterUUID,
+                    clusterUUIDCommitted,
+                    version,
+                    coordinationMetadata,
+                    Map.of(entry.getKey(), newProject),
+                    transientSettings,
+                    persistentSettings,
+                    settings,
+                    hashesOfConsistentSettings,
+                    customs,
+                    reservedStateMetadata
+                );
+        } else {
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+        }
+    }
+
+    /**
+     * Updates a single project in the metadata. This offers a more performant way of updating a single project compared to the Builder.
+     */
+    @FixForMultiProject // We should reconsider whether this method is valuable once we update Metadata.Builder to hold constructed projects
+    // instead of project builders.
+    public Metadata withUpdatedProject(ProjectMetadata updatedProject) {
+        final var existingProject = projectMetadata.get(updatedProject.id());
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + updatedProject.id() + "]. Use the builder instead"
+            );
+        }
+        if (updatedProject == existingProject) {
+            return this;
+        }
+        final Map<ProjectId, ProjectMetadata> updatedMap;
+        if (projects().size() == 1) {
+            updatedMap = Map.of(updatedProject.id(), updatedProject);
+        } else {
+            final var hashMap = new HashMap<>(projectMetadata);
+            hashMap.put(updatedProject.id(), updatedProject);
+            updatedMap = Collections.unmodifiableMap(hashMap);
+        }
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            updatedMap,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            customs,
+            reservedStateMetadata
+        );
     }
 
     public long version() {
         return this.version;
     }
 
+    /**
+     * @return A UUID which identifies this cluster. Nodes record the UUID of the cluster they first join on disk, and will then refuse to
+     * join clusters with different UUIDs. Note that when the cluster is forming for the first time this value may not yet be committed,
+     * and therefore it may change. Check {@link #clusterUUIDCommitted()} to verify that the value is committed if needed.
+     */
     public String clusterUUID() {
         return this.clusterUUID;
     }
@@ -266,522 +490,160 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return this.coordinationMetadata;
     }
 
-    public boolean hasAlias(String alias) {
-        IndexAbstraction indexAbstraction = getIndicesLookup().get(alias);
-        if (indexAbstraction != null) {
-            return indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        } else {
-            return false;
-        }
+    public Map<ProjectId, ProjectMetadata> projects() {
+        return this.projectMetadata;
     }
 
-    public boolean equalsAliases(Metadata other) {
-        for (ObjectCursor<IndexMetadata> cursor : other.indices().values()) {
-            IndexMetadata otherIndex = cursor.value;
-            IndexMetadata thisIndex = index(otherIndex.getIndex());
-            if (thisIndex == null) {
-                return false;
-            }
-            if (otherIndex.getAliases().equals(thisIndex.getAliases()) == false) {
-                return false;
-            }
-        }
-
-        if (other.dataStreamAliases().size() != dataStreamAliases().size()) {
-            return false;
-        }
-        for (DataStreamAlias otherAlias : other.dataStreamAliases().values()) {
-            DataStreamAlias thisAlias = dataStreamAliases().get(otherAlias.getName());
-            if (thisAlias == null) {
-                return false;
-            }
-            if (thisAlias.equals(otherAlias) == false) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    public SortedMap<String, IndexAbstraction> getIndicesLookup() {
-        return indicesLookup;
+    public Iterable<IndexMetadata> indicesAllProjects() {
+        return () -> Iterators.flatMap(projectMetadata.values().iterator(), ProjectMetadata::iterator);
     }
 
     /**
-     * Finds the specific index aliases that point to the requested concrete indices directly
-     * or that match with the indices via wildcards.
-     *
-     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
-     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
-     * aliases then the result will <b>not</b> include the index's key.
+     * TODO: Remove as part of multi-project
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
-        return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
+    @FixForMultiProject
+    @Deprecated(forRemoval = true)
+    public ProjectMetadata getProject() {
+        return getSingleProject();
+    }
+
+    @FixForMultiProject(description = "temporarily allow non-multi-project aware code to work with just the default project")
+    @Deprecated(forRemoval = true)
+    public ProjectMetadata getDefaultProject() {
+        return getProject(DEFAULT_PROJECT_ID);
+    }
+
+    public boolean hasProject(ProjectId projectId) {
+        return projectMetadata.containsKey(projectId);
+    }
+
+    public ProjectMetadata getProject(ProjectId projectId) {
+        ProjectMetadata metadata = projectMetadata.get(projectId);
+        if (metadata == null) {
+            throw new IllegalArgumentException("project [" + projectId + "] not found in metadata version [" + this.version() + "]");
+        }
+        return metadata;
     }
 
     /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
-     * that point to the specified concrete indices (directly or matching indices via wildcards).
-     *
-     * @param aliasesRequest The request to find aliases for
-     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned.
-     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
-     * aliases then the result will <b>not</b> include the index's key.
-     */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
-        return findAliases(aliasesRequest.aliases(), concreteIndices);
-    }
-
-    /**
-     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards, and
-     * that point to the specified concrete indices (directly or matching indices via wildcards).
-     *
-     * @param aliases The aliases to look for. Might contain include or exclude wildcards.
-     * @param concreteIndices The concrete indices that the aliases must point to in order to be returned
-     * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
-     * aliases then the result will <b>not</b> include the index's key.
-     */
-    private ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
-        assert aliases != null;
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
-        }
-        String[] patterns = new String[aliases.length];
-        boolean[] include = new boolean[aliases.length];
-        for (int i = 0; i < aliases.length; i++) {
-            String alias = aliases[i];
-            if (alias.charAt(0) == '-') {
-                patterns[i] = alias.substring(1);
-                include[i] = false;
-            } else {
-                patterns[i] = alias;
-                include[i] = true;
-            }
-        }
-        boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
-        for (String index : concreteIndices) {
-            IndexMetadata indexMetadata = indices.get(index);
-            List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (ObjectCursor<AliasMetadata> cursor : indexMetadata.getAliases().values()) {
-                AliasMetadata value = cursor.value;
-                boolean matched = matchAllAliases;
-                String alias = value.alias();
-                for (int i = 0; i < patterns.length; i++) {
-                    if (include[i]) {
-                        if (matched == false) {
-                            String pattern = patterns[i];
-                            matched = ALL.equals(pattern) || Regex.simpleMatch(pattern, alias);
-                        }
-                    } else if (matched) {
-                        matched = Regex.simpleMatch(patterns[i], alias) == false;
-                    }
-                }
-                if (matched) {
-                    filteredValues.add(value);
-                }
-            }
-            if (filteredValues.isEmpty() == false) {
-                // Make the list order deterministic
-                CollectionUtil.timSort(filteredValues, Comparator.comparing(AliasMetadata::alias));
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
-            }
-        }
-        return mapBuilder.build();
-    }
-
-    /**
-     * Finds all mappings for concrete indices. Only fields that match the provided field
-     * filter will be returned (default is a predicate that always returns true, which can be
-     * overridden via plugins)
-     *
-     * @see MapperPlugin#getFieldFilter()
-     *
-     * @param onNextIndex a hook that gets notified for each index that's processed
-     */
-    public ImmutableOpenMap<String, MappingMetadata> findMappings(String[] concreteIndices,
-                                                                  Function<String, Predicate<String>> fieldFilter,
-                                                                  Runnable onNextIndex) {
-        assert concreteIndices != null;
-        if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
-        }
-
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
-            onNextIndex.run();
-            IndexMetadata indexMetadata = indices.get(index);
-            Predicate<String> fieldPredicate = fieldFilter.apply(index);
-            indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
-        }
-        return indexMapBuilder.build();
-    }
-
-    /**
-     * Finds the parent data streams, if any, for the specified concrete indices.
-     */
-    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
-        assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
-        final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
-        for (String indexName : concreteIndices) {
-            IndexAbstraction index = lookup.get(indexName);
-            assert index != null;
-            assert index.getType() == IndexAbstraction.Type.CONCRETE_INDEX;
-            if (index.getParentDataStream() != null) {
-                builder.put(indexName, index.getParentDataStream());
-            }
-        }
-        return builder.build();
-    }
-
-    @SuppressWarnings("unchecked")
-    private static MappingMetadata filterFields(MappingMetadata mappingMetadata, Predicate<String> fieldPredicate) {
-        if (mappingMetadata == null) {
-            return MappingMetadata.EMPTY_MAPPINGS;
-        }
-        if (fieldPredicate == MapperPlugin.NOOP_FIELD_PREDICATE) {
-            return mappingMetadata;
-        }
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(mappingMetadata.source().compressedReference(), true).v2();
-        Map<String, Object> mapping;
-        if (sourceAsMap.size() == 1 && sourceAsMap.containsKey(mappingMetadata.type())) {
-            mapping = (Map<String, Object>) sourceAsMap.get(mappingMetadata.type());
-        } else {
-            mapping = sourceAsMap;
-        }
-
-        Map<String, Object> properties = (Map<String, Object>)mapping.get("properties");
-        if (properties == null || properties.isEmpty()) {
-            return mappingMetadata;
-        }
-
-        filterFields("", properties, fieldPredicate);
-
-        return new MappingMetadata(mappingMetadata.type(), sourceAsMap);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static boolean filterFields(String currentPath, Map<String, Object> fields, Predicate<String> fieldPredicate) {
-        assert fieldPredicate != MapperPlugin.NOOP_FIELD_PREDICATE;
-        Iterator<Map.Entry<String, Object>> entryIterator = fields.entrySet().iterator();
-        while (entryIterator.hasNext()) {
-            Map.Entry<String, Object> entry = entryIterator.next();
-            String newPath = mergePaths(currentPath, entry.getKey());
-            Object value = entry.getValue();
-            boolean mayRemove = true;
-            boolean isMultiField = false;
-            if (value instanceof Map) {
-                Map<String, Object> map = (Map<String, Object>) value;
-                Map<String, Object> properties = (Map<String, Object>)map.get("properties");
-                if (properties != null) {
-                    mayRemove = filterFields(newPath, properties, fieldPredicate);
-                } else {
-                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
-                    if (subFields != null) {
-                        isMultiField = true;
-                        if (mayRemove = filterFields(newPath, subFields, fieldPredicate)) {
-                            map.remove("fields");
-                        }
-                    }
-                }
-            } else {
-                throw new IllegalStateException("cannot filter mappings, found unknown element of type [" + value.getClass() + "]");
-            }
-
-            //only remove a field if it has no sub-fields left and it has to be excluded
-            if (fieldPredicate.test(newPath) == false) {
-                if (mayRemove) {
-                    entryIterator.remove();
-                } else if (isMultiField) {
-                    //multi fields that should be excluded but hold subfields that don't have to be excluded are converted to objects
-                    Map<String, Object> map = (Map<String, Object>) value;
-                    Map<String, Object> subFields = (Map<String, Object>)map.get("fields");
-                    assert subFields.size() > 0;
-                    map.put("properties", subFields);
-                    map.remove("fields");
-                    map.remove("type");
-                }
-            }
-        }
-        //return true if the ancestor may be removed, as it has no sub-fields left
-        return fields.size() == 0;
-    }
-
-    private static String mergePaths(String path, String field) {
-        if (path.length() == 0) {
-            return field;
-        }
-        return path + "." + field;
-    }
-
-    /**
-     * Returns all the concrete indices.
-     */
-    public String[] getConcreteAllIndices() {
-        return allIndices;
-    }
-
-    /**
-     * Returns all the concrete indices that are not hidden.
-     */
-    public String[] getConcreteVisibleIndices() {
-        return visibleIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are open.
-     */
-    public String[] getConcreteAllOpenIndices() {
-        return allOpenIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are open and not hidden.
-     */
-    public String[] getConcreteVisibleOpenIndices() {
-        return visibleOpenIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are closed.
-     */
-    public String[] getConcreteAllClosedIndices() {
-        return allClosedIndices;
-    }
-
-    /**
-     * Returns all of the concrete indices that are closed and not hidden.
-     */
-    public String[] getConcreteVisibleClosedIndices() {
-        return visibleClosedIndices;
-    }
-
-    /**
-     * Returns indexing routing for the given <code>aliasOrIndex</code>. Resolves routing from the alias metadata used
-     * in the write index.
-     */
-    public String resolveWriteIndexRouting(@Nullable String routing, String aliasOrIndex) {
-        if (aliasOrIndex == null) {
-            return routing;
-        }
-
-        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
-            return routing;
-        }
-        IndexMetadata writeIndex = result.getWriteIndex();
-        if (writeIndex == null) {
-            throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
-        }
-        AliasMetadata writeIndexAliasMetadata = writeIndex.getAliases().get(result.getName());
-        if (writeIndexAliasMetadata != null) {
-            return resolveRouting(routing, aliasOrIndex, writeIndexAliasMetadata);
-        } else {
-            return routing;
-        }
-    }
-
-    /**
-     * Returns indexing routing for the given index.
-     */
-    // TODO: This can be moved to IndexNameExpressionResolver too, but this means that we will support wildcards and other expressions
-    // in the index,bulk,update and delete apis.
-    public String resolveIndexRouting(@Nullable String routing, String aliasOrIndex) {
-        if (aliasOrIndex == null) {
-            return routing;
-        }
-
-        IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
-        if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
-            return routing;
-        }
-        if (result.getIndices().size() > 1) {
-            rejectSingleIndexOperation(aliasOrIndex, result);
-        }
-        return resolveRouting(routing, aliasOrIndex, AliasMetadata.getFirstAliasMetadata(result));
-    }
-
-    private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
-        if (aliasMd.indexRouting() != null) {
-            if (aliasMd.indexRouting().indexOf(',') != -1) {
-                throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value [" +
-                    aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");
-            }
-            if (routing != null) {
-                if (routing.equals(aliasMd.indexRouting()) == false) {
-                    throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has index routing associated with it [" +
-                        aliasMd.indexRouting() + "], and was provided with routing value [" + routing + "], rejecting operation");
-                }
-            }
-            // Alias routing overrides the parent routing (if any).
-            return aliasMd.indexRouting();
-        }
-        return routing;
-    }
-
-    private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
-        String[] indexNames = new String[result.getIndices().size()];
-        int i = 0;
-        for (IndexMetadata indexMetadata : result.getIndices()) {
-            indexNames[i++] = indexMetadata.getIndex().getName();
-        }
-        throw new IllegalArgumentException("Alias [" + aliasOrIndex + "] has more than one index associated with it [" +
-            Arrays.toString(indexNames) + "], can't execute a single index op");
-    }
-
-    public boolean hasIndex(String index) {
-        return indices.containsKey(index);
-    }
-
-    public boolean hasIndex(Index index) {
-        IndexMetadata metadata = index(index.getName());
-        return metadata != null && metadata.getIndexUUID().equals(index.getUUID());
-    }
-
-    public boolean hasConcreteIndex(String index) {
-        return getIndicesLookup().containsKey(index);
-    }
-
-    public IndexMetadata index(String index) {
-        return indices.get(index);
-    }
-
-    public IndexMetadata index(Index index) {
-        IndexMetadata metadata = index(index.getName());
-        if (metadata != null && metadata.getIndexUUID().equals(index.getUUID())) {
-            return metadata;
-        }
-        return null;
-    }
-
-    /** Returns true iff existing index has the same {@link IndexMetadata} instance */
-    public boolean hasIndexMetadata(final IndexMetadata indexMetadata) {
-        return indices.get(indexMetadata.getIndex().getName()) == indexMetadata;
-    }
-
-    /**
-     * Returns the {@link IndexMetadata} for this index.
-     * @throws IndexNotFoundException if no metadata for this index is found
-     */
-    public IndexMetadata getIndexSafe(Index index) {
-        IndexMetadata metadata = index(index.getName());
-        if (metadata != null) {
-            if(metadata.getIndexUUID().equals(index.getUUID())) {
-                return metadata;
-            }
-            throw new IndexNotFoundException(index,
-                new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
-                    + "] but got: [" + metadata.getIndexUUID() +"]"));
-        }
-        throw new IndexNotFoundException(index);
-    }
-
-    public ImmutableOpenMap<String, IndexMetadata> indices() {
-        return this.indices;
-    }
-
-    public ImmutableOpenMap<String, IndexMetadata> getIndices() {
-        return indices();
-    }
-
-    public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
-        return this.templates;
-    }
-
-    public ImmutableOpenMap<String, IndexTemplateMetadata> getTemplates() {
-        return this.templates;
-    }
-
-    public Map<String, ComponentTemplate> componentTemplates() {
-        return Optional.ofNullable((ComponentTemplateMetadata) this.custom(ComponentTemplateMetadata.TYPE))
-            .map(ComponentTemplateMetadata::componentTemplates)
-            .orElse(Collections.emptyMap());
-    }
-
-    public Map<String, ComposableIndexTemplate> templatesV2() {
-        return Optional.ofNullable((ComposableIndexTemplateMetadata) this.custom(ComposableIndexTemplateMetadata.TYPE))
-            .map(ComposableIndexTemplateMetadata::indexTemplates)
-            .orElse(Collections.emptyMap());
-    }
-
-    public Map<String, DataStream> dataStreams() {
-        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
-            .map(DataStreamMetadata::dataStreams)
-            .orElse(Collections.emptyMap());
-    }
-
-    public Map<String, DataStreamAlias> dataStreamAliases() {
-        return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
-            .map(DataStreamMetadata::getDataStreamAliases)
-            .orElse(Collections.emptyMap());
-    }
-
-    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
-        return Optional.ofNullable((NodesShutdownMetadata) this.custom(NodesShutdownMetadata.TYPE))
-            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .orElse(Collections.emptyMap());
-    }
-
-    public ImmutableOpenMap<String, Custom> customs() {
-        return this.customs;
-    }
-
-    /**
-     * The collection of index deletions in the cluster.
-     */
-    public IndexGraveyard indexGraveyard() {
-        return custom(IndexGraveyard.TYPE);
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type) {
-        return (T) customs.get(type);
-    }
-
-    @SuppressWarnings("unchecked")
-    public <T extends Custom> T custom(String type, T defaultValue) {
-        return (T) customs.getOrDefault(type, defaultValue);
-    }
-
-    /**
-     * Gets the total number of shards from all indices, including replicas and
-     * closed indices.
-     * @return The total number shards from all indices.
-     */
-    public int getTotalNumberOfShards() {
-        return this.totalNumberOfShards;
-    }
-
-    /**
-     * Gets the total number of open shards from all indices. Includes
+     * Gets the total number of open shards of all indices across all projects. Includes
      * replicas, but does not include shards that are part of closed indices.
-     * @return The total number of open shards from all indices.
      */
     public int getTotalOpenIndexShards() {
-        return this.totalOpenIndexShards;
+        int shards = 0;
+        for (ProjectMetadata project : projects().values()) {
+            shards += project.getTotalOpenIndexShards();
+        }
+        return shards;
     }
 
     /**
-     * @param concreteIndex The concrete index to check if routing is required
-     * @return Whether routing is required according to the mapping for the specified index and type
+     * Utility method that allows retrieving a {@link ProjectCustom} from a project.
+     * Throws an exception when multiple projects have that {@link ProjectCustom}.
+     * @return the {@link ProjectCustom} if and only if it's present in a single project. If it's not present in any project, returns null
      */
-    public boolean routingRequired(String concreteIndex) {
-        IndexMetadata indexMetadata = indices.get(concreteIndex);
-        if (indexMetadata != null) {
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                return mappingMetadata.routingRequired();
+    @FixForMultiProject
+    @Nullable
+    public <T extends ProjectCustom> T getSingleProjectCustom(String type) {
+        var project = getSingleProjectWithCustom(type);
+        return project == null ? null : project.custom(type);
+    }
+
+    /**
+     * Utility method that allows retrieving a project that has a certain {@link ProjectCustom}.
+     * Throws an exception when multiple projects have that {@link ProjectCustom}.
+     * @return the project that has the {@link ProjectCustom} if and only if it's present in a single project.
+     *         If it's not present in any project, returns null
+     */
+    @FixForMultiProject
+    @Nullable
+    public ProjectMetadata getSingleProjectWithCustom(String type) {
+        ProjectMetadata resultingProject = null;
+        for (ProjectMetadata project : projects().values()) {
+            ProjectCustom projectCustom = project.custom(type);
+            if (projectCustom == null) {
+                continue;
+            }
+            if (resultingProject != null) {
+                throw new UnsupportedOperationException("Multiple custom projects found for type [" + type + "]");
+            }
+            resultingProject = project;
+        }
+        return resultingProject;
+    }
+
+    /**
+     * @return The total number of shards across all projects in this cluster
+     */
+    public int getTotalNumberOfShards() {
+        int shards = 0;
+        for (ProjectMetadata project : projects().values()) {
+            shards += project.getTotalNumberOfShards();
+        }
+        return shards;
+    }
+
+    /**
+     * @return The total number of indices across all projects in this cluster
+     */
+    public int getTotalNumberOfIndices() {
+        int indexCount = 0;
+        for (ProjectMetadata project : projects().values()) {
+            indexCount += project.indices().size();
+        }
+        return indexCount;
+    }
+
+    /**
+     * @return {code true} if there are any indices in any project in this cluster
+     */
+    public boolean hasAnyIndices() {
+        for (ProjectMetadata project : projects().values()) {
+            if (project.indices().isEmpty() == false) {
+                return true;
             }
         }
         return false;
     }
 
-    @Override
-    public Iterator<IndexMetadata> iterator() {
-        return indices.valuesIt();
+    /**
+     * @return The oldest {@link IndexVersion} of indices across all projects
+     */
+    public IndexVersion oldestIndexVersionAllProjects() {
+        IndexVersion oldest = IndexVersion.current();
+        for (var projectMetadata : projectMetadata.values()) {
+            if (oldest.compareTo(projectMetadata.oldestIndexVersion()) > 0) {
+                oldest = projectMetadata.oldestIndexVersion();
+            }
+        }
+        return oldest;
+    }
+
+    public NodesShutdownMetadata nodeShutdowns() {
+        return custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+    }
+
+    public ImmutableOpenMap<String, ClusterCustom> customs() {
+        return this.customs;
+    }
+
+    /**
+     * Returns the full {@link ReservedStateMetadata} Map for all
+     * reserved state namespaces.
+     * @return a map of namespace to {@link ReservedStateMetadata}
+     */
+    public Map<String, ReservedStateMetadata> reservedStateMetadata() {
+        return this.reservedStateMetadata;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends ClusterCustom> T custom(String type) {
+        return (T) customs.get(type);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends ClusterCustom> T custom(String type, T defaultValue) {
+        return (T) customs.getOrDefault(type, defaultValue);
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
@@ -794,55 +656,61 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (metadata1.hashesOfConsistentSettings.equals(metadata2.hashesOfConsistentSettings) == false) {
             return false;
         }
-        if (metadata1.templates.equals(metadata2.templates()) == false) {
-            return false;
-        }
         if (metadata1.clusterUUID.equals(metadata2.clusterUUID) == false) {
             return false;
         }
         if (metadata1.clusterUUIDCommitted != metadata2.clusterUUIDCommitted) {
             return false;
         }
+        if (customsEqual(metadata1.customs, metadata2.customs) == false) {
+            return false;
+        }
+        if (Objects.equals(metadata1.reservedStateMetadata, metadata2.reservedStateMetadata) == false) {
+            return false;
+        }
+        if (projectMetadataEqual(metadata1.projectMetadata, metadata2.projectMetadata) == false) {
+            return false;
+        }
+        return true;
+    }
+
+    static <C extends MetadataCustom<C>> boolean customsEqual(Map<String, C> customs1, Map<String, C> customs2) {
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (ObjectObjectCursor<String, Custom> cursor : metadata1.customs) {
-            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
-                if (cursor.value.equals(metadata2.custom(cursor.key)) == false) {
+        for (Map.Entry<String, C> cursor : customs1.entrySet()) {
+            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
+                if (cursor.getValue().equals(customs2.get(cursor.getKey())) == false) {
                     return false;
                 }
                 customCount1++;
             }
         }
         int customCount2 = 0;
-        for (ObjectCursor<Custom> cursor : metadata2.customs.values()) {
-            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
+        for (C custom : customs2.values()) {
+            if (custom.context().contains(XContentContext.GATEWAY)) {
                 customCount2++;
             }
         }
-        if (customCount1 != customCount2) {
-            return false;
-        }
-        return true;
+        return customCount1 == customCount2;
     }
 
-    /**
-     * Reconciles the cluster state metadata taken at the end of a snapshot with the data streams and indices
-     * contained in the snapshot. Certain actions taken during a snapshot such as rolling over a data stream
-     * or deleting a backing index may result in situations where some reconciliation is required.
-     *
-     * @return Reconciled {@link Metadata} instance
-     */
-    public static Metadata snapshot(Metadata metadata, List<String> dataStreams, List<String> indices) {
-        var builder = Metadata.builder(metadata);
-        for (var dsName : dataStreams) {
-            var dataStream = metadata.dataStreams().get(dsName);
-            if (dataStream == null) {
-                // should never occur since data streams cannot be deleted while they have snapshots underway
-                throw new IllegalArgumentException("unable to find data stream [" + dsName + "]");
-            }
-            builder.put(dataStream.snapshot(indices));
+    private static boolean projectMetadataEqual(
+        Map<ProjectId, ProjectMetadata> projectMetadata1,
+        Map<ProjectId, ProjectMetadata> projectMetadata2
+    ) {
+        if (projectMetadata1.size() != projectMetadata2.size()) {
+            return false;
         }
-        return builder.build();
+        for (ProjectMetadata project1 : projectMetadata1.values()) {
+            var project2 = projectMetadata2.get(project1.id());
+            if (project2 == null) {
+                return false;
+            }
+            if (ProjectMetadata.isStateEquals(project1, project2) == false) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
@@ -851,7 +719,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     public static Diff<Metadata> readDiffFrom(StreamInput in) throws IOException {
-        return new MetadataDiff(in);
+        return in.readBoolean() ? SimpleDiffable.empty() : new MetadataDiff(in);
     }
 
     public static Metadata fromXContent(XContentParser parser) throws IOException {
@@ -859,9 +727,121 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Builder.toXContent(this, builder, params);
-        return builder;
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params p) {
+        final XContentContext context = XContentContext.from(p);
+        final Iterator<? extends ToXContent> start = context == XContentContext.API
+            ? ChunkedToXContentHelper.startObject("metadata")
+            : Iterators.single((builder, params) -> builder.startObject("meta-data").field("version", version()));
+
+        final Iterator<? extends ToXContent> clusterCoordination = Iterators.single((builder, params) -> {
+            builder.field("cluster_uuid", clusterUUID);
+            builder.field("cluster_uuid_committed", clusterUUIDCommitted);
+            builder.startObject("cluster_coordination");
+            coordinationMetadata().toXContent(builder, params);
+            return builder.endObject();
+        });
+
+        final Iterator<? extends ToXContent> persistentSettings = context != XContentContext.API && persistentSettings().isEmpty() == false
+            ? Iterators.single((builder, params) -> {
+                builder.startObject("settings");
+                persistentSettings().toXContent(builder, new ToXContent.MapParams(Collections.singletonMap("flat_settings", "true")));
+                return builder.endObject();
+            })
+            : Collections.emptyIterator();
+
+        @FixForMultiProject
+        // Need to revisit whether this should be a param or something else.
+        final boolean multiProject = p.paramAsBoolean("multi-project", false);
+        if (multiProject) {
+            return toXContentChunkedWithMultiProjectFormat(p, context, start, clusterCoordination, persistentSettings);
+        } else {
+            return toXContentChunkedWithSingleProjectFormat(p, context, start, clusterCoordination, persistentSettings);
+        }
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithMultiProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            ChunkedToXContentHelper.array(
+                "projects",
+                Iterators.flatMap(
+                    projectMetadata.entrySet().iterator(),
+                    e -> Iterators.concat(
+                        ChunkedToXContentHelper.startObject(),
+                        Iterators.single((builder, params) -> builder.field("id", e.getKey())),
+                        e.getValue().toXContentChunked(p),
+                        ChunkedToXContentHelper.endObject()
+                    )
+                )
+            ),
+            Iterators.flatMap(
+                customs.entrySet().iterator(),
+                entry -> entry.getValue().context().contains(context)
+                    ? ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p))
+                    : Collections.emptyIterator()
+            ),
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadata().values().iterator()),
+            ChunkedToXContentHelper.endObject()
+        );
+    }
+
+    private Iterator<? extends ToXContent> toXContentChunkedWithSingleProjectFormat(
+        ToXContent.Params p,
+        XContentContext context,
+        Iterator<? extends ToXContent> start,
+        Iterator<? extends ToXContent> clusterCoordination,
+        Iterator<? extends ToXContent> persistentSettings
+    ) {
+        if (projectMetadata.size() != 1) {
+            throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+        }
+        // Need to rethink what to do here. This might be right, but maybe not...
+        @FixForMultiProject
+        final ProjectMetadata project = projectMetadata.values().iterator().next();
+
+        // Similarly, combine cluster and project persistent tasks and report them under a single key
+        Iterator<ToXContent> customs = Iterators.flatMap(customs().entrySet().iterator(), entry -> {
+            if (entry.getValue().context().contains(context) && ClusterPersistentTasksCustomMetadata.TYPE.equals(entry.getKey()) == false) {
+                return ChunkedToXContentHelper.object(entry.getKey(), entry.getValue().toXContentChunked(p));
+            } else {
+                return Collections.emptyIterator();
+            }
+        });
+        final var combinedTasks = PersistentTasksCustomMetadata.combine(
+            ClusterPersistentTasksCustomMetadata.get(this),
+            PersistentTasksCustomMetadata.get(project)
+        );
+        if (combinedTasks != null) {
+            customs = Iterators.concat(
+                customs,
+                ChunkedToXContentHelper.object(PersistentTasksCustomMetadata.TYPE, combinedTasks.toXContentChunked(p))
+            );
+        }
+
+        // make order deterministic
+        Iterator<ReservedStateMetadata> reservedStateMetadataIterator = reservedStateMetadata.entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .map(Map.Entry::getValue)
+            .iterator();
+
+        return Iterators.concat(
+            start,
+            clusterCoordination,
+            persistentSettings,
+            project.toXContentChunked(p),
+            customs,
+            ChunkedToXContentHelper.object("reserved_state", reservedStateMetadataIterator),
+            ChunkedToXContentHelper.endObject()
+        );
     }
 
     private static class MetadataDiff implements Diff<Metadata> {
@@ -873,64 +853,265 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private final Settings transientSettings;
         private final Settings persistentSettings;
         private final Diff<DiffableStringMap> hashesOfConsistentSettings;
-        private final Diff<ImmutableOpenMap<String, IndexMetadata>> indices;
-        private final Diff<ImmutableOpenMap<String, IndexTemplateMetadata>> templates;
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final ProjectMetadata.ProjectMetadataDiff singleProject;
+
+        private final MapDiff<ProjectId, ProjectMetadata, Map<ProjectId, ProjectMetadata>> multiProject;
+        private final MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>> clusterCustoms;
+        private final MapDiff<String, ReservedStateMetadata, ImmutableOpenMap<String, ReservedStateMetadata>> reservedStateMetadata;
+
+        /**
+         * true if this diff is a noop because before and after were the same instance
+         */
+        private final boolean empty;
+        /**
+         * true if this diff is read from an old node that does not know about multi-project
+         */
+        private final boolean fromNodeBeforeMultiProjectsSupport;
+        // A combined diff for both cluster and project scoped persistent tasks and packaged as project scoped ones.
+        // This is used only when the node has a single project and needs to send the diff to an old node (wire BWC).
+        private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> combinedTasksDiff;
 
         MetadataDiff(Metadata before, Metadata after) {
+            this.empty = before == after;
+            this.fromNodeBeforeMultiProjectsSupport = false; // diff on this node, always after multi-projects, even when disabled
             clusterUUID = after.clusterUUID;
             clusterUUIDCommitted = after.clusterUUIDCommitted;
             version = after.version;
             coordinationMetadata = after.coordinationMetadata;
             transientSettings = after.transientSettings;
             persistentSettings = after.persistentSettings;
-            hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
-            indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
-            templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            if (before.isSingleProject() && after.isSingleProject()) {
+                // single-project, just handle the project metadata diff itself
+                singleProject = after.getSingleProject().diff(before.getSingleProject());
+                multiProject = null;
+            } else {
+                singleProject = null;
+                multiProject = DiffableUtils.diff(before.projectMetadata, after.projectMetadata, ProjectId.PROJECT_ID_SERIALIZER);
+            }
+
+            if (empty) {
+                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
+                clusterCustoms = DiffableUtils.emptyDiff();
+                reservedStateMetadata = DiffableUtils.emptyDiff();
+                combinedTasksDiff = null; // identical metadata, no need for combined tasks diff.
+            } else {
+                // If only has a single project, we need to prepare a combined diff for both cluster and project
+                // scoped persistent tasks so that it is compatible with the old node in case wire BWC is needed.
+                if (singleProject != null) {
+                    final var beforeTasks = PersistentTasksCustomMetadata.combine(
+                        before.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        before.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+                    final var afterTasks = PersistentTasksCustomMetadata.combine(
+                        after.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        after.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+
+                    if (beforeTasks == null && afterTasks == null) {
+                        combinedTasksDiff = null;
+                    } else if (beforeTasks == null) {
+                        combinedTasksDiff = DiffableUtils.singleUpsertDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            afterTasks,
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    } else if (afterTasks == null) {
+                        combinedTasksDiff = DiffableUtils.singleDeleteDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    } else {
+                        combinedTasksDiff = DiffableUtils.singleEntryDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            afterTasks.diff(beforeTasks),
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    }
+                } else {
+                    combinedTasksDiff = null; // Metadata with multi-projects can never be sent to old node, no need for special handling
+                }
+                hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
+                clusterCustoms = DiffableUtils.diff(
+                    before.customs,
+                    after.customs,
+                    DiffableUtils.getStringKeySerializer(),
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+                reservedStateMetadata = DiffableUtils.diff(
+                    before.reservedStateMetadata,
+                    after.reservedStateMetadata,
+                    DiffableUtils.getStringKeySerializer()
+                );
+            }
         }
 
         private static final DiffableUtils.DiffableValueReader<String, IndexMetadata> INDEX_METADATA_DIFF_VALUE_READER =
-                new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
+            new DiffableUtils.DiffableValueReader<>(IndexMetadata::readFrom, IndexMetadata::readDiffFrom);
         private static final DiffableUtils.DiffableValueReader<String, IndexTemplateMetadata> TEMPLATES_DIFF_VALUE_READER =
-                new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
+            new DiffableUtils.DiffableValueReader<>(IndexTemplateMetadata::readFrom, IndexTemplateMetadata::readDiffFrom);
+        private static final DiffableUtils.DiffableValueReader<String, ReservedStateMetadata> RESERVED_DIFF_VALUE_READER =
+            new DiffableUtils.DiffableValueReader<>(ReservedStateMetadata::readFrom, ReservedStateMetadata::readDiffFrom);
 
-        MetadataDiff(StreamInput in) throws IOException {
+        private MetadataDiff(StreamInput in) throws IOException {
+            empty = false;
             clusterUUID = in.readString();
             clusterUUIDCommitted = in.readBoolean();
             version = in.readLong();
             coordinationMetadata = new CoordinationMetadata(in);
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
-            if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-                hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            // We don't need combined diff for persistent tasks when the whole diff is read from wire because:
+            // (1) If the diff is read from an old node, it is already combined.
+            // (2) If the diff is read from a new node, multiProject != null, which prevents it from being sent to old nodes.
+            combinedTasksDiff = null;
+            if (in.getTransportVersion().supports(MULTI_PROJECT) == false) {
+                fromNodeBeforeMultiProjectsSupport = true;
+                var indices = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    INDEX_METADATA_DIFF_VALUE_READER
+                );
+                var templates = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    TEMPLATES_DIFF_VALUE_READER
+                );
+
+                // Read customs and split them into cluster and project ones. Note that the persistent tasks need further handling
+                // since they are returned as part of project customs at this point.
+                var bwcCustoms = readBwcCustoms(in);
+                clusterCustoms = bwcCustoms.v1();
+                var projectCustoms = bwcCustoms.v2();
+
+                // on a single-project install, all reserved state metadata is stored in Metadata rather than ProjectMetadata
+                reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    RESERVED_DIFF_VALUE_READER
+                );
+
+                singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms);
+                multiProject = null;
             } else {
-                hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
+                fromNodeBeforeMultiProjectsSupport = false;
+                clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    CLUSTER_CUSTOM_VALUE_SERIALIZER
+                );
+
+                reservedStateMetadata = DiffableUtils.readImmutableOpenMapDiff(
+                    in,
+                    DiffableUtils.getStringKeySerializer(),
+                    RESERVED_DIFF_VALUE_READER
+                );
+
+                singleProject = null;
+                multiProject = DiffableUtils.readJdkMapDiff(
+                    in,
+                    ProjectId.PROJECT_ID_SERIALIZER,
+                    ProjectMetadata::readFrom,
+                    ProjectMetadata.ProjectMetadataDiff::new
+                );
             }
-            indices = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), INDEX_METADATA_DIFF_VALUE_READER);
-            templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), TEMPLATES_DIFF_VALUE_READER);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+        }
+
+        @SuppressWarnings("unchecked")
+        private static
+            Tuple<
+                MapDiff<String, ClusterCustom, ImmutableOpenMap<String, ClusterCustom>>,
+                MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>>>
+            readBwcCustoms(StreamInput in) throws IOException {
+            MapDiff<String, MetadataCustom<?>, ImmutableOpenMap<String, MetadataCustom<?>>> customs = DiffableUtils
+                .readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), BWC_CUSTOM_VALUE_SERIALIZER);
+            return DiffableUtils.split(
+                customs,
+                in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet()::contains,
+                CLUSTER_CUSTOM_VALUE_SERIALIZER,
+                in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet()::contains,
+                PROJECT_CUSTOM_VALUE_SERIALIZER
+            );
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(empty);
+            if (empty) {
+                // noop diff
+                return;
+            }
             out.writeString(clusterUUID);
             out.writeBoolean(clusterUUIDCommitted);
             out.writeLong(version);
             coordinationMetadata.writeTo(out);
-            Settings.writeSettingsToStream(transientSettings, out);
-            Settings.writeSettingsToStream(persistentSettings, out);
-            if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-                hashesOfConsistentSettings.writeTo(out);
+            transientSettings.writeTo(out);
+            persistentSettings.writeTo(out);
+            hashesOfConsistentSettings.writeTo(out);
+            if (out.getTransportVersion().supports(MULTI_PROJECT) == false) {
+                // there's only ever a single project with pre-multi-project
+                if (multiProject != null) {
+                    throw new UnsupportedOperationException(
+                        "Trying to serialize a multi-project diff with a single-project serialization version"
+                    );
+                }
+                singleProject.indices().writeTo(out);
+                singleProject.templates().writeTo(out);
+                buildUnifiedCustomDiff().writeTo(out);
+                reservedStateMetadata.writeTo(out);
+            } else {
+                clusterCustoms.writeTo(out);
+                reservedStateMetadata.writeTo(out);
+                if (multiProject != null) {
+                    multiProject.writeTo(out);
+                } else {
+                    DiffableUtils.singleEntryDiff(DEFAULT_PROJECT_ID, singleProject, ProjectId.PROJECT_ID_SERIALIZER).writeTo(out);
+                }
             }
-            indices.writeTo(out);
-            templates.writeTo(out);
-            customs.writeTo(out);
+        }
+
+        @SuppressWarnings("unchecked")
+        private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
+            assert multiProject == null : "should only be used for single project metadata";
+            // First merge the cluster customs and project customs
+            final var mergedClusterAndProjectCustomDiff = DiffableUtils.merge(
+                clusterCustoms,
+                singleProject.customs(),
+                DiffableUtils.getStringKeySerializer(),
+                BWC_CUSTOM_VALUE_SERIALIZER
+            );
+            if (combinedTasksDiff == null) {
+                // No combined diff means either (1) no tasks are involved or (2) the diff is from an old node
+                // In both cases, we can proceed without further changes.
+                // For both cases, no cluster persistent tasks should exist in the merged diff
+                assert DiffableUtils.hasKey(mergedClusterAndProjectCustomDiff, ClusterPersistentTasksCustomMetadata.TYPE) == false;
+                // Unless it is (2), the merge diff should not contain project persistent tasks
+                assert fromNodeBeforeMultiProjectsSupport
+                    || DiffableUtils.hasKey(mergedClusterAndProjectCustomDiff, PersistentTasksCustomMetadata.TYPE) == false;
+                return mergedClusterAndProjectCustomDiff;
+            } else {
+                // We need first delete the persistent tasks entries from the diffs by cluster and project customs themselves.
+                // Then add the combined tasks diff to the result.
+                return DiffableUtils.merge(
+                    DiffableUtils.removeKeys(
+                        mergedClusterAndProjectCustomDiff,
+                        Set.of(PersistentTasksCustomMetadata.TYPE, ClusterPersistentTasksCustomMetadata.TYPE)
+                    ),
+                    combinedTasksDiff,
+                    DiffableUtils.getStringKeySerializer(),
+                    BWC_CUSTOM_VALUE_SERIALIZER
+                );
+            }
         }
 
         @Override
         public Metadata apply(Metadata part) {
-            Builder builder = builder();
+            if (empty) {
+                return part;
+            }
+            // create builder from existing mappings hashes so we don't change existing index metadata instances when deduplicating
+            // mappings in the builder
+            Builder builder = new Builder();
             builder.clusterUUID(clusterUUID);
             builder.clusterUUIDCommitted(clusterUUIDCommitted);
             builder.version(version);
@@ -938,38 +1119,152 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             builder.transientSettings(transientSettings);
             builder.persistentSettings(persistentSettings);
             builder.hashesOfConsistentSettings(hashesOfConsistentSettings.apply(part.hashesOfConsistentSettings));
-            builder.indices(indices.apply(part.indices));
-            builder.templates(templates.apply(part.templates));
-            builder.customs(customs.apply(part.customs));
-            return builder.build();
+            if (singleProject != null) {
+                // should only be applied to single projects
+                if (part.isSingleProject() == false) {
+                    throw new UnsupportedOperationException("Trying to apply a single-project diff to a multi-project metadata");
+                }
+                // This diff is either (1) read from an old node or (2) because this node only has a single project
+                if (fromNodeBeforeMultiProjectsSupport) {
+                    // If this diff is read from an old node, it has combination between cluster and project tasks.
+                    // So we need to combine the tasks first for the diff to apply.
+                    final var combinedTasksBefore = PersistentTasksCustomMetadata.combine(
+                        part.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        part.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+                    // Apply the diff to get the new project metadata with combined tasks
+                    final ProjectMetadata projectWithCombinedTasks;
+                    if (combinedTasksBefore == null) {
+                        projectWithCombinedTasks = singleProject.apply(part.getSingleProject());
+                    } else {
+                        projectWithCombinedTasks = singleProject.apply(
+                            ProjectMetadata.builder(part.getSingleProject())
+                                .putCustom(PersistentTasksCustomMetadata.TYPE, combinedTasksBefore)
+                                .build()
+                        );
+                    }
+                    final var combinedTasksAfter = (PersistentTasksCustomMetadata) projectWithCombinedTasks.custom(
+                        PersistentTasksCustomMetadata.TYPE
+                    );
+                    if (combinedTasksAfter == null) {
+                        builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, projectWithCombinedTasks));
+                        builder.customs(clusterCustoms.apply(part.customs));
+                    } else {
+                        // Now split the combined tasks back to cluster and project scoped so that they can be stored separately
+                        final var tuple = combinedTasksAfter.split();
+                        builder.projectMetadata(
+                            Map.of(
+                                DEFAULT_PROJECT_ID,
+                                ProjectMetadata.builder(projectWithCombinedTasks)
+                                    .putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2())
+                                    .build()
+                            )
+                        );
+                        // For cluster customs, we need to apply the diff (contains no info for tasks), then put the persistent tasks
+                        // from the split cluster scoped one
+                        final var clusterCustomsBuilder = ImmutableOpenMap.builder(clusterCustoms.apply(part.customs));
+                        clusterCustomsBuilder.put(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
+                        builder.customs(clusterCustomsBuilder.build());
+                    }
+                } else {
+                    builder.customs(clusterCustoms.apply(part.customs));
+                    builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, singleProject.apply(part.getSingleProject())));
+                }
+            } else {
+                assert fromNodeBeforeMultiProjectsSupport == false;
+                builder.customs(clusterCustoms.apply(part.customs));
+                builder.projectMetadata(multiProject.apply(part.projectMetadata));
+            }
+            builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
+            return builder.build(true);
         }
     }
 
     public static Metadata readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
-        builder.version = in.readLong();
-        builder.clusterUUID = in.readString();
-        builder.clusterUUIDCommitted = in.readBoolean();
+        builder.version(in.readLong());
+        builder.clusterUUID(in.readString());
+        builder.clusterUUIDCommitted(in.readBoolean());
         builder.coordinationMetadata(new CoordinationMetadata(in));
         builder.transientSettings(readSettingsFromStream(in));
         builder.persistentSettings(readSettingsFromStream(in));
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
-        }
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexMetadata.readFrom(in), false);
-        }
-        size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            builder.put(IndexTemplateMetadata.readFrom(in));
-        }
-        int customSize = in.readVInt();
-        for (int i = 0; i < customSize; i++) {
-            Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
-            builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
+        builder.hashesOfConsistentSettings(DiffableStringMap.readFrom(in));
+        if (in.getTransportVersion().supports(MULTI_PROJECT) == false) {
+            final ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(ProjectId.DEFAULT);
+            builder.put(projectBuilder);
+            final Function<String, MappingMetadata> mappingLookup;
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.isEmpty() == false) {
+                mappingLookup = mappingMetadataMap::get;
+            } else {
+                mappingLookup = null;
+            }
+            int size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                projectBuilder.put(IndexMetadata.readFrom(in, mappingLookup), false);
+            }
+            size = in.readVInt();
+            for (int i = 0; i < size; i++) {
+                projectBuilder.put(IndexTemplateMetadata.readFrom(in));
+            }
+            readBwcCustoms(in, builder);
+
+            int reservedStateSize = in.readVInt();
+            for (int i = 0; i < reservedStateSize; i++) {
+                builder.put(ReservedStateMetadata.readFrom(in));
+            }
+        } else {
+            readClusterCustoms(in, builder);
+
+            int reservedStateSize = in.readVInt();
+            for (int i = 0; i < reservedStateSize; i++) {
+                builder.put(ReservedStateMetadata.readFrom(in));
+            }
+
+            builder.projectMetadata(in.readMap(ProjectId::readFrom, ProjectMetadata::readFrom));
         }
         return builder.build();
+    }
+
+    private static void readBwcCustoms(StreamInput in, Builder builder) throws IOException {
+        final ProjectMetadata.Builder projectBuilder = builder.getProject(ProjectId.DEFAULT);
+        final Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+        final Set<String> projectScopedNames = in.namedWriteableRegistry().getReaders(ProjectCustom.class).keySet();
+        final int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            final String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                final ClusterCustom custom = in.readNamedWriteable(ClusterCustom.class, name);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } else if (projectScopedNames.contains(name)) {
+                final ProjectCustom custom = in.readNamedWriteable(ProjectCustom.class, name);
+                // Persistent tasks from an old node are serialized with the project scoped class. We split them into cluster and project
+                // scoped ones and store them separately.
+                if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
+                    final var tuple = persistentTasksCustomMetadata.split();
+                    builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
+                    projectBuilder.putCustom(tuple.v2().getWriteableName(), tuple.v2());
+                } else {
+                    projectBuilder.putCustom(custom.getWriteableName(), custom);
+                }
+            } else {
+                throw new IllegalArgumentException("Unknown custom name [" + name + "]");
+            }
+        }
+    }
+
+    private static void readClusterCustoms(StreamInput in, Builder builder) throws IOException {
+        Set<String> clusterScopedNames = in.namedWriteableRegistry().getReaders(ClusterCustom.class).keySet();
+        int count = in.readVInt();
+        for (int i = 0; i < count; i++) {
+            final String name = in.readString();
+            if (clusterScopedNames.contains(name)) {
+                ClusterCustom custom = in.readNamedWriteable(ClusterCustom.class, name);
+                builder.putCustom(custom.getWriteableName(), custom);
+            } else {
+                throw new IllegalArgumentException("Unknown cluster custom name [" + name + "]");
+            }
+        }
     }
 
     @Override
@@ -978,20 +1273,45 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         out.writeString(clusterUUID);
         out.writeBoolean(clusterUUIDCommitted);
         coordinationMetadata.writeTo(out);
-        writeSettingsToStream(transientSettings, out);
-        writeSettingsToStream(persistentSettings, out);
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            hashesOfConsistentSettings.writeTo(out);
+        transientSettings.writeTo(out);
+        persistentSettings.writeTo(out);
+        hashesOfConsistentSettings.writeTo(out);
+        if (out.getTransportVersion().supports(MULTI_PROJECT) == false) {
+            ProjectMetadata singleProject = getSingleProject();
+            out.writeMapValues(singleProject.getMappingsByHash());
+            out.writeVInt(singleProject.size());
+            for (IndexMetadata indexMetadata : singleProject) {
+                indexMetadata.writeTo(out, true);
+            }
+            out.writeCollection(singleProject.templates().values());
+
+            // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
+            // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
+            List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + singleProject.customs().size());
+            // Old node expects persistent tasks to be a single custom. So we merge cluster and project scoped tasks into one single
+            // custom for serialization so that old node understands it.
+            final var persistentTasksCustomMetadata = PersistentTasksCustomMetadata.combine(
+                ClusterPersistentTasksCustomMetadata.get(this),
+                PersistentTasksCustomMetadata.get(singleProject)
+            );
+            if (persistentTasksCustomMetadata != null) {
+                combinedCustoms.add(persistentTasksCustomMetadata);
+            }
+            combinedCustoms.addAll(
+                customs.values().stream().filter(c -> c instanceof ClusterPersistentTasksCustomMetadata == false).toList()
+            );
+            combinedCustoms.addAll(
+                singleProject.customs().values().stream().filter(c -> c instanceof PersistentTasksCustomMetadata == false).toList()
+            );
+            VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
+
+            out.writeCollection(reservedStateMetadata.values());
+        } else {
+            VersionedNamedWriteable.writeVersionedWriteables(out, customs.values());
+
+            out.writeCollection(reservedStateMetadata.values());
+            out.writeMap(projectMetadata, StreamOutput::writeWriteable, StreamOutput::writeWriteable);
         }
-        out.writeVInt(indices.size());
-        for (IndexMetadata indexMetadata : this) {
-            indexMetadata.writeTo(out);
-        }
-        out.writeVInt(templates.size());
-        for (ObjectCursor<IndexTemplateMetadata> cursor : templates.values()) {
-            cursor.value.writeTo(out);
-        }
-        VersionedNamedWriteable.writeVersionedWritables(out, customs);
     }
 
     public static Builder builder() {
@@ -1002,6 +1322,24 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return new Builder(metadata);
     }
 
+    public Metadata copyAndUpdate(Consumer<Builder> updater) {
+        var builder = builder(this);
+        updater.accept(builder);
+        return builder.build();
+    }
+
+    public Metadata copyAndUpdateProject(ProjectId projectId, Consumer<ProjectMetadata.Builder> updater) {
+        final var existingProject = projectMetadata.get(projectId);
+        if (existingProject == null) {
+            throw new IllegalArgumentException(
+                "Can only update existing project, cannot add a new project [" + projectId + "]. Use the builder instead"
+            );
+        }
+        final var builder = ProjectMetadata.builder(existingProject);
+        updater.accept(builder);
+        return withUpdatedProject(builder.build());
+    }
+
     public static class Builder {
 
         private String clusterUUID;
@@ -1009,23 +1347,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private long version;
 
         private CoordinationMetadata coordinationMetadata = CoordinationMetadata.EMPTY_METADATA;
-        private Settings transientSettings = Settings.Builder.EMPTY_SETTINGS;
-        private Settings persistentSettings = Settings.Builder.EMPTY_SETTINGS;
-        private DiffableStringMap hashesOfConsistentSettings = new DiffableStringMap(Collections.emptyMap());
+        private Settings transientSettings = Settings.EMPTY;
+        private Settings persistentSettings = Settings.EMPTY;
+        private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
-        private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
-        private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final ImmutableOpenMap.Builder<String, ClusterCustom> customs;
 
+        /**
+         * TODO: This should map to {@link ProjectMetadata} (not Builder), but that's tricky to do due to
+         * legacy delegation methods such as {@link #indices(Map)} which expect to have a mutable project
+         */
+        private final Map<ProjectId, ProjectMetadata.Builder> projectMetadata;
+
+        private final ImmutableOpenMap.Builder<String, ReservedStateMetadata> reservedStateMetadata;
+
+        @SuppressWarnings("this-escape")
         public Builder() {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
-            indices = ImmutableOpenMap.builder();
-            templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
-            indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
+            projectMetadata = new HashMap<>();
+            reservedStateMetadata = ImmutableOpenMap.builder();
         }
 
-        public Builder(Metadata metadata) {
+        Builder(Metadata metadata) {
             this.clusterUUID = metadata.clusterUUID;
             this.clusterUUIDCommitted = metadata.clusterUUIDCommitted;
             this.coordinationMetadata = metadata.coordinationMetadata;
@@ -1033,278 +1377,168 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.persistentSettings = metadata.persistentSettings;
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
-            this.indices = ImmutableOpenMap.builder(metadata.indices);
-            this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
+            this.projectMetadata = Maps.transformValues(metadata.projectMetadata, ProjectMetadata::builder);
+            this.reservedStateMetadata = ImmutableOpenMap.builder(metadata.reservedStateMetadata);
         }
 
+        private ProjectMetadata.Builder getSingleProject() {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
+            } else if (projectMetadata.size() != 1) {
+                throw new MultiProjectPendingException("There are multiple projects " + projectMetadata.keySet());
+            }
+            return projectMetadata.values().iterator().next();
+        }
+
+        public Builder projectMetadata(Map<ProjectId, ProjectMetadata> projectMetadata) {
+            assert projectMetadata.entrySet().stream().allMatch(e -> e.getValue().id().equals(e.getKey()))
+                : "Project metadata map is inconsistent";
+            this.projectMetadata.clear();
+            projectMetadata.forEach((k, v) -> this.projectMetadata.put(k, ProjectMetadata.builder(v)));
+            return this;
+        }
+
+        public Builder put(ProjectMetadata projectMetadata) {
+            return put(ProjectMetadata.builder(projectMetadata));
+        }
+
+        public Builder put(ProjectMetadata.Builder projectMetadata) {
+            this.projectMetadata.put(projectMetadata.getId(), projectMetadata);
+            return this;
+        }
+
+        public Builder removeProject(ProjectId projectId) {
+            this.projectMetadata.remove(projectId);
+            return this;
+        }
+
+        public ProjectMetadata.Builder getProject(ProjectId projectId) {
+            return projectMetadata.get(projectId);
+        }
+
+        public Builder forEachProject(UnaryOperator<ProjectMetadata.Builder> modifier) {
+            projectMetadata.replaceAll((p, b) -> modifier.apply(b));
+            return this;
+        }
+
+        @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata.Builder indexMetadataBuilder) {
-            // we know its a new one, increment the version and store
-            indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
-            IndexMetadata indexMetadata = indexMetadataBuilder.build();
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            getSingleProject().put(indexMetadataBuilder);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexMetadata indexMetadata, boolean incrementVersion) {
-            if (indices.get(indexMetadata.getIndex().getName()) == indexMetadata) {
-                return this;
-            }
-            // if we put a new index metadata, increment its version
-            if (incrementVersion) {
-                indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
-            }
-            indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            getSingleProject().put(indexMetadata, incrementVersion);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public IndexMetadata get(String index) {
-            return indices.get(index);
+            return getSingleProject().get(index);
         }
 
+        @Deprecated(forRemoval = true)
         public IndexMetadata getSafe(Index index) {
-            IndexMetadata indexMetadata = get(index.getName());
-            if (indexMetadata != null) {
-                if(indexMetadata.getIndexUUID().equals(index.getUUID())) {
-                    return indexMetadata;
-                }
-                throw new IndexNotFoundException(index,
-                    new IllegalStateException("index uuid doesn't match expected: [" + index.getUUID()
-                        + "] but got: [" + indexMetadata.getIndexUUID() +"]"));
-            }
-            throw new IndexNotFoundException(index);
+            return getSingleProject().getSafe(index);
         }
 
+        @Deprecated(forRemoval = true)
         public Builder remove(String index) {
-            indices.remove(index);
+            getSingleProject().remove(index);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeAllIndices() {
-            indices.clear();
+            getSingleProject().removeAllIndices();
             return this;
         }
 
-        public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
-            this.indices.putAll(indices);
+        @Deprecated(forRemoval = true)
+        public Builder indices(Map<String, IndexMetadata> indices) {
+            getSingleProject().indices(indices);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata.Builder template) {
-            return put(template.build());
+            getSingleProject().put(template);
+            return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(IndexTemplateMetadata template) {
-            templates.put(template.name(), template);
+            getSingleProject().put(template);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder removeTemplate(String templateName) {
-            templates.remove(templateName);
+            getSingleProject().removeTemplate(templateName);
             return this;
         }
 
-        public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
-            this.templates.putAll(templates);
+        @Deprecated(forRemoval = true)
+        public Builder templates(Map<String, IndexTemplateMetadata> templates) {
+            getSingleProject().templates(templates);
             return this;
         }
 
-        public Builder put(String name, ComponentTemplate componentTemplate) {
-            Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
-            Map<String, ComponentTemplate> existingTemplates =
-                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
-                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
-                    .orElse(new HashMap<>());
-            existingTemplates.put(name, componentTemplate);
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
-            return this;
-        }
-
-        public Builder removeComponentTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
-            Map<String, ComponentTemplate> existingTemplates =
-                Optional.ofNullable((ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE))
-                    .map(ctm -> new HashMap<>(ctm.componentTemplates()))
-                    .orElse(new HashMap<>());
-            existingTemplates.remove(name);
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(existingTemplates));
-            return this;
-        }
-
+        @Deprecated(forRemoval = true)
         public Builder componentTemplates(Map<String, ComponentTemplate> componentTemplates) {
-            this.customs.put(ComponentTemplateMetadata.TYPE, new ComponentTemplateMetadata(componentTemplates));
+            getSingleProject().componentTemplates(componentTemplates);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder indexTemplates(Map<String, ComposableIndexTemplate> indexTemplates) {
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(indexTemplates));
+            getSingleProject().indexTemplates(indexTemplates);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
-            Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
-            Map<String, ComposableIndexTemplate> existingTemplates =
-                Optional.ofNullable((ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE))
-                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
-                    .orElse(new HashMap<>());
-            existingTemplates.put(name, indexTemplate);
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
+            getSingleProject().put(name, indexTemplate);
             return this;
         }
 
-        public Builder removeIndexTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
-            Map<String, ComposableIndexTemplate> existingTemplates =
-                Optional.ofNullable((ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE))
-                    .map(itmd -> new HashMap<>(itmd.indexTemplates()))
-                    .orElse(new HashMap<>());
-            existingTemplates.remove(name);
-            this.customs.put(ComposableIndexTemplateMetadata.TYPE, new ComposableIndexTemplateMetadata(existingTemplates));
-            return this;
-        }
-
-        public DataStream dataStream(String dataStreamName) {
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
-            if (dataStreamMetadata != null) {
-                return dataStreamMetadata.dataStreams().get(dataStreamName);
-            } else {
-                return null;
-            }
-        }
-
+        @Deprecated(forRemoval = true)
         public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
+            getSingleProject().dataStreams(dataStreams, dataStreamAliases);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
         public Builder put(DataStream dataStream) {
-            Objects.requireNonNull(dataStream, "it is invalid to add a null data stream");
-            Map<String, DataStream> existingDataStreams =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                    .orElse(new HashMap<>());
-            existingDataStreams.put(dataStream.getName(), dataStream);
-            Map<String, DataStreamAlias> existingDataStreamAliases =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
-                .orElse(new HashMap<>());
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
+            getSingleProject().put(dataStream);
             return this;
         }
 
+        @Deprecated(forRemoval = true)
+        public DataStreamMetadata dataStreamMetadata() {
+            return getSingleProject().dataStreamMetadata();
+        }
+
+        @Deprecated(forRemoval = true)
         public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream, String filter) {
-            Map<String, DataStream> existingDataStream =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                    .orElse(new HashMap<>());
-            Map<String, DataStreamAlias> dataStreamAliases =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
-                    .orElse(new HashMap<>());
-
-            if (existingDataStream.containsKey(dataStream) == false) {
-                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
-            }
-
-            Map<String, Object> filterAsMap;
-            if (filter != null) {
-                filterAsMap = XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true);
-            } else {
-                filterAsMap = null;
-            }
-
-            DataStreamAlias alias = dataStreamAliases.get(aliasName);
-            if (alias == null) {
-                String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
-                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream, filterAsMap);
-            } else {
-                DataStreamAlias copy = alias.update(dataStream, isWriteDataStream, filterAsMap);
-                if (copy == alias) {
-                    return false;
-                }
-                alias = copy;
-            }
-            dataStreamAliases.put(aliasName, alias);
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
-            return true;
+            return getSingleProject().put(aliasName, dataStream, isWriteDataStream, filter);
         }
 
-        public Builder removeDataStream(String name) {
-            Map<String, DataStream> existingDataStreams =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                    .orElse(new HashMap<>());
-            existingDataStreams.remove(name);
-
-            Map<String, DataStreamAlias> existingDataStreamAliases =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
-                    .orElse(new HashMap<>());
-
-            Set<String> aliasesToDelete = new HashSet<>();
-            List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
-            for (var alias : existingDataStreamAliases.values()) {
-                DataStreamAlias copy = alias.removeDataStream(name);
-                if (copy != null) {
-                    if (copy == alias) {
-                        continue;
-                    }
-                    aliasesToUpdate.add(copy);
-                } else {
-                    aliasesToDelete.add(alias.getName());
-                }
-            }
-            for (DataStreamAlias alias : aliasesToUpdate) {
-                existingDataStreamAliases.put(alias.getName(), alias);
-            }
-            for (String aliasToDelete : aliasesToDelete) {
-                existingDataStreamAliases.remove(aliasToDelete);
-            }
-
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStreams, existingDataStreamAliases));
-            return this;
-        }
-
-        public boolean removeDataStreamAlias(String aliasName, String dataStreamName, boolean mustExist) {
-            Map<String, DataStreamAlias> dataStreamAliases =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.getDataStreamAliases()))
-                    .orElse(new HashMap<>());
-
-            DataStreamAlias existing = dataStreamAliases.get(aliasName);
-            if (mustExist && existing == null) {
-                throw new ResourceNotFoundException("alias [" + aliasName + "] doesn't exist");
-            } else if (existing == null) {
-                return false;
-            }
-            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
-            if (copy == existing) {
-                return false;
-            }
-            if (copy != null) {
-                dataStreamAliases.put(aliasName, copy);
-            } else {
-                dataStreamAliases.remove(aliasName);
-            }
-            Map<String, DataStream> existingDataStream =
-                Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
-                    .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
-                    .orElse(new HashMap<>());
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
-            return true;
-        }
-
-        public Custom getCustom(String type) {
-            return customs.get(type);
-        }
-
-        public Builder putCustom(String type, Custom custom) {
+        public Builder putCustom(String type, ClusterCustom custom) {
             customs.put(type, Objects.requireNonNull(custom, type));
             return this;
+        }
+
+        @Deprecated(forRemoval = true)
+        public Builder putCustom(String type, ProjectCustom custom) {
+            getSingleProject().putCustom(type, Objects.requireNonNull(custom, type));
+            return this;
+        }
+
+        public ClusterCustom getCustom(String type) {
+            return customs.get(type);
         }
 
         public Builder removeCustom(String type) {
@@ -1312,33 +1546,57 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+        public Builder removeCustomIf(BiPredicate<String, ? super ClusterCustom> p) {
+            customs.removeAll(p);
             return this;
         }
 
-        public Builder indexGraveyard(final IndexGraveyard indexGraveyard) {
-            putCustom(IndexGraveyard.TYPE, indexGraveyard);
+        public Builder customs(Map<String, ClusterCustom> clusterCustoms) {
+            clusterCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
+            customs.putAllFromMap(clusterCustoms);
             return this;
         }
 
-        public IndexGraveyard indexGraveyard() {
-            return (IndexGraveyard) getCustom(IndexGraveyard.TYPE);
+        @Deprecated(forRemoval = true)
+        public Builder projectCustoms(Map<String, ProjectCustom> projectCustoms) {
+            projectCustoms.forEach((key, value) -> Objects.requireNonNull(value, key));
+            getSingleProject().customs(projectCustoms);
+            return this;
         }
 
+        /**
+         * Adds a map of namespace to {@link ReservedStateMetadata} into the metadata builder
+         * @param reservedStateMetadata a map of namespace to {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder put(Map<String, ReservedStateMetadata> reservedStateMetadata) {
+            this.reservedStateMetadata.putAllFromMap(reservedStateMetadata);
+            return this;
+        }
+
+        /**
+         * Adds a {@link ReservedStateMetadata} for a given namespace to the metadata builder
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder put(ReservedStateMetadata metadata) {
+            reservedStateMetadata.put(metadata.namespace(), metadata);
+            return this;
+        }
+
+        /**
+         * Removes a {@link ReservedStateMetadata} for a given namespace
+         * @param metadata a {@link ReservedStateMetadata}
+         * @return {@link Builder}
+         */
+        public Builder removeReservedState(ReservedStateMetadata metadata) {
+            reservedStateMetadata.remove(metadata.namespace());
+            return this;
+        }
+
+        @Deprecated(forRemoval = true)
         public Builder updateSettings(Settings settings, String... indices) {
-            if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
-            }
-            for (String index : indices) {
-                IndexMetadata indexMetadata = this.indices.get(index);
-                if (indexMetadata == null) {
-                    throw new IndexNotFoundException(index);
-                }
-                put(IndexMetadata.builder(indexMetadata)
-                        .settings(Settings.builder().put(indexMetadata.getSettings()).put(settings)));
-            }
+            getSingleProject().updateSettings(settings, indices);
             return this;
         }
 
@@ -1349,14 +1607,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
          * @param indices          the indices to update the number of replicas for
          * @return the builder
          */
+        @Deprecated(forRemoval = true)
         public Builder updateNumberOfReplicas(final int numberOfReplicas, final String[] indices) {
-            for (String index : indices) {
-                IndexMetadata indexMetadata = this.indices.get(index);
-                if (indexMetadata == null) {
-                    throw new IndexNotFoundException(index);
-                }
-                put(IndexMetadata.builder(indexMetadata).numberOfReplicas(numberOfReplicas));
-            }
+            getSingleProject().updateNumberOfReplicas(numberOfReplicas, indices);
             return this;
         }
 
@@ -1410,263 +1663,71 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder generateClusterUuidIfNeeded() {
             if (clusterUUID.equals(UNKNOWN_CLUSTER_UUID)) {
-                clusterUUID = UUIDs.randomBase64UUID();
+                clusterUUID(UUIDs.randomBase64UUID());
             }
             return this;
         }
 
+        /**
+         * @return a new <code>Metadata</code> instance
+         */
         public Metadata build() {
-            // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
-            // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
-            //    while these datastructures aren't even used.
-            // 2) The aliasAndIndexLookup can be updated instead of rebuilding it all the time.
-
-            final Set<String> allIndices = new HashSet<>(indices.size());
-            final List<String> visibleIndices = new ArrayList<>();
-            final List<String> allOpenIndices = new ArrayList<>();
-            final List<String> visibleOpenIndices = new ArrayList<>();
-            final List<String> allClosedIndices = new ArrayList<>();
-            final List<String> visibleClosedIndices = new ArrayList<>();
-            final Set<String> allAliases = new HashSet<>();
-            for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                final IndexMetadata indexMetadata = cursor.value;
-                final String name = indexMetadata.getIndex().getName();
-                boolean added = allIndices.add(name);
-                assert added : "double index named [" + name + "]";
-                final boolean visible = IndexMetadata.INDEX_HIDDEN_SETTING.get(indexMetadata.getSettings()) == false;
-                if (visible) {
-                    visibleIndices.add(name);
-                }
-                if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
-                    allOpenIndices.add(name);
-                    if (visible) {
-                        visibleOpenIndices.add(name);
-                    }
-                } else if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                    allClosedIndices.add(name);
-                    if (visible) {
-                        visibleClosedIndices.add(name);
-                    }
-                }
-                indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
-            }
-
-            final Set<String> allDataStreams = new HashSet<>();
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            if (dataStreamMetadata != null) {
-                for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    allDataStreams.add(dataStream.getName());
-                }
-            }
-
-            final Set<String> aliasDuplicatesWithIndices = new HashSet<>(allAliases);
-            aliasDuplicatesWithIndices.retainAll(allIndices);
-            ArrayList<String> duplicates = new ArrayList<>();
-            if (aliasDuplicatesWithIndices.isEmpty() == false) {
-                // iterate again and constructs a helpful message
-                for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                    for (String alias : aliasDuplicatesWithIndices) {
-                        if (cursor.value.getAliases().containsKey(alias)) {
-                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ") conflicts with index");
-                        }
-                    }
-                }
-            }
-
-            final Set<String> aliasDuplicatesWithDataStreams = new HashSet<>(allAliases);
-            aliasDuplicatesWithDataStreams.retainAll(allDataStreams);
-            if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
-                // iterate again and constructs a helpful message
-                for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                    for (String alias : aliasDuplicatesWithDataStreams) {
-                        if (cursor.value.getAliases().containsKey(alias)) {
-                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ") conflicts with data stream");
-                        }
-                    }
-                }
-            }
-
-            final Set<String> dataStreamDuplicatesWithIndices = new HashSet<>(allDataStreams);
-            dataStreamDuplicatesWithIndices.retainAll(allIndices);
-            if (dataStreamDuplicatesWithIndices.isEmpty() == false) {
-                for (String dataStream : dataStreamDuplicatesWithIndices) {
-                    duplicates.add("data stream [" + dataStream + "] conflicts with index");
-                }
-            }
-
-            if (duplicates.size() > 0) {
-                throw new IllegalStateException("index, alias, and data stream names need to be unique, but the following duplicates " +
-                    "were found [" + Strings.collectionToCommaDelimitedString(duplicates) + "]");
-            }
-
-            SortedMap<String, IndexAbstraction> indicesLookup = Collections.unmodifiableSortedMap(buildIndicesLookup());
-
-            validateDataStreams(indicesLookup, (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE));
-
-            // build all concrete indices arrays:
-            // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
-            // When doing an operation across all indices, most of the time is spent on actually going to all shards and
-            // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
-
-            return new Metadata(clusterUUID, clusterUUIDCommitted, version, coordinationMetadata, transientSettings, persistentSettings,
-                hashesOfConsistentSettings, indices.build(), templates.build(), customs.build(), allIndicesArray, visibleIndicesArray,
-                allOpenIndicesArray, visibleOpenIndicesArray, allClosedIndicesArray, visibleClosedIndicesArray, indicesLookup);
+            return build(false);
         }
 
-        private SortedMap<String, IndexAbstraction> buildIndicesLookup() {
-            SortedMap<String, IndexAbstraction> indicesLookup = new TreeMap<>();
-            Map<String, DataStream> indexToDataStreamLookup = new HashMap<>();
-            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            // If there are no indices, then skip data streams. This happens only when metadata is read from disk
-            if (dataStreamMetadata != null && indices.size() > 0) {
-                for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
-                    List<IndexMetadata> backingIndices = dataStream.getIndices().stream()
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    assert backingIndices.isEmpty() == false;
-                    assert backingIndices.contains(null) == false;
-
-                    IndexAbstraction existing = indicesLookup.put(dataStream.getName(),
-                        new IndexAbstraction.DataStream(dataStream, backingIndices));
-                    assert existing == null : "duplicate data stream for " + dataStream.getName();
-
-                    for (Index i : dataStream.getIndices()) {
-                        indexToDataStreamLookup.put(i.getName(), dataStream);
-                    }
-                }
-                for (DataStreamAlias alias : dataStreamMetadata.getDataStreamAliases().values()) {
-                    List<IndexMetadata> allIndicesOfAllDataStreams = alias.getDataStreams().stream()
-                        .map(name -> dataStreamMetadata.dataStreams().get(name))
-                        .flatMap(ds -> ds.getIndices().stream())
-                        .map(index -> indices.get(index.getName()))
-                        .collect(Collectors.toList());
-                    IndexMetadata writeIndexOfWriteDataStream = null;
-                    if (alias.getWriteDataStream() != null) {
-                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
-                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
-                    }
-                    IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.Alias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
-                    assert existing == null : "duplicate data stream alias for " + alias.getName();
-                }
-            }
-
-            Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
-            for (var cursor : indices.values()) {
-                IndexMetadata indexMetadata = cursor.value;
-
-                IndexAbstraction.Index index;
-                DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
-                if (parent != null) {
-                    assert parent.getIndices().stream()
-                        .map(Index::getName)
-                        .collect(Collectors.toList())
-                        .contains(indexMetadata.getIndex().getName()) :
-                        "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
-                    index = new IndexAbstraction.Index(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
-                } else {
-                    index = new IndexAbstraction.Index(indexMetadata);
-                }
-
-                IndexAbstraction existing = indicesLookup.put(indexMetadata.getIndex().getName(), index);
-                assert existing == null : "duplicate for " + indexMetadata.getIndex();
-
-                for (var aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
-                    aliasToIndices.compute(aliasMetadata.getAlias(), (aliasName, indices) -> {
-                       if (indices == null) {
-                           indices = new ArrayList<>();
-                       }
-                       indices.add(indexMetadata);
-                       return indices;
-                    });
-                }
-            }
-
-            for (var entry : aliasToIndices.entrySet()) {
-                AliasMetadata alias = entry.getValue().get(0).getAliases().get(entry.getKey());
-                IndexAbstraction existing = indicesLookup.put(entry.getKey(), new IndexAbstraction.Alias(alias, entry.getValue()));
-                assert existing == null : "duplicate for " + entry.getKey();
-            }
-
-            return indicesLookup;
+        public Metadata build(boolean skipNameCollisionChecks) {
+            return new Metadata(
+                clusterUUID,
+                clusterUUIDCommitted,
+                version,
+                coordinationMetadata,
+                buildProjectMetadata(skipNameCollisionChecks),
+                transientSettings,
+                persistentSettings,
+                Settings.builder().put(persistentSettings).put(transientSettings).build(),
+                hashesOfConsistentSettings,
+                customs.build(),
+                reservedStateMetadata.build()
+            );
         }
 
-        static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
-            if (dsMetadata != null) {
-                // Sanity check, because elsewhere a more user friendly error should have occurred:
-                List<String> conflictingAliases = indicesLookup.values().stream()
-                    .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
-                    .filter(ia -> ia.isDataStreamRelated() == false)
-                    .filter(ia -> {
-                        for (IndexMetadata index : ia.getIndices()) {
-                            if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {
-                                return true;
-                            }
-                        }
-
-                        return false;
-                    })
-                    .map(IndexAbstraction::getName)
-                    .collect(Collectors.toList());
-                if (conflictingAliases.isEmpty() == false) {
-                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
-                }
+        private Map<ProjectId, ProjectMetadata> buildProjectMetadata(boolean skipNameCollisionChecks) {
+            if (projectMetadata.isEmpty()) {
+                createDefaultProject();
             }
-        }
-
-        public static void toXContent(Metadata metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            XContentContext context = XContentContext.valueOf(params.param(CONTEXT_MODE_PARAM, CONTEXT_MODE_API));
-
-            if (context == XContentContext.API) {
-                builder.startObject("metadata");
+            assert assertProjectIdAndProjectMetadataConsistency();
+            if (projectMetadata.size() == 1) {
+                final var entry = projectMetadata.entrySet().iterator().next();
+                // Map.of() with a single entry is highly optimized
+                // so we want take advantage of that performance boost for this common case of a single project
+                return Map.of(entry.getKey(), entry.getValue().build(skipNameCollisionChecks));
             } else {
-                builder.startObject("meta-data");
-                builder.field("version", metadata.version());
+                return Collections.unmodifiableMap(Maps.transformValues(projectMetadata, m -> m.build(skipNameCollisionChecks)));
             }
-
-            builder.field("cluster_uuid", metadata.clusterUUID);
-            builder.field("cluster_uuid_committed", metadata.clusterUUIDCommitted);
-
-            builder.startObject("cluster_coordination");
-            metadata.coordinationMetadata().toXContent(builder, params);
-            builder.endObject();
-
-            if (context != XContentContext.API && metadata.persistentSettings().isEmpty() == false) {
-                builder.startObject("settings");
-                metadata.persistentSettings().toXContent(builder, new MapParams(Collections.singletonMap("flat_settings", "true")));
-                builder.endObject();
-            }
-
-            builder.startObject("templates");
-            for (ObjectCursor<IndexTemplateMetadata> cursor : metadata.templates().values()) {
-                IndexTemplateMetadata.Builder.toXContentWithTypes(cursor.value, builder, params);
-            }
-            builder.endObject();
-
-            if (context == XContentContext.API) {
-                builder.startObject("indices");
-                for (IndexMetadata indexMetadata : metadata) {
-                    IndexMetadata.Builder.toXContent(indexMetadata, builder, params);
-                }
-                builder.endObject();
-            }
-
-            for (ObjectObjectCursor<String, Custom> cursor : metadata.customs()) {
-                if (cursor.value.context().contains(context)) {
-                    builder.startObject(cursor.key);
-                    cursor.value.toXContent(builder, params);
-                    builder.endObject();
-                }
-            }
-            builder.endObject();
         }
+
+        private ProjectMetadata.Builder createDefaultProject() {
+            return projectMetadata.put(DEFAULT_PROJECT_ID, new ProjectMetadata.Builder(Map.of(), 0).id(DEFAULT_PROJECT_ID));
+        }
+
+        private boolean assertProjectIdAndProjectMetadataConsistency() {
+            projectMetadata.forEach((id, project) -> {
+                assert project.getId().equals(id) : "project id mismatch key=[" + id + "] builder=[" + project.getId() + "]";
+            });
+            return true;
+        }
+
+        /**
+         * There are a set of specific custom sections that have moved from top-level sections to project-level sections
+         * as part of the multi-project refactor. Enumerate them here so we can move them to the right place
+         * if they are read as a top-level section from a previous metadata version.
+         */
+        private static final Set<String> MOVED_PROJECT_CUSTOMS = Set.of(
+            IndexGraveyard.TYPE,
+            DataStreamMetadata.TYPE,
+            ComposableIndexTemplateMetadata.TYPE,
+            ComponentTemplateMetadata.TYPE
+        );
 
         public static Metadata fromXContent(XContentParser parser) throws IOException {
             Builder builder = new Builder();
@@ -1690,42 +1751,86 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
+            /**
+             * Used when reading BWC fields from when indices etc used to be directly on metadata
+             */
+            final Supplier<ProjectMetadata.Builder> projectBuilderForBwc = () -> {
+                // Due to the way we handle repository metadata (we changed it from cluster scoped to project scoped)
+                // we may have cases where we have both project scoped XContent (with its own indices, customs etc)
+                // and also cluster scoped XContent that needs to be applied to the default project
+                // And, in this case there may be multiple projects even while we're applying BWC logic to the default project
+                ProjectMetadata.Builder pmb = builder.getProject(ProjectId.DEFAULT);
+                if (pmb == null) {
+                    pmb = ProjectMetadata.builder(ProjectId.DEFAULT);
+                    builder.put(pmb);
+                }
+                return pmb;
+            };
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    switch (currentFieldName) {
+                        case "projects" -> {
+                            assert builder.projectMetadata.isEmpty() : "expect empty projectMetadata, but got " + builder.projectMetadata;
+                            readProjects(parser, builder);
+                        }
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("cluster_coordination".equals(currentFieldName)) {
-                        builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
-                    } else if ("settings".equals(currentFieldName)) {
-                        builder.persistentSettings(Settings.fromXContent(parser));
-                    } else if ("indices".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexMetadata.Builder.fromXContent(parser), false);
+                    switch (currentFieldName) {
+                        case "cluster_coordination" -> builder.coordinationMetadata(CoordinationMetadata.fromXContent(parser));
+                        case "settings" -> builder.persistentSettings(Settings.fromXContent(parser));
+                        case "hashes_of_consistent_settings" -> builder.hashesOfConsistentSettings(parser.mapStrings());
+                        /* Cluster reserved state */
+                        case "reserved_state" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                builder.put(ReservedStateMetadata.fromXContent(parser));
+                            }
                         }
-                    } else if ("hashes_of_consistent_settings".equals(currentFieldName)) {
-                        builder.hashesOfConsistentSettings(parser.mapStrings());
-                    } else if ("templates".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            builder.put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                        /* BwC Top-level project things */
+                        case "indices" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                projectBuilderForBwc.get().put(IndexMetadata.Builder.fromXContent(parser), false);
+                            }
                         }
-                    } else {
-                        try {
-                            Custom custom = parser.namedObject(Custom.class, currentFieldName, null);
-                            builder.putCustom(custom.getWriteableName(), custom);
-                        } catch (NamedObjectNotFoundException ex) {
-                            logger.warn("Skipping unknown custom object with type {}", currentFieldName);
-                            parser.skipChildren();
+                        case "templates" -> {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                projectBuilderForBwc.get().put(IndexTemplateMetadata.Builder.fromXContent(parser, parser.currentName()));
+                            }
+                        }
+                        /* Cluster customs (and project customs in older formats) */
+                        default -> {
+                            // Older clusters didn't separate cluster-scoped and project-scope customs so a top-level custom object might
+                            // actually be a project-scoped custom
+                            final NamedXContentRegistry registry = parser.getXContentRegistry();
+                            if (registry.hasParser(ClusterCustom.class, currentFieldName, parser.getRestApiVersion())
+                                && MOVED_PROJECT_CUSTOMS.contains(currentFieldName) == false) {
+                                parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putCustom);
+                            } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
+                                parseCustomObject(parser, currentFieldName, ProjectCustom.class, (name, projectCustom) -> {
+                                    if (projectCustom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
+                                        assert PersistentTasksCustomMetadata.TYPE.equals(name)
+                                            : name + " != " + PersistentTasksCustomMetadata.TYPE;
+                                        final var tuple = persistentTasksCustomMetadata.split();
+                                        projectBuilderForBwc.get().putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
+                                        builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
+                                    } else {
+                                        projectBuilderForBwc.get().putCustom(name, projectCustom);
+                                    }
+                                });
+                            } else {
+                                logger.warn("Skipping unknown custom object with type {}", currentFieldName);
+                                parser.skipChildren();
+                            }
                         }
                     }
                 } else if (token.isValue()) {
-                    if ("version".equals(currentFieldName)) {
-                        builder.version = parser.longValue();
-                    } else if ("cluster_uuid".equals(currentFieldName) || "uuid".equals(currentFieldName)) {
-                        builder.clusterUUID = parser.text();
-                    } else if ("cluster_uuid_committed".equals(currentFieldName)) {
-                        builder.clusterUUIDCommitted = parser.booleanValue();
-                    } else {
-                        throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
+                    switch (currentFieldName) {
+                        case "version" -> builder.version(parser.longValue());
+                        case "cluster_uuid", "uuid" -> builder.clusterUUID(parser.text());
+                        case "cluster_uuid_committed" -> builder.clusterUUIDCommitted(parser.booleanValue());
+                        default -> throw new IllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                     }
                 } else {
                     throw new IllegalArgumentException("Unexpected token " + token);
@@ -1734,30 +1839,146 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
             return builder.build();
         }
+
+        private static void readProjects(XContentParser parser, Builder builder) throws IOException {
+            XContentParser.Token token;
+
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                builder.put(ProjectMetadata.Builder.fromXContent(parser));
+            }
+        }
+
+        static <C extends MetadataCustom<C>> void parseCustomObject(
+            XContentParser parser,
+            String name,
+            Class<C> categoryClass,
+            BiConsumer<String, C> consumer
+        ) throws IOException {
+            try {
+                C custom = parser.namedObject(categoryClass, name, null);
+                consumer.accept(custom.getWriteableName(), custom);
+            } catch (NamedObjectNotFoundException _ex) {
+                logger.warn("Skipping unknown custom [{}] object with type {}", categoryClass.getSimpleName(), name);
+                parser.skipChildren();
+            }
+        }
     }
 
-    private static final ToXContent.Params FORMAT_PARAMS;
-    static {
-        Map<String, String> params = new HashMap<>(2);
-        params.put("binary", "true");
-        params.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY);
-        FORMAT_PARAMS = new MapParams(params);
+    private volatile Metadata.ProjectLookup projectLookup = null;
+
+    /**
+     * Attempt to find a project for the supplied {@link Index}.
+     */
+    public Optional<ProjectMetadata> lookupProject(Index index) {
+        return getProjectLookup().project(index);
     }
 
     /**
-     * State format for {@link Metadata} to write to and load from disk
+     * Attempt to find a project for the supplied {@link Index}.
+     * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
-    public static final MetadataStateFormat<Metadata> FORMAT = new MetadataStateFormat<>(GLOBAL_STATE_FILE_PREFIX) {
+    public ProjectMetadata projectFor(Index index) {
+        return lookupProject(index).orElseThrow(
+            () -> new IndexNotFoundException("index [" + index + "] does not exist in any project", index)
+        );
+    }
 
-        @Override
-        public void toXContent(XContentBuilder builder, Metadata state) throws IOException {
-            Builder.toXContent(state, builder, FORMAT_PARAMS);
+    /**
+     * Attempt to find the IndexMetadata for the supplied {@link Index}.
+     * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
+     */
+    public IndexMetadata indexMetadata(Index index) {
+        return projectFor(index).getIndexSafe(index);
+    }
+
+    /**
+     * This method is similar to {@link #indexMetadata}. But it returns an {@link Optional} instead of
+     * throwing when either the project or the index is not found.
+     */
+    public Optional<IndexMetadata> findIndex(Index index) {
+        return lookupProject(index).map(projectMetadata -> projectMetadata.index(index));
+    }
+
+    ProjectLookup getProjectLookup() {
+        /*
+         * projectLookup is volatile, but this assignment is not synchronized
+         * That means it is possible that we will generate multiple lookup objects if there are multiple concurrent callers
+         * Those lookup objects will be identical, and the double assignment will be safe, but there is the cost of building the lookup
+         * more than once.
+         * In the single project case building the lookup is cheap, and synchronization would be costly.
+         * In the multiple project case, it might be cheaper to synchronize, but the long term solution is to maintain the lookup table
+         *  as projects/indices are added/removed rather than rebuild it each time the cluster-state/metadata object changes.
+         */
+        if (this.projectLookup == null) {
+            if (this.isSingleProject()) {
+                projectLookup = new SingleProjectLookup(getSingleProject());
+            } else {
+                projectLookup = new MultiProjectLookup();
+            }
+        }
+        return projectLookup;
+    }
+
+    /**
+     * A lookup table from {@link Index} to {@link ProjectId}
+     */
+    interface ProjectLookup {
+        /**
+         * Return the {@link ProjectId} for the provided {@link Index}, if it exists
+         */
+        Optional<ProjectMetadata> project(Index index);
+    }
+
+    /**
+     * An implementation of {@link ProjectLookup} that is optimized for the case where there is a single project.
+     *
+     */
+    static class SingleProjectLookup implements ProjectLookup {
+
+        private final ProjectMetadata project;
+
+        SingleProjectLookup(ProjectMetadata project) {
+            this.project = project;
         }
 
         @Override
-        public Metadata fromXContent(XContentParser parser) throws IOException {
-            return Builder.fromXContent(parser);
+        public Optional<ProjectMetadata> project(Index index) {
+            if (project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
         }
-    };
+    }
+
+    class MultiProjectLookup implements ProjectLookup {
+        private final Map<String, ProjectMetadata> lookup;
+
+        private MultiProjectLookup() {
+            this.lookup = Maps.newMapWithExpectedSize(Metadata.this.getTotalNumberOfIndices());
+            for (var project : projectMetadata.values()) {
+                for (var indexMetadata : project) {
+                    final String uuid = indexMetadata.getIndex().getUUID();
+                    final ProjectMetadata previousProject = lookup.put(uuid, project);
+                    if (previousProject != null && previousProject != project) {
+                        throw new IllegalStateException(
+                            "Index UUID [" + uuid + "] exists in project [" + project.id() + "] and [" + previousProject.id() + "]"
+                        );
+                    }
+                }
+            }
+        }
+
+        @Override
+        public Optional<ProjectMetadata> project(Index index) {
+            final ProjectMetadata project = lookup.get(index.getUUID());
+            if (project != null && project.hasIndex(index)) {
+                return Optional.of(project);
+            } else {
+                return Optional.empty();
+            }
+        }
+    }
 
 }

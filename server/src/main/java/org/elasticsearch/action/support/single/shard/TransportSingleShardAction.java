@@ -1,81 +1,101 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.shard;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
+import static org.elasticsearch.core.Strings.format;
 
 /**
  * A base class for operations that need to perform a read operation on a single shard copy. If the operation fails,
  * the read operation can be performed on other shard copies. Concrete implementations can provide their own list
  * of candidate shards to try the read operation on.
  */
-public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse>
-        extends TransportAction<Request, Response> {
+public abstract class TransportSingleShardAction<Request extends SingleShardRequest<Request>, Response extends ActionResponse> extends
+    TransportAction<Request, Response> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
     protected final TransportService transportService;
+    protected final ProjectResolver projectResolver;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final String transportShardAction;
-    private final String executor;
+    private final Executor executor;
 
-    protected TransportSingleShardAction(String actionName, ThreadPool threadPool, ClusterService clusterService,
-                                         TransportService transportService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
-                                         String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+    @SuppressWarnings("this-escape")
+    protected TransportSingleShardAction(
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Writeable.Reader<Request> request,
+        Executor executor
+    ) {
+        // TODO: consider passing the executor, remove it from doExecute and let InboundHandler/TransportAction handle concurrency.
+        super(actionName, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
+        this.projectResolver = projectResolver;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.transportShardAction = actionName + "[s]";
         this.executor = executor;
 
         if (isSubAction() == false) {
-            transportService.registerRequestHandler(actionName, ThreadPool.Names.SAME, request, new TransportHandler());
+            transportService.registerRequestHandler(actionName, EsExecutors.DIRECT_EXECUTOR_SERVICE, request, new TransportHandler());
         }
-        transportService.registerRequestHandler(transportShardAction, ThreadPool.Names.SAME, request, new ShardTransportHandler());
+        transportService.registerRequestHandler(
+            transportShardAction,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            request,
+            new ShardTransportHandler()
+        );
     }
 
     /**
@@ -95,24 +115,27 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract Response shardOperation(Request request, ShardId shardId) throws IOException;
 
     protected void asyncShardOperation(Request request, ShardId shardId, ActionListener<Response> listener) throws IOException {
-        threadPool.executor(getExecutor(request, shardId))
-            .execute(ActionRunnable.supply(listener, () -> shardOperation(request, shardId)));
+        getExecutor(shardId).execute(ActionRunnable.supplyAndDecRef(listener, () -> shardOperation(request, shardId)));
     }
 
     protected abstract Writeable.Reader<Response> getResponseReader();
 
     protected abstract boolean resolveIndex(Request request);
 
-    protected ClusterBlockException checkGlobalBlock(ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+    protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.READ);
     }
 
-    protected ClusterBlockException checkRequestBlock(ClusterState state, InternalRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.concreteIndex());
+    protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
+        return state.blocks().indexBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.READ, request.concreteIndex());
     }
 
-    protected void resolveRequest(ClusterState state, InternalRequest request) {
+    protected void resolveRequest(ProjectState state, InternalRequest request) {
 
+    }
+
+    protected ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
     }
 
     /**
@@ -120,7 +143,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
      * the operation locally (the node that received the request)
      */
     @Nullable
-    protected abstract ShardsIterator shards(ClusterState state, InternalRequest request);
+    protected abstract ShardsIterator shards(ProjectState state, InternalRequest request);
 
     class AsyncSingleAction {
 
@@ -133,54 +156,51 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.listener = listener;
 
-            ClusterState clusterState = clusterService.state();
+            final ProjectState project = getProjectState();
             if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
+                logger.trace(
+                    "executing [{}] in [{}] based on cluster state version [{}]",
+                    request,
+                    project.projectId(),
+                    project.cluster().version()
+                );
             }
-            nodes = clusterState.nodes();
-            ClusterBlockException blockException = checkGlobalBlock(clusterState);
+            nodes = project.cluster().nodes();
+            ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;
             }
 
             String concreteSingleIndex;
             if (resolveIndex(request)) {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, request).getName();
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(project.metadata(), request).getName();
             } else {
                 concreteSingleIndex = request.index();
             }
             this.internalRequest = new InternalRequest(request, concreteSingleIndex);
-            resolveRequest(clusterState, internalRequest);
+            resolveRequest(project, internalRequest);
 
-            blockException = checkRequestBlock(clusterState, internalRequest);
+            blockException = checkRequestBlock(project, internalRequest);
             if (blockException != null) {
                 throw blockException;
             }
 
-            this.shardIt = shards(clusterState, internalRequest);
+            this.shardIt = shards(project, internalRequest);
+            if (request instanceof SplitAwareRequest splitAwareRequest) {
+                splitAwareRequest.setSplitShardCountSummary(project.metadata(), concreteSingleIndex);
+            }
         }
 
         public void start() {
             if (shardIt == null) {
                 // just execute it on the local node
                 final Writeable.Reader<Response> reader = getResponseReader();
-                transportService.sendRequest(clusterService.localNode(), transportShardAction, internalRequest.request(),
-                    new TransportResponseHandler<Response>() {
-                    @Override
-                    public Response read(StreamInput in) throws IOException {
-                        return reader.read(in);
-                    }
-
-                    @Override
-                    public void handleResponse(final Response response) {
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void handleException(TransportException exp) {
-                        listener.onFailure(exp);
-                    }
-                });
+                transportService.sendRequest(
+                    clusterService.localNode(),
+                    transportShardAction,
+                    internalRequest.request(),
+                    new ActionListenerResponseHandler<>(listener, reader, executor)
+                );
             } else {
                 perform(null);
             }
@@ -188,8 +208,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
         private void onFailure(ShardRouting shardRouting, Exception e) {
             if (e != null) {
-                logger.trace(() -> new ParameterizedMessage("{}: failed to execute [{}]", shardRouting,
-                    internalRequest.request()), e);
+                logger.trace(() -> format("%s: failed to execute [%s]", shardRouting, internalRequest.request()), e);
             }
             perform(e);
         }
@@ -204,11 +223,13 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (shardRouting == null) {
                 Exception failure = lastFailure;
                 if (failure == null || isShardNotAvailableException(failure)) {
-                    failure = new NoShardAvailableActionException(null,
-                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
+                    failure = new NoShardAvailableActionException(
+                        null,
+                        LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()),
+                        failure
+                    );
                 } else {
-                    logger.debug(() -> new ParameterizedMessage("{}: failed to execute [{}]", null,
-                        internalRequest.request()), failure);
+                    logger.debug(() -> format("%s: failed to execute [%s]", null, internalRequest.request()), failure);
                 }
                 listener.onFailure(failure);
                 return;
@@ -220,31 +241,24 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                 internalRequest.request().internalShardId = shardRouting.shardId();
                 if (logger.isTraceEnabled()) {
                     logger.trace(
-                            "sending request [{}] to shard [{}] on node [{}]",
-                            internalRequest.request(),
-                            internalRequest.request().internalShardId,
-                            node
+                        "sending request [{}] to shard [{}] on node [{}]",
+                        internalRequest.request(),
+                        internalRequest.request().internalShardId,
+                        node
                     );
                 }
                 final Writeable.Reader<Response> reader = getResponseReader();
-                transportService.sendRequest(node, transportShardAction, internalRequest.request(),
-                    new TransportResponseHandler<Response>() {
-
-                        @Override
-                        public Response read(StreamInput in) throws IOException {
-                            return reader.read(in);
-                        }
-
-                        @Override
-                        public void handleResponse(final Response response) {
-                            listener.onResponse(response);
-                        }
-
+                transportService.sendRequest(
+                    node,
+                    transportShardAction,
+                    internalRequest.request(),
+                    new ActionListenerResponseHandler<>(listener, reader, executor) {
                         @Override
                         public void handleException(TransportException exp) {
                             onFailure(shardRouting, exp);
                         }
-                });
+                    }
+                );
             }
         }
     }
@@ -254,7 +268,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         @Override
         public void messageReceived(Request request, final TransportChannel channel, Task task) throws Exception {
             // if we have a local operation, execute it on a thread since we don't spawn
-            execute(task, request, new ChannelActionListener<>(channel, actionName, request));
+            executeDirect(task, request, new ChannelActionListener<>(channel));
         }
     }
 
@@ -265,9 +279,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (logger.isTraceEnabled()) {
                 logger.trace("executing [{}] on shard [{}]", request, request.internalShardId);
             }
-            asyncShardOperation(request, request.internalShardId, new ChannelActionListener<>(channel, transportShardAction, request));
+            asyncShardOperation(request, request.internalShardId, new ChannelActionListener<>(channel));
         }
     }
+
     /**
      * Internal request class that gets built on each node. Holds the original request plus additional info.
      */
@@ -289,7 +304,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         }
     }
 
-    protected String getExecutor(Request request, ShardId shardId) {
+    protected Executor getExecutor(ShardId shardId) {
         return executor;
     }
 }

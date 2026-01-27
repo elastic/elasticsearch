@@ -1,25 +1,26 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.core.Strings;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class GetByPathAugmentationTests extends ScriptTestCase {
 
     private final String k001Key = "k011";
     private final String k001Value = "b";
-    private final Map<String,String> k001Obj = new HashMap<>();
+    private final Map<String, String> k001Obj = new HashMap<>();
     private final String k001MapStr = "['" + k001Key + "': '" + k001Value + "']";
     private final String mapMapList = "['k0': ['k01': [['k010': 'a'], " + k001MapStr + "]], 'k1': ['q']]";
 
@@ -39,20 +40,20 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private String toScript(String collection, String key) {
-        return String.format(Locale.ROOT, "return %s.getByPath('%s')", collection, key);
+        return Strings.format("return %s.getByPath('%s')", collection, key);
     }
 
     private String toScript(String collection, String key, String defaultValue) {
-        return String.format(Locale.ROOT, "return %s.getByPath('%s', %s)", collection, key, defaultValue);
+        return Strings.format("return %s.getByPath('%s', %s)", collection, key, defaultValue);
     }
 
     private String numberFormat(String unparsable, String path, int i) {
         String format = "Could not parse [%s] as a int index into list at path [%s] and index [%d]";
-        return String.format(Locale.ROOT, format, unparsable, path, i);
+        return Strings.format(format, unparsable, path, i);
     }
 
     private String missingValue(String path) {
-        return String.format(Locale.ROOT, "Could not find value at path [%s]", path);
+        return Strings.format("Could not find value at path [%s]", path);
     }
 
     private void assertPathValue(String collection, String key, Object value) {
@@ -72,10 +73,7 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
     }
 
     private IllegalArgumentException assertPathError(String script, String message) {
-        IllegalArgumentException illegal = expectScriptThrows(
-            IllegalArgumentException.class,
-            () -> exec(script)
-        );
+        IllegalArgumentException illegal = expectScriptThrows(IllegalArgumentException.class, () -> exec(script));
         assertEquals(message, illegal.getMessage());
         return illegal;
     }
@@ -205,37 +203,24 @@ public class GetByPathAugmentationTests extends ScriptTestCase {
 
     public void testBiListDefaultBadIndex() {
         String path = "1.k0";
-        IllegalArgumentException err = assertPathError(
-            "[['a','b'],['c','d']]",
-            path,
-            "'foo'",
-            numberFormat("k0", path, 1));
+        IllegalArgumentException err = assertPathError("[['a','b'],['c','d']]", path, "'foo'", numberFormat("k0", path, 1));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testBiMapListDefaultBadIndex() {
         String path = "k0.k01.k012";
-        IllegalArgumentException err = assertPathError(
-            mapMapList,
-            path,
-            "'foo'",
-            numberFormat("k012", path, 2));
+        IllegalArgumentException err = assertPathError(mapMapList, path, "'foo'", numberFormat("k012", path, 2));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testListMapBiListObjectDefaultBadIndex() {
         String path = "2.m2.a8";
-        IllegalArgumentException err = assertPathError(
-            listMapListList,
-            path,
-            "'foo'",
-            numberFormat("a8", path, 2));
+        IllegalArgumentException err = assertPathError(listMapListList, path, "'foo'", numberFormat("a8", path, 2));
         assertEquals(err.getCause().getClass(), NumberFormatException.class);
     }
 
     public void testNonContainerDefaultBadIndex() {
-        assertPathError(mapMap, "a.b.c", "'foo'",
-            "Non-container [java.lang.String] at [c], index [2] in path [a.b.c]");
+        assertPathError(mapMap, "a.b.c", "'foo'", "Non-container [java.lang.String] at [c], index [2] in path [a.b.c]");
     }
 
     public void testDoubleDotDefault() {

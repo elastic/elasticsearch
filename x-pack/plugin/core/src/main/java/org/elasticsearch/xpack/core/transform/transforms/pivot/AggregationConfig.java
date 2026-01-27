@@ -14,17 +14,19 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.deprecation.LoggingDeprecationAccumulationHandler;
@@ -61,7 +63,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
     }
 
     public AggregationConfig(final StreamInput in) throws IOException {
-        source = in.readMap();
+        source = in.readGenericMap();
         aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
     }
 
@@ -72,7 +74,7 @@ public class AggregationConfig implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalWriteable(aggregations);
     }
 
@@ -139,13 +141,18 @@ public class AggregationConfig implements Writeable, ToXContentObject {
         NamedXContentRegistry namedXContentRegistry,
         DeprecationHandler deprecationHandler
     ) throws IOException {
-        AggregatorFactories.Builder aggregations = null;
-
+        final AggregatorFactories.Builder aggregations;
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().map(source);
-        XContentParser sourceParser = XContentType.JSON.xContent()
-            .createParser(namedXContentRegistry, deprecationHandler, BytesReference.bytes(xContentBuilder).streamInput());
-        sourceParser.nextToken();
-        aggregations = AggregatorFactories.parseAggregators(sourceParser);
+        try (
+            XContentParser sourceParser = XContentHelper.createParserNotCompressed(
+                XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry).withDeprecationHandler(deprecationHandler),
+                BytesReference.bytes(xContentBuilder),
+                XContentType.JSON
+            )
+        ) {
+            sourceParser.nextToken();
+            aggregations = AggregatorFactories.parseAggregators(sourceParser);
+        }
 
         return aggregations;
     }

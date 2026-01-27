@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 5
-              number_of_replicas: 0
             mappings:
               properties:
                 str:
@@ -26,19 +25,19 @@ setup:
   - do:
       index:
         index: test_1
-        id: 1
+        id: "1"
         body: { "str" : "abc" }
 
   - do:
       index:
         index: test_1
-        id: 2
+        id: "2"
         body: { "str": "abc" }
 
   - do:
       index:
         index: test_1
-        id: 3
+        id: "3"
         body: { "str": "bcd" }
   - do:
       indices.refresh: {}
@@ -49,7 +48,6 @@ setup:
         batched_reduce_size: 2
         body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str" } } } }
 
-  - match: { num_reduce_phases: 4 }
   - match: { hits.total: 3 }
   - length: { aggregations.str_terms.buckets: 2 }
   - match: { aggregations.str_terms.buckets.0.key: "abc" }

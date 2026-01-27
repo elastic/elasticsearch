@@ -13,6 +13,6 @@ public final class SubmitAsyncSearchAction extends ActionType<AsyncSearchRespons
     public static final String NAME = "indices:data/read/async_search/submit";
 
     private SubmitAsyncSearchAction() {
-        super(NAME, AsyncSearchResponse::new);
+        super(NAME);
     }
 }

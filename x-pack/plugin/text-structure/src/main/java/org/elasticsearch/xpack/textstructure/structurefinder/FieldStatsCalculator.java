@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -16,13 +17,11 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * Calculate statistics for a set of scalar field values.
@@ -57,25 +56,14 @@ public class FieldStatsCalculator {
     public FieldStatsCalculator(Map<String, String> mapping) {
 
         switch (mapping.get(TextStructureUtils.MAPPING_TYPE_SETTING)) {
-            case "byte":
-            case "short":
-            case "integer":
-            case "long":
-            case "half_float":
-            case "float":
-            case "double":
-                countsByNumericValue = new TreeMap<>();
-                break;
-            case "date":
-            case "date_nanos":
+            case "byte", "short", "integer", "long", "half_float", "float", "double" -> countsByNumericValue = new TreeMap<>();
+            case "date", "date_nanos" -> {
                 String format = mapping.get(TextStructureUtils.MAPPING_FORMAT_SETTING);
                 dateFormatter = (format == null) ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER : DateFormatter.forPattern(format);
                 // Dates are treated like strings for top hits
                 countsByStringValue = new TreeMap<>();
-                break;
-            default:
-                countsByStringValue = new TreeMap<>();
-                break;
+            }
+            default -> countsByStringValue = new TreeMap<>();
         }
     }
 
@@ -257,13 +245,13 @@ public class FieldStatsCalculator {
             .stream()
             .sorted(Comparator.comparing(Map.Entry<T, Integer>::getValue, Comparator.reverseOrder()).thenComparing(secondarySort))
             .limit(numTopHits)
-            .collect(Collectors.toList());
+            .toList();
 
         List<Map<String, Object>> topHits = new ArrayList<>(sortedByCount.size());
 
         for (Map.Entry<T, Integer> entry : sortedByCount) {
 
-            Map<String, Object> topHit = new LinkedHashMap<>(3);
+            Map<String, Object> topHit = Maps.newLinkedHashMapWithExpectedSize(3);
             topHit.put("value", outputMapper.apply(entry.getKey()));
             topHit.put("count", entry.getValue());
             topHits.add(topHit);

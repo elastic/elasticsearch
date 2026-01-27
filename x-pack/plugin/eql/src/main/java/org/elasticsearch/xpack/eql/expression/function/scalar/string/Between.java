@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
-public class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
+public final class Between extends CaseInsensitiveScalarFunction implements OptionalArgument {
 
     private final Expression input, left, right, greedy;
 
@@ -98,9 +98,15 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
 
     @Override
     protected Pipe makePipe() {
-        return new BetweenFunctionPipe(source(), this, Expressions.pipe(input),
-            Expressions.pipe(left), Expressions.pipe(right),
-            Expressions.pipe(greedy), isCaseInsensitive());
+        return new BetweenFunctionPipe(
+            source(),
+            this,
+            Expressions.pipe(input),
+            Expressions.pipe(left),
+            Expressions.pipe(right),
+            Expressions.pipe(greedy),
+            isCaseInsensitive()
+        );
     }
 
     @Override
@@ -128,29 +134,40 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
         return asScriptFrom(inputScript, leftScript, rightScript, greedyScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate leftScript,
-                                          ScriptTemplate rightScript, ScriptTemplate greedyScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s,%s)"),
-            "between",
-            inputScript.template(),
-            leftScript.template(),
-            rightScript.template(),
-            greedyScript.template(),
-            "{}"),
-            paramsBuilder()
-                .script(inputScript.params())
+    private ScriptTemplate asScriptFrom(
+        ScriptTemplate inputScript,
+        ScriptTemplate leftScript,
+        ScriptTemplate rightScript,
+        ScriptTemplate greedyScript
+    ) {
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{eql}.%s(%s,%s,%s,%s,%s)"),
+                "between",
+                inputScript.template(),
+                leftScript.template(),
+                rightScript.template(),
+                greedyScript.template(),
+                "{}"
+            ),
+            paramsBuilder().script(inputScript.params())
                 .script(leftScript.params())
                 .script(rightScript.params())
                 .script(greedyScript.params())
                 .variable(isCaseInsensitive())
-                .build(), dataType());
+                .build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

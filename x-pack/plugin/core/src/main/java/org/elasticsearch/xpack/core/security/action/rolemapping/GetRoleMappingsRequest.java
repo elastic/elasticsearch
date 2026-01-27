@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.action.rolemapping;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,10 +19,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Request to retrieve role-mappings from X-Pack security
- *
+ * <p>
  * see org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
-public class GetRoleMappingsRequest extends ActionRequest {
+public class GetRoleMappingsRequest extends LegacyActionRequest {
 
     private String[] names = Strings.EMPTY_ARRAY;
 
@@ -31,21 +31,20 @@ public class GetRoleMappingsRequest extends ActionRequest {
         names = in.readStringArray();
     }
 
-    public GetRoleMappingsRequest() {
-    }
+    public GetRoleMappingsRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (names == null) {
-            validationException = addValidationError("role-mapping names are missing",
-                    validationException);
+            validationException = addValidationError("role-mapping names are missing", validationException);
         }
         return validationException;
     }
 
     /**
      * Specify (by name) which role-mappings to delete.
+     *
      * @see ExpressionRoleMapping#getName()
      */
     public void setNames(String... names) {

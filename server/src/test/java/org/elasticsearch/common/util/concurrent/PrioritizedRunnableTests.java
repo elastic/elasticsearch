@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -24,8 +25,7 @@ public class PrioritizedRunnableTests extends ESTestCase {
 
         PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL, time::get) {
             @Override
-            public void run() {
-            }
+            public void run() {}
         };
         assertEquals(0, runnable.getAgeInMillis());
         int milliseconds = randomIntBetween(1, 256);
@@ -37,8 +37,7 @@ public class PrioritizedRunnableTests extends ESTestCase {
     public void testGetAgeInMillisWithRealClock() throws InterruptedException {
         PrioritizedRunnable runnable = new PrioritizedRunnable(Priority.NORMAL) {
             @Override
-            public void run() {
-            }
+            public void run() {}
         };
 
         long elapsed = spinForAtLeastOneMillisecond();

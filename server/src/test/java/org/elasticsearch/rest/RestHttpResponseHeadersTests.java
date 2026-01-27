@@ -1,20 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -24,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,8 +59,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * the array, so we are guaranteed at least one invalid method to test.
          */
         validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
-        assert(validHttpMethodArray.size() > 0);
-        assert(validHttpMethodArray.size() < RestRequest.Method.values().length);
+        assert (validHttpMethodArray.size() > 0);
+        assert (validHttpMethodArray.size() < RestRequest.Method.values().length);
 
         /*
          * Generate an inverse list of one or more candidate invalid HTTP
@@ -69,20 +70,21 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
         // Remove OPTIONS, or else we'll get a 200 instead of 405
         invalidHttpMethodArray.remove(RestRequest.Method.OPTIONS);
-        assert(invalidHttpMethodArray.size() > 0);
+        assert (invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController
-        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY,
-                Collections.emptyList(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
 
-        final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(Collections.emptySet(),
-                null, null, circuitBreakerService, usageService);
+        RestController restController = new RestController(null, null, circuitBreakerService, usageService, TelemetryProvider.NOOP);
 
         // A basic RestHandler handles requests to the endpoint
-        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
+        RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new RestResponse(RestStatus.OK, ""));
 
         // Register valid test handlers with test RestController
         for (RestRequest.Method method : validHttpMethodArray) {
@@ -95,7 +97,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         RestRequest restRequest = fakeRestRequestBuilder.build();
 
         // Send the request and verify the response status code
-        FakeRestChannel restChannel = new FakeRestChannel(restRequest, false, 1);
+        FakeRestChannel restChannel = new FakeRestChannel(restRequest, randomBoolean(), 1);
         restController.dispatchRequest(restRequest, restChannel, new ThreadContext(Settings.EMPTY));
         assertThat(restChannel.capturedResponse().status().getStatus(), is(405));
 
@@ -110,31 +112,12 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         assertThat(responseAllowHeaderArray, containsInAnyOrder(getMethodNameStringArray(validHttpMethodArray).toArray()));
     }
 
-    private static class TestResponse extends RestResponse {
-
-        @Override
-        public String contentType() {
-            return null;
-        }
-
-        @Override
-        public BytesReference content() {
-            return null;
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
-        }
-
-    }
-
     /**
      * Convert an RestRequest.Method array to a String array, so it can be
      * compared with the expected 'Allow' header String array.
      */
     private List<String> getMethodNameStringArray(List<RestRequest.Method> methodArray) {
-        return methodArray.stream().map(method -> method.toString()).collect(Collectors.toList());
+        return methodArray.stream().map(method -> method.toString()).toList();
     }
 
 }

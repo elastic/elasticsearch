@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.get;
@@ -11,14 +12,21 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,37 +41,43 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     public static final String NAME = "cluster:admin/component_template/get";
 
     private GetComponentTemplateAction() {
-        super(NAME, GetComponentTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**
      * Request that to retrieve one or more component templates
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends LocalClusterStateRequest {
 
         @Nullable
         private String name;
+        private boolean includeDefaults;
 
-        public Request() { }
-
-        public Request(String name) {
+        public Request(TimeValue masterTimeout, String name) {
+            super(masterTimeout);
             this.name = name;
+            this.includeDefaults = false;
         }
 
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(name);
+            includeDefaults = in.readBoolean();
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
         /**
@@ -75,10 +89,25 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
         /**
+         * Sets the flag to signal that in the response the default values will also be displayed.
+         */
+        public Request includeDefaults(boolean includeDefaults) {
+            this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        /**
          * The name of the component templates.
          */
         public String name() {
             return this.name;
+        }
+
+        /**
+         * True if in the response the default values will be displayed.
+         */
+        public boolean includeDefaults() {
+            return includeDefaults;
         }
     }
 
@@ -88,23 +117,65 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         public static final ParseField COMPONENT_TEMPLATE = new ParseField("component_template");
 
         private final Map<String, ComponentTemplate> componentTemplates;
+        @Nullable
+        private final RolloverConfiguration rolloverConfiguration;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            componentTemplates = in.readMap(StreamInput::readString, ComponentTemplate::new);
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map)}
+         */
+        @Deprecated
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
+            this(componentTemplates, (RolloverConfiguration) null);
+        }
+
+        /**
+         * Please use {@link GetComponentTemplateAction.Response#Response(Map, RolloverConfiguration)}
+         */
+        @Deprecated
+        public Response(
+            Map<String, ComponentTemplate> componentTemplates,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention ignored
+        ) {
+            this(componentTemplates, rolloverConfiguration);
         }
 
         public Response(Map<String, ComponentTemplate> componentTemplates) {
+            this(componentTemplates, (RolloverConfiguration) null);
+        }
+
+        public Response(Map<String, ComponentTemplate> componentTemplates, @Nullable RolloverConfiguration rolloverConfiguration) {
             this.componentTemplates = componentTemplates;
+            this.rolloverConfiguration = rolloverConfiguration;
         }
 
         public Map<String, ComponentTemplate> getComponentTemplates() {
             return componentTemplates;
         }
 
+        public RolloverConfiguration getRolloverConfiguration() {
+            return rolloverConfiguration;
+        }
+
+        /**
+         * @return null
+         * @deprecated The global retention is not used anymore in the component template response
+         */
+        @Deprecated
+        @Nullable
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return null;
+        }
+
+        /**
+         * NB prior to 9.0 get-component was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * we no longer need to support calling this action remotely.
+         */
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(componentTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+            out.writeMap(componentTemplates, StreamOutput::writeWriteable);
+            out.writeOptionalWriteable(rolloverConfiguration);
         }
 
         @Override
@@ -112,12 +183,13 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response that = (Response) o;
-            return Objects.equals(componentTemplates, that.componentTemplates);
+            return Objects.equals(componentTemplates, that.componentTemplates)
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(componentTemplates);
+            return Objects.hash(componentTemplates, rolloverConfiguration);
         }
 
         @Override
@@ -127,7 +199,8 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
             for (Map.Entry<String, ComponentTemplate> componentTemplate : this.componentTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
-                builder.field(COMPONENT_TEMPLATE.getPreferredName(), componentTemplate.getValue());
+                builder.field(COMPONENT_TEMPLATE.getPreferredName());
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();
@@ -136,5 +209,4 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         }
 
     }
-
 }

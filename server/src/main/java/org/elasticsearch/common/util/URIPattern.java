@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -53,23 +54,23 @@ public class URIPattern {
     }
 
     private boolean matchNormalized(URI uri) {
-        if(uriPattern.isOpaque()) {
+        if (uriPattern.isOpaque()) {
             // This url only has scheme, scheme-specific part and fragment
-            return uri.isOpaque() &&
-                    match(uriPattern.getScheme(), uri.getScheme()) &&
-                    match(uriPattern.getSchemeSpecificPart(), uri.getSchemeSpecificPart()) &&
-                    match(uriPattern.getFragment(), uri.getFragment());
+            return uri.isOpaque()
+                && match(uriPattern.getScheme(), uri.getScheme())
+                && match(uriPattern.getSchemeSpecificPart(), uri.getSchemeSpecificPart())
+                && match(uriPattern.getFragment(), uri.getFragment());
 
         } else {
-            return match(uriPattern.getScheme(), uri.getScheme()) &&
-                    match(uriPattern.getAuthority(), uri.getAuthority()) &&
-                    match(uriPattern.getQuery(), uri.getQuery()) &&
-                    match(uriPattern.getPath(), uri.getPath()) &&
-                    match(uriPattern.getFragment(), uri.getFragment());
+            return match(uriPattern.getScheme(), uri.getScheme())
+                && match(uriPattern.getAuthority(), uri.getAuthority())
+                && match(uriPattern.getQuery(), uri.getQuery())
+                && match(uriPattern.getPath(), uri.getPath())
+                && match(uriPattern.getFragment(), uri.getFragment());
         }
     }
 
-    private boolean match(String pattern, String value) {
+    private static boolean match(String pattern, String value) {
         if (value == null) {
             // If the pattern is empty or matches anything - it's a match
             if (pattern == null || Regex.isMatchAllPattern(pattern)) {

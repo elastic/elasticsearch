@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -12,21 +13,17 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.MultiReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -68,26 +65,26 @@ public class SumAggregatorTests extends AggregatorTestCase {
     private static final String FIELD_SCRIPT_NAME = "field_script";
 
     public void testNoDocs() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, count -> {
-            assertEquals(0L, count.getValue(), 0d);
+            assertEquals(0L, count.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, count -> {
-            assertEquals(0L, count.getValue(), 0d);
+            assertEquals(0L, count.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(count));
         });
     }
 
     public void testNumericDocValues() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), iw -> {
+        testAggregation(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
@@ -105,18 +102,18 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 2)));
         }, count -> {
-            assertEquals(24L, count.getValue(), 0d);
+            assertEquals(24L, count.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
 
     public void testSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), iw -> {
+        testAggregation(new FieldExistsQuery(FIELD_NAME), iw -> {
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new SortedNumericDocValuesField(FIELD_NAME, 3), new SortedNumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
-            assertEquals(15L, count.getValue(), 0d);
+            assertEquals(15L, count.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
@@ -129,7 +126,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new StringField("match", "no", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 4)));
             iw.addDocument(Arrays.asList(new StringField("match", "yes", Field.Store.NO), new NumericDocValuesField(FIELD_NAME, 5)));
         }, count -> {
-            assertEquals(9L, count.getValue(), 0d);
+            assertEquals(9L, count.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
         });
     }
@@ -137,10 +134,10 @@ public class SumAggregatorTests extends AggregatorTestCase {
     public void testStringField() throws IOException {
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
             testAggregation(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 iw -> { iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1")))); },
                 count -> {
-                    assertEquals(0L, count.getValue(), 0d);
+                    assertEquals(0L, count.value(), 0d);
                     assertFalse(AggregationInspectionHelper.hasValue(count));
                 }
             );
@@ -184,7 +181,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     }
 
     private void verifySummationOfDoubles(double[] values, double expected, double delta) throws IOException {
-        testAggregation(sum("_name").field(FIELD_NAME), new MatchAllDocsQuery(), iw -> {
+        testAggregation(sum("_name").field(FIELD_NAME), Queries.ALL_DOCS_INSTANCE, iw -> {
             /*
              * The sum agg uses a Kahan sumation on the shard to limit
              * floating point errors. But it doesn't ship the sums to the
@@ -202,50 +199,14 @@ public class SumAggregatorTests extends AggregatorTestCase {
                     .mapToObj(value -> singleton(new NumericDocValuesField(FIELD_NAME, NumericUtils.doubleToSortableLong(value))))
                     .collect(toList())
             );
-        }, result -> assertEquals(expected, result.getValue(), delta), defaultFieldType(NumberType.DOUBLE));
+        }, result -> assertEquals(expected, result.value(), delta), defaultFieldType(NumberType.DOUBLE));
     }
 
     public void testUnmapped() throws IOException {
         sumRandomDocsTestCase(randomIntBetween(1, 5), sum("_name").field("unknown_field"), (sum, docs, result) -> {
-            assertEquals(0d, result.getValue(), 0d);
+            assertEquals(0d, result.value(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue(result));
         });
-    }
-
-    public void testPartiallyUnmapped() throws IOException {
-        final MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberType.LONG);
-
-        final SumAggregationBuilder builder = sum("_name").field(fieldType.name());
-
-        final int numDocs = randomIntBetween(10, 100);
-        final List<Set<IndexableField>> docs = new ArrayList<>(numDocs);
-        int sum = 0;
-        for (int i = 0; i < numDocs; i++) {
-            final long value = randomLongBetween(0, 1000);
-            sum += value;
-            docs.add(singleton(new NumericDocValuesField(fieldType.name(), value)));
-        }
-
-        try (Directory mappedDirectory = newDirectory(); Directory unmappedDirectory = newDirectory()) {
-            try (RandomIndexWriter mappedWriter = new RandomIndexWriter(random(), mappedDirectory)) {
-                mappedWriter.addDocuments(docs);
-            }
-
-            new RandomIndexWriter(random(), unmappedDirectory).close();
-
-            try (
-                IndexReader mappedReader = DirectoryReader.open(mappedDirectory);
-                IndexReader unmappedReader = DirectoryReader.open(unmappedDirectory);
-                MultiReader multiReader = new MultiReader(mappedReader, unmappedReader)
-            ) {
-
-                final IndexSearcher searcher = newSearcher(multiReader, true, true);
-
-                final InternalSum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
-                assertEquals(sum, internalSum.getValue(), 0d);
-                assertTrue(AggregationInspectionHelper.hasValue(internalSum));
-            }
-        }
     }
 
     public void testValueScriptSingleValuedField() throws IOException {
@@ -253,7 +214,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             1,
             sum("_name").field(FIELD_NAME).script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())),
             (sum, docs, result) -> {
-                assertEquals(sum + docs.size(), result.getValue(), 0d);
+                assertEquals(sum + docs.size(), result.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
@@ -265,7 +226,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             valuesPerField,
             sum("_name").field(FIELD_NAME).script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT_NAME, emptyMap())),
             (sum, docs, result) -> {
-                assertEquals(sum + (docs.size() * valuesPerField), result.getValue(), 0d);
+                assertEquals(sum + (docs.size() * valuesPerField), result.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
@@ -276,7 +237,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             1,
             sum("_name").script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))),
             (sum, docs, result) -> {
-                assertEquals(sum + docs.size(), result.getValue(), 0d);
+                assertEquals(sum + docs.size(), result.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
@@ -288,7 +249,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             valuesPerField,
             sum("_name").script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_NAME, singletonMap("field", FIELD_NAME))),
             (sum, docs, result) -> {
-                assertEquals(sum + (docs.size() * valuesPerField), result.getValue(), 0d);
+                assertEquals(sum + (docs.size() * valuesPerField), result.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
@@ -316,10 +277,10 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
         testAggregation(
             sum("_name").field(aggField.name()).missing(missingValue),
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             writer -> writer.addDocuments(docs),
             internalSum -> {
-                assertEquals(finalSum, internalSum.getValue(), 0d);
+                assertEquals(finalSum, internalSum.value(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             },
             aggField,
@@ -330,7 +291,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     public void testMissingUnmapped() throws IOException {
         final long missingValue = randomLongBetween(1, 1000);
         sumRandomDocsTestCase(randomIntBetween(1, 5), sum("_name").field("unknown_field").missing(missingValue), (sum, docs, result) -> {
-            assertEquals(docs.size() * missingValue, result.getValue(), 0d);
+            assertEquals(docs.size() * missingValue, result.value(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         });
     }
@@ -338,7 +299,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
     private void sumRandomDocsTestCase(
         int valuesPerField,
         SumAggregationBuilder builder,
-        TriConsumer<Long, List<Set<IndexableField>>, InternalSum> verify
+        TriConsumer<Long, List<Set<IndexableField>>, Sum> verify
     ) throws IOException {
 
         final MappedFieldType fieldType = defaultFieldType();
@@ -359,14 +320,14 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
         testAggregation(
             builder,
-            new MatchAllDocsQuery(),
+            Queries.ALL_DOCS_INSTANCE,
             writer -> writer.addDocuments(docs),
             internalSum -> verify.apply(finalSum, docs, internalSum),
             fieldType
         );
     }
 
-    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<InternalSum> verify)
+    private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> indexer, Consumer<Sum> verify)
         throws IOException {
         AggregationBuilder aggregationBuilder = sum("_name").field(FIELD_NAME);
         testAggregation(aggregationBuilder, query, indexer, verify, defaultFieldType());
@@ -376,10 +337,10 @@ public class SumAggregatorTests extends AggregatorTestCase {
         AggregationBuilder aggregationBuilder,
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> indexer,
-        Consumer<InternalSum> verify,
+        Consumer<Sum> verify,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        testCase(aggregationBuilder, query, indexer, verify, fieldTypes);
+        testCase(indexer, verify, new AggTestConfig(aggregationBuilder, fieldTypes).withQuery(query));
     }
 
     @Override
@@ -406,7 +367,13 @@ public class SumAggregatorTests extends AggregatorTestCase {
         );
         final MockScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts, emptyMap());
         final Map<String, ScriptEngine> engines = singletonMap(engine.getType(), engine);
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     private static MappedFieldType defaultFieldType() {

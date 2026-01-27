@@ -41,9 +41,10 @@ public class FilterExistsAgg extends LeafAgg {
     }
 
     private static ScriptTemplate wrapWithIsNotNull(ScriptTemplate script) {
-        return new ScriptTemplate(formatTemplate(
-                format(Locale.ROOT, "{ql}.isNotNull(%s)", script.template())),
-                script.params(),
-                DataTypes.BOOLEAN);
+        return new ScriptTemplate(
+            formatTemplate(format(Locale.ROOT, "{ql}.isNotNull(%s)", script.template())),
+            script.params(),
+            DataTypes.BOOLEAN
+        );
     }
 }

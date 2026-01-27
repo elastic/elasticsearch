@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.resync;
 
@@ -22,7 +23,8 @@ import java.util.Objects;
  * Represents a batch of operations sent from the primary to its replicas during the primary-replica resync.
  */
 public final class ResyncReplicationRequest extends ReplicatedWriteRequest<ResyncReplicationRequest>
-    implements RawIndexingDataTransportRequest {
+    implements
+        RawIndexingDataTransportRequest {
 
     private final long trimAboveSeqNo;
     private final Translog.Operation[] operations;
@@ -35,8 +37,12 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         operations = in.readArray(Translog.Operation::readOperation, Translog.Operation[]::new);
     }
 
-    public ResyncReplicationRequest(final ShardId shardId, final long trimAboveSeqNo, final long maxSeenAutoIdTimestampOnPrimary,
-                                    final Translog.Operation[]operations) {
+    public ResyncReplicationRequest(
+        final ShardId shardId,
+        final long trimAboveSeqNo,
+        final long maxSeenAutoIdTimestampOnPrimary,
+        final Translog.Operation[] operations
+    ) {
         super(shardId);
         this.trimAboveSeqNo = trimAboveSeqNo;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
@@ -60,7 +66,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         super.writeTo(out);
         out.writeZLong(trimAboveSeqNo);
         out.writeZLong(maxSeenAutoIdTimestampOnPrimary);
-        out.writeArray(Translog.Operation::writeOperation, operations);
+        out.writeArray(operations);
     }
 
     @Override
@@ -68,25 +74,33 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final ResyncReplicationRequest that = (ResyncReplicationRequest) o;
-        return trimAboveSeqNo == that.trimAboveSeqNo && maxSeenAutoIdTimestampOnPrimary == that.maxSeenAutoIdTimestampOnPrimary
+        return trimAboveSeqNo == that.trimAboveSeqNo
+            && maxSeenAutoIdTimestampOnPrimary == that.maxSeenAutoIdTimestampOnPrimary
             && Arrays.equals(operations, that.operations);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(trimAboveSeqNo, maxSeenAutoIdTimestampOnPrimary, operations);
+        return Objects.hash(trimAboveSeqNo, maxSeenAutoIdTimestampOnPrimary, Arrays.hashCode(operations));
     }
 
     @Override
     public String toString() {
-        return "TransportResyncReplicationAction.Request{" +
-            "shardId=" + shardId +
-            ", timeout=" + timeout +
-            ", index='" + index + '\'' +
-            ", trimAboveSeqNo=" + trimAboveSeqNo +
-            ", maxSeenAutoIdTimestampOnPrimary=" + maxSeenAutoIdTimestampOnPrimary +
-            ", ops=" + operations.length +
-            "}";
+        return "TransportResyncReplicationAction.Request{"
+            + "shardId="
+            + shardId
+            + ", timeout="
+            + timeout
+            + ", index='"
+            + index
+            + '\''
+            + ", trimAboveSeqNo="
+            + trimAboveSeqNo
+            + ", maxSeenAutoIdTimestampOnPrimary="
+            + maxSeenAutoIdTimestampOnPrimary
+            + ", ops="
+            + operations.length
+            + "}";
     }
 
 }

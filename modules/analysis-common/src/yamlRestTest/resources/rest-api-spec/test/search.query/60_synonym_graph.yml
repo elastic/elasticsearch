@@ -34,41 +34,41 @@ setup:
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             text: say wtf happened foo
   - do:
       index:
           index: test
-          id: 2
+          id: "2"
           body:
             text: bar baz what the fudge man
 
   - do:
       index:
           index: test
-          id: 3
+          id: "3"
           body:
             text: wtf
 
   - do:
       index:
           index: test
-          id: 4
+          id: "4"
           body:
             text: what is the name for fudge
 
   - do:
       index:
           index: test
-          id: 5
+          id: "5"
           body:
             text: bar two three
 
   - do:
       index:
           index: test
-          id: 6
+          id: "6"
           body:
             text: bar baz two three
           refresh: true
@@ -180,14 +180,14 @@ setup:
   - do:
       index:
           index: test
-          id: 7
+          id: "7"
           body:
             text: "WTFD!"
 
   - do:
       index:
           index: test
-          id: 8
+          id: "8"
           body:
             text: "Weird Al's WHAT THE FUDGESICLE"
           refresh: true
@@ -214,7 +214,7 @@ setup:
   - do:
       index:
         index: test
-        id: 9
+        id: "9"
         body:
           phrase_field: "bar baz"
         refresh: true

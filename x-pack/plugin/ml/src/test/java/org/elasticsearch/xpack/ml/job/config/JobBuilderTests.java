@@ -65,8 +65,7 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
             builder.setResultsRetentionDays(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10),
-                    randomAlphaOfLength(10)));
+            builder.setCustomSettings(Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setModelSnapshotId(randomAlphaOfLength(10));
@@ -75,6 +74,11 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
             builder.setResultsIndexName(randomValidJobId());
         }
         return builder;
+    }
+
+    @Override
+    protected Job.Builder mutateInstance(Job.Builder instance) {
+        return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
     }
 
     @Override

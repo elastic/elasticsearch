@@ -17,13 +17,16 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.CombinedBitSet;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.lucene.util.CombinedBits;
+import org.elasticsearch.lucene.util.MatchAllBitSet;
+import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -36,8 +39,8 @@ import java.util.concurrent.ExecutionException;
  */
 public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
 
-    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache,
-            Query roleQuery) throws IOException {
+    public static DocumentSubsetDirectoryReader wrap(DirectoryReader in, DocumentSubsetBitsetCache bitsetCache, Query roleQuery)
+        throws IOException {
         return new DocumentSubsetDirectoryReader(in, bitsetCache, roleQuery);
     }
 
@@ -58,20 +61,28 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         final Bits liveDocs = reader.getLiveDocs();
         if (roleQueryBits == null) {
             return 0;
-        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
             return reader.numDocs();
         } else if (liveDocs == null) {
             // slow
             return roleQueryBits.cardinality();
         } else {
-            // very slow, but necessary in order to be correct
+            // slower, but necessary in order to be correct
             int numDocs = 0;
-            DocIdSetIterator it = new BitSetIterator(roleQueryBits, 0L); // we don't use the cost
+            // Temporary bit set, just to do the counting
+            FixedBitSet bitSet = new FixedBitSet(1024);
+            DocIdSetIterator roleBitsIterator = new BitSetIterator(roleQueryBits, 0L); // we don't use the cost
             try {
-                for (int doc = it.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = it.nextDoc()) {
-                    if (liveDocs.get(doc)) {
-                        numDocs++;
-                    }
+                for (int from = roleBitsIterator.nextDoc(); from != DocIdSetIterator.NO_MORE_DOCS; from = roleBitsIterator.docID()) {
+                    bitSet.clear();
+
+                    // OR role bits into `bitSet`
+                    int upTo = (int) Math.min((long) from + bitSet.length(), Integer.MAX_VALUE);
+                    roleBitsIterator.intoBitSet(upTo, bitSet, from);
+
+                    // And then AND live doc bits into `bitSet`
+                    liveDocs.applyMask(bitSet, from);
+                    numDocs += bitSet.cardinality();
                 }
                 return numDocs;
             } catch (IOException e) {
@@ -89,16 +100,15 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
             return computeNumDocs(reader, roleQueryBits);
         }
         final boolean[] added = new boolean[] { false };
-        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(),
-                key -> {
-                    added[0] = true;
-                    return CacheBuilder.<Query, Integer>builder()
-                            // Not configurable, this limit only exists so that if a role query is updated
-                            // then we won't risk OOME because of old role queries that are not used anymore
-                            .setMaximumWeight(1000)
-                            .weigher((k, v) -> 1) // just count
-                            .build();
-                });
+        Cache<Query, Integer> perReaderCache = NUM_DOCS_CACHE.computeIfAbsent(cacheHelper.getKey(), key -> {
+            added[0] = true;
+            return CacheBuilder.<Query, Integer>builder()
+                // Not configurable, this limit only exists so that if a role query is updated
+                // then we won't risk OOME because of old role queries that are not used anymore
+                .setMaximumWeight(1000)
+                .weigher((k, v) -> 1) // just count
+                .build();
+        });
         if (added[0]) {
             IndexReader.ClosedListener closedListener = NUM_DOCS_CACHE::remove;
             try {
@@ -116,8 +126,8 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         private final Query roleQuery;
         private final DocumentSubsetBitsetCache bitsetCache;
 
-        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache,
-                                      final Query roleQuery) throws IOException {
+        DocumentSubsetDirectoryReader(final DirectoryReader in, final DocumentSubsetBitsetCache bitsetCache, final Query roleQuery)
+            throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -140,11 +150,11 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         }
 
         private static void verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(DirectoryReader reader) {
-            if (reader instanceof FilterDirectoryReader) {
-                FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
+            if (reader instanceof FilterDirectoryReader filterDirectoryReader) {
                 if (filterDirectoryReader instanceof DocumentSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
-                            DocumentSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Can't wrap [{}] twice", DocumentSubsetDirectoryReader.class)
+                    );
                 } else {
                     verifyNoOtherDocumentSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -177,6 +187,7 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         if (numDocs == -1) {
             synchronized (this) {
                 if (numDocs == -1) {
+                    assert Transports.assertNotTransportThread("resolving role query");
                     try {
                         roleQueryBits = bitsetCache.getBitSet(roleQuery, in.getContext());
                         numDocs = getNumDocs(in, roleQuery, roleQueryBits);
@@ -193,16 +204,16 @@ public final class DocumentSubsetReader extends SequentialStoredFieldsLeafReader
         computeNumDocsIfNeeded();
         final Bits actualLiveDocs = in.getLiveDocs();
         if (roleQueryBits == null) {
-            // If we would return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
-            // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted
+            // If we were to return a <code>null</code> liveDocs then that would mean that no docs are marked as deleted,
+            // but that isn't the case. No docs match with the role query and therefore all docs are marked as deleted.
             return new Bits.MatchNoBits(in.maxDoc());
-        } else if (roleQueryBits instanceof MatchAllRoleBitSet) {
+        } else if (roleQueryBits instanceof MatchAllBitSet) {
             return actualLiveDocs;
         } else if (actualLiveDocs == null) {
             return roleQueryBits;
         } else {
             // apply deletes when needed:
-            return new CombinedBitSet(roleQueryBits, actualLiveDocs);
+            return new CombinedBits(roleQueryBits, actualLiveDocs);
         }
     }
 

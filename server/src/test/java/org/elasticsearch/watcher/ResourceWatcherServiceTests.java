@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.watcher;
@@ -31,8 +32,8 @@ public class ResourceWatcherServiceTests extends ESTestCase {
 
         // checking bwc
         settings = Settings.builder()
-                .put("resource.reload.interval", "40s") // only applies to medium
-                .build();
+            .put("resource.reload.interval", "40s") // only applies to medium
+            .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(5).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(40).millis()));
@@ -40,10 +41,10 @@ public class ResourceWatcherServiceTests extends ESTestCase {
 
         // checking custom
         settings = Settings.builder()
-                .put("resource.reload.interval.high", "10s")
-                .put("resource.reload.interval.medium", "20s")
-                .put("resource.reload.interval.low", "30s")
-                .build();
+            .put("resource.reload.interval.high", "10s")
+            .put("resource.reload.interval.medium", "20s")
+            .put("resource.reload.interval.low", "30s")
+            .build();
         service = new ResourceWatcherService(settings, threadPool);
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(20).millis()));
@@ -57,12 +58,10 @@ public class ResourceWatcherServiceTests extends ESTestCase {
         ResourceWatcherService service = new ResourceWatcherService(settings, threadPool);
         ResourceWatcher watcher = new ResourceWatcher() {
             @Override
-            public void init() {
-            }
+            public void init() {}
 
             @Override
-            public void checkAndNotify() {
-            }
+            public void checkAndNotify() {}
         };
 
         // checking default freq

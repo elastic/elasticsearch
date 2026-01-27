@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.painless.lookup.PainlessClass;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,32 +39,38 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextClassInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextClassInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextClassInfo(
-                            (String)v[0],
-                            (boolean)v[1],
-                            (List<PainlessContextConstructorInfo>)v[2],
-                            (List<PainlessContextMethodInfo>)v[3],
-                            (List<PainlessContextMethodInfo>)v[4],
-                            (List<PainlessContextFieldInfo>)v[5],
-                            (List<PainlessContextFieldInfo>)v[6]
-                    )
+        PainlessContextClassInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextClassInfo(
+            (String) v[0],
+            (boolean) v[1],
+            (List<PainlessContextConstructorInfo>) v[2],
+            (List<PainlessContextMethodInfo>) v[3],
+            (List<PainlessContextMethodInfo>) v[4],
+            (List<PainlessContextFieldInfo>) v[5],
+            (List<PainlessContextFieldInfo>) v[6]
+        )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), IMPORTED);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextConstructorInfo.fromXContent(p), CONSTRUCTORS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextMethodInfo.fromXContent(p), STATIC_METHODS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextMethodInfo.fromXContent(p), METHODS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextFieldInfo.fromXContent(p), STATIC_FIELDS);
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> PainlessContextFieldInfo.fromXContent(p), FIELDS);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextConstructorInfo.fromXContent(p),
+            CONSTRUCTORS
+        );
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextMethodInfo.fromXContent(p),
+            STATIC_METHODS
+        );
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> PainlessContextMethodInfo.fromXContent(p), METHODS);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> PainlessContextFieldInfo.fromXContent(p),
+            STATIC_FIELDS
+        );
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> PainlessContextFieldInfo.fromXContent(p), FIELDS);
     }
 
     private final String name;
@@ -76,20 +83,25 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
 
     public PainlessContextClassInfo(Class<?> javaClass, boolean imported, PainlessClass painlessClass) {
         this(
-                javaClass.getName(),
-                imported,
-                painlessClass.constructors.values().stream().map(PainlessContextConstructorInfo::new).collect(Collectors.toList()),
-                painlessClass.staticMethods.values().stream().map(PainlessContextMethodInfo::new).collect(Collectors.toList()),
-                painlessClass.methods.values().stream().map(PainlessContextMethodInfo::new).collect(Collectors.toList()),
-                painlessClass.staticFields.values().stream().map(PainlessContextFieldInfo::new).collect(Collectors.toList()),
-                painlessClass.fields.values().stream().map(PainlessContextFieldInfo::new).collect(Collectors.toList())
+            javaClass.getName(),
+            imported,
+            painlessClass.constructors.values().stream().map(PainlessContextConstructorInfo::new).collect(Collectors.toList()),
+            painlessClass.staticMethods.values().stream().map(PainlessContextMethodInfo::new).collect(Collectors.toList()),
+            painlessClass.methods.values().stream().map(PainlessContextMethodInfo::new).collect(Collectors.toList()),
+            painlessClass.staticFields.values().stream().map(PainlessContextFieldInfo::new).collect(Collectors.toList()),
+            painlessClass.fields.values().stream().map(PainlessContextFieldInfo::new).collect(Collectors.toList())
         );
     }
 
-    public PainlessContextClassInfo(String name, boolean imported,
-            List<PainlessContextConstructorInfo> constructors,
-            List<PainlessContextMethodInfo> staticMethods, List<PainlessContextMethodInfo> methods,
-            List<PainlessContextFieldInfo> staticFields, List<PainlessContextFieldInfo> fields) {
+    public PainlessContextClassInfo(
+        String name,
+        boolean imported,
+        List<PainlessContextConstructorInfo> constructors,
+        List<PainlessContextMethodInfo> staticMethods,
+        List<PainlessContextMethodInfo> methods,
+        List<PainlessContextFieldInfo> staticFields,
+        List<PainlessContextFieldInfo> fields
+    ) {
 
         this.name = Objects.requireNonNull(name);
         this.imported = imported;
@@ -113,22 +125,22 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
     public PainlessContextClassInfo(StreamInput in) throws IOException {
         name = in.readString();
         imported = in.readBoolean();
-        constructors = Collections.unmodifiableList(in.readList(PainlessContextConstructorInfo::new));
-        staticMethods = Collections.unmodifiableList(in.readList(PainlessContextMethodInfo::new));
-        methods = Collections.unmodifiableList(in.readList(PainlessContextMethodInfo::new));
-        staticFields = Collections.unmodifiableList(in.readList(PainlessContextFieldInfo::new));
-        fields = Collections.unmodifiableList(in.readList(PainlessContextFieldInfo::new));
+        constructors = in.readCollectionAsImmutableList(PainlessContextConstructorInfo::new);
+        staticMethods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        methods = in.readCollectionAsImmutableList(PainlessContextMethodInfo::new);
+        staticFields = in.readCollectionAsImmutableList(PainlessContextFieldInfo::new);
+        fields = in.readCollectionAsImmutableList(PainlessContextFieldInfo::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeBoolean(imported);
-        out.writeList(constructors);
-        out.writeList(staticMethods);
-        out.writeList(methods);
-        out.writeList(staticFields);
-        out.writeList(fields);
+        out.writeCollection(constructors);
+        out.writeCollection(staticMethods);
+        out.writeCollection(methods);
+        out.writeCollection(staticFields);
+        out.writeCollection(fields);
     }
 
     public static PainlessContextClassInfo fromXContent(XContentParser parser) {
@@ -159,13 +171,13 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextClassInfo that = (PainlessContextClassInfo) o;
-        return imported == that.imported &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(constructors, that.constructors) &&
-                Objects.equals(staticMethods, that.staticMethods) &&
-                Objects.equals(methods, that.methods) &&
-                Objects.equals(staticFields, that.staticFields) &&
-                Objects.equals(fields, that.fields);
+        return imported == that.imported
+            && Objects.equals(name, that.name)
+            && Objects.equals(constructors, that.constructors)
+            && Objects.equals(staticMethods, that.staticMethods)
+            && Objects.equals(methods, that.methods)
+            && Objects.equals(staticFields, that.staticFields)
+            && Objects.equals(fields, that.fields);
     }
 
     @Override
@@ -175,15 +187,23 @@ public class PainlessContextClassInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextClassInfo{" +
-                "name='" + name + '\'' +
-                ", imported=" + imported +
-                ", constructors=" + constructors +
-                ", staticMethods=" + staticMethods +
-                ", methods=" + methods +
-                ", staticFields=" + staticFields +
-                ", fields=" + fields +
-                '}';
+        return "PainlessContextClassInfo{"
+            + "name='"
+            + name
+            + '\''
+            + ", imported="
+            + imported
+            + ", constructors="
+            + constructors
+            + ", staticMethods="
+            + staticMethods
+            + ", methods="
+            + methods
+            + ", staticFields="
+            + staticFields
+            + ", fields="
+            + fields
+            + '}';
     }
 
     public String getName() {

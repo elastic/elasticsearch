@@ -20,7 +20,7 @@ import java.util.Optional;
 
 public final class QueryBuilderHelper {
 
-    private QueryBuilderHelper() { }
+    private QueryBuilderHelper() {}
 
     /**
      * Helper function for adding OR type queries for a given identity field.

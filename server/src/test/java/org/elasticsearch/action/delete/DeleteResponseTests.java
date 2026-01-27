@@ -1,48 +1,72 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.bulk.BulkItemResponseTests;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.action.index.IndexResponseTests.assertDocWriteResponse;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class DeleteResponseTests extends ESTestCase {
 
-    public void testToXContent() {
+    public void testToXContent() throws IOException {
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", 3, 17, 5, true);
             String output = Strings.toString(response);
-            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":5,\"result\":\"deleted\"," +
-                "\"_shards\":null,\"_seq_no\":3,\"_primary_term\":17}", output);
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 5,
+                  "result": "deleted",
+                  "_shards": null,
+                  "_seq_no": 3,
+                  "_primary_term": 17
+                }"""), output);
         }
         {
             DeleteResponse response = new DeleteResponse(new ShardId("index", "index_uuid", 0), "id", -1, 0, 7, true);
             response.setForcedRefresh(true);
-            response.setShardInfo(new ReplicationResponse.ShardInfo(10, 5));
+            response.setShardInfo(ReplicationResponse.ShardInfo.of(10, 5));
             String output = Strings.toString(response);
-            assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"_version\":7,\"result\":\"deleted\"," +
-                "\"forced_refresh\":true,\"_shards\":{\"total\":10,\"successful\":5,\"failed\":0}}", output);
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 7,
+                  "result": "deleted",
+                  "forced_refresh": true,
+                  "_shards": {
+                    "total": 10,
+                    "successful": 5,
+                    "failed": 0
+                  }
+                }
+                """), output);
         }
     }
 
@@ -81,7 +105,7 @@ public class DeleteResponseTests extends ESTestCase {
         }
         DeleteResponse parsedDeleteResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            parsedDeleteResponse = DeleteResponse.fromXContent(parser);
+            parsedDeleteResponse = parseInstance(parser);
             assertNull(parser.nextToken());
         }
 
@@ -89,6 +113,16 @@ public class DeleteResponseTests extends ESTestCase {
         // because the random delete response can contain shard failures with exceptions,
         // and those exceptions are not parsed back with the same types.
         assertDocWriteResponse(expectedDeleteResponse, parsedDeleteResponse);
+    }
+
+    private static DeleteResponse parseInstance(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+
+        DeleteResponse.Builder context = new DeleteResponse.Builder();
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            BulkItemResponseTests.parseInnerToXContent(parser, context);
+        }
+        return context.build();
     }
 
     /**
@@ -115,8 +149,7 @@ public class DeleteResponseTests extends ESTestCase {
         actual.setForcedRefresh(forcedRefresh);
         actual.setShardInfo(shardInfos.v1());
 
-        DeleteResponse expected =
-                new DeleteResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), id, seqNo, primaryTerm, version, found);
+        DeleteResponse expected = new DeleteResponse(new ShardId(index, INDEX_UUID_NA_VALUE, -1), id, seqNo, primaryTerm, version, found);
         expected.setForcedRefresh(forcedRefresh);
         expected.setShardInfo(shardInfos.v2());
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -12,7 +13,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder.Origin;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -31,8 +31,7 @@ import java.util.List;
  */
 public final class QueryBuilders {
 
-    private QueryBuilders() {
-    }
+    private QueryBuilders() {}
 
     /**
      * A query that matches on all documents.
@@ -257,7 +256,6 @@ public final class QueryBuilders {
         return new WildcardQueryBuilder(name, query);
     }
 
-
     /**
      * A Query that matches documents containing terms with a specified regular expression.
      *
@@ -343,14 +341,6 @@ public final class QueryBuilders {
         return new SpanOrQueryBuilder(initialClause);
     }
 
-    /** Creates a new {@code span_within} builder.
-    * @param big the big clause, it must enclose {@code little} for a match.
-    * @param little the little clause, it must be contained within {@code big} for a match.
-    */
-    public static SpanWithinQueryBuilder spanWithinQuery(SpanQueryBuilder big, SpanQueryBuilder little) {
-        return new SpanWithinQueryBuilder(big, little);
-    }
-
     /**
      * Creates a new {@code span_containing} builder.
      * @param big the big clause, it must enclose {@code little} for a match.
@@ -404,8 +394,10 @@ public final class QueryBuilders {
      * @param filterFunctionBuilders the filters and functions to execute
      * @return the function score query
      */
-    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder,
-                                                               FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders) {
+    public static FunctionScoreQueryBuilder functionScoreQuery(
+        QueryBuilder queryBuilder,
+        FunctionScoreQueryBuilder.FilterFunctionBuilder[] filterFunctionBuilders
+    ) {
         return new FunctionScoreQueryBuilder(queryBuilder, filterFunctionBuilders);
     }
 
@@ -447,7 +439,6 @@ public final class QueryBuilders {
     public static ScriptScoreQueryBuilder scriptScoreQuery(QueryBuilder queryBuilder, Script script) {
         return new ScriptScoreQueryBuilder(queryBuilder, script);
     }
-
 
     /**
      * A more like this query that finds documents that are "like" the provided texts or documents
@@ -600,7 +591,6 @@ public final class QueryBuilders {
         return new ScriptQueryBuilder(script);
     }
 
-
     /**
      * A filter to filter based on a specific distance from a specific geo location / point.
      *
@@ -640,14 +630,6 @@ public final class QueryBuilders {
         return new GeoShapeQueryBuilder(name, shape);
     }
 
-    /**
-     * @deprecated use {@link #geoShapeQuery(String, Geometry)} instead
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
-        return new GeoShapeQueryBuilder(name, shape.buildGeometry());
-    }
-
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId) {
         return new GeoShapeQueryBuilder(name, indexedShapeId);
     }
@@ -664,69 +646,15 @@ public final class QueryBuilders {
         return builder;
     }
 
-    /**
-     * @deprecated use {@link #geoIntersectionQuery(String, Geometry)} instead
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoIntersectionQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.INTERSECTS);
-        return builder;
-    }
-
     public static GeoShapeQueryBuilder geoIntersectionQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.INTERSECTS);
         return builder;
     }
 
-    /**
-     * A filter to filter indexed shapes that are contained by a shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, Geometry shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
-     * @deprecated use {@link #geoWithinQuery(String, Geometry)} instead
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoWithinQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
     public static GeoShapeQueryBuilder geoWithinQuery(String name, String indexedShapeId) {
         GeoShapeQueryBuilder builder = geoShapeQuery(name, indexedShapeId);
         builder.relation(ShapeRelation.WITHIN);
-        return builder;
-    }
-
-    /**
-     * A filter to filter indexed shapes that are not intersection with the query shape
-     *
-     * @param name  The shape field name
-     * @param shape Shape to use in the filter
-     */
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, Geometry shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.DISJOINT);
-        return builder;
-    }
-
-    /**
-     * @deprecated use {@link #geoDisjointQuery(String, Geometry)} instead
-     */
-    @Deprecated
-    public static GeoShapeQueryBuilder geoDisjointQuery(String name, ShapeBuilder<?, ?, ?> shape) throws IOException {
-        GeoShapeQueryBuilder builder = geoShapeQuery(name, shape);
-        builder.relation(ShapeRelation.DISJOINT);
         return builder;
     }
 

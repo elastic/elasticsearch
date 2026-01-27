@@ -1,23 +1,25 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
 import org.elasticsearch.script.Script;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class LongScriptFieldTermsQueryTests extends AbstractLongScriptFieldQueryTestCase<LongScriptFieldTermsQuery> {
     @Override
     protected LongScriptFieldTermsQuery createTestInstance() {
-        LongSet terms = new LongHashSet();
+        Set<Long> terms = new HashSet<>();
         int count = between(1, 100);
         while (terms.size() < count) {
             terms.add(randomLong());
@@ -34,29 +36,24 @@ public class LongScriptFieldTermsQueryTests extends AbstractLongScriptFieldQuery
     protected LongScriptFieldTermsQuery mutate(LongScriptFieldTermsQuery orig) {
         Script script = orig.script();
         String fieldName = orig.fieldName();
-        LongSet terms = orig.terms();
+        Set<Long> terms = orig.terms();
         switch (randomInt(2)) {
-            case 0:
-                script = randomValueOtherThan(script, this::randomScript);
-                break;
-            case 1:
-                fieldName += "modified";
-                break;
-            case 2:
-                terms = new LongHashSet(terms);
+            case 0 -> script = randomValueOtherThan(script, this::randomScript);
+            case 1 -> fieldName += "modified";
+            case 2 -> {
+                terms = new HashSet<>(terms);
                 while (false == terms.add(randomLong())) {
                     // Random long was already in the set
                 }
-                break;
-            default:
-                fail();
+            }
+            default -> fail();
         }
         return new LongScriptFieldTermsQuery(script, leafFactory, fieldName, terms);
     }
 
     @Override
     public void testMatches() {
-        LongScriptFieldTermsQuery query = new LongScriptFieldTermsQuery(randomScript(), leafFactory, "test", LongHashSet.from(1, 2, 3));
+        LongScriptFieldTermsQuery query = new LongScriptFieldTermsQuery(randomScript(), leafFactory, "test", Set.of(1L, 2L, 3L));
         assertTrue(query.matches(new long[] { 1 }, 1));
         assertTrue(query.matches(new long[] { 2 }, 1));
         assertTrue(query.matches(new long[] { 3 }, 1));

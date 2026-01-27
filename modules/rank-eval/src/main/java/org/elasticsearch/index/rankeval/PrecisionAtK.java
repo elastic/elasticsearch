@@ -1,30 +1,32 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
-import javax.naming.directory.SearchResult;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.OptionalInt;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import javax.naming.directory.SearchResult;
+
 import static org.elasticsearch.index.rankeval.EvaluationMetric.joinHitsWithRatings;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Metric implementing Precision@K
@@ -95,7 +97,8 @@ public class PrecisionAtK implements EvaluationMetric {
         return new PrecisionAtK(
             relevantRatingThreshold == null ? DEFAULT_RELEVANT_RATING_THRESHOLD : relevantRatingThreshold,
             ignoreUnlabeled == null ? DEFAULT_IGNORE_UNLABELED : ignoreUnlabeled,
-            k == null ? DEFAULT_K : k);
+            k == null ? DEFAULT_K : k
+        );
     });
 
     static {
@@ -176,8 +179,7 @@ public class PrecisionAtK implements EvaluationMetric {
      * @return precision at k for above {@link SearchResult} list.
      **/
     @Override
-    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits,
-                                     List<RatedDocument> ratedDocs) {
+    public EvalQueryQuality evaluate(String taskId, SearchHit[] hits, List<RatedDocument> ratedDocs) {
 
         List<RatedSearchHit> ratedSearchHits = joinHitsWithRatings(hits, ratedDocs);
 
@@ -243,8 +245,11 @@ public class PrecisionAtK implements EvaluationMetric {
             this(in.readVInt(), in.readVInt());
         }
 
-        private static final ConstructingObjectParser<Detail, Void> PARSER =
-            new ConstructingObjectParser<>(NAME, true, args -> new Detail((Integer) args[0], (Integer) args[1]));
+        private static final ConstructingObjectParser<Detail, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new Detail((Integer) args[0], (Integer) args[1])
+        );
 
         static {
             PARSER.declareInt(constructorArg(), RELEVANT_DOCS_RETRIEVED_FIELD);
@@ -262,8 +267,7 @@ public class PrecisionAtK implements EvaluationMetric {
         }
 
         @Override
-        public XContentBuilder innerToXContent(XContentBuilder builder, Params params)
-            throws IOException {
+        public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(RELEVANT_DOCS_RETRIEVED_FIELD.getPreferredName(), relevantRetrieved);
             builder.field(DOCS_RETRIEVED_FIELD.getPreferredName(), retrieved);
             return builder;
@@ -291,8 +295,7 @@ public class PrecisionAtK implements EvaluationMetric {
                 return false;
             }
             PrecisionAtK.Detail other = (PrecisionAtK.Detail) obj;
-            return Objects.equals(relevantRetrieved, other.relevantRetrieved)
-                    && Objects.equals(retrieved, other.retrieved);
+            return Objects.equals(relevantRetrieved, other.relevantRetrieved) && Objects.equals(retrieved, other.retrieved);
         }
 
         @Override

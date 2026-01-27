@@ -6,25 +6,22 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
@@ -45,7 +42,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
     public static final ParseField STATS = new ParseField("stats");
 
     private GetRollupJobsAction() {
-        super(NAME, GetRollupJobsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
@@ -121,13 +118,6 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
         }
     }
 
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        protected RequestBuilder(ElasticsearchClient client, GetRollupJobsAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private final List<JobWrapper> jobs;
@@ -144,13 +134,13 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            jobs = in.readList(JobWrapper::new);
+            jobs = in.readCollectionAsList(JobWrapper::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeList(jobs);
+            out.writeCollection(jobs);
         }
 
         public List<JobWrapper> getJobs() {
@@ -200,9 +190,10 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
         private final RollupIndexerJobStats stats;
         private final RollupJobStatus status;
 
-        public static final ConstructingObjectParser<JobWrapper, Void> PARSER
-                = new ConstructingObjectParser<>(NAME, a -> new JobWrapper((RollupJobConfig) a[0],
-                (RollupIndexerJobStats) a[1], (RollupJobStatus)a[2]));
+        public static final ConstructingObjectParser<JobWrapper, Void> PARSER = new ConstructingObjectParser<>(
+            NAME,
+            a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2])
+        );
 
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
@@ -266,9 +257,7 @@ public class GetRollupJobsAction extends ActionType<GetRollupJobsAction.Response
                 return false;
             }
             JobWrapper other = (JobWrapper) obj;
-            return Objects.equals(job, other.job)
-                    && Objects.equals(stats, other.stats)
-                    && Objects.equals(status, other.status);
+            return Objects.equals(job, other.job) && Objects.equals(stats, other.stats) && Objects.equals(status, other.status);
         }
 
         @Override

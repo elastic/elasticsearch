@@ -10,11 +10,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rollup.RollupV2;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -26,10 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * Represents the lifecycle of an index from creation to deletion. A
@@ -49,20 +46,40 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String COLD_PHASE = "cold";
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
-    static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
+    public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-            ReadOnlyAction.NAME, RollupV2.isEnabled() ? RollupILMAction.NAME : null, ShrinkAction.NAME, ForceMergeAction.NAME,
-            SearchableSnapshotAction.NAME)
-        .filter(Objects::nonNull).collect(toList());
-    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-        AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
-            SearchableSnapshotAction.NAME, AllocateAction.NAME, MigrateAction.NAME, FreezeAction.NAME,
-            RollupV2.isEnabled() ? RollupILMAction.NAME : null)
-        .filter(Objects::nonNull).collect(toList());
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SearchableSnapshotAction.NAME);
-    static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
+    public static final List<String> ORDERED_VALID_HOT_ACTIONS = List.of(
+        SetPriorityAction.NAME,
+        UnfollowAction.NAME,
+        RolloverAction.NAME,
+        ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
+        ShrinkAction.NAME,
+        ForceMergeAction.NAME,
+        SearchableSnapshotAction.NAME
+    );
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = List.of(
+        SetPriorityAction.NAME,
+        UnfollowAction.NAME,
+        ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
+        AllocateAction.NAME,
+        MigrateAction.NAME,
+        ShrinkAction.NAME,
+        ForceMergeAction.NAME
+    );
+    public static final List<String> ORDERED_VALID_COLD_ACTIONS = List.of(
+        SetPriorityAction.NAME,
+        UnfollowAction.NAME,
+        ReadOnlyAction.NAME,
+        DownsampleAction.NAME,
+        SearchableSnapshotAction.NAME,
+        AllocateAction.NAME,
+        MigrateAction.NAME,
+        FreezeAction.NAME
+    );
+    public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
+    public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -71,26 +88,35 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
 
     private static final Map<String, Set<String>> ALLOWED_ACTIONS = Map.of(
-        HOT_PHASE, VALID_HOT_ACTIONS,
-        WARM_PHASE, VALID_WARM_ACTIONS,
-        COLD_PHASE, VALID_COLD_ACTIONS,
-        DELETE_PHASE, VALID_DELETE_ACTIONS,
-        FROZEN_PHASE, VALID_FROZEN_ACTIONS
+        HOT_PHASE,
+        VALID_HOT_ACTIONS,
+        WARM_PHASE,
+        VALID_WARM_ACTIONS,
+        COLD_PHASE,
+        VALID_COLD_ACTIONS,
+        DELETE_PHASE,
+        VALID_DELETE_ACTIONS,
+        FROZEN_PHASE,
+        VALID_FROZEN_ACTIONS
     );
 
-    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(ReadOnlyAction.NAME, ShrinkAction.NAME,
-        ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Set.of(
+        ReadOnlyAction.NAME,
+        ShrinkAction.NAME,
+        ForceMergeAction.NAME,
+        DownsampleAction.NAME,
+        SearchableSnapshotAction.NAME
+    );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
-    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = new LinkedHashSet<>(Arrays.asList(
-        ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME));
+    public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
+        new LinkedHashSet<>(List.of(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, DownsampleAction.NAME))
+    );
 
-    private TimeseriesLifecycleType() {
-    }
+    private TimeseriesLifecycleType() {}
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
+    public void writeTo(StreamOutput out) throws IOException {}
 
     @Override
     public String getWriteableName() {
@@ -103,17 +129,19 @@ public class TimeseriesLifecycleType implements LifecycleType {
             Phase phase = phases.get(phaseName);
             if (phase != null) {
                 Map<String, LifecycleAction> actions = phase.getActions();
-                if (actions.containsKey(UnfollowAction.NAME) == false &&
-                    (actions.containsKey(RolloverAction.NAME) || actions.containsKey(ShrinkAction.NAME) ||
-                        actions.containsKey(SearchableSnapshotAction.NAME))) {
+                if (actions.containsKey(UnfollowAction.NAME) == false
+                    && (actions.containsKey(RolloverAction.NAME)
+                        || actions.containsKey(ShrinkAction.NAME)
+                        || actions.containsKey(SearchableSnapshotAction.NAME)
+                        || actions.containsKey(DownsampleAction.NAME))) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    actionMap.put(UnfollowAction.NAME, new UnfollowAction());
+                    actionMap.put(UnfollowAction.NAME, UnfollowAction.INSTANCE);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
 
                 if (shouldInjectMigrateStepForPhase(phase)) {
                     Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    actionMap.put(MigrateAction.NAME, new MigrateAction(true));
+                    actionMap.put(MigrateAction.NAME, MigrateAction.ENABLED);
                     phase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
                 }
 
@@ -124,129 +152,38 @@ public class TimeseriesLifecycleType implements LifecycleType {
     }
 
     public static boolean shouldInjectMigrateStepForPhase(Phase phase) {
-        AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
-        if (allocateAction != null) {
-            if (definesAllocationRules(allocateAction)) {
-                // we won't automatically migrate the data if an allocate action that defines any allocation rule is present
-                return false;
-            }
-        }
-
-        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
-            // Searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
+        if (ALLOWED_ACTIONS.containsKey(phase.getName()) == false) {
             return false;
         }
 
-        MigrateAction migrateAction = (MigrateAction) phase.getActions().get(MigrateAction.NAME);
+        // searchable snapshots automatically set their own allocation rules, no need to configure them with a migrate step.
+        if (phase.getActions().get(SearchableSnapshotAction.NAME) != null) {
+            return false;
+        }
+
+        // do not inject if MigrateAction is not supported for this phase (such as hot, frozen, delete phase)
+        if (ALLOWED_ACTIONS.get(phase.getName()).contains(MigrateAction.NAME) == false) {
+            return false;
+        }
+
         // if the user configured the {@link MigrateAction} already we won't automatically configure it
-        return migrateAction == null;
-    }
+        if (phase.getActions().get(MigrateAction.NAME) != null) {
+            return false;
+        }
 
-    @Override
-    public String getNextPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0 && "new".equals(currentPhaseName) == false) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the next phase after `index` that exists in `phases` and return it
-            while (++index < ORDERED_VALID_PHASES.size()) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no next phase
-            // available
-            return null;
-        }
-    }
-
-    public String getPreviousPhaseName(String currentPhaseName, Map<String, Phase> phases) {
-        if ("new".equals(currentPhaseName)) {
-            return null;
-        }
-        int index = ORDERED_VALID_PHASES.indexOf(currentPhaseName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentPhaseName + "] is not a valid phase for lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the previous phase before `index` that exists in `phases` and return it
-            while (--index >= 0) {
-                String phaseName = ORDERED_VALID_PHASES.get(index);
-                if (phases.containsKey(phaseName)) {
-                    return phaseName;
-                }
-            }
-            // if we have exhausted VALID_PHASES and haven't found a matching
-            // phase in `phases` return null indicating there is no previous phase
-            // available
-            return null;
-        }
+        return true;
     }
 
     public List<LifecycleAction> getOrderedActions(Phase phase) {
         Map<String, LifecycleAction> actions = phase.getActions();
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                return ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get)
-                    .filter(Objects::nonNull).collect(toList());
-            case WARM_PHASE:
-                return ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get)
-                    .filter(Objects::nonNull).collect(toList());
-            case COLD_PHASE:
-                return ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get)
-                    .filter(Objects::nonNull).collect(toList());
-            case FROZEN_PHASE:
-                return ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get)
-                    .filter(Objects::nonNull).collect(toList());
-            case DELETE_PHASE:
-                return ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get)
-                    .filter(Objects::nonNull).collect(toList());
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
-    }
-
-    @Override
-    public String getNextActionName(String currentActionName, Phase phase) {
-        List<String> orderedActionNames;
-        switch (phase.getName()) {
-            case HOT_PHASE:
-                orderedActionNames = ORDERED_VALID_HOT_ACTIONS;
-                break;
-            case WARM_PHASE:
-                orderedActionNames = ORDERED_VALID_WARM_ACTIONS;
-                break;
-            case COLD_PHASE:
-                orderedActionNames = ORDERED_VALID_COLD_ACTIONS;
-                break;
-            case FROZEN_PHASE:
-                orderedActionNames = ORDERED_VALID_FROZEN_ACTIONS;
-                break;
-            case DELETE_PHASE:
-                orderedActionNames = ORDERED_VALID_DELETE_ACTIONS;
-                break;
-            default:
-                throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
-        }
-
-        int index = orderedActionNames.indexOf(currentActionName);
-        if (index < 0) {
-            throw new IllegalArgumentException("[" + currentActionName + "] is not a valid action for phase [" + phase.getName()
-                + "] in lifecycle type [" + TYPE + "]");
-        } else {
-            // Find the next action after `index` that exists in the phase and return it
-            while (++index < orderedActionNames.size()) {
-                String actionName = orderedActionNames.get(index);
-                if (phase.getActions().containsKey(actionName)) {
-                    return actionName;
-                }
-            }
-            // if we have exhausted `validActions` and haven't found a matching
-            // action in the Phase return null indicating there is no next
-            // action available
-            return null;
-        }
+        return switch (phase.getName()) {
+            case HOT_PHASE -> ORDERED_VALID_HOT_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).toList();
+            case WARM_PHASE -> ORDERED_VALID_WARM_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).toList();
+            case COLD_PHASE -> ORDERED_VALID_COLD_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).toList();
+            case FROZEN_PHASE -> ORDERED_VALID_FROZEN_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).toList();
+            case DELETE_PHASE -> ORDERED_VALID_DELETE_ACTIONS.stream().map(actions::get).filter(Objects::nonNull).toList();
+            default -> throw new IllegalArgumentException("lifecycle type [" + TYPE + "] does not support phase [" + phase.getName() + "]");
+        };
     }
 
     @Override
@@ -257,8 +194,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
             }
             phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {
-                    throw new IllegalArgumentException("invalid action [" + actionName + "] " +
-                        "defined in phase [" + phase.getName() + "]");
+                    throw new IllegalArgumentException("invalid action [" + actionName + "] defined in phase [" + phase.getName() + "]");
                 }
             });
         });
@@ -273,29 +209,45 @@ public class TimeseriesLifecycleType implements LifecycleType {
             .flatMap(phase -> Sets.intersection(phase.getActions().keySet(), HOT_ACTIONS_THAT_REQUIRE_ROLLOVER).stream())
             .collect(Collectors.joining(", "));
         if (Strings.hasText(invalidHotPhaseActions)) {
-            throw new IllegalArgumentException("the [" + invalidHotPhaseActions +
-                "] action(s) may not be used in the [" + HOT_PHASE +
-                "] phase without an accompanying [" + RolloverAction.NAME + "] action");
+            throw new IllegalArgumentException(
+                "the ["
+                    + invalidHotPhaseActions
+                    + "] action(s) may not be used in the ["
+                    + HOT_PHASE
+                    + "] phase without an accompanying ["
+                    + RolloverAction.NAME
+                    + "] action"
+            );
         }
 
         // look for phases that have the migrate action enabled and also specify allocation rules via the AllocateAction
         String phasesWithConflictingMigrationActions = phases.stream()
-            .filter(phase -> phase.getActions().containsKey(MigrateAction.NAME) &&
-                ((MigrateAction) phase.getActions().get(MigrateAction.NAME)).isEnabled() &&
-                phase.getActions().containsKey(AllocateAction.NAME) &&
-                definesAllocationRules((AllocateAction) phase.getActions().get(AllocateAction.NAME))
+            .filter(
+                phase -> phase.getActions().containsKey(MigrateAction.NAME)
+                    && ((MigrateAction) phase.getActions().get(MigrateAction.NAME)).isEnabled()
+                    && phase.getActions().containsKey(AllocateAction.NAME)
+                    && definesAllocationRules((AllocateAction) phase.getActions().get(AllocateAction.NAME))
             )
             .map(Phase::getName)
             .collect(Collectors.joining(","));
         if (Strings.hasText(phasesWithConflictingMigrationActions)) {
-            throw new IllegalArgumentException("phases [" + phasesWithConflictingMigrationActions + "] specify an enabled " +
-                MigrateAction.NAME + " action and an " + AllocateAction.NAME + " action with allocation rules. specify only a single " +
-                "data migration in each phase");
+            throw new IllegalArgumentException(
+                "phases ["
+                    + phasesWithConflictingMigrationActions
+                    + "] specify an enabled "
+                    + MigrateAction.NAME
+                    + " action and an "
+                    + AllocateAction.NAME
+                    + " action with allocation rules. specify only a single "
+                    + "data migration in each phase"
+            );
         }
 
         validateActionsFollowingSearchableSnapshot(phases);
         validateAllSearchableSnapshotActionsUseSameRepository(phases);
         validateFrozenPhaseHasSearchableSnapshotAction(phases);
+        validateDownsamplingIntervals(phases);
+        validateReplicateFor(phases);
     }
 
     static void validateActionsFollowingSearchableSnapshot(Collection<Phase> phases) {
@@ -333,14 +285,18 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
         final String phasesDefiningIllegalActions = phasesFollowingSearchableSnapshot.stream()
             // filter the phases that define illegal actions
-            .filter(phase ->
-                Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
+            .filter(phase -> Collections.disjoint(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, phase.getActions().keySet()) == false)
             .map(Phase::getName)
             .collect(Collectors.joining(","));
         if (Strings.hasText(phasesDefiningIllegalActions)) {
-            throw new IllegalArgumentException("phases [" + phasesDefiningIllegalActions + "] define one or more of " +
-                ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT + " actions which are not allowed after a " +
-                "managed index is mounted as a searchable snapshot");
+            throw new IllegalArgumentException(
+                "phases ["
+                    + phasesDefiningIllegalActions
+                    + "] define one or more of "
+                    + ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT
+                    + " actions which are not allowed after a "
+                    + "managed index is mounted as a searchable snapshot"
+            );
         }
     }
 
@@ -354,9 +310,13 @@ public class TimeseriesLifecycleType implements LifecycleType {
             .collect(Collectors.toSet());
 
         if (allRepos.size() > 1) {
-            throw new IllegalArgumentException("policy specifies [" + SearchableSnapshotAction.NAME +
-                "] action multiple times with differing repositories " + allRepos +
-                ", the same repository must be used for all searchable snapshot actions");
+            throw new IllegalArgumentException(
+                "policy specifies ["
+                    + SearchableSnapshotAction.NAME
+                    + "] action multiple times with differing repositories "
+                    + allRepos
+                    + ", the same repository must be used for all searchable snapshot actions"
+            );
         }
     }
 
@@ -397,29 +357,35 @@ public class TimeseriesLifecycleType implements LifecycleType {
                 if (phasesWithBadAges.size() > 0) {
                     phasesWithBadAges.forEach(p -> invalidPhases.add(p.getName()));
 
-                    //build an error message string
+                    // build an error message string
                     Iterator<Phase> it = phasesWithBadAges.iterator();
                     Phase badPhase = it.next();
 
                     String error = "Your policy is configured to run the "
-                        + badPhase.getName() + " phase (min_age: " + badPhase.getMinimumAge() + ")";
+                        + badPhase.getName()
+                        + " phase (min_age: "
+                        + badPhase.getMinimumAge()
+                        + ")";
 
                     if (phasesWithBadAges.size() > 1) {
                         while (it.hasNext()) {
                             badPhase = it.next();
-                            error = error + ", the " + badPhase.getName() + " phase (min_age: "
-                                + badPhase.getMinimumAge() + ")";
+                            error = error + ", the " + badPhase.getName() + " phase (min_age: " + badPhase.getMinimumAge() + ")";
                         }
                         // if multiple phases are cited replace last occurrence of "," with " and"
                         StringBuilder builder = new StringBuilder();
-                        int last_comma_index = error.lastIndexOf(",");
+                        int last_comma_index = error.lastIndexOf(',');
                         builder.append(error, 0, last_comma_index);
                         builder.append(" and");
                         builder.append(error.substring(last_comma_index + 1));
                         error = builder.toString();
                     }
-                    error = error + " before the " + phaseName + " phase (min_age: " + phase.getMinimumAge() +
-                        "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";
+                    error = error
+                        + " before the "
+                        + phaseName
+                        + " phase (min_age: "
+                        + phase.getMinimumAge()
+                        + "). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold.";
 
                     errors.add(error);
                 }
@@ -434,16 +400,196 @@ public class TimeseriesLifecycleType implements LifecycleType {
      * Require that the "frozen" phase configured in a policy has a searchable snapshot action.
      */
     static void validateFrozenPhaseHasSearchableSnapshotAction(Collection<Phase> phases) {
-        Optional<Phase> maybeFrozenPhase = phases.stream()
-            .filter(p -> FROZEN_PHASE.equals(p.getName()))
-            .findFirst();
+        Optional<Phase> maybeFrozenPhase = phases.stream().filter(p -> FROZEN_PHASE.equals(p.getName())).findFirst();
 
         maybeFrozenPhase.ifPresent(p -> {
             if (p.getActions().containsKey(SearchableSnapshotAction.NAME) == false) {
-                throw new IllegalArgumentException("policy specifies the [" + FROZEN_PHASE + "] phase without a corresponding [" +
-                    SearchableSnapshotAction.NAME + "] action, but a searchable snapshot action is required in the frozen phase");
+                throw new IllegalArgumentException(
+                    "policy specifies the ["
+                        + FROZEN_PHASE
+                        + "] phase without a corresponding ["
+                        + SearchableSnapshotAction.NAME
+                        + "] action, but a searchable snapshot action is required in the frozen phase"
+                );
             }
         });
+    }
+
+    /**
+     * Add validations if there are multiple downsample actions on different phases. The rules that we
+     * enforce are the following:
+     *   - The latter interval must be greater than the previous interval
+     *   - The latter interval must be a multiple of the previous interval
+     */
+    static void validateDownsamplingIntervals(Collection<Phase> phases) {
+        Map<String, Phase> phasesWithDownsamplingActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(DownsampleAction.NAME))
+            .collect(Collectors.toMap(Phase::getName, Function.identity()));
+
+        if (phasesWithDownsamplingActions.size() < 2) {
+            // Interval validations must be executed when there are at least two downsample actions, otherwise return
+            return;
+        }
+
+        // Order phases and extract the downsample action instances per phase
+        List<Phase> orderedPhases = INSTANCE.getOrderedPhases(phasesWithDownsamplingActions);
+        var downsampleActions = orderedPhases.stream()
+            .map(phase -> Tuple.tuple(phase.getName(), (DownsampleAction) phase.getActions().get(DownsampleAction.NAME)))
+            .toList(); // Returns a list of tuples (phase name, downsample action)
+
+        var firstDownsample = downsampleActions.get(0);
+        for (int i = 1; i < downsampleActions.size(); i++) {
+            var secondDownsample = downsampleActions.get(i);
+            var firstInterval = firstDownsample.v2().fixedInterval();
+            var secondInterval = secondDownsample.v2().fixedInterval();
+            long firstMillis = firstInterval.estimateMillis();
+            long secondMillis = secondInterval.estimateMillis();
+            if (firstMillis >= secondMillis) {
+                // The later interval must be greater than the previous interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be greater than the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            } else if (secondMillis % firstMillis != 0) {
+                // Downsampling interval must be a multiple of the source interval
+                throw new IllegalArgumentException(
+                    "Downsampling interval ["
+                        + secondInterval
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be a multiple of the interval ["
+                        + firstInterval
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            var firstSamplingMethod = firstDownsample.v2().samplingMethodOrDefault();
+            var secondSamplingMethod = secondDownsample.v2().samplingMethodOrDefault();
+            if (Objects.equals(firstSamplingMethod, secondSamplingMethod) == false) {
+                // All phases need to use the same downsampling method
+                throw new IllegalArgumentException(
+                    "Downsampling method ["
+                        + secondSamplingMethod
+                        + "] for phase ["
+                        + secondDownsample.v1()
+                        + "] must be compatible with the method ["
+                        + firstSamplingMethod
+                        + "] for phase ["
+                        + firstDownsample.v1()
+                        + "]"
+                );
+            }
+            firstDownsample = secondDownsample;
+        }
+    }
+
+    /**
+     * Performs two validations of the 'replicate_for' attribute on searchable_snapshot actions:
+     *   - If 'replicate_for' is present on a searchable_snapshot action, then it is the *first* searchable_snapshot action
+     *     in phase order
+     *   - If 'replicate_for' is present on a searchable_snapshot action, then for any subsequent phases that have an explicit 'min_age'
+     *     the min_age must be greater than or equal to the 'replicate_for' time itself
+     */
+    static void validateReplicateFor(Collection<Phase> phases) {
+        final Map<String, Phase> phasesWithSearchableSnapshotActions = phases.stream()
+            .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
+            .collect(Collectors.toMap(Phase::getName, Function.identity()));
+
+        // if there are no phases with searchable_snapshot actions, then none of the rest of this logic applies
+        if (phasesWithSearchableSnapshotActions.isEmpty()) {
+            return;
+        }
+
+        // Order phases and extract the searchable_snapshot action instances per phase
+        final List<Phase> orderedPhases = INSTANCE.getOrderedPhases(phasesWithSearchableSnapshotActions);
+        final var searchableSnapshotActions = orderedPhases.stream()
+            .map(phase -> Tuple.tuple(phase.getName(), (SearchableSnapshotAction) phase.getActions().get(SearchableSnapshotAction.NAME)))
+            .toList(); // Returns a list of tuples (phase name, searchable_snapshot action)
+
+        // first validation rule: if there's more than one searchable_snapshot action, then we confirm that 'replicate_for' isn't present
+        // except possibly on the first searchable_snapshot action (n.b. this doesn't actually check the first action, since the value
+        // doesn't actually matter)
+        if (searchableSnapshotActions.size() > 1) {
+            for (int i = 1; i < searchableSnapshotActions.size(); i++) { // iterating from the second phase/action tuple
+                final var phaseAndAction = searchableSnapshotActions.get(i);
+                final String phase = phaseAndAction.v1();
+                final boolean hasReplicateFor = phaseAndAction.v2().getReplicateFor() != null;
+                if (hasReplicateFor) {
+                    throw new IllegalArgumentException(
+                        Strings.format(
+                            "only the first searchable_snapshot action in a policy may specify 'replicate_for', "
+                                + "but it was specified in the [%s] phase",
+                            phase
+                        )
+                    );
+                }
+            }
+        }
+
+        final var firstSearchableSnapshotPhase = searchableSnapshotActions.getFirst().v1();
+        final var firstSearchableSnapshotAction = searchableSnapshotActions.getFirst().v2();
+        // second validation rule: if the first searchable_snapshot action has a 'replicate_for', then the replication time
+        // must be less than the next explicit min_age (if there is a min_age)
+        final TimeValue firstReplicateFor = firstSearchableSnapshotAction.getReplicateFor();
+        if (firstReplicateFor != null) {
+            final Map<String, Phase> allPhases = phases.stream().collect(Collectors.toMap(Phase::getName, Function.identity()));
+            final List<Phase> allPhasesInOrder = INSTANCE.getOrderedPhases(allPhases);
+
+            // find the 'implied min_age' of the phase that contains the searchable_snapshot action with a replicate_for,
+            // it's the latest non-zero min_age of the phases up to and including the phase in question (reminder that min_age values
+            // are either absent/zero or increasing)
+            TimeValue impliedMinAge = TimeValue.ZERO;
+            for (Phase phase : allPhasesInOrder) {
+                // if there's a rollover (in the hot phase) then the hot phase is implicitly a 'zero', since we calculate subsequent
+                // phases from the time of *rollover*
+                final var phaseMinAge = phase.getActions().containsKey(RolloverAction.NAME) ? TimeValue.ZERO : phase.getMinimumAge();
+
+                // TimeValue.ZERO is the null value for minimumAge in Phase
+                if (phaseMinAge != TimeValue.ZERO) {
+                    impliedMinAge = phaseMinAge;
+                }
+                // loop until we find the phase that has the searchable_snapshot action with a replicate_for
+                if (phase.getName().equals(firstSearchableSnapshotPhase)) {
+                    break;
+                }
+            }
+
+            boolean afterReplicatorFor = false;
+            for (Phase phase : allPhasesInOrder) {
+                // loop until we find the phase after the one that has a searchable_snapshot with replicate_for
+                if (phase.getName().equals(firstSearchableSnapshotPhase)) {
+                    afterReplicatorFor = true;
+                    continue; // because we don't want to check the min_age on *this* phase, but on the next ones
+                }
+                // check the min_age requirement for all phases after the one that has the replicate_for set
+                if (afterReplicatorFor) {
+                    final var phaseMinAge = phase.getMinimumAge();
+                    // TimeValue.ZERO is the null value for minimumAge in Phase
+                    final long minAgeDeltaMillis = phaseMinAge.millis() - impliedMinAge.millis();
+                    if (phaseMinAge != TimeValue.ZERO && minAgeDeltaMillis < firstReplicateFor.millis()) {
+                        throw new IllegalArgumentException(
+                            Strings.format(
+                                "The time a searchable snapshot is replicated in replicate_for [%s] may not exceed the time until the "
+                                    + "next phase is configured to begin. Based on the min_age [%s] of the [%s] phase, the maximum time "
+                                    + "the snapshot can be replicated is [%s].",
+                                firstReplicateFor,
+                                phaseMinAge,
+                                phase.getName(),
+                                TimeValue.timeValueMillis(minAgeDeltaMillis).toString()
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private static boolean definesAllocationRules(AllocateAction action) {

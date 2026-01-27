@@ -70,6 +70,7 @@ final class JdbcDateUtils {
     static Timestamp timeAsTimestamp(String date) {
         return new Timestamp(timeAsMillisSinceEpoch(date));
     }
+
     /*
      * Handles the value received as parameter, as either String (a ZonedDateTime formatted in ISO 8601 standard with millis) -
      * date fields being returned formatted like this. Or a Long value, in case of Histograms.

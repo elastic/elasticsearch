@@ -1,24 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
 import de.thetaphi.forbiddenapis.cli.CliMain;
+
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
-import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
-import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ArchiveOperations;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.file.ProjectLayout;
+import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
-import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
@@ -32,6 +35,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 import org.gradle.process.ExecResult;
 
 import java.io.ByteArrayOutputStream;
@@ -50,12 +54,20 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-@CacheableTask
-public class ThirdPartyAuditTask extends DefaultTask {
+import javax.inject.Inject;
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+import static org.gradle.api.JavaVersion.VERSION_20;
+import static org.gradle.api.JavaVersion.VERSION_21;
+import static org.gradle.api.JavaVersion.VERSION_22;
+import static org.gradle.api.JavaVersion.VERSION_23;
+import static org.gradle.api.JavaVersion.VERSION_24;
+import static org.gradle.api.JavaVersion.VERSION_25;
+import static org.gradle.api.JavaVersion.VERSION_26;
+
+@CacheableTask
+public abstract class ThirdPartyAuditTask extends DefaultTask {
+
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -74,22 +86,42 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private File signatureFile;
 
-    private String javaHome;
+    private Property<String> javaHome;
 
-    private FileCollection jdkJarHellClasspath;
+    private final Property<JavaVersion> targetCompatibility;
 
-    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
+    private final ArchiveOperations archiveOperations;
+
+    private final ExecOperations execOperations;
+
+    private final FileSystemOperations fileSystemOperations;
+
+    private final ProjectLayout projectLayout;
+
+    @Inject
+    public ThirdPartyAuditTask(
+        ArchiveOperations archiveOperations,
+        ExecOperations execOperations,
+        FileSystemOperations fileSystemOperations,
+        ProjectLayout projectLayout,
+        ObjectFactory objectFactory
+    ) {
+        this.archiveOperations = archiveOperations;
+        this.execOperations = execOperations;
+        this.fileSystemOperations = fileSystemOperations;
+        this.projectLayout = projectLayout;
+        this.targetCompatibility = objectFactory.property(JavaVersion.class);
+        this.javaHome = objectFactory.property(String.class);
+    }
 
     @Input
     public Property<JavaVersion> getTargetCompatibility() {
         return targetCompatibility;
     }
 
+    @Classpath
     @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
-    public Configuration getForbiddenAPIsConfiguration() {
-        return getProject().getConfigurations().getByName("forbiddenApisCliJar");
-    }
+    public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
     @PathSensitive(PathSensitivity.NONE)
@@ -101,36 +133,25 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.signatureFile = signatureFile;
     }
 
-    @Input
-    @Optional
-    public String getJavaHome() {
+    @Internal
+    public Property<String> getJavaHome() {
         return javaHome;
-    }
-
-    public void setJavaHome(String javaHome) {
-        this.javaHome = javaHome;
     }
 
     @Internal
     public File getJarExpandDir() {
-        return new File(new File(getProject().getBuildDir(), "precommit/thirdPartyAudit"), getName());
+        return projectLayout.getBuildDirectory().dir("precommit/thirdPartyAudit").get().dir(getName()).getAsFile();
     }
 
     @OutputFile
     public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return projectLayout.getBuildDirectory().dir("precommit/thirdPartyAudit").get().dir("markers/").file(getName()).getAsFile();
     }
 
     // We use compile classpath normalization here because class implementation changes are irrelevant for the purposes of jdk jar hell.
     // We only care about the runtime classpath ABI here.
     @CompileClasspath
-    public FileCollection getJdkJarHellClasspath() {
-        return jdkJarHellClasspath.filter(File::exists);
-    }
-
-    public void setJdkJarHellClasspath(FileCollection jdkJarHellClasspath) {
-        this.jdkJarHellClasspath = jdkJarHellClasspath;
-    }
+    abstract ConfigurableFileCollection getJdkJarHellClasspath();
 
     public void ignoreMissingClasses(String... classesOrPackages) {
         if (classesOrPackages.length == 0) {
@@ -170,31 +191,20 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     @Classpath
     @SkipWhenEmpty
-    public Set<File> getJarsToScan() {
-        // These are SelfResolvingDependency, and some of them backed by file collections, like the Gradle API files,
-        // or dependencies added as `files(...)`, we can't be sure if those are third party or not.
-        // err on the side of scanning these to make sure we don't miss anything
-        Spec<Dependency> reallyThirdParty = dep -> dep.getGroup() != null && dep.getGroup().startsWith("org.elasticsearch") == false;
-        Set<File> jars = getRuntimeConfiguration().getResolvedConfiguration().getFiles(reallyThirdParty);
-        Set<File> compileOnlyConfiguration = getProject().getConfigurations()
-            .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            .getResolvedConfiguration()
-            .getFiles(reallyThirdParty);
-        // don't scan provided dependencies that we already scanned, e.x. don't scan cores dependencies for every plugin
-        if (compileOnlyConfiguration != null) {
-            jars.removeAll(compileOnlyConfiguration);
-        }
-        return jars;
-    }
+    public abstract ConfigurableFileCollection getJarsToScan();
+
+    @Input
+    @Optional
+    public abstract Property<JavaVersion> getRuntimeJavaVersion();
+
+    @Classpath
+    public abstract ConfigurableFileCollection getThirdPartyClasspath();
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
-        Set<File> jars = getJarsToScan();
-
-        extractJars(jars);
-
+        Set<File> jars = getJarsToScan().getFiles();
+        extractJars(jars, getJarExpandDir());
         final String forbiddenApisOutput = runForbiddenAPIsCli();
-
         final Set<String> missingClasses = new TreeSet<>();
         Matcher missingMatcher = MISSING_CLASS_PATTERN.matcher(forbiddenApisOutput);
         while (missingMatcher.find()) {
@@ -217,7 +227,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
                 throw new IllegalStateException(
-                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed"
+                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
+                        + "or that exclusions are configured unnecessarily"
                 );
             }
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -247,7 +258,11 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
         assertNoJarHell(jdkJarHellClasses);
 
-        // Mark successful third party audit check
+        success();
+    }
+
+    // Mark successful third party audit check
+    private void success() throws IOException {
         getSuccessMarker().getParentFile().mkdirs();
         Files.write(getSuccessMarker().toPath(), new byte[] {});
     }
@@ -256,18 +271,18 @@ public class ThirdPartyAuditTask extends DefaultTask {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
     }
 
-    private void throwNotConfiguredCorrectlyException() {
-        throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
-    }
-
-    private void extractJars(Set<File> jars) {
-        File jarExpandDir = getJarExpandDir();
+    /**
+     * Ideally we would do unpacking already via artifact transform and keep unpacked jars across builds.
+     * At the moment transform target folder is not configurable and forbidden CLI only takes one common
+     * directory as input which makes it incompatible with gradle artifact transforms as we use them today.
+     * */
+    private void extractJars(Set<File> jars, File jarExpandDir) {
         // We need to clean up to make sure old dependencies don't linger
-        getProject().delete(jarExpandDir);
+        fileSystemOperations.delete(d -> d.delete(jarExpandDir));
 
         jars.forEach(jar -> {
-            FileTree jarFiles = getProject().zipTree(jar);
-            getProject().copy(spec -> {
+            FileTree jarFiles = archiveOperations.zipTree(jar);
+            fileSystemOperations.copy(spec -> {
                 spec.from(jarFiles);
                 spec.into(jarExpandDir);
                 // exclude classes from multi release jars
@@ -286,8 +301,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
             IntStream.rangeClosed(
                 Integer.parseInt(JavaVersion.VERSION_1_9.getMajorVersion()),
                 Integer.parseInt(targetCompatibility.get().getMajorVersion())
-            ).forEach(majorVersion -> getProject().copy(spec -> {
-                spec.from(getProject().zipTree(jar));
+            ).forEach(majorVersion -> fileSystemOperations.copy(spec -> {
+                spec.from(archiveOperations.zipTree(jar));
                 spec.into(jarExpandDir);
                 String metaInfPrefix = "META-INF/versions/" + majorVersion;
                 spec.include(metaInfPrefix + "/**");
@@ -324,18 +339,24 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private String runForbiddenAPIsCli() throws IOException {
         ByteArrayOutputStream errorOut = new ByteArrayOutputStream();
-        ExecResult result = getProject().javaexec(spec -> {
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+        ExecResult result = execOperations.javaexec(spec -> {
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
-            spec.classpath(
-                getForbiddenAPIsConfiguration(),
-                getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            );
+            spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
+            // Enable explicitly for each release as appropriate and just the vector module.
+            if (isJavaVersion(VERSION_20)
+                || isJavaVersion(VERSION_21)
+                || isJavaVersion(VERSION_22)
+                || isJavaVersion(VERSION_23)
+                || isJavaVersion(VERSION_24)
+                || isJavaVersion(VERSION_25)
+                || isJavaVersion(VERSION_26)) {
+                spec.jvmArgs("--add-modules", "jdk.incubator.vector");
+            }
             spec.jvmArgs("-Xmx1g");
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());
@@ -347,7 +368,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
         final String forbiddenApisOutput;
         try (ByteArrayOutputStream outputStream = errorOut) {
-            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8.name());
+            forbiddenApisOutput = outputStream.toString(StandardCharsets.UTF_8);
         }
         if (EXPECTED_EXIT_CODES.contains(result.getExitValue()) == false) {
             throw new IllegalStateException("Forbidden APIs cli failed: " + forbiddenApisOutput);
@@ -355,20 +376,23 @@ public class ThirdPartyAuditTask extends DefaultTask {
         return forbiddenApisOutput;
     }
 
+    /** Returns true iff the build Java version is the same as the given version. */
+    private boolean isJavaVersion(JavaVersion version) {
+        if (getRuntimeJavaVersion().isPresent()) {
+            return getRuntimeJavaVersion().get().equals(version);
+        }
+        return version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion());
+    }
+
     private Set<String> runJdkJarHellCheck() throws IOException {
         ByteArrayOutputStream standardOut = new ByteArrayOutputStream();
-        ExecResult execResult = getProject().javaexec(spec -> {
-            spec.classpath(
-                jdkJarHellClasspath,
-                getRuntimeConfiguration(),
-                getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
-            );
-
+        ExecResult execResult = execOperations.javaexec(spec -> {
+            spec.classpath(getJdkJarHellClasspath(), getThirdPartyClasspath());
             spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
-            if (javaHome != null) {
-                spec.setExecutable(javaHome + "/bin/java");
+            if (javaHome.isPresent()) {
+                spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.setStandardOutput(standardOut);
         });
@@ -377,16 +401,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
         }
         final String jdkJarHellCheckList;
         try (ByteArrayOutputStream outputStream = standardOut) {
-            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8.name());
+            jdkJarHellCheckList = outputStream.toString(StandardCharsets.UTF_8);
         }
         return new TreeSet<>(Arrays.asList(jdkJarHellCheckList.split("\\r?\\n")));
     }
 
-    private Configuration getRuntimeConfiguration() {
-        Configuration runtime = getProject().getConfigurations().findByName("runtimeClasspath");
-        if (runtime == null) {
-            return getProject().getConfigurations().getByName("testCompileClasspath");
-        }
-        return runtime;
-    }
 }

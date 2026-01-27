@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.engine;
 
@@ -20,7 +21,7 @@ final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
     private Class<? extends FilterDirectoryReader> wrapperClass;
 
-    MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
+    MockInternalEngine(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
         super(config);
         wrapperClass = wrapper;
 
@@ -37,24 +38,16 @@ final class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.CLOSE)) {
-            case FLUSH_AND_CLOSE:
-                flushAndCloseInternal();
-                break;
-            case CLOSE:
-                super.close();
-                break;
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
+            case CLOSE -> super.close();
         }
     }
 
     @Override
     public void flushAndClose() throws IOException {
         switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-            case FLUSH_AND_CLOSE:
-                flushAndCloseInternal();
-                break;
-            case CLOSE:
-                super.close();
-                break;
+            case FLUSH_AND_CLOSE -> flushAndCloseInternal();
+            case CLOSE -> super.close();
         }
     }
 

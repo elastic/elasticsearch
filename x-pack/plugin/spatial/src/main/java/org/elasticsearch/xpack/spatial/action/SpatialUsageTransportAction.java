@@ -8,11 +8,10 @@ package org.elasticsearch.xpack.spatial.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,21 +27,30 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
     private final Client client;
 
     @Inject
-    public SpatialUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       Client client) {
-        super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public SpatialUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Client client
+    ) {
+        super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void localClusterStateOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         SpatialStatsAction.Request statsRequest = new SpatialStatsAction.Request();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        client.execute(SpatialStatsAction.INSTANCE, statsRequest, ActionListener.wrap(r ->
-                listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))),
-            listener::onFailure));
+        client.execute(
+            SpatialStatsAction.INSTANCE,
+            statsRequest,
+            ActionListener.wrap(r -> listener.onResponse(new XPackUsageFeatureResponse(new SpatialFeatureSetUsage(r))), listener::onFailure)
+        );
     }
 }

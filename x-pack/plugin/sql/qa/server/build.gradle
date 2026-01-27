@@ -1,10 +1,6 @@
-description = 'Integration tests for SQL'
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
-// the main files are actually test files, so use the appropriate forbidden api sigs
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
-}
+description = 'Integration tests for SQL'
 
 dependencies {
   api project(":test:framework")
@@ -20,96 +16,93 @@ dependencies {
   api project(path: xpackModule('sql:sql-cli'))
 
   // H2GIS testing dependencies
-  api( "org.orbisgis:h2gis:${h2gisVersion}") {
+  api("org.orbisgis:h2gis:${h2gisVersion}") {
     exclude group: "org.locationtech.jts"
   }
 
   // select just the parts of JLine that are needed
-  api( "org.jline:jline-terminal-jna:${jlineVersion}") {
+  api("org.jline:jline-terminal-jna:${jlineVersion}") {
     exclude group: "net.java.dev.jna"
   }
   api "org.jline:jline-terminal:${jlineVersion}"
   api "org.jline:jline-reader:${jlineVersion}"
   api "org.jline:jline-style:${jlineVersion}"
 
-  testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
-}
-
-// this is just a test fixture used by other projects and not in production
-['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo', 'dependenciesGraph'].each {
-  tasks.named(it).configure {
-    enabled = false
-  }
+  testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }
 
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
-    apply plugin: 'elasticsearch.standalone-rest-test'
   } else {
-    apply plugin: 'elasticsearch.build'
-  }
-
-  dependencies {
-    configurations.testRuntimeClasspath {
-      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
-    configurations.testRuntimeOnly {
-      // This is also required to make resolveAllDependencies work
-      resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
-    }
-
-    /* Since we're a standalone rest test we actually get transitive
-     * dependencies but we don't really want them because they cause
-     * all kinds of trouble with the jar hell checks. So we suppress
-     * them explicitly for non-es projects. */
-    testImplementation(xpackProject('plugin:sql:qa:server')) {
-      transitive = false
-    }
-    testImplementation project(":test:framework")
-    testRuntimeOnly project(xpackModule('ql:test-fixtures'))
-
-    // JDBC testing dependencies
-    testRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
-    testRuntimeOnly "com.h2database:h2:${h2Version}"
-
-    // H2GIS testing dependencies
-    testRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}") {
-      exclude group: "org.locationtech.jts"
-      exclude group: "com.fasterxml.jackson.core"
-    }
-
-    testRuntimeOnly project(path: xpackModule('sql:jdbc'))
-    testRuntimeOnly xpackProject('plugin:sql:sql-client')
-
-    // CLI testing dependencies
-    testRuntimeOnly project(path: xpackModule('sql:sql-cli'))
-    testRuntimeOnly(xpackProject('plugin:sql:sql-action')) {
-      transitive = false
-    }
-
-    testRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
-      exclude group: "net.java.dev.jna"
-    }
-    testRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
-    testRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
-    testRuntimeOnly "org.jline:jline-style:${jlineVersion}"
-
-    testRuntimeOnly "org.elasticsearch:jna:${versions.jna}"
-
-    // spatial dependency
-    testRuntimeOnly project(path: xpackModule('spatial'))
+    apply plugin: 'elasticsearch.java'
   }
 
   if (project.name != 'security') {
     // The security project just configures its subprojects
-    apply plugin: 'elasticsearch.internal-testclusters'
-    apply plugin: 'elasticsearch.rest-test'
+    apply plugin: 'elasticsearch.internal-java-rest-test'
 
-    testClusters.matching { it.name == "integTest" }.configureEach {
-      testDistribution = 'DEFAULT'
-      setting 'xpack.ml.enabled', 'false'
-      setting 'xpack.watcher.enabled', 'false'
+    if (project.parent.name != 'security') {
+      tasks.named('javaRestTest') {
+        usesDefaultDistribution("to be triaged")
+      }
+    }
+
+    dependencies {
+      configurations.javaRestTestRuntimeClasspath {
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+      configurations.javaRestTestRuntimeOnly {
+        // This is also required to make resolveAllDependencies work
+        resolutionStrategy.force "org.slf4j:slf4j-api:1.7.25"
+      }
+
+      /* Since we're a standalone rest test we actually get transitive
+       * dependencies but we don't really want them because they cause
+       * all kinds of trouble with the jar hell checks. So we suppress
+       * them explicitly for non-es projects. */
+      javaRestTestImplementation(project(':x-pack:plugin:sql:qa:server')) {
+        transitive = false
+      }
+      javaRestTestImplementation project(":test:framework")
+      javaRestTestImplementation project(xpackModule('ql:test-fixtures'))
+
+      // JDBC testing dependencies
+      javaRestTestRuntimeOnly "net.sourceforge.csvjdbc:csvjdbc:${csvjdbcVersion}"
+      javaRestTestRuntimeOnly "com.h2database:h2:${h2Version}"
+
+      // H2GIS testing dependencies
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-api:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:h2gis-utilities:${h2gisVersion}")
+      javaRestTestRuntimeOnly("org.orbisgis:cts:1.5.2")
+
+
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:jdbc'))
+      javaRestTestRuntimeOnly project(':x-pack:plugin:sql:sql-client')
+
+      // CLI testing dependencies
+      javaRestTestRuntimeOnly project(path: xpackModule('sql:sql-cli'))
+      javaRestTestRuntimeOnly(project(':x-pack:plugin:sql:sql-action')) {
+        transitive = false
+      }
+
+      javaRestTestRuntimeOnly("org.jline:jline-terminal-jna:${jlineVersion}") {
+        exclude group: "net.java.dev.jna"
+      }
+      javaRestTestRuntimeOnly "org.jline:jline-terminal:${jlineVersion}"
+      javaRestTestRuntimeOnly "org.jline:jline-reader:${jlineVersion}"
+      javaRestTestRuntimeOnly "org.jline:jline-style:${jlineVersion}"
+
+      javaRestTestRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
+
+      // spatial dependency
+      javaRestTestRuntimeOnly project(path: xpackModule('spatial'))
+      javaRestTestRuntimeOnly project(path: ':modules:legacy-geo')
+
+      javaRestTestRuntimeOnly project(path: ':modules:rest-root')
+
+      javaRestTestRuntimeOnly "org.slf4j:slf4j-api:1.7.25"
     }
   }
 }

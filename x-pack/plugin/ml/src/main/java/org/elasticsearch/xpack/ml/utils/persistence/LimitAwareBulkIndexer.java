@@ -34,7 +34,7 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
     private long currentRamBytes;
 
     public LimitAwareBulkIndexer(Settings settings, Consumer<BulkRequest> executor) {
-        this((long) Math.ceil(0.5 * IndexingPressure.MAX_INDEXING_BYTES.get(settings).getBytes()), executor);
+        this((long) Math.ceil(0.5 * IndexingPressure.MAX_COORDINATING_BYTES.get(settings).getBytes()), executor);
     }
 
     LimitAwareBulkIndexer(long bytesLimit, Consumer<BulkRequest> executor) {
@@ -52,8 +52,12 @@ public class LimitAwareBulkIndexer implements AutoCloseable {
 
     private void execute() {
         if (currentBulkRequest.numberOfActions() > 0) {
-            LOGGER.debug("Executing bulk request; current bytes [{}]; bytes limit [{}]; number of actions [{}]",
-                currentRamBytes, bytesLimit, currentBulkRequest.numberOfActions());
+            LOGGER.debug(
+                "Executing bulk request; current bytes [{}]; bytes limit [{}]; number of actions [{}]",
+                currentRamBytes,
+                bytesLimit,
+                currentBulkRequest.numberOfActions()
+            );
             executor.accept(currentBulkRequest);
             currentBulkRequest = new BulkRequest();
             currentRamBytes = 0;

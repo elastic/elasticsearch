@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.lucene.search.function;
@@ -16,9 +17,9 @@ import java.util.Objects;
 
 public class WeightFactorFunction extends ScoreFunction {
 
-    private static final ScoreFunction SCORE_ONE = new ScoreOne(CombineFunction.MULTIPLY);
+    private static final ScoreFunction SCORE_ONE = new ScoreOne();
     private final ScoreFunction scoreFunction;
-    private float weight = 1.0f;
+    private final float weight;
 
     public WeightFactorFunction(float weight, ScoreFunction scoreFunction) {
         super(CombineFunction.MULTIPLY);
@@ -49,8 +50,11 @@ public class WeightFactorFunction extends ScoreFunction {
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 Explanation functionExplanation = leafFunction.explainScore(docId, subQueryScore);
                 return Explanation.match(
-                        functionExplanation.getValue().floatValue() * getWeight(), "product of:",
-                        functionExplanation, explainWeight());
+                    functionExplanation.getValue().floatValue() * getWeight(),
+                    "product of:",
+                    functionExplanation,
+                    explainWeight()
+                );
             }
         };
     }
@@ -76,8 +80,7 @@ public class WeightFactorFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         WeightFactorFunction weightFactorFunction = (WeightFactorFunction) other;
-        return this.weight == weightFactorFunction.weight &&
-                Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
+        return this.weight == weightFactorFunction.weight && Objects.equals(this.scoreFunction, weightFactorFunction.scoreFunction);
     }
 
     @Override
@@ -87,8 +90,8 @@ public class WeightFactorFunction extends ScoreFunction {
 
     private static class ScoreOne extends ScoreFunction {
 
-        protected ScoreOne(CombineFunction scoreCombiner) {
-            super(scoreCombiner);
+        protected ScoreOne() {
+            super(CombineFunction.MULTIPLY);
         }
 
         @Override

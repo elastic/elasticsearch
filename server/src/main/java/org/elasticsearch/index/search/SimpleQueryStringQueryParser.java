@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.search;
 
@@ -49,16 +50,21 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     private final Settings settings;
     private SearchExecutionContext context;
     private final MultiMatchQueryParser queryBuilder;
+    private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.MOST_FIELDS;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
-                                        Settings settings, SearchExecutionContext context) {
+    public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags, Settings settings, SearchExecutionContext context) {
         this(null, weights, flags, settings, context);
     }
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryStringQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
-                                        Settings settings, SearchExecutionContext context) {
+    public SimpleQueryStringQueryParser(
+        Analyzer analyzer,
+        Map<String, Float> weights,
+        int flags,
+        Settings settings,
+        SearchExecutionContext context
+    ) {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
@@ -75,7 +81,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (getAnalyzer() != null) {
             return analyzer;
         }
-        return ft.getTextSearchInfo().getSearchAnalyzer();
+        return ft.getTextSearchInfo().searchAnalyzer();
     }
 
     /**
@@ -106,16 +112,20 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newDefaultQuery(String text) {
         try {
-            return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
+            return queryBuilder.parse(type, weights, text, null);
         } catch (IOException e) {
             return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
     }
 
+    public void setType(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
+    }
+
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
         List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+        for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
@@ -124,8 +134,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
-                Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
-                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions, context);
+                Query query = ft.fuzzyQuery(
+                    term,
+                    Fuzziness.fromEdits(fuzziness),
+                    settings.fuzzyPrefixLength,
+                    settings.fuzzyMaxExpansions,
+                    settings.fuzzyTranspositions,
+                    context
+                );
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 disjuncts.add(rethrowUnlessLenient(e));
@@ -158,7 +174,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newPrefixQuery(String text) {
         List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+        for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
@@ -183,6 +199,9 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         if (disjuncts.size() == 1) {
             return disjuncts.get(0);
         }
+        if (disjuncts.size() == 0) {
+            return null;
+        }
         return new DisjunctionMaxQuery(disjuncts, 1.0f);
     }
 
@@ -202,7 +221,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
      * of {@code TermQuery}s and {@code PrefixQuery}s
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr, Analyzer analyzer) {
-        List<List<BytesRef>> tlist = new ArrayList<> ();
+        List<List<BytesRef>> tlist = new ArrayList<>();
         try (TokenStream source = analyzer.tokenStream(field, termStr)) {
             source.reset();
             List<BytesRef> currentPos = new ArrayList<>();
@@ -244,7 +263,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (int pos = 0; pos < tlist.size(); pos++) {
             List<BytesRef> plist = tlist.get(pos);
-            boolean isLastPos = (pos == tlist.size()-1);
+            boolean isLastPos = (pos == tlist.size() - 1);
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
@@ -254,16 +273,16 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
-                Term[] terms = new Term[plist.size()];
-                for (int i = 0; i < plist.size(); i++) {
-                    terms[i] = new Term(field, plist.get(i));
+                SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
+                for (BytesRef bytesRef : plist) {
+                    sb.addTerm(new Term(field, bytesRef));
+
                 }
-                posQuery = new SynonymQuery(terms);
+                posQuery = sb.build();
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
                 for (BytesRef token : plist) {
-                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
-                        BooleanClause.Occur.SHOULD));
+                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)), BooleanClause.Occur.SHOULD));
                 }
                 posQuery = innerBuilder.build();
             }
@@ -296,8 +315,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
-        public Settings() {
-        }
+        public Settings() {}
 
         public Settings(Settings other) {
             this.lenient = other.lenient;
@@ -382,8 +400,15 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery,
-                fuzzyPrefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
+            return Objects.hash(
+                lenient,
+                analyzeWildcard,
+                quoteFieldSuffix,
+                autoGenerateSynonymsPhraseQuery,
+                fuzzyPrefixLength,
+                fuzzyMaxExpansions,
+                fuzzyTranspositions
+            );
         }
 
         @Override
@@ -395,13 +420,13 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 return false;
             }
             Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient) &&
-                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
-                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
-                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
-                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
-                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
-                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
+            return Objects.equals(lenient, other.lenient)
+                && Objects.equals(analyzeWildcard, other.analyzeWildcard)
+                && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix)
+                && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
+                && Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength)
+                && Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions)
+                && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
         }
     }
 }

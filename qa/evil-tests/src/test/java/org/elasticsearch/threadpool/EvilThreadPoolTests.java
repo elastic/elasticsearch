@@ -1,25 +1,29 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -48,7 +52,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         for (String executor : ThreadPool.THREAD_POOL_TYPES.keySet()) {
             checkExecutionError(getExecuteRunner(threadPool.executor(executor)));
             checkExecutionError(getSubmitRunner(threadPool.executor(executor)));
-            checkExecutionError(getScheduleRunner(executor));
+            checkExecutionError(getScheduleRunner(threadPool.executor(executor)));
         }
     }
 
@@ -58,8 +62,14 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
+        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed(
+            "test",
+            1,
+            1,
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+        );
         try {
             checkExecutionError(getExecuteRunner(fixedExecutor));
             checkExecutionError(getSubmitRunner(fixedExecutor));
@@ -69,8 +79,16 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionErrorOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling("test", 1, 1,
-            10, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+            "test",
+            1,
+            1,
+            10,
+            TimeUnit.SECONDS,
+            randomBoolean(),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
+            threadPool.getThreadContext()
+        );
         try {
             checkExecutionError(getExecuteRunner(scalingExecutor));
             checkExecutionError(getSubmitRunner(scalingExecutor));
@@ -82,10 +100,10 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionErrorOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            threadPool.scheduler()
+        );
         try {
             checkExecutionError(getExecuteRunner(prioritizedExecutor));
             checkExecutionError(getSubmitRunner(prioritizedExecutor));
@@ -115,9 +133,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         logger.info("checking error for {}", runner);
         final Runnable runnable;
         if (randomBoolean()) {
-            runnable = () -> {
-                throw new Error("future error");
-            };
+            runnable = () -> { throw new Error("future error"); };
         } else {
             runnable = new AbstractRunnable() {
                 @Override
@@ -131,15 +147,11 @@ public class EvilThreadPoolTests extends ESTestCase {
                 }
             };
         }
-        runExecutionTest(
-            runner,
-            runnable,
-            true,
-            o -> {
-                assertTrue(o.isPresent());
-                assertThat(o.get(), instanceOf(Error.class));
-                assertThat(o.get(), hasToString(containsString("future error")));
-            });
+        runExecutionTest(runner, runnable, true, o -> {
+            assertTrue(o.isPresent());
+            assertThat(o.get(), instanceOf(Error.class));
+            assertThat(o.get(), hasToString(containsString("future error")));
+        });
     }
 
     public void testExecutionExceptionOnDefaultThreadPoolTypes() throws InterruptedException {
@@ -149,7 +161,7 @@ public class EvilThreadPoolTests extends ESTestCase {
             // here, it's ok for the exception not to bubble up. Accessing the future will yield the exception
             checkExecutionException(getSubmitRunner(threadPool.executor(executor)), false);
 
-            checkExecutionException(getScheduleRunner(executor), true);
+            checkExecutionException(getScheduleRunner(threadPool.executor(executor)), true);
         }
     }
 
@@ -159,8 +171,14 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnFixedESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed("test", 1, 1,
-            EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext(), randomBoolean());
+        final EsThreadPoolExecutor fixedExecutor = EsExecutors.newFixed(
+            "test",
+            1,
+            1,
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
+            threadPool.getThreadContext(),
+            randomFrom(TaskTrackingConfig.DEFAULT, TaskTrackingConfig.DO_NOT_TRACK)
+        );
         try {
             checkExecutionException(getExecuteRunner(fixedExecutor), true);
             checkExecutionException(getSubmitRunner(fixedExecutor), false);
@@ -170,8 +188,16 @@ public class EvilThreadPoolTests extends ESTestCase {
     }
 
     public void testExecutionExceptionOnScalingESThreadPoolExecutor() throws InterruptedException {
-        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling("test", 1, 1,
-            10, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test"), threadPool.getThreadContext());
+        final EsThreadPoolExecutor scalingExecutor = EsExecutors.newScaling(
+            "test",
+            1,
+            1,
+            10,
+            TimeUnit.SECONDS,
+            randomBoolean(),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
+            threadPool.getThreadContext()
+        );
         try {
             checkExecutionException(getExecuteRunner(scalingExecutor), true);
             checkExecutionException(getSubmitRunner(scalingExecutor), false);
@@ -183,10 +209,10 @@ public class EvilThreadPoolTests extends ESTestCase {
     public void testExecutionExceptionOnSinglePrioritizingThreadPoolExecutor() throws InterruptedException {
         final PrioritizedEsThreadPoolExecutor prioritizedExecutor = EsExecutors.newSinglePrioritizing(
             "test",
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             threadPool.getThreadContext(),
-            threadPool.scheduler(),
-            PrioritizedEsThreadPoolExecutor.StarvationWatcher.NOOP_STARVATION_WATCHER);
+            threadPool.scheduler()
+        );
         try {
             checkExecutionException(getExecuteRunner(prioritizedExecutor), true);
             checkExecutionException(getSubmitRunner(prioritizedExecutor), false);
@@ -232,9 +258,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         final boolean willThrow;
         if (randomBoolean()) {
             logger.info("checking direct exception for {}", runner);
-            runnable = () -> {
-                throw new IllegalStateException("future exception");
-            };
+            runnable = () -> { throw new IllegalStateException("future exception"); };
             willThrow = expectException;
         } else {
             logger.info("checking abstract runnable exception for {}", runner);
@@ -251,18 +275,14 @@ public class EvilThreadPoolTests extends ESTestCase {
             };
             willThrow = false;
         }
-        runExecutionTest(
-            runner,
-            runnable,
-            willThrow,
-            o -> {
-                assertEquals(willThrow, o.isPresent());
-                if (willThrow) {
-                    if (o.get() instanceof Error) throw (Error) o.get();
-                    assertThat(o.get(), instanceOf(IllegalStateException.class));
-                    assertThat(o.get(), hasToString(containsString("future exception")));
-                }
-            });
+        runExecutionTest(runner, runnable, willThrow, o -> {
+            assertEquals(willThrow, o.isPresent());
+            if (willThrow) {
+                if (o.get() instanceof Error error) throw error;
+                assertThat(o.get(), instanceOf(IllegalStateException.class));
+                assertThat(o.get(), hasToString(containsString("future exception")));
+            }
+        });
     }
 
     Consumer<Runnable> getExecuteRunner(ExecutorService executor) {
@@ -293,7 +313,7 @@ public class EvilThreadPoolTests extends ESTestCase {
         };
     }
 
-    Consumer<Runnable> getScheduleRunner(String executor) {
+    Consumer<Runnable> getScheduleRunner(Executor executor) {
         return new Consumer<Runnable>() {
             @Override
             public void accept(Runnable runnable) {
@@ -311,7 +331,8 @@ public class EvilThreadPoolTests extends ESTestCase {
         final Consumer<Runnable> runner,
         final Runnable runnable,
         final boolean expectThrowable,
-        final Consumer<Optional<Throwable>> consumer) throws InterruptedException {
+        final Consumer<Optional<Throwable>> consumer
+    ) throws InterruptedException {
         final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
         final Thread.UncaughtExceptionHandler uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         final CountDownLatch uncaughtExceptionHandlerLatch = new CountDownLatch(1);

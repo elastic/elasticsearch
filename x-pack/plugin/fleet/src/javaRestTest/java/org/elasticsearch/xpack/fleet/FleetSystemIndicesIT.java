@@ -5,25 +5,6 @@
  * 2.0.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
 package org.elasticsearch.xpack.fleet;
 
 import org.apache.http.util.EntityUtils;
@@ -32,16 +13,16 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
-public class FleetSystemIndicesIT extends ESRestTestCase {
+public class FleetSystemIndicesIT extends AbstractFleetIT {
 
     static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
         "x_pack_rest_user",
@@ -94,6 +75,61 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
         response = client().performRequest(request);
         responseBody = EntityUtils.toString(response.getEntity());
         assertThat(responseBody, containsString("action_id"));
+    }
+
+    public void testCreationOfFleetFiles() throws Exception {
+        Request request = new Request("POST", ".fleet-fileds-fromhost-meta-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
+
+        Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-fileds-fromhost-meta-agent/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("action_id"));
+    }
+
+    public void testCreationOfFleetFileData() throws Exception {
+        Request request = new Request("POST", ".fleet-fileds-fromhost-data-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
+        Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-fileds-fromhost-data-agent/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("data"));
+        assertThat(responseBody, containsString("bid"));
+    }
+
+    public void testCreationOfFleetFileDelivery() throws Exception {
+        Request request = new Request("POST", ".fleet-fileds-tohost-meta-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
+        Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-fileds-tohost-meta-agent/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("action_id"));
+    }
+
+    public void testCreationOfFleetFileDeliveryData() throws Exception {
+        Request request = new Request("POST", ".fleet-fileds-tohost-data-agent/_doc");
+        request.setJsonEntity("{\"@timestamp\": 0}");
+        Response response = client().performRequest(request);
+        assertEquals(201, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".fleet-fileds-tohost-data-agent/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, not(containsString("xpack.fleet.template.version"))); // assert templating worked
+        assertThat(responseBody, containsString("data"));
+        assertThat(responseBody, containsString("bid"));
     }
 
     public void testCreationOfFleetArtifacts() throws Exception {
@@ -184,7 +220,7 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void verifyILMPolicyExists() throws Exception {
+    public void verifyActionsILMPolicyExists() throws Exception {
         assertBusy(() -> {
             Request request = new Request("GET", "_ilm/policy/.fleet-actions-results-ilm-policy");
             Response response = client().performRequest(request);
@@ -196,5 +232,81 @@ public class FleetSystemIndicesIT extends ESRestTestCase {
             assertNotNull(policyMap);
             assertThat(policyMap.size(), equalTo(2));
         });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void verifyFilesILMPolicyExists() throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "_ilm/policy/.fleet-file-fromhost-meta-ilm-policy");
+            Response response = client().performRequest(request);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            final String responseJson = EntityUtils.toString(response.getEntity());
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), responseJson, false);
+            assertNotNull(responseMap.get(".fleet-file-fromhost-meta-ilm-policy"));
+            Map<String, Object> policyMap = (Map<String, Object>) responseMap.get(".fleet-file-fromhost-meta-ilm-policy");
+            assertNotNull(policyMap);
+            assertThat(policyMap.size(), equalTo(2));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void verifyFileDataILMPolicyExists() throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "_ilm/policy/.fleet-file-fromhost-data-ilm-policy");
+            Response response = client().performRequest(request);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            final String responseJson = EntityUtils.toString(response.getEntity());
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), responseJson, false);
+            assertNotNull(responseMap.get(".fleet-file-fromhost-data-ilm-policy"));
+            Map<String, Object> policyMap = (Map<String, Object>) responseMap.get(".fleet-file-fromhost-data-ilm-policy");
+            assertNotNull(policyMap);
+            assertThat(policyMap.size(), equalTo(2));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void verifyFileDeliveryILMPolicyExists() throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "_ilm/policy/.fleet-file-tohost-meta-ilm-policy");
+            Response response = client().performRequest(request);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            final String responseJson = EntityUtils.toString(response.getEntity());
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), responseJson, false);
+            assertNotNull(responseMap.get(".fleet-file-tohost-meta-ilm-policy"));
+            Map<String, Object> policyMap = (Map<String, Object>) responseMap.get(".fleet-file-tohost-meta-ilm-policy");
+            assertNotNull(policyMap);
+            assertThat(policyMap.size(), equalTo(2));
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public void verifyFileDeliveryDataILMPolicyExists() throws Exception {
+        assertBusy(() -> {
+            Request request = new Request("GET", "_ilm/policy/.fleet-file-tohost-data-ilm-policy");
+            Response response = client().performRequest(request);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            final String responseJson = EntityUtils.toString(response.getEntity());
+            Map<String, Object> responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), responseJson, false);
+            assertNotNull(responseMap.get(".fleet-file-tohost-data-ilm-policy"));
+            Map<String, Object> policyMap = (Map<String, Object>) responseMap.get(".fleet-file-tohost-data-ilm-policy");
+            assertNotNull(policyMap);
+            assertThat(policyMap.size(), equalTo(2));
+        });
+    }
+
+    public void testCreationOfIntegrationKnowledge() throws Exception {
+        Request request = new Request("PUT", ".integration_knowledge");
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        request = new Request("GET", ".integration_knowledge/_mapping");
+        response = client().performRequest(request);
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("content"));
+
+        request = new Request("GET", ".integration_knowledge-7/_mapping");
+        response = client().performRequest(request);
+        responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("content"));
     }
 }

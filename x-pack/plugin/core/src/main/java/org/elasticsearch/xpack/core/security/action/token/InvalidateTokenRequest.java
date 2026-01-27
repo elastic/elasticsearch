@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.security.action.token;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -20,7 +20,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request for invalidating a token so that it can no longer be used
  */
-public final class InvalidateTokenRequest extends ActionRequest {
+public final class InvalidateTokenRequest extends LegacyActionRequest {
 
     public enum Type {
         ACCESS_TOKEN("token"),
@@ -66,12 +66,16 @@ public final class InvalidateTokenRequest extends ActionRequest {
 
     /**
      * @param tokenString the string representation of the token to be invalidated
-     * @param tokenType the type of the token to be invalidated
-     * @param realmName the name of the realm for which all tokens will be invalidated
-     * @param userName the principal of the user for which all tokens will be invalidated
+     * @param tokenType   the type of the token to be invalidated
+     * @param realmName   the name of the realm for which all tokens will be invalidated
+     * @param userName    the principal of the user for which all tokens will be invalidated
      */
-    public InvalidateTokenRequest(@Nullable String tokenString, @Nullable String tokenType,
-                                  @Nullable String realmName, @Nullable String userName) {
+    public InvalidateTokenRequest(
+        @Nullable String tokenString,
+        @Nullable String tokenType,
+        @Nullable String realmName,
+        @Nullable String userName
+    ) {
         this.tokenString = tokenString;
         this.tokenType = Type.fromString(tokenType);
         this.realmName = realmName;
@@ -94,19 +98,21 @@ public final class InvalidateTokenRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
         if (Strings.hasText(realmName) || Strings.hasText(userName)) {
             if (Strings.hasText(tokenString)) {
-                validationException =
-                    addValidationError("token string must not be provided when realm name or username is specified", null);
+                validationException = addValidationError(
+                    "token string must not be provided when realm name or username is specified",
+                    null
+                );
             }
             if (tokenType != null) {
-                validationException =
-                    addValidationError("token type must not be provided when realm name or username is specified", validationException);
+                validationException = addValidationError(
+                    "token type must not be provided when realm name or username is specified",
+                    validationException
+                );
             }
         } else if (Strings.isNullOrEmpty(tokenString)) {
-                validationException =
-                    addValidationError("token string must be provided when not specifying a realm name or a username", null);
+            validationException = addValidationError("token string must be provided when not specifying a realm name or a username", null);
         } else if (tokenType == null) {
-                validationException =
-                    addValidationError("token type must be provided when a token string is specified", null);
+            validationException = addValidationError("token type must be provided when a token string is specified", null);
         }
         return validationException;
     }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -14,14 +13,13 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 
 public class PutJobAction extends ActionType<PutJobAction.Response> {
@@ -30,40 +28,35 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/job/put";
 
     private PutJobAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
 
         public static Request parseRequest(String jobId, XContentParser parser, IndicesOptions indicesOptions) {
-            Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
+            Job.Builder jobBuilder = Job.REST_REQUEST_PARSER.apply(parser, null);
             if (jobBuilder.getId() == null) {
                 jobBuilder.setId(jobId);
             } else if (Strings.isNullOrEmpty(jobId) == false && jobId.equals(jobBuilder.getId()) == false) {
                 // If we have both URI and body jobBuilder ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
-                        jobBuilder.getId(), jobId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), jobBuilder.getId(), jobId)
+                );
             }
             jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
         }
 
-        private Job.Builder jobBuilder;
+        private final Job.Builder jobBuilder;
 
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             jobBuilder.validateInputFields();
             // Validate that detector configs are unique.
             // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which
             // would occur when parsing an old job config that already had duplicate detectors.
             jobBuilder.validateDetectorsAreUnique();
-
-            // Some fields cannot be set at create time
-            List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
-            if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
-            }
 
             this.jobBuilder = jobBuilder;
         }
@@ -75,11 +68,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
         public Job.Builder getJobBuilder() {
             return jobBuilder;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override
@@ -111,7 +99,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         public Response(StreamInput in) throws IOException {
-            super(in);
             job = new Job(in);
         }
 

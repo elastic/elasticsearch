@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless;
@@ -39,33 +40,17 @@ public class ShiftTests extends ScriptTestCase {
     }
 
     public void testBogusShifts() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("long x = 1L; float y = 2; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1; double y = 2L; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; int y = 2; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; int y = 2L; return x << y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 1L; float y = 2; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1; double y = 2L; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; int y = 2; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; int y = 2L; return x << y;"); });
     }
 
     public void testBogusShiftsConst() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("return 1L << 2F;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("return 1L << 2.0;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("return 1F << 2;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("return 1D << 2L");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("return 1L << 2F;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("return 1L << 2.0;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("return 1F << 2;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("return 1D << 2L"); });
     }
 
     public void testLshDef() {
@@ -411,126 +396,54 @@ public class ShiftTests extends ScriptTestCase {
     }
 
     public void testBogusDefShifts() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; def y = 2F; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; def y = 2D; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; def y = 2; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; def y = 2L; return x << y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; def y = 2F; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; def y = 2D; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; def y = 2; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; def y = 2L; return x << y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; def y = 2F; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; def y = 2D; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; def y = 2; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; def y = 2L; return x >> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; def y = 2F; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; def y = 2D; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; def y = 2; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; def y = 2L; return x >> y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; def y = 2F; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; def y = 2D; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; def y = 2; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; def y = 2L; return x >>> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; def y = 2F; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; def y = 2D; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; def y = 2; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; def y = 2L; return x >>> y;"); });
     }
 
     public void testBogusDefShiftsTypedLHS() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("long x = 1L; def y = 2F; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1; def y = 2D; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; def y = 2; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; def y = 2L; return x << y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 1L; def y = 2F; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1; def y = 2D; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; def y = 2; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; def y = 2L; return x << y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("long x = 1L; def y = 2F; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1; def y = 2D; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; def y = 2; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; def y = 2L; return x >> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 1L; def y = 2F; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1; def y = 2D; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; def y = 2; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; def y = 2L; return x >> y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("long x = 1L; def y = 2F; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1; def y = 2D; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; def y = 2; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; def y = 2L; return x >>> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 1L; def y = 2F; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1; def y = 2D; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; def y = 2; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; def y = 2L; return x >>> y;"); });
     }
 
     public void testBogusDefShiftsTypedRHS() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; float y = 2F; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; double y = 2D; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; int y = 2; return x << y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; long y = 2L; return x << y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; float y = 2F; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; double y = 2D; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; int y = 2; return x << y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; long y = 2L; return x << y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; float y = 2F; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; double y = 2D; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; int y = 2; return x >> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; long y = 2L; return x >> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; float y = 2F; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; double y = 2D; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; int y = 2; return x >> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; long y = 2L; return x >> y;"); });
 
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; float y = 2F; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; double y = 2D; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1F; int y = 2; return x >>> y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1D; long y = 2L; return x >>> y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; float y = 2F; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; double y = 2D; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1F; int y = 2; return x >>> y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1D; long y = 2L; return x >>> y;"); });
     }
 
     public void testLshCompoundAssignment() {
@@ -594,47 +507,23 @@ public class ShiftTests extends ScriptTestCase {
     }
 
     public void testBogusCompoundAssignment() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("long x = 1L; float y = 2; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1; double y = 2L; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; int y = 2; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; int y = 2L; x <<= y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("long x = 1L; float y = 2; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1; double y = 2L; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; int y = 2; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; int y = 2L; x <<= y;"); });
     }
 
     public void testBogusCompoundAssignmentConst() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1L; x <<= 2F;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("int x = 1L; x <<= 2.0;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; x <<= 2;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; x <<= 2L;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1L; x <<= 2F;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("int x = 1L; x <<= 2.0;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; x <<= 2;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; x <<= 2L;"); });
     }
 
     public void testBogusCompoundAssignmentDef() {
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1L; float y = 2; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("def x = 1; double y = 2L; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("float x = 1F; def y = 2; x <<= y;");
-        });
-        expectScriptThrows(ClassCastException.class, ()-> {
-            exec("double x = 1D; def y = 2L; x <<= y;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1L; float y = 2; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("def x = 1; double y = 2L; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("float x = 1F; def y = 2; x <<= y;"); });
+        expectScriptThrows(ClassCastException.class, () -> { exec("double x = 1D; def y = 2L; x <<= y;"); });
     }
 }

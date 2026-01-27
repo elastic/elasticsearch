@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.painless.api;
@@ -40,11 +41,19 @@ public class LimitedCharSequence implements CharSequence {
     }
 
     public String details() {
-        return (pattern != null ? "pattern: [" +  pattern.pattern() + "], " : "") +
-            "limit factor: [" + limitFactor + "], " +
-            "char limit: [" + counter.charAtLimit + "], " +
-            "count: [" + counter.count + "], " +
-            "wrapped: [" + snippet(MAX_STR_LENGTH) + "]";
+        return (pattern != null ? "pattern: [" + pattern.pattern() + "], " : "")
+            + "limit factor: ["
+            + limitFactor
+            + "], "
+            + "char limit: ["
+            + counter.charAtLimit
+            + "], "
+            + "count: ["
+            + counter.count
+            + "], "
+            + "wrapped: ["
+            + snippet(MAX_STR_LENGTH)
+            + "]";
     }
 
     /**
@@ -52,15 +61,21 @@ public class LimitedCharSequence implements CharSequence {
      */
     String snippet(int maxStrLength) {
         if (maxStrLength < SNIPPET.length() * 6) {
-            throw new IllegalArgumentException("max str length must be large enough to include three snippets and three context chars, " +
-                "at least [" + SNIPPET.length() * 6 +"], not [" + maxStrLength + "]");
+            throw new IllegalArgumentException(
+                "max str length must be large enough to include three snippets and three context chars, "
+                    + "at least ["
+                    + SNIPPET.length() * 6
+                    + "], not ["
+                    + maxStrLength
+                    + "]"
+            );
         }
 
         if (wrapped.length() <= maxStrLength) {
             return wrapped.toString();
         }
 
-        return wrapped.subSequence(0, maxStrLength - SNIPPET.length()) + "..." ;
+        return wrapped.subSequence(0, maxStrLength - SNIPPET.length()) + "...";
     }
 
     @Override
@@ -72,9 +87,14 @@ public class LimitedCharSequence implements CharSequence {
     public char charAt(int index) {
         counter.count++;
         if (counter.hitLimit()) {
-            throw new CircuitBreakingException("[scripting] Regular expression considered too many characters, " + details() +
-            ", this limit can be changed by changed by the [" + CompilerSettings.REGEX_LIMIT_FACTOR.getKey() + "] setting",
-                CircuitBreaker.Durability.TRANSIENT);
+            throw new CircuitBreakingException(
+                "[scripting] Regular expression considered too many characters, "
+                    + details()
+                    + ", this limit can be changed by changed by the ["
+                    + CompilerSettings.REGEX_LIMIT_FACTOR.getKey()
+                    + "] setting",
+                CircuitBreaker.Durability.TRANSIENT
+            );
         }
         return wrapped.charAt(index);
     }

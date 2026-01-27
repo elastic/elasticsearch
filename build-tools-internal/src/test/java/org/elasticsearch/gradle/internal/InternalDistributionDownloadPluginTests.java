@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -14,11 +15,13 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes;
 import org.gradle.api.Project;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.junit.Test;
 
 import java.io.File;
 
 public class InternalDistributionDownloadPluginTests extends AbstractDistributionDownloadPluginTests {
 
+    @Test
     public void testLocalCurrentVersionPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {
@@ -33,6 +36,7 @@ public class InternalDistributionDownloadPluginTests extends AbstractDistributio
         }
     }
 
+    @Test
     public void testLocalBwcPackages() {
         ElasticsearchDistributionType[] types = { InternalElasticsearchDistributionTypes.RPM, InternalElasticsearchDistributionTypes.DEB };
         for (ElasticsearchDistributionType packageType : types) {

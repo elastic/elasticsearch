@@ -1,17 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.cert.Certificate;
 import java.util.Collection;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * An interface for building a trust manager at runtime.
@@ -38,10 +40,16 @@ public interface SslTrustConfig {
     Collection<? extends StoredCertificate> getConfiguredCertificates();
 
     /**
+     * @return {@code true} if this trust config is based on any explicit trust settings
+     */
+    default boolean hasExplicitConfig() {
+        return false;
+    }
+
+    /**
      * @return {@code true} if this trust config is based on the system default truststore
      */
     default boolean isSystemDefault() {
         return false;
     }
 }
-

@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots.sourceonly;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -23,6 +24,8 @@ import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.index.VectorEncoding;
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -42,7 +45,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
@@ -61,9 +64,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.FIELDS_EXTENSION;
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.INDEX_EXTENSION;
-import static org.apache.lucene.codecs.compressing.CompressingStoredFieldsWriter.META_EXTENSION;
+import static org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsWriter.FIELDS_EXTENSION;
+import static org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsWriter.INDEX_EXTENSION;
+import static org.apache.lucene.codecs.lucene90.compressing.Lucene90CompressingStoredFieldsWriter.META_EXTENSION;
 
 public class SourceOnlySnapshot {
 
@@ -95,8 +98,10 @@ public class SourceOnlySnapshot {
         }
         List<String> createdFiles = new ArrayList<>();
         String segmentFileName;
-        try (Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
-             StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)) {
+        try (
+            Lock writeLock = targetDirectory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
+            StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(commit)
+        ) {
             SegmentInfos segmentInfos = reader.getSegmentInfos().clone();
             DirectoryReader wrappedReader = wrapReader(reader);
             List<SegmentCommitInfo> newInfos = new ArrayList<>();
@@ -112,8 +117,11 @@ public class SourceOnlySnapshot {
             segmentInfos.clear();
             segmentInfos.addAll(newInfos);
             segmentInfos.setNextWriteGeneration(Math.max(segmentInfos.getGeneration(), generation) + 1);
-            String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.PENDING_SEGMENTS,
-                "", segmentInfos.getGeneration());
+            String pendingSegmentFileName = IndexFileNames.fileNameFromGeneration(
+                IndexFileNames.PENDING_SEGMENTS,
+                "",
+                segmentInfos.getGeneration()
+            );
             try (IndexOutput segnOutput = targetDirectory.createOutput(pendingSegmentFileName, IOContext.DEFAULT)) {
                 segmentInfos.write(segnOutput);
             }
@@ -159,7 +167,7 @@ public class SourceOnlySnapshot {
         return new LiveDocs(reader.numDeletedDocs(), reader.getLiveDocs());
     }
 
-    private int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
+    private static int apply(DocIdSetIterator iterator, FixedBitSet bits) throws IOException {
         int docID = -1;
         int newDeletes = 0;
         while ((docID = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -170,7 +178,6 @@ public class SourceOnlySnapshot {
         }
         return newDeletes;
     }
-
 
     private boolean assertCheckIndex() throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream(1024);
@@ -197,16 +204,20 @@ public class SourceOnlySnapshot {
         return softDeletesField == null ? reader : new SoftDeletesDirectoryReaderWrapper(reader, softDeletesField);
     }
 
-    private SegmentCommitInfo syncSegment(SegmentCommitInfo segmentCommitInfo, LiveDocs liveDocs, FieldInfos fieldInfos,
-                                          Map<BytesRef, SegmentCommitInfo> existingSegments, List<String> createdFiles) throws IOException {
+    private SegmentCommitInfo syncSegment(
+        SegmentCommitInfo segmentCommitInfo,
+        LiveDocs liveDocs,
+        FieldInfos fieldInfos,
+        Map<BytesRef, SegmentCommitInfo> existingSegments,
+        List<String> createdFiles
+    ) throws IOException {
         Directory toClose = null;
         try {
             SegmentInfo si = segmentCommitInfo.info;
             Codec codec = si.getCodec();
             Directory sourceDir = si.dir;
             if (si.getUseCompoundFile()) {
-                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(
-                    codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT));
+                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(codec.compoundFormat().getCompoundReader(sourceDir, si));
                 toClose = sourceDir;
             }
             final String segmentSuffix = "";
@@ -215,15 +226,46 @@ public class SourceOnlySnapshot {
             BytesRef segmentId = new BytesRef(si.getId());
             boolean exists = existingSegments.containsKey(segmentId);
             if (exists == false) {
-                SegmentInfo newSegmentInfo = new SegmentInfo(targetDirectory, si.getVersion(), si.getMinVersion(), si.name, si.maxDoc(),
-                    false, si.getCodec(), si.getDiagnostics(), si.getId(), si.getAttributes(), null);
+                SegmentInfo newSegmentInfo = new SegmentInfo(
+                    targetDirectory,
+                    si.getVersion(),
+                    si.getMinVersion(),
+                    si.name,
+                    si.maxDoc(),
+                    false,
+                    si.getHasBlocks(),
+                    si.getCodec(),
+                    si.getDiagnostics(),
+                    si.getId(),
+                    si.getAttributes(),
+                    null
+                );
                 // we drop the sort on purpose since the field we sorted on doesn't exist in the target index anymore.
                 newInfo = new SegmentCommitInfo(newSegmentInfo, 0, 0, -1, -1, -1, StringHelper.randomId());
                 List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
                 for (FieldInfo fieldInfo : fieldInfos) {
-                    fieldInfoCopy.add(new FieldInfo(fieldInfo.name, fieldInfo.number,
-                        false, false, false, IndexOptions.NONE, DocValuesType.NONE, -1, fieldInfo.attributes(), 0, 0, 0,
-                        fieldInfo.isSoftDeletesField()));
+                    fieldInfoCopy.add(
+                        new FieldInfo(
+                            fieldInfo.name,
+                            fieldInfo.number,
+                            false,
+                            false,
+                            false,
+                            IndexOptions.NONE,
+                            DocValuesType.NONE,
+                            DocValuesSkipIndexType.NONE,
+                            -1,
+                            fieldInfo.attributes(),
+                            0,
+                            0,
+                            0,
+                            0,
+                            VectorEncoding.FLOAT32,
+                            VectorSimilarityFunction.EUCLIDEAN,
+                            fieldInfo.isSoftDeletesField(),
+                            fieldInfo.isParentField()
+                        )
+                    );
                 }
                 FieldInfos newFieldInfos = new FieldInfos(fieldInfoCopy.toArray(new FieldInfo[0]));
                 codec.fieldInfosFormat().write(trackingDir, newSegmentInfo, segmentSuffix, newFieldInfos, IOContext.DEFAULT);
@@ -251,10 +293,17 @@ public class SourceOnlySnapshot {
 
             if (liveDocs.bits != null && liveDocs.numDeletes != 0 && liveDocs.numDeletes != newInfo.getDelCount()) {
                 assert newInfo.getDelCount() == 0 || assertLiveDocs(liveDocs.bits, liveDocs.numDeletes);
-                codec.liveDocsFormat().writeLiveDocs(liveDocs.bits, trackingDir, newInfo, liveDocs.numDeletes - newInfo.getDelCount(),
-                    IOContext.DEFAULT);
-                SegmentCommitInfo info = new SegmentCommitInfo(newInfo.info, liveDocs.numDeletes, 0, newInfo.getNextDelGen(),
-                    -1, -1, StringHelper.randomId());
+                codec.liveDocsFormat()
+                    .writeLiveDocs(liveDocs.bits, trackingDir, newInfo, liveDocs.numDeletes - newInfo.getDelCount(), IOContext.DEFAULT);
+                SegmentCommitInfo info = new SegmentCommitInfo(
+                    newInfo.info,
+                    liveDocs.numDeletes,
+                    0,
+                    newInfo.getNextDelGen(),
+                    -1,
+                    -1,
+                    StringHelper.randomId()
+                );
                 info.setFieldInfosFiles(newInfo.getFieldInfosFiles());
                 info.info.setFiles(trackingDir.getCreatedFiles());
                 newInfo = info;
@@ -274,7 +323,7 @@ public class SourceOnlySnapshot {
         }
     }
 
-    private boolean assertLiveDocs(Bits liveDocs, int deletes) {
+    private static boolean assertLiveDocs(Bits liveDocs, int deletes) {
         int actualDeletes = 0;
         for (int i = 0; i < liveDocs.length(); i++) {
             if (liveDocs.get(i) == false) {
@@ -379,8 +428,9 @@ public class SourceOnlySnapshot {
         @Override
         public void rename(String source, String dest) throws IOException {
             if (linkedFiles.containsKey(source) || linkedFiles.containsKey(dest)) {
-                throw new IllegalArgumentException("file cannot be renamed as linked file with name " + source + " or " + dest +
-                    " already exists");
+                throw new IllegalArgumentException(
+                    "file cannot be renamed as linked file with name " + source + " or " + dest + " already exists"
+                );
             } else {
                 wrapped.rename(source, dest);
             }

@@ -66,8 +66,8 @@ public class WildcardQuery extends LeafQuery {
 
         WildcardQuery other = (WildcardQuery) obj;
         return Objects.equals(field, other.field)
-                && Objects.equals(query, other.query)
-                && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(query, other.query)
+            && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
     @Override

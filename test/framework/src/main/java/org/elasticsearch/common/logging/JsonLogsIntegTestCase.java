@@ -1,21 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
@@ -49,42 +50,43 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
      */
     protected abstract org.hamcrest.Matcher<String> nodeNameMatcher();
 
+    private BufferedReader openReader() {
+        return new BufferedReader(new InputStreamReader(openLogsStream(), StandardCharsets.UTF_8));
+    }
+
     /**
-     * Open the log file. This is delegated to subclasses because the test
-     * framework doesn't have permission to read from the log file but
-     * subclasses can grant themselves that permission.
+     * Reads the logs.
+     * This is delegated to subclasses because they configure the cluster and have access to the nodes logs InputStream.
      */
-    protected abstract BufferedReader openReader(Path logFile);
+    protected abstract InputStream openLogsStream();
 
     public void testElementsPresentOnAllLinesOfLog() throws IOException {
         JsonLogLine firstLine = findFirstLine();
         assertNotNull(firstLine);
 
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser() )) {
-            stream.limit(LINES_TO_CHECK)
-                  .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));
-                      assertThat(jsonLogLine.getMessage(), is(not(emptyOrNullString())));
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(), getParser())) {
+            stream.limit(LINES_TO_CHECK).forEach(jsonLogLine -> {
+                assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));
+                assertThat(jsonLogLine.getMessage(), is(not(emptyOrNullString())));
 
-                      // all lines should have the same nodeName and clusterName
-                      assertThat(jsonLogLine.getNodeName(), nodeNameMatcher());
-                      assertThat(jsonLogLine.getClusterName(), equalTo(firstLine.getClusterName()));
-                  });
+                // all lines should have the same nodeName and clusterName
+                assertThat(jsonLogLine.getNodeName(), nodeNameMatcher());
+                assertThat(jsonLogLine.getClusterName(), equalTo(firstLine.getClusterName()));
+            });
         }
     }
 
     private JsonLogLine findFirstLine() throws IOException {
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
-            return stream.findFirst()
-                         .orElseThrow(() -> new AssertionError("no logs at all?!"));
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(), getParser())) {
+            return stream.findFirst().orElseThrow(() -> new AssertionError("no logs at all?!"));
         }
     }
 
     public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(), getParser())) {
             Iterator<JsonLogLine> iterator = stream.iterator();
 
             JsonLogLine firstLine = null;
@@ -92,11 +94,12 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
                 JsonLogLine jsonLogLine = iterator.next();
                 if (jsonLogLine.getNodeId() != null) {
                     firstLine = jsonLogLine;
+                    break;
                 }
             }
             assertNotNull(firstLine);
 
-            //once the nodeId and clusterId are received, they should be the same on remaining lines
+            // once the nodeId and clusterId are received, they should be the same on remaining lines
 
             int i = 0;
             while (iterator.hasNext() && i++ < LINES_TO_CHECK) {
@@ -105,21 +108,6 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
                 assertThat(jsonLogLine.getClusterUuid(), equalTo(firstLine.getClusterUuid()));
             }
         }
-    }
-
-    @SuppressForbidden(reason = "PathUtils doesn't have permission to read this file")
-    private Path getLogFile() {
-        String logFileString = getLogFileName();
-        if (logFileString == null) {
-            fail("tests.logfile must be set to run this test. It is automatically "
-                + "set by gradle. If you must set it yourself then it should be the absolute path to the "
-                + "log file.");
-        }
-        return Paths.get(logFileString);
-    }
-
-    protected String getLogFileName() {
-        return System.getProperty("tests.logfile");
     }
 
     protected ObjectParser<JsonLogLine, Void> getParser() {

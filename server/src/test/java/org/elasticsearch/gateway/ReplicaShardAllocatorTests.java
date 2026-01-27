@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.Version;
+
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -31,18 +34,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.junit.Before;
 
@@ -58,12 +60,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.cluster.routing.RoutingNodesHelper.shardsWithState;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
-    private static final String MIN_SUPPORTED_LUCENE_VERSION = Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion.toString();
+    private static final String MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion().toString();
 
     private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
@@ -100,13 +105,16 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * the shard allocator to allocate it. There isn't a copy around to find anyhow.
      */
     public void testNoAsyncFetchOnIndexCreation() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY,
-            UnassignedInfo.Reason.INDEX_CREATED);
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.EMPTY,
+            UnassignedInfo.Reason.INDEX_CREATED
+        );
         testAllocator.clean();
         allocateAllUnassigned(allocation);
         assertThat(testAllocator.getFetchDataCalledAndClean(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
     /**
@@ -114,8 +122,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * and find a better copy for the shard.
      */
     public void testAsyncFetchOnAnythingButIndexCreation() {
-        UnassignedInfo.Reason reason = RandomPicks.randomFrom(random(),
-            EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED)));
+        UnassignedInfo.Reason reason = RandomPicks.randomFrom(
+            random(),
+            EnumSet.complementOf(EnumSet.of(UnassignedInfo.Reason.INDEX_CREATED))
+        );
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(), Settings.EMPTY, reason);
         testAllocator.clean();
         allocateAllUnassigned(allocation);
@@ -129,25 +139,13 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+            .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(nodeToMatch.getId()));
-    }
-
-    /**
-     * Verifies that when there is a sync id match but no files match, we allocate it to matching node.
-     */
-    public void testSyncIdMatch() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
-        DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
-        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(nodeToMatch, "MATCH", new StoreFileMetadata("file1", 10, "NO_MATCH_CHECKSUM" ,MIN_SUPPORTED_LUCENE_VERSION));
-        allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(nodeToMatch.getId()));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(nodeToMatch.getId())
+        );
     }
 
     /**
@@ -157,11 +155,13 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         DiscoveryNode nodeToMatch = randomBoolean() ? node2 : node3;
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(nodeToMatch, "NO_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+            .addData(nodeToMatch, "NO_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(nodeToMatch.getId()));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(nodeToMatch.getId())
+        );
     }
 
     public void testPreferCopyWithHighestMatchingOperations() {
@@ -170,19 +170,37 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         long retainingSeqNoForNode2 = randomLongBetween(0, retainingSeqNoOnPrimary - 1);
         // Rarely use a seqNo above retainingSeqNoOnPrimary, which could in theory happen when primary fails and comes back quickly.
         long retainingSeqNoForNode3 = randomLongBetween(retainingSeqNoForNode2 + 1, retainingSeqNoOnPrimary + 100);
-        List<RetentionLease> retentionLeases = Arrays.asList(newRetentionLease(node1, retainingSeqNoOnPrimary),
-            newRetentionLease(node2, retainingSeqNoForNode2), newRetentionLease(node3, retainingSeqNoForNode3));
-        testAllocator.addData(node1, retentionLeases, "MATCH",
-            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        List<RetentionLease> retentionLeases = Arrays.asList(
+            newRetentionLease(node1, retainingSeqNoOnPrimary),
+            newRetentionLease(node2, retainingSeqNoForNode2),
+            newRetentionLease(node3, retainingSeqNoForNode3)
+        );
+        testAllocator.addData(
+            node1,
+            retentionLeases,
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, "NOT_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(node3.getId()));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node3.getId())
+        );
+    }
+
+    public void testNotCancellingRecoveryOnIrrelevantShard() {
+        // re-using the setup from testCancelRecoveryIfFoundCopyWithNoopRetentionLease to be sure that the only difference is the relevance
+        runNoopRetentionLeaseTest(false);
     }
 
     public void testCancelRecoveryIfFoundCopyWithNoopRetentionLease() {
+        runNoopRetentionLeaseTest(true);
+    }
+
+    private void runNoopRetentionLeaseTest(boolean isRelevantShard) {
         final UnassignedInfo unassignedInfo;
         final Set<String> failedNodeIds;
         if (randomBoolean()) {
@@ -205,17 +223,27 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         }
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNo = randomLongBetween(1, Long.MAX_VALUE);
-        testAllocator.addData(node1, Arrays.asList(newRetentionLease(node1, retainingSeqNo), newRetentionLease(node3, retainingSeqNo)),
-            "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(
+            node1,
+            Arrays.asList(newRetentionLease(node1, retainingSeqNo), newRetentionLease(node3, retainingSeqNo)),
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, "NO_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        List<ShardRouting> unassignedShards = allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED);
-        assertThat(unassignedShards, hasSize(1));
-        assertThat(unassignedShards.get(0).shardId(), equalTo(shardId));
-        assertThat(unassignedShards.get(0).unassignedInfo().getNumFailedAllocations(), equalTo(0));
-        assertThat(unassignedShards.get(0).unassignedInfo().getFailedNodeIds(), equalTo(failedNodeIds));
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> isRelevantShard);
+
+        if (isRelevantShard) {
+            assertThat(allocation.routingNodesChanged(), equalTo(true));
+            List<ShardRouting> unassignedShards = shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED);
+            assertThat(unassignedShards, hasSize(1));
+            assertThat(unassignedShards.get(0).shardId(), equalTo(shardId));
+            assertThat(unassignedShards.get(0).unassignedInfo().failedAllocations(), equalTo(0));
+            assertThat(unassignedShards.get(0).unassignedInfo().failedNodeIds(), equalTo(failedNodeIds));
+        } else {
+            assertThat(allocation.routingNodesChanged(), equalTo(false));
+            assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        }
     }
 
     public void testNotCancellingRecoveryIfCurrentRecoveryHasRetentionLease() {
@@ -227,24 +255,32 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             peerRecoveryRetentionLeasesOnPrimary.add(newRetentionLease(node3, randomLongBetween(0, retainingSeqNo)));
         }
-        testAllocator.addData(node1, peerRecoveryRetentionLeasesOnPrimary,
-            "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(
+            node1,
+            peerRecoveryRetentionLeasesOnPrimary,
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
     public void testNotCancelIfPrimaryDoesNotHaveValidRetentionLease() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
-        testAllocator.addData(node1, Collections.singletonList(newRetentionLease(node3, randomNonNegativeLong())),
-            "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(
+            node1,
+            Collections.singletonList(newRetentionLease(node3, randomNonNegativeLong())),
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, "NOT_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         testAllocator.addData(node3, "NOT_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
     public void testIgnoreRetentionLeaseIfCopyIsEmpty() {
@@ -256,14 +292,20 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             retentionLeases.add(newRetentionLease(node3, randomLongBetween(0, retainingSeqNo)));
         }
-        testAllocator.addData(node1, retentionLeases, randomSyncId(),
-            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(
+            node1,
+            retentionLeases,
+            randomSyncId(),
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, null); // has retention lease but store is empty
         testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(node3.getId()));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node3.getId())
+        );
     }
 
     /**
@@ -276,8 +318,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
     /**
@@ -288,8 +330,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
     /**
@@ -299,10 +341,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     public void testNoMatchingFilesForReplicaOnAnyNode() {
         RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders());
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node2, "NO_MATCH", new StoreFileMetadata("file1", 10, "NO_MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+            .addData(node2, "NO_MATCH", new StoreFileMetadata("file1", 10, "NO_MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
     }
 
     /**
@@ -310,10 +352,11 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * moves to the ignore unassigned list.
      */
     public void testNoOrThrottleDecidersRemainsInUnassigned() {
-        RoutingAllocation allocation =
-            onePrimaryOnNode1And1Replica(randomBoolean() ? noAllocationDeciders() : throttleAllocationDeciders());
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            randomBoolean() ? noAllocationDeciders() : throttleAllocationDeciders()
+        );
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+            .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
@@ -324,30 +367,36 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
      * to wait till throttling on it is done.
      */
     public void testThrottleWhenAllocatingToMatchingNode() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(new AllocationDeciders(
-            Arrays.asList(new TestAllocateDecision(Decision.YES),
-                new SameShardAllocationDecider(
-                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-                new AllocationDecider() {
-                    @Override
-                    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                        if (node.node().equals(node2)) {
-                            return Decision.THROTTLE;
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            new AllocationDeciders(
+                Arrays.asList(
+                    new TestAllocateDecision(Decision.YES),
+                    new SameShardAllocationDecider(createBuiltInClusterSettings()),
+                    new AllocationDecider() {
+                        @Override
+                        public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                            if (node.node().equals(node2)) {
+                                return Decision.THROTTLE;
+                            }
+                            return Decision.YES;
                         }
-                        return Decision.YES;
                     }
-                })));
+                )
+            )
+        );
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+            .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
     }
 
     public void testDelayedAllocation() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1))
-                    .build(), UnassignedInfo.Reason.NODE_LEFT);
+        RoutingAllocation allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
+            UnassignedInfo.Reason.NODE_LEFT
+        );
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         if (randomBoolean()) {
             // we sometime return empty list of files, make sure we test this as well
@@ -358,26 +407,19 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().unassigned().ignored().size(), equalTo(1));
         assertThat(allocation.routingNodes().unassigned().ignored().get(0).shardId(), equalTo(shardId));
 
-        allocation = onePrimaryOnNode1And1Replica(yesAllocationDeciders(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(),
-                    TimeValue.timeValueHours(1)).build(), UnassignedInfo.Reason.NODE_LEFT);
+        allocation = onePrimaryOnNode1And1Replica(
+            yesAllocationDeciders(),
+            Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.timeValueHours(1)).build(),
+            UnassignedInfo.Reason.NODE_LEFT
+        );
         testAllocator.addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
-            equalTo(node2.getId()));
-    }
-
-    public void testCancelRecoveryBetterSyncId() {
-        RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
-        testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node2, "NO_MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node3, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
-        assertThat(allocation.routingNodesChanged(), equalTo(true));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).get(0).shardId(), equalTo(shardId));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).size(), equalTo(1));
+        assertThat(
+            shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING).get(0).currentNodeId(),
+            equalTo(node2.getId())
+        );
     }
 
     public void testNotCancellingRecoveryIfSyncedOnExistingRecovery() {
@@ -410,23 +452,26 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 retentionLeases.add(newRetentionLease(node3, randomLongBetween(0, retainingSeqNoOnPrimary)));
             }
         }
-        testAllocator.addData(node1, retentionLeases, "MATCH",
-            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.addData(
+            node1,
+            retentionLeases,
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        );
         testAllocator.addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM",
-            MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
+        testAllocator.addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
     public void testNotCancellingRecovery() {
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders());
         testAllocator.addData(node1, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
-                .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
+            .addData(node2, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(0));
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED).size(), equalTo(0));
     }
 
     public void testDoNotCancelForBrokenNode() {
@@ -435,20 +480,35 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
         if (randomBoolean()) {
             failedNodes.add("node4");
         }
-        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, null, null,
-            randomIntBetween(failedNodes.size(), 10), System.nanoTime(), System.currentTimeMillis(), false,
-            UnassignedInfo.AllocationStatus.NO_ATTEMPT, failedNodes, null);
+        UnassignedInfo unassignedInfo = new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            null,
+            null,
+            randomIntBetween(failedNodes.size(), 10),
+            System.nanoTime(),
+            System.currentTimeMillis(),
+            false,
+            UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+            failedNodes,
+            null
+        );
         RoutingAllocation allocation = onePrimaryOnNode1And1ReplicaRecovering(yesAllocationDeciders(), unassignedInfo);
         long retainingSeqNoOnPrimary = randomLongBetween(0, Long.MAX_VALUE);
         List<RetentionLease> retentionLeases = Arrays.asList(
-            newRetentionLease(node1, retainingSeqNoOnPrimary), newRetentionLease(node3, retainingSeqNoOnPrimary));
-        testAllocator
-            .addData(node1, retentionLeases, "MATCH", new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
+            newRetentionLease(node1, retainingSeqNoOnPrimary),
+            newRetentionLease(node3, retainingSeqNoOnPrimary)
+        );
+        testAllocator.addData(
+            node1,
+            retentionLeases,
+            "MATCH",
+            new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION)
+        )
             .addData(node2, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION))
             .addData(node3, randomSyncId(), new StoreFileMetadata("file1", 10, "MATCH_CHECKSUM", MIN_SUPPORTED_LUCENE_VERSION));
-        testAllocator.processExistingRecoveries(allocation);
+        testAllocator.processExistingRecoveries(allocation, shardRouting -> true);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
-        assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.UNASSIGNED), empty());
+        assertThat(shardsWithState(allocation.routingNodes(), ShardRoutingState.UNASSIGNED), empty());
     }
 
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders) {
@@ -458,59 +518,98 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     private RoutingAllocation onePrimaryOnNode1And1Replica(AllocationDeciders deciders, Settings settings, UnassignedInfo.Reason reason) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(shardId.getIndexName())
-            .settings(settings(Version.CURRENT).put(settings))
-            .numberOfShards(1).numberOfReplicas(1)
+            .settings(settings(IndexVersion.current()).put(settings))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
             .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()));
         Metadata metadata = Metadata.builder().put(indexMetadata).build();
         // mark shard as delayed if reason is NODE_LEFT
-        boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT &&
-            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
+        boolean delayed = reason == UnassignedInfo.Reason.NODE_LEFT
+            && UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.get(settings).nanos() > 0;
         int failedAllocations = reason == UnassignedInfo.Reason.ALLOCATION_FAILED ? 1 : 0;
         final String lastAllocatedNodeId = reason == UnassignedInfo.Reason.NODE_RESTARTING || randomBoolean()
             ? randomAlphaOfLength(10)
             : null;
         RoutingTable routingTable = RoutingTable.builder()
-                .add(IndexRoutingTable.builder(shardId.getIndex())
-                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(primaryShard)
-                                        .addShard(ShardRouting.newUnassigned(shardId, false,
-                                            RecoverySource.PeerRecoverySource.INSTANCE,
-                                            new UnassignedInfo(reason, null, null, failedAllocations, System.nanoTime(),
-                                                System.currentTimeMillis(), delayed, UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                                Collections.emptySet(), lastAllocatedNodeId)))
-                                        .build())
-                )
-                .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metadata(metadata)
-                .routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime());
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+                            .addShard(
+                                ShardRouting.newUnassigned(
+                                    shardId,
+                                    false,
+                                    RecoverySource.PeerRecoverySource.INSTANCE,
+                                    new UnassignedInfo(
+                                        reason,
+                                        null,
+                                        null,
+                                        failedAllocations,
+                                        System.nanoTime(),
+                                        System.currentTimeMillis(),
+                                        delayed,
+                                        UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                                        Collections.emptySet(),
+                                        lastAllocatedNodeId
+                                    ),
+                                    ShardRouting.Role.DEFAULT
+                                )
+                            )
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            state.mutableRoutingNodes(),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders, UnassignedInfo unassignedInfo) {
         ShardRouting primaryShard = TestShardRouting.newShardRouting(shardId, node1.getId(), true, ShardRoutingState.STARTED);
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder(shardId.getIndexName()).settings(settings(Version.CURRENT))
-                    .numberOfShards(1).numberOfReplicas(1)
-                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId())))
-                .build();
+            .put(
+                IndexMetadata.builder(shardId.getIndexName())
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(1)
+                    .putInSyncAllocationIds(0, Sets.newHashSet(primaryShard.allocationId().getId()))
+            )
+            .build();
         RoutingTable routingTable = RoutingTable.builder()
-                .add(IndexRoutingTable.builder(shardId.getIndex())
-                                .addIndexShard(new IndexShardRoutingTable.Builder(shardId)
-                                        .addShard(primaryShard)
-                                        .addShard(TestShardRouting.newShardRouting(shardId, node2.getId(), null, false,
-                                            ShardRoutingState.INITIALIZING, unassignedInfo))
-                                        .build())
-                )
-                .build();
-        ClusterState state = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .metadata(metadata)
-                .routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3)).build();
-        return new RoutingAllocation(deciders, new RoutingNodes(state, false), state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY,
-            System.nanoTime());
+            .add(
+                IndexRoutingTable.builder(shardId.getIndex())
+                    .addIndexShard(
+                        new IndexShardRoutingTable.Builder(shardId).addShard(primaryShard)
+                            .addShard(
+                                shardRoutingBuilder(shardId, node2.getId(), false, ShardRoutingState.INITIALIZING).withUnassignedInfo(
+                                    unassignedInfo
+                                ).build()
+                            )
+                    )
+            )
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
+            .build();
+        return new RoutingAllocation(
+            deciders,
+            state.mutableRoutingNodes(),
+            state,
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            System.nanoTime()
+        );
     }
 
     private RoutingAllocation onePrimaryOnNode1And1ReplicaRecovering(AllocationDeciders deciders) {
@@ -518,8 +617,12 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     }
 
     static RetentionLease newRetentionLease(DiscoveryNode node, long retainingSeqNo) {
-        return new RetentionLease(ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId()),
-            retainingSeqNo, randomNonNegativeLong(), ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE);
+        return new RetentionLease(
+            ReplicationTracker.getPeerRecoveryRetentionLeaseId(node.getId()),
+            retainingSeqNo,
+            randomNonNegativeLong(),
+            ReplicationTracker.PEER_RECOVERY_RETENTION_LEASE_SOURCE
+        );
     }
 
     static String randomSyncId() {
@@ -529,14 +632,10 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     class TestAllocator extends ReplicaShardAllocator {
 
         private Map<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> data = null;
-        private AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
+        private final AtomicBoolean fetchDataCalled = new AtomicBoolean(false);
 
         public void clean() {
             data = null;
-        }
-
-        public void cleanWithEmptyData() {
-            data = new HashMap<>();
         }
 
         public boolean getFetchDataCalledAndClean() {
@@ -547,8 +646,12 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             return addData(node, Collections.emptyList(), syncId, files);
         }
 
-        TestAllocator addData(DiscoveryNode node, List<RetentionLease> peerRecoveryRetentionLeases,
-                              String syncId, StoreFileMetadata... files) {
+        TestAllocator addData(
+            DiscoveryNode node,
+            List<RetentionLease> peerRecoveryRetentionLeases,
+            String syncId,
+            StoreFileMetadata... files
+        ) {
             if (data == null) {
                 data = new HashMap<>();
             }
@@ -557,25 +660,30 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 filesAsMap.put(file.name(), file);
             }
             Map<String, String> commitData = new HashMap<>();
-            if (syncId != null) {
-                commitData.put(Engine.SYNC_COMMIT_ID, syncId);
-            }
-            data.put(node, new TransportNodesListShardStoreMetadata.StoreFilesMetadata(shardId,
+            data.put(
+                node,
+                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
-                    peerRecoveryRetentionLeases));
+                    peerRecoveryRetentionLeases
+                )
+            );
             return this;
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata>
-                                                                            fetchData(ShardRouting shard, RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetchData(
+            ShardRouting shard,
+            RoutingAllocation allocation
+        ) {
             fetchDataCalled.set(true);
             Map<DiscoveryNode, TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> tData = null;
             if (data != null) {
                 tData = new HashMap<>();
                 for (Map.Entry<DiscoveryNode, TransportNodesListShardStoreMetadata.StoreFilesMetadata> entry : data.entrySet()) {
-                    tData.put(entry.getKey(),
-                        new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue()));
+                    tData.put(
+                        entry.getKey(),
+                        new TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata(entry.getKey(), entry.getValue())
+                    );
                 }
             }
             return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.emptySet());

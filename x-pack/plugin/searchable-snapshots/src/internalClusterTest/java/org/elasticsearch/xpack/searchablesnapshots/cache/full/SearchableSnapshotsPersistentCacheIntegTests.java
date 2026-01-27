@@ -24,6 +24,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.BackgroundIndexer;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
@@ -33,9 +34,11 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
@@ -46,6 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -75,8 +79,13 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
-        final String dataNode = randomFrom(discoveryNodes.getDataNodes().values().toArray(DiscoveryNode.class)).getName();
+        final DiscoveryNodes discoveryNodes = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .nodes();
+        final String dataNode = randomFrom(discoveryNodes.getDataNodes().values()).getName();
 
         mountSnapshot(
             fsRepoName,
@@ -87,14 +96,16 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         );
         ensureGreen(restoredIndexName);
 
-        final Index restoredIndex = client().admin()
-            .cluster()
-            .prepareState()
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+
+        final Index restoredIndex = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -147,20 +158,20 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             }
         });
 
+        ensureGreen(restoredIndexName);
+
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+
         final CacheService cacheServiceAfterRestart = internalCluster().getInstance(CacheService.class, dataNode);
         final PersistentCache persistentCacheAfterRestart = cacheServiceAfterRestart.getPersistentCache();
-        ensureGreen(restoredIndexName);
 
         cacheFiles.forEach(cacheFile -> assertTrue(cacheFile + " should have survived node restart", Files.exists(cacheFile)));
         assertThat("Cache files should be loaded in cache", persistentCacheAfterRestart.getNumDocs(), equalTo((long) cacheFiles.size()));
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
-
-        assertBusy(() -> {
-            cacheFiles.forEach(cacheFile -> assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile)));
-            cacheServiceAfterRestart.synchronizeCache();
-            assertThat(persistentCacheAfterRestart.getNumDocs(), equalTo(0L));
-        });
+        assertBusy(() -> cacheFiles.forEach(cacheFile -> assertFalse(cacheFile + " should have been cleaned up", Files.exists(cacheFile))));
+        assertEmptyPersistentCacheOnDataNodes();
     }
 
     public void testPersistentCacheCleanUpAfterRelocation() throws Exception {
@@ -174,18 +185,13 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createIndex(
-            indexName,
-            Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
-                .build()
-        );
+        createIndex(indexName, 3, randomIntBetween(0, 1));
         ensureGreen(indexName);
 
         final int numDocs = scaledRandomIntBetween(1_000, 5_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), numDocs)) {
             waitForDocs(numDocs, indexer);
+            indexer.stopAndAwaitStopped();
         }
         refresh(indexName);
 
@@ -208,15 +214,12 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                 .allMatch(recoveryState -> recoveryState.getStage() == RecoveryState.Stage.DONE)
         );
 
-        final ClusterStateResponse state = client().admin()
-            .cluster()
-            .prepareState()
+        final ClusterStateResponse state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
-            .setRoutingTable(true)
             .setMetadata(true)
             .setIndices(mountedIndexName)
             .get();
-        final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
+        final Index mountedIndex = state.getState().metadata().getProject().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
         for (DiscoveryNode node : getDiscoveryNodes()) {
@@ -236,15 +239,15 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
 
         final DiscoveryNode excludedDataNode = randomFrom(dataNodes);
         logger.info("--> relocating mounted index {} away from {}", mountedIndex, excludedDataNode);
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(mountedIndexName)
-                .setSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()))
-                .get()
+        updateIndexSettings(
+            Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._id", excludedDataNode.getId()),
+            mountedIndexName
         );
 
         ensureGreen(mountedIndexName);
+
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
 
         recoveryResponse = client().admin().indices().prepareRecoveries(mountedIndexName).get();
         assertTrue(recoveryResponse.shardRecoveryStates().containsKey(mountedIndexName));
@@ -265,16 +268,30 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
                     dataNode.equals(excludedDataNode) ? equalTo(0L) : greaterThan(0L)
                 );
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         logger.info("--> deleting mounted index {}", mountedIndex);
         assertAcked(client().admin().indices().prepareDelete(mountedIndexName));
+        assertEmptyPersistentCacheOnDataNodes();
+    }
 
-        assertBusy(() -> {
-            for (CacheService cacheService : internalCluster().getDataNodeInstances(CacheService.class)) {
-                cacheService.synchronizeCache();
-                assertThat(cacheService.getPersistentCache().getNumDocs(), equalTo(0L));
-            }
-        });
+    private void assertEmptyPersistentCacheOnDataNodes() throws Exception {
+        final Set<DiscoveryNode> dataNodes = new HashSet<>(getDiscoveryNodes().getDataNodes().values());
+        logger.info("--> verifying persistent caches are empty on nodes... {}", dataNodes);
+        try {
+            assertBusy(() -> {
+                for (DiscoveryNode node : List.copyOf(dataNodes)) {
+                    final CacheService cacheService = internalCluster().getInstance(CacheService.class, node.getName());
+                    cacheService.synchronizeCache();
+                    assertThat(cacheService.getPersistentCache().getNumDocs(), equalTo(0L));
+                    logger.info("--> persistent cache is empty on node {}", node);
+                    dataNodes.remove(node);
+                }
+            });
+            logger.info("--> all persistent caches are empty");
+        } catch (AssertionError ae) {
+            logger.error("--> persistent caches not empty on nodes: {}", dataNodes);
+            throw ae;
+        }
     }
 }

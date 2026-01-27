@@ -12,13 +12,12 @@ import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchResponse.Clusters;
-import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -32,11 +31,14 @@ import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.booleanArrayOf;
 
 public class ImplicitTiebreakerTests extends ESTestCase {
 
@@ -64,19 +66,23 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             if (ordinal > 0) {
                 int previous = ordinal - 1;
                 // except the first request, the rest should have the previous response's search_after _shard_doc value
-                assertArrayEquals("Elements at stage " + ordinal + " do not match",
-                    r.searchSource().searchAfter(), new Object[] { String.valueOf(previous), implicitTiebreakerValues.get(previous) });
+                assertArrayEquals(
+                    "Elements at stage " + ordinal + " do not match",
+                    r.searchSource().searchAfter(),
+                    new Object[] { String.valueOf(previous), implicitTiebreakerValues.get(previous) }
+                );
             }
 
             long sortValue = implicitTiebreakerValues.get(ordinal);
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
-            searchHit.sortValues(new SearchSortValues(
-                new Long[] { (long) ordinal, sortValue },
-                new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            SearchResponseSections internal = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
-            SearchResponse s = new SearchResponse(internal, null, 0, 1, 0, 0, null, Clusters.EMPTY);
-            l.onResponse(s);
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
+            searchHit.sortValues(
+                new SearchSortValues(
+                    new Long[] { (long) ordinal, sortValue },
+                    new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }
+                )
+            );
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override
@@ -85,7 +91,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -95,32 +101,52 @@ public class ImplicitTiebreakerTests extends ESTestCase {
 
     public void testImplicitTiebreakerBeingSet() {
         QueryClient client = new TestQueryClient();
-        List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
         boolean descending = randomBoolean();
         boolean criteriaDescending = descending;
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
-            criteria.add(new Criterion<BoxedQueryRequest>(i,
-                new BoxedQueryRequest(() -> SearchSourceBuilder.searchSource()
-                    .size(10)
-                    .query(matchAllQuery())
-                    .terminateAfter(j), "@timestamp", emptyList()),
-                keyExtractors,
-                tsExtractor,
-                tbExtractor,
-                implicitTbExtractor,
-                criteriaDescending));
+            criteria.add(
+                new SequenceCriterion(
+                    i,
+                    new BoxedQueryRequest(
+                        () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
+                        "@timestamp",
+                        emptyList(),
+                        emptySet()
+                    ),
+                    keyExtractors,
+                    tsExtractor,
+                    tbExtractor,
+                    implicitTbExtractor,
+                    criteriaDescending,
+                    false
+                )
+            );
             // for DESC (TAIL) sequences only the first criterion is descending the rest are ASC, so flip it after the first query
             if (criteriaDescending && i == 0) {
                 criteriaDescending = false;
             }
         }
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
-        window.execute(wrap(p -> {}, ex -> {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }));
+        SequenceMatcher matcher = new SequenceMatcher(
+            stages,
+            descending,
+            TimeValue.MINUS_ONE,
+            null,
+            booleanArrayOf(stages, false),
+            NOOP_CIRCUIT_BREAKER
+        );
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
+        window.execute(wrap(p -> {}, ex -> { throw ExceptionsHelper.convertToRuntime(ex); }));
     }
 }

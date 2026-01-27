@@ -17,6 +17,6 @@ public final class InvalidateTokenAction extends ActionType<InvalidateTokenRespo
     public static final InvalidateTokenAction INSTANCE = new InvalidateTokenAction();
 
     private InvalidateTokenAction() {
-        super(NAME, InvalidateTokenResponse::new);
+        super(NAME);
     }
 }

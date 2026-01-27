@@ -1,19 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalValueCountTests extends InternalAggregationTestCase<InternalValueCount> {
 
@@ -28,9 +32,13 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected void assertFromXContent(InternalValueCount valueCount, ParsedAggregation parsedAggregation) {
-        assertEquals(valueCount.getValue(), ((ParsedValueCount) parsedAggregation).getValue(), 0);
-        assertEquals(valueCount.getValueAsString(), ((ParsedValueCount) parsedAggregation).getValueAsString());
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalValueCount sampled, InternalValueCount reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getValue(), equalTo(samplingContext.scaleUp(reduced.getValue())));
     }
 
     @Override
@@ -51,7 +59,7 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
                 break;
             case 2:
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

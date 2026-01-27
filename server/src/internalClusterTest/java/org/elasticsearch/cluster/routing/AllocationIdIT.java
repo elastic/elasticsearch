@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.io.IOException;
@@ -76,10 +75,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         final String indexName = "index42";
         final String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startNode();
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum").build());
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "checksum").build());
         final int numDocs = indexDocs(indexName, "foo", "bar");
         final IndexSettings indexSettings = getIndexSettings(indexName, node1);
         final Set<String> allocationIds = getAllocationIds(indexName);
@@ -94,13 +90,13 @@ public class AllocationIdIT extends ESIntegTestCase {
 
         Settings node1DataPathSettings = internalCluster().dataPathSettings(node1);
         Settings node2DataPathSettings = internalCluster().dataPathSettings(node2);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        internalCluster().stopNode(node1);
 
         // index more docs to node2 that marks node1 as stale
         int numExtraDocs = indexDocs(indexName, "foo", "bar2");
-        assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()).get(), numDocs + numExtraDocs);
+        assertHitCount(client(node2).prepareSearch(indexName).setQuery(matchAllQuery()), numDocs + numExtraDocs);
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node2));
+        internalCluster().stopNode(node2);
 
         // create fake corrupted marker on node1
         putFakeCorruptionMarker(indexSettings, shardId, indexPath);
@@ -112,20 +108,18 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // allocate stale primary
-        client(node1).admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        ClusterRerouteUtils.reroute(client(node1), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
 
         // allocation fails due to corruption marker
         assertBusy(() -> {
-            final ClusterState state = client().admin().cluster().prepareState().get().getState();
+            final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             final ShardRouting shardRouting = state.routingTable().index(indexName).shard(shardId.id()).primaryShard();
             assertThat(shardRouting.state(), equalTo(ShardRoutingState.UNASSIGNED));
-            assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
+            assertThat(shardRouting.unassignedInfo().reason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         });
 
         internalCluster().stopNode(node1);
-        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
         node1 = internalCluster().startNode(node1DataPathSettings);
@@ -135,9 +129,7 @@ public class AllocationIdIT extends ESIntegTestCase {
         checkNoValidShardCopy(indexName, shardId);
 
         // no any valid shard is there; have to invoke AllocateStalePrimary again
-        client().admin().cluster().prepareReroute()
-            .add(new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true))
-            .get();
+        ClusterRerouteUtils.reroute(client(), new AllocateStalePrimaryAllocationCommand(indexName, 0, node1, true));
 
         ensureYellow(indexName);
 
@@ -152,19 +144,20 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     public void checkHealthStatus(String indexName, ClusterHealthStatus healthStatus) {
-        final ClusterHealthStatus indexHealthStatus = client().admin().cluster()
-            .health(Requests.clusterHealthRequest(indexName)).actionGet().getStatus();
+        final ClusterHealthStatus indexHealthStatus = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, indexName))
+            .actionGet()
+            .getStatus();
         assertThat(indexHealthStatus, is(healthStatus));
     }
 
-    private int indexDocs(String indexName, Object ... source) throws InterruptedException {
+    private int indexDocs(String indexName, Object... source) throws InterruptedException {
         // index some docs in several segments
         int numDocs = 0;
         for (int k = 0, attempts = randomIntBetween(5, 10); k < attempts; k++) {
             final int numExtraDocs = between(10, 100);
             IndexRequestBuilder[] builders = new IndexRequestBuilder[numExtraDocs];
             for (int i = 0; i < builders.length; i++) {
-                builders[i] = client().prepareIndex(indexName).setSource(source);
+                builders[i] = prepareIndex(indexName).setSource(source);
             }
 
             indexRandom(true, false, true, Arrays.asList(builders));
@@ -179,9 +172,8 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private Set<String> getAllocationIds(String indexName) {
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final Set<String> allocationIds = state.metadata().index(indexName).inSyncAllocationIds(0);
-        return allocationIds;
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+        return state.metadata().getProject().index(indexName).inSyncAllocationIds(0);
     }
 
     private IndexSettings getIndexSettings(String indexName, String nodeName) {
@@ -192,7 +184,14 @@ public class AllocationIdIT extends ESIntegTestCase {
 
     private String historyUUID(String node, String indexName) {
         final ShardStats[] shards = client(node).admin().indices().prepareStats(indexName).clear().get().getShards();
-        final String nodeId = client(node).admin().cluster().prepareState().get().getState().nodes().resolveNode(node).getId();
+        final String nodeId = client(node).admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .nodes()
+            .resolveNode(node)
+            .getId();
         assertThat(shards.length, greaterThan(0));
         final Set<String> historyUUIDs = Arrays.stream(shards)
             .filter(shard -> shard.getShardRouting().currentNodeId().equals(nodeId))
@@ -203,22 +202,24 @@ public class AllocationIdIT extends ESIntegTestCase {
     }
 
     private void putFakeCorruptionMarker(IndexSettings indexSettings, ShardId shardId, Path indexPath) throws IOException {
-        try(Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
+        try (Store store = new Store(shardId, indexSettings, newFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.markStoreCorrupted(new IOException("fake ioexception"));
         }
     }
 
     private void checkNoValidShardCopy(String indexName, ShardId shardId) throws Exception {
         assertBusy(() -> {
-            final ClusterAllocationExplanation explanation =
-                client().admin().cluster().prepareAllocationExplain()
-                    .setIndex(indexName).setShard(shardId.id()).setPrimary(true)
-                    .get().getExplanation();
-
-            final ShardAllocationDecision shardAllocationDecision = explanation.getShardAllocationDecision();
+            final var shardAllocationDecision = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(
+                client(),
+                indexName,
+                shardId.id(),
+                true
+            ).getShardAllocationDecision();
             assertThat(shardAllocationDecision.isDecisionTaken(), equalTo(true));
-            assertThat(shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
-                equalTo(AllocationDecision.NO_VALID_SHARD_COPY));
+            assertThat(
+                shardAllocationDecision.getAllocateDecision().getAllocationDecision(),
+                equalTo(AllocationDecision.NO_VALID_SHARD_COPY)
+            );
         });
     }
 

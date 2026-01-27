@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.analysis;
@@ -22,13 +23,17 @@ public final class CustomAnalyzer extends Analyzer implements AnalyzerComponents
     private final int offsetGap;
     private final AnalysisMode analysisMode;
 
-    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters) {
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
         this(tokenizerFactory, charFilters, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
+    public CustomAnalyzer(
+        TokenizerFactory tokenizerFactory,
+        CharFilterFactory[] charFilters,
+        TokenFilterFactory[] tokenFilters,
+        int positionIncrementGap,
+        int offsetGap
+    ) {
         this.components = new AnalyzerComponents(tokenizerFactory, charFilters, tokenFilters);
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;

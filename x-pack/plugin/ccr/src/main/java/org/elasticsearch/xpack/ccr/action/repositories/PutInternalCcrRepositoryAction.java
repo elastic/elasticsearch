@@ -12,7 +12,10 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
@@ -23,25 +26,30 @@ public class PutInternalCcrRepositoryAction extends ActionType<ActionResponse.Em
     public static final String NAME = "internal:admin/ccr/internal_repository/put";
 
     private PutInternalCcrRepositoryAction() {
-        super(NAME, in -> ActionResponse.Empty.INSTANCE);
+        super(NAME);
     }
 
-    public static class TransportPutInternalRepositoryAction
-        extends TransportAction<PutInternalCcrRepositoryRequest, ActionResponse.Empty> {
+    public static class TransportPutInternalRepositoryAction extends TransportAction<
+        PutInternalCcrRepositoryRequest,
+        ActionResponse.Empty> {
 
         private final RepositoriesService repositoriesService;
 
         @Inject
-        public TransportPutInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
-                                                    TransportService transportService) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+        public TransportPutInternalRepositoryAction(
+            RepositoriesService repositoriesService,
+            ActionFilters actionFilters,
+            TransportService transportService
+        ) {
+            super(NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request,
-                                 ActionListener<ActionResponse.Empty> listener) {
-            repositoriesService.registerInternalRepository(request.getName(), request.getType());
+        protected void doExecute(Task task, PutInternalCcrRepositoryRequest request, ActionListener<ActionResponse.Empty> listener) {
+            @FixForMultiProject(description = "resolve the actual projectId, ES-12139")
+            final var projectId = ProjectId.DEFAULT;
+            repositoriesService.registerInternalRepository(projectId, request.getName(), request.getType());
             listener.onResponse(ActionResponse.Empty.INSTANCE);
         }
     }

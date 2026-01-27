@@ -7,29 +7,17 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.junit.Before;
+import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
-
-    private Client client;
-
-    @Before
-    public void setup() {
-        client = Mockito.mock(Client.class);
-    }
 
     @Override
     protected OpenIndexStep createRandomInstance() {
@@ -42,14 +30,9 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
         Step.StepKey nextKey = instance.getNextStepKey();
 
         switch (between(0, 1)) {
-            case 0:
-                key = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            case 1:
-                nextKey = new Step.StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
+            case 0 -> key = new Step.StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
+            case 1 -> nextKey = new Step.StepKey(nextKey.phase(), nextKey.action(), nextKey.name() + randomAlphaOfLength(5));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
 
         return new OpenIndexStep(key, nextKey, client);
@@ -57,11 +40,12 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
 
     @Override
     protected OpenIndexStep copyInstance(OpenIndexStep instance) {
-        return new OpenIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
+        return new OpenIndexStep(instance.getKey(), instance.getNextStepKey(), instance.getClientWithoutProject());
     }
 
     public void testPerformAction() throws Exception {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .state(IndexMetadata.State.CLOSE)
@@ -69,31 +53,28 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
 
         OpenIndexStep step = createRandomInstance();
 
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
-
         Mockito.doAnswer((Answer<Void>) invocation -> {
             OpenIndexRequest request = (OpenIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onResponse(new OpenIndexResponse(true, true));
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
+        var state = projectStateWithEmptyProject();
+        performActionAndWait(step, indexMetadata, state, null);
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).open(Mockito.any(), Mockito.any());
     }
 
-
     public void testPerformActionFailure() {
-        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
+        IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .state(IndexMetadata.State.CLOSE)
@@ -101,25 +82,22 @@ public class OpenIndexStepTests extends AbstractStepTestCase<OpenIndexStep> {
 
         OpenIndexStep step = createRandomInstance();
         Exception exception = new RuntimeException();
-        AdminClient adminClient = Mockito.mock(AdminClient.class);
-        IndicesAdminClient indicesClient = Mockito.mock(IndicesAdminClient.class);
-
-        Mockito.when(client.admin()).thenReturn(adminClient);
-        Mockito.when(adminClient.indices()).thenReturn(indicesClient);
 
         Mockito.doAnswer((Answer<Void>) invocation -> {
             OpenIndexRequest request = (OpenIndexRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<OpenIndexResponse> listener = (ActionListener<OpenIndexResponse>) invocation.getArguments()[1];
-            assertThat(request.indices(), equalTo(new String[]{indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).open(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Void, Exception>get(
-            f -> step.performAction(indexMetadata, null, null, f))));
+        var state = projectStateWithEmptyProject();
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client, Mockito.only()).admin();
+        Mockito.verify(client).projectClient(state.projectId());
+        Mockito.verify(projectClient).admin();
+        Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).open(Mockito.any(), Mockito.any());
     }

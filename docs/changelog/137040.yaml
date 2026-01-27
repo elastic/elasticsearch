@@ -1,0 +1,7 @@
+pr: 137040
+summary: Introduce a new interface to declare functions depending on the `@timestamp`
+  attribute
+area: ES|QL
+type: enhancement
+issues:
+ - 136772

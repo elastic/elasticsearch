@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.node;
@@ -18,10 +19,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     }
 
     public void testRoleNamesIsImmutable() {
-        expectThrows(
-            UnsupportedOperationException.class,
-            () -> DiscoveryNodeRole.roleNames().add(DiscoveryNodeRole.DATA_ROLE.roleName())
-        );
+        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.roleNames().add(DiscoveryNodeRole.DATA_ROLE.roleName()));
     }
 
     public void testDiscoveryNodeRoleEqualsHashCode() {
@@ -30,24 +28,22 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
             r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData()),
             r -> {
                 final int value = randomIntBetween(0, 2);
-                switch (value) {
-                    case 0:
-                    return new DiscoveryNodeRole.UnknownRole(
+                return switch (value) {
+                    case 0 -> new DiscoveryNodeRole.UnknownRole(
                         randomAlphaOfLength(21 - r.roleName().length()),
                         r.roleNameAbbreviation(),
                         r.canContainData()
                     );
-                    case 1:
-                    return new DiscoveryNodeRole.UnknownRole(
+                    case 1 -> new DiscoveryNodeRole.UnknownRole(
                         r.roleName(),
                         randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
-                        r.canContainData());
-                    case 2:
-                        return new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
-                    default:
-                        throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
-                }
-            });
+                        r.canContainData()
+                    );
+                    case 2 -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
+                    default -> throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
+                };
+            }
+        );
 
     }
 

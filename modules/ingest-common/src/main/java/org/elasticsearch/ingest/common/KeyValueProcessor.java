@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -16,7 +18,6 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -43,9 +44,21 @@ public final class KeyValueProcessor extends AbstractProcessor {
     private final boolean ignoreMissing;
     private final Consumer<IngestDocument> execution;
 
-    KeyValueProcessor(String tag, String description, TemplateScript.Factory field, String fieldSplit, String valueSplit,
-                      Set<String> includeKeys, Set<String> excludeKeys, TemplateScript.Factory targetField, boolean ignoreMissing,
-                      String trimKey, String trimValue, boolean stripBrackets, String prefix) {
+    KeyValueProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory field,
+        String fieldSplit,
+        String valueSplit,
+        Set<String> includeKeys,
+        Set<String> excludeKeys,
+        TemplateScript.Factory targetField,
+        boolean ignoreMissing,
+        String trimKey,
+        String trimValue,
+        boolean stripBrackets,
+        String prefix
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -55,20 +68,37 @@ public final class KeyValueProcessor extends AbstractProcessor {
         this.excludeKeys = excludeKeys;
         this.ignoreMissing = ignoreMissing;
         this.execution = buildExecution(
-            fieldSplit, valueSplit, field, includeKeys, excludeKeys, targetField, ignoreMissing, trimKey, trimValue,
-            stripBrackets, prefix
+            fieldSplit,
+            valueSplit,
+            field,
+            includeKeys,
+            excludeKeys,
+            targetField,
+            ignoreMissing,
+            trimKey,
+            trimValue,
+            stripBrackets,
+            prefix
         );
     }
 
-    private static Consumer<IngestDocument> buildExecution(String fieldSplit, String valueSplit, TemplateScript.Factory field,
-                                                           Set<String> includeKeys, Set<String> excludeKeys,
-                                                           TemplateScript.Factory targetField, boolean ignoreMissing,
-                                                           String trimKey, String trimValue, boolean stripBrackets,
-                                                           String prefix) {
+    private Consumer<IngestDocument> buildExecution(
+        String fieldSplit,
+        String valueSplit,
+        TemplateScript.Factory field,
+        Set<String> includeKeys,
+        Set<String> excludeKeys,
+        TemplateScript.Factory targetField,
+        boolean ignoreMissing,
+        String trimKey,
+        String trimValue,
+        boolean stripBrackets,
+        String prefix
+    ) {
         final Predicate<String> keyFilter;
         if (includeKeys == null) {
             if (excludeKeys == null) {
-                keyFilter = key -> true;
+                keyFilter = Predicates.always();
             } else {
                 keyFilter = key -> excludeKeys.contains(key) == false;
             }
@@ -137,20 +167,32 @@ public final class KeyValueProcessor extends AbstractProcessor {
         };
     }
 
-    private static Function<String, String> buildTrimmer(String trim) {
+    private Function<String, String> buildTrimmer(String trim) {
         if (trim == null) {
             return val -> val;
         } else {
             Pattern pattern = Pattern.compile("(^([" + trim + "]+))|([" + trim + "]+$)");
-            return val -> pattern.matcher(val).replaceAll("");
+            return val -> {
+                try {
+                    return pattern.matcher(val).replaceAll("");
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error trimming [" + val + "] using pattern [" + trim + "]", error);
+                }
+            };
         }
     }
 
-    private static Function<String, String[]> buildSplitter(String split, boolean fields) {
+    private Function<String, String[]> buildSplitter(String split, boolean fields) {
         int limit = fields ? 0 : 2;
         if (split.length() > 2 || split.length() == 2 && split.charAt(0) != '\\') {
             Pattern splitPattern = Pattern.compile(split);
-            return val -> splitPattern.split(val, limit);
+            return val -> {
+                try {
+                    return splitPattern.split(val, limit);
+                } catch (Exception | StackOverflowError error) {
+                    throw logAndBuildException("Error splitting [" + val + "] using pattern [" + split + "]", error);
+                }
+            };
         } else {
             return val -> val.split(split, limit);
         }
@@ -211,16 +253,19 @@ public final class KeyValueProcessor extends AbstractProcessor {
         }
 
         @Override
-        public KeyValueProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                        String description, Map<String, Object> config) throws Exception {
+        public KeyValueProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config,
+            ProjectId projectId
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, scriptService);
+            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
             TemplateScript.Factory targetFieldTemplate = null;
             if (targetField != null) {
-                targetFieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                    "target_field", targetField, scriptService);
+                targetFieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "target_field", targetField, scriptService);
             }
 
             String fieldSplit = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field_split");
@@ -228,22 +273,32 @@ public final class KeyValueProcessor extends AbstractProcessor {
             String trimKey = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "trim_key");
             String trimValue = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "trim_value");
             String prefix = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "prefix");
-            boolean stripBrackets =
-                ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "strip_brackets", false);
+            boolean stripBrackets = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "strip_brackets", false);
             Set<String> includeKeys = null;
             Set<String> excludeKeys = null;
             List<String> includeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "include_keys");
             if (includeKeysList != null) {
-                includeKeys = Collections.unmodifiableSet(Sets.newHashSet(includeKeysList));
+                includeKeys = Set.copyOf(includeKeysList);
             }
             List<String> excludeKeysList = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "exclude_keys");
             if (excludeKeysList != null) {
-                excludeKeys = Collections.unmodifiableSet(Sets.newHashSet(excludeKeysList));
+                excludeKeys = Set.copyOf(excludeKeysList);
             }
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             return new KeyValueProcessor(
-                processorTag, description, fieldTemplate, fieldSplit, valueSplit, includeKeys, excludeKeys, targetFieldTemplate,
-                ignoreMissing, trimKey, trimValue, stripBrackets, prefix
+                processorTag,
+                description,
+                fieldTemplate,
+                fieldSplit,
+                valueSplit,
+                includeKeys,
+                excludeKeys,
+                targetFieldTemplate,
+                ignoreMissing,
+                trimKey,
+                trimValue,
+                stripBrackets,
+                prefix
             );
         }
     }

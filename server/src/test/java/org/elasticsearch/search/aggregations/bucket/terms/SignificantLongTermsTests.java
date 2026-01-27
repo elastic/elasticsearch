@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
@@ -47,31 +49,16 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);
-            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(
-                subsetDfs[i],
-                subsetSize,
-                supersetDfs[i],
-                supersetSize,
-                term,
-                aggs,
-                format,
-                0
-            );
-            bucket.updateScore(significanceHeuristic);
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(subsetDfs[i], supersetDfs[i], term, aggs, format, 0);
+            bucket.updateScore(significanceHeuristic, subsetSize, supersetSize);
             buckets.add(bucket);
         }
         return new SignificantLongTerms(name, requiredSize, 1L, metadata, format, subsetSize, supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
-    protected Class<ParsedSignificantLongTerms> implementationClass() {
-        return ParsedSignificantLongTerms.class;
-    }
-
-    @Override
     protected InternalSignificantTerms<?, ?> mutateInstance(InternalSignificantTerms<?, ?> instance) {
-        if (instance instanceof SignificantLongTerms) {
-            SignificantLongTerms longTerms = (SignificantLongTerms) instance;
+        if (instance instanceof SignificantLongTerms longTerms) {
             String name = longTerms.getName();
             int requiredSize = longTerms.requiredSize;
             long minDocCount = longTerms.minDocCount;
@@ -81,29 +68,17 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             List<SignificantLongTerms.Bucket> buckets = longTerms.getBuckets();
             SignificanceHeuristic significanceHeuristic = longTerms.significanceHeuristic;
             Map<String, Object> metadata = longTerms.getMetadata();
-            switch (between(0, 5)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
-                    subsetSize += between(1, 100);
-                    break;
-                case 4:
-                    supersetSize += between(1, 100);
-                    break;
-                case 5:
+            switch (between(0, 6)) {
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> subsetSize += between(1, 100);
+                case 4 -> supersetSize += between(1, 100);
+                case 5 -> {
                     buckets = new ArrayList<>(buckets);
                     buckets.add(
                         new SignificantLongTerms.Bucket(
                             randomLong(),
-                            randomNonNegativeLong(),
-                            randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             randomNonNegativeLong(),
                             InternalAggregations.EMPTY,
@@ -111,17 +86,16 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
                             0
                         )
                     );
-                    break;
-                case 8:
+                }
+                case 6 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new SignificantLongTerms(
                 name,
@@ -140,25 +114,18 @@ public class SignificantLongTermsTests extends InternalSignificantTermsTestCase 
             long minDocCount = instance.minDocCount;
             Map<String, Object> metadata = instance.getMetadata();
             switch (between(0, 3)) {
-                case 0:
-                    name += randomAlphaOfLength(5);
-                    break;
-                case 1:
-                    requiredSize += between(1, 100);
-                    break;
-                case 2:
-                    minDocCount += between(1, 100);
-                    break;
-                case 3:
+                case 0 -> name += randomAlphaOfLength(5);
+                case 1 -> requiredSize += between(1, 100);
+                case 2 -> minDocCount += between(1, 100);
+                case 3 -> {
                     if (metadata == null) {
-                        metadata = new HashMap<>(1);
+                        metadata = Maps.newMapWithExpectedSize(1);
                     } else {
                         metadata = new HashMap<>(instance.getMetadata());
                     }
                     metadata.put(randomAlphaOfLength(15), randomInt());
-                    break;
-                default:
-                    throw new AssertionError("Illegal randomisation branch");
+                }
+                default -> throw new AssertionError("Illegal randomisation branch");
             }
             return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
         }

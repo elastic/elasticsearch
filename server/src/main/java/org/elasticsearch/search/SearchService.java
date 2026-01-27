@@ -1121,9 +1121,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 throw e;
                             }
 
-                            // Retain the fetch result so it can outlive the SearchContext close below.
-                            // The SearchContext is closed on fetch build completion, but the FetchSearchResult
-                            // may still be needed until streaming ACKs complete.
+                            // Retain the fetch result so it can outlive the SearchContext close which is closed on fetch build completion.
                             final FetchSearchResult fetchResult = searchContext.fetchResult();
                             fetchResult.incRef();
 

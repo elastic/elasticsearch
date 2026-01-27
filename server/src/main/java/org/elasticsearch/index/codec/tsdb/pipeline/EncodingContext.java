@@ -74,7 +74,7 @@ public final class EncodingContext {
 
     // NOTE: Metadata is written in reverse order (last stage first) so that during
     // decoding, each stage reads its metadata in the order it executes. Decoding
-    // runs stages in reverse: stage N-1 → stage 0, so metadata for stage N-1
+    // runs stages in reverse: stage N-1 -> stage 0, so metadata for stage N-1
     // must appear first in the stream.
     public void writeStageMetadata(final DataOutput out) throws IOException {
         int numStages = pipelineLength() - 1;

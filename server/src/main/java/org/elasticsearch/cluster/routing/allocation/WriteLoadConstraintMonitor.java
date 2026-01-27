@@ -50,7 +50,7 @@ import java.util.stream.Collectors;
 public class WriteLoadConstraintMonitor {
     public static final String HOTSPOT_NODES_COUNT_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.current";
     public static final String HOTSPOT_DURATION_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.duration.histogram";
-    public static final String HOTSPOT_NODES_FLAG_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot_node_flag.current";
+    public static final String HOTSPOT_NODES_FLAG_METRIC_NAME = "es.allocator.allocations.node.write_load_hotspot.node_flag.current";
 
     private static final Logger logger = LogManager.getLogger(WriteLoadConstraintMonitor.class);
     private static final int MAX_NODE_IDS_IN_MESSAGE = 3;

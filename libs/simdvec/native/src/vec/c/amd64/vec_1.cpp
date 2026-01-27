@@ -264,10 +264,10 @@ static inline void dotf32_inner_bulk(
             sum3 = _mm256_fmadd_ps(_mm256_loadu_ps(a3 + i), bi, sum3);
         }
 
-        f32_t result0 = hsum_f32_8(sum0);
-        f32_t result1 = hsum_f32_8(sum1);
-        f32_t result2 = hsum_f32_8(sum2);
-        f32_t result3 = hsum_f32_8(sum3);
+        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
+        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
+        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
+        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
 
         // dimensions tail
         for (; i < dims; i++) {
@@ -381,10 +381,10 @@ static inline void sqrf32_inner_bulk(
             sum3 = _mm256_fmadd_ps(d3, d3, sum3);
         }
 
-        f32_t result0 = hsum_f32_8(sum0);
-        f32_t result1 = hsum_f32_8(sum1);
-        f32_t result2 = hsum_f32_8(sum2);
-        f32_t result3 = hsum_f32_8(sum3);
+        f32_t result0 = mm256_reduce_ps<_mm_add_ps>(sum0);
+        f32_t result1 = mm256_reduce_ps<_mm_add_ps>(sum1);
+        f32_t result2 = mm256_reduce_ps<_mm_add_ps>(sum2);
+        f32_t result3 = mm256_reduce_ps<_mm_add_ps>(sum3);
 
         // dimensions tail
         for (; i < dims; i++) {

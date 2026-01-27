@@ -36,7 +36,7 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<DataType> types = new ArrayList<>( List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS));
+        List<DataType> types = new ArrayList<>(List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS));
 
         if (isNullable) {
             types.add(DataType.BOOLEAN);

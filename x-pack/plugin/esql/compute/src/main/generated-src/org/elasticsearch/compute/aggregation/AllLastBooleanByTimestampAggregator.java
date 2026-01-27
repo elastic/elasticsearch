@@ -268,7 +268,7 @@ public class AllLastBooleanByTimestampAggregator {
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
                 boolean success = false;
-ByteArray groupValues = null;
+                ByteArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);

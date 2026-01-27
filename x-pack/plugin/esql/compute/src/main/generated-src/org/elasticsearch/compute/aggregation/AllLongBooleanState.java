@@ -42,6 +42,7 @@ final class AllLongBooleanState implements AggregatorState {
      * The value can be null, single valued or multivalued.
      */
     private ByteArray v2;
+
     public AllLongBooleanState(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
     }

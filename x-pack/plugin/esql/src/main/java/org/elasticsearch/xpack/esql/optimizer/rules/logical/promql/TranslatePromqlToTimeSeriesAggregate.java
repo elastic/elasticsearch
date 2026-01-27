@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -50,10 +51,12 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
-import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatcher;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMatchers;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
@@ -97,11 +100,21 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
 
     @Override
     protected LogicalPlan rule(PromqlCommand promqlCommand, LogicalOptimizerContext context) {
+        Alias stepBucketAlias = createStepBucketAlias(promqlCommand);
         List<Expression> labelFilterConditions = new ArrayList<>();
-        Expression value = mapNode(promqlCommand, promqlCommand.promqlPlan(), labelFilterConditions, context);
+        Expression value = mapNode(
+            promqlCommand,
+            promqlCommand.promqlPlan(),
+            labelFilterConditions,
+            context,
+            stepBucketAlias.toAttribute()
+        );
         LogicalPlan plan = withTimestampFilter(promqlCommand, promqlCommand.child());
         plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
-        plan = createTimeSeriesAggregate(promqlCommand, value, plan);
+        plan = createTimeSeriesAggregate(promqlCommand, value, plan, stepBucketAlias);
+        if (promqlCommand.promqlPlan() instanceof VectorBinaryComparison binaryComparison) {
+            plan = addFilter(plan, binaryComparison, context);
+        }
         plan = convertValueToDouble(promqlCommand, plan);
         // ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
         return new Project(promqlCommand.source(), plan, promqlCommand.output());
@@ -146,8 +159,12 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
      * Creates a TimeSeriesAggregate node wrapping the given child plan.
      * The aggregation groups by step (time bucket) and additional groupings depending on the PromQL plan root.
      */
-    private static TimeSeriesAggregate createTimeSeriesAggregate(PromqlCommand promqlCommand, Expression value, LogicalPlan plan) {
-        Alias stepBucket = createStepBucketAlias(promqlCommand);
+    private static TimeSeriesAggregate createTimeSeriesAggregate(
+        PromqlCommand promqlCommand,
+        Expression value,
+        LogicalPlan plan,
+        Alias stepBucket
+    ) {
         List<NamedExpression> aggs = new ArrayList<>();
         List<Expression> groupings = new ArrayList<>();
 
@@ -158,7 +175,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             plan = plan.transformDown(EsRelation.class, r -> r.withAdditionalAttribute(timeSeriesGrouping));
         }
         // value aggregation
-        aggs.add(new Alias(promqlCommand.promqlPlan().source(), promqlCommand.valueColumnName(), value));
+        aggs.add(new Alias(value.source(), promqlCommand.valueColumnName(), value));
 
         // timestamp/step
         aggs.add(stepBucket.toAttribute());
@@ -206,17 +223,19 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         PromqlCommand promqlCommand,
         LogicalPlan p,
         List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context
+        LogicalOptimizerContext context,
+        Attribute stepAttribute
     ) {
         return switch (p) {
             case Selector selector -> mapSelector(promqlCommand, selector, labelFilterConditions);
-            case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context);
-            case ScalarFunction functionCall -> mapScalarFunction(functionCall);
-            case VectorBinaryArithmetic vectorBinaryArithmetic -> mapVectorBinaryArithmetic(
+            case PromqlFunctionCall functionCall -> mapFunction(promqlCommand, functionCall, labelFilterConditions, context, stepAttribute);
+            case ScalarFunction functionCall -> mapScalarFunction(promqlCommand, functionCall, stepAttribute);
+            case VectorBinaryOperator binaryOperator -> mapBinaryOperator(
                 promqlCommand,
-                vectorBinaryArithmetic,
+                binaryOperator,
                 labelFilterConditions,
-                context
+                context,
+                stepAttribute
             );
             default -> throw new QlIllegalArgumentException("Unsupported PromQL plan node: {}", p);
         };
@@ -227,19 +246,42 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
      * Recursively maps the left and right operands and applies the binary operation.
      * Both operands are converted to double to ensure semantic consistency with PromQL.
      */
-    private static Expression mapVectorBinaryArithmetic(
+    private static Expression mapBinaryOperator(
         PromqlCommand promqlCommand,
-        VectorBinaryArithmetic vectorBinaryArithmetic,
+        VectorBinaryOperator binaryOperator,
         List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context
+        LogicalOptimizerContext context,
+        Attribute stepAttribute
     ) {
-        Expression left = mapNode(promqlCommand, vectorBinaryArithmetic.left(), labelFilterConditions, context);
+        Expression left = mapNode(promqlCommand, binaryOperator.left(), labelFilterConditions, context, stepAttribute);
         left = new ToDouble(left.source(), left);
 
-        Expression right = mapNode(promqlCommand, vectorBinaryArithmetic.right(), labelFilterConditions, context);
-        right = new ToDouble(right.source(), right);
+        if (binaryOperator instanceof VectorBinaryComparison comp && comp.filterMode()) {
+            // for comparison with filtering mode, return left operand and apply filter later
+            return left;
+        } else {
+            Expression right = mapNode(promqlCommand, binaryOperator.right(), labelFilterConditions, context, stepAttribute);
+            right = new ToDouble(right.source(), right);
+            return binaryOperator.binaryOp().asFunction().create(binaryOperator.source(), left, right, context.configuration());
+        }
+    }
 
-        return vectorBinaryArithmetic.binaryOp().asFunction().create(vectorBinaryArithmetic.source(), left, right, context.configuration());
+    /**
+     * Adds a Filter node on top of the given plan for the binary comparison condition.
+     * At this time, we only support a single top-level binary comparison in filtering mode where the right operand is a literal.
+     * Therefore, we can simply filter the result of the plan.
+     * The left operand is assumed to be the value column of the plan's output.
+     * The right operand is expected to be a LiteralSelector, which we're validating during analysis.
+     * <p>
+     * To support more complex expressions in the future, we would need to individually evaluate both sides as aggregations (STATS)
+     * and account for nested comparisons where groupings may differ.
+     * Example: sum(max by (job) (foo > bar)) > avg(baz)
+     */
+    private LogicalPlan addFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
+        Attribute left = plan.output().getFirst().toAttribute();
+        ToDouble right = new ToDouble(binaryComparison.right().source(), ((LiteralSelector) binaryComparison.right()).literal());
+        Function condition = binaryComparison.op().asFunction().create(binaryComparison.source(), left, right, context.configuration());
+        return new Filter(binaryComparison.source(), plan, condition);
     }
 
     /**
@@ -273,9 +315,10 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         PromqlCommand promqlCommand,
         PromqlFunctionCall functionCall,
         List<Expression> labelFilterConditions,
-        LogicalOptimizerContext context
+        LogicalOptimizerContext context,
+        Attribute stepAttribute
     ) {
-        Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions, context);
+        Expression target = mapNode(promqlCommand, functionCall.child(), labelFilterConditions, context, stepAttribute);
 
         final Expression window;
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
@@ -284,13 +327,18 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             window = AggregateFunction.NO_WINDOW;
         }
 
+        PromqlFunctionRegistry.PromqlContext ctx = new PromqlFunctionRegistry.PromqlContext(
+            promqlCommand.timestamp(),
+            window,
+            stepAttribute
+        );
+
         List<Expression> extraParams = functionCall.parameters();
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             functionCall.functionName(),
             functionCall.source(),
             target,
-            promqlCommand.timestamp(),
-            window,
+            ctx,
             extraParams
         );
         // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
@@ -303,8 +351,13 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         return function;
     }
 
-    private static Expression mapScalarFunction(ScalarFunction function) {
-        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function.functionName(), function.source(), null, null, null, List.of());
+    private static Expression mapScalarFunction(PromqlCommand promqlCommand, ScalarFunction function, Attribute stepAttribute) {
+        PromqlFunctionRegistry.PromqlContext ctx = new PromqlFunctionRegistry.PromqlContext(
+            promqlCommand.timestamp(),
+            /* window= */null,
+            stepAttribute
+        );
+        return PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(function.functionName(), function.source(), null, ctx, List.of());
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {

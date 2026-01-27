@@ -590,12 +590,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
             new EndpointMetadata(
-                new EndpointMetadata.Heuristics(
-                    List.of(),
-                    StatusHeuristic.fromString("preview"),
-                    LocalDate.parse("2024-05-01"),
-                    null
-                ),
+                new EndpointMetadata.Heuristics(List.of(), StatusHeuristic.fromString("preview"), LocalDate.parse("2024-05-01"), null),
                 new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
                 "Jina Reranker V2"
             )

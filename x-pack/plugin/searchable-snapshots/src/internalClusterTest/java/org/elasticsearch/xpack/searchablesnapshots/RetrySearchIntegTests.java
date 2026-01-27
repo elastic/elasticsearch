@@ -53,6 +53,14 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.PIT_RELOCATION_ENABLED.getKey(), true)
+            .build();
+    }
+
     public void testSearcherId() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = between(1, 5);

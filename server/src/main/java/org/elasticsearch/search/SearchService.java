@@ -307,7 +307,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> PIT_RELOCATION_ENABLED = Setting.boolSetting(
         "search.pit_relocation_enabled",
-        PIT_RELOCATION_FEATURE_FLAG.isEnabled(),
+        // temporarily disable PIT relocation by default to closing old PIT id issue
+        false,
         Property.OperatorDynamic,
         Property.NodeScope
     );

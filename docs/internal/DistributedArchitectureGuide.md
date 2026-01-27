@@ -787,8 +787,8 @@ spread snapshots to different locations if so desired.
 
 We allow different implementations of the same cloud storage type to be used as long as they are compatible
 in both APIs and performance characteristics. For example, many storage service claims S3 compatibility.
-But they may fall short under load or even just return outright incorrect responses in some corner cases
-that involving more than a single request. The [RepositoryAnalyze API][] can be used to proactively test the
+But they may fall short under load or even just return outright incorrect responses in some corner cases.
+The [RepositoryAnalyze API][] can be used to proactively test the
 compatibility which we suggest on SDHs from time to time.
 
 [RepositoriesService]: https://github.com/elastic/elasticsearch/blob/f55a90c941f5ca80fff4978be7b15e97614ce55f/server/src/main/java/org/elasticsearch/repositories/RepositoriesService.java#L98
@@ -859,7 +859,7 @@ followed by an UUID to avoid name collision. The actual name is mapped and store
 It is worth note that the shard level generation file (`index-<UUID>.data`) can be reconstructed from all shard
 level snapshot files (`snap-<UUID>.dat`) so that it is technically redundant. However, listing and reading
 all shard snapshot files can be rather inefficient since there could be hundreds or thousands of these files.
-Hence, having the shard level generation file helps with performance for operations such as deletion which
+Hence, having the shard level generation file helps with performance for deletion operations which
 needs to read only a single file to decide what can be deleted at the shard level.
 
 Once the shard snapshot is completed successfully, the data node releases the previously acquired index commit and

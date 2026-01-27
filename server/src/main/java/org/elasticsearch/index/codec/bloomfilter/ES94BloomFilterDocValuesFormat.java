@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 
@@ -153,10 +154,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class Writer extends DocValuesConsumer {
         private final int numHashFunctions;
         private final String bloomFilterFieldName;
-        private final List<Closeable> toClose = new ArrayList<>(3);
 
-        private final IndexOutput metadataOut;
-        private final IndexOutput bloomFilterDataOut;
+        private IndexOutput metadataOut;
+        private IndexOutput bloomFilterDataOut;
         private final SegmentWriteState state;
         private final BigArrays bigArrays;
         private BitSetBuffer bitSetBuffer;
@@ -173,6 +173,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             this.numHashFunctions = numHashFunctions;
             this.bloomFilterFieldName = bloomFilterFieldName;
 
+            final List<Closeable> toClose = new ArrayList<>(3);
             boolean success = false;
             try {
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
@@ -247,22 +248,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 final byte val = (byte) (bitSetBuffer.get(pos) | mask);
                 bitSetBuffer.set(pos, val);
             }
-        }
-
-        private void flush() throws IOException {
-            BloomFilterMetadata bloomFilterMetadata = new BloomFilterMetadata(
-                bloomFilterDataOut.getFilePointer(),
-                bitSetBuffer == null ? 0 : bitSetBuffer.bitsetSizeInBits,
-                numHashFunctions
-            );
-
-            if (bitSetBuffer != null) {
-                bitSetBuffer.writeTo(bloomFilterDataOut);
-            }
-            CodecUtil.writeFooter(bloomFilterDataOut);
-
-            bloomFilterMetadata.writeTo(metadataOut);
-            CodecUtil.writeFooter(metadataOut);
         }
 
         @Override
@@ -434,13 +419,39 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void close() throws IOException {
-            if (closed) {
-                return;
-            }
+            try {
+                if (Assertions.ENABLED) {
+                    boolean allNull = (bitSetBuffer == null && bloomFilterDataOut == null && metadataOut == null);
+                    boolean allSet = (bitSetBuffer != null && bloomFilterDataOut != null && metadataOut != null);
+                    assert allNull || allSet : bitSetBuffer + " vs " + bloomFilterDataOut + " vs " + metadataOut;
+                }
+                try {
+                    BloomFilterMetadata bloomFilterMetadata = null;
+                    if (bloomFilterDataOut != null) {
+                        bloomFilterMetadata = new BloomFilterMetadata(
+                            bloomFilterDataOut.getFilePointer(),
+                            bitSetBuffer == null ? 0 : bitSetBuffer.bitsetSizeInBits,
+                            numHashFunctions
+                        );
 
-            closed = true;
-            flush();
-            IOUtils.close(toClose);
+                        if (bitSetBuffer != null) {
+                            bitSetBuffer.writeTo(bloomFilterDataOut);
+                        }
+                        CodecUtil.writeFooter(bloomFilterDataOut);
+                    }
+                    if (metadataOut != null) {
+                        bloomFilterMetadata.writeTo(metadataOut);
+                        CodecUtil.writeFooter(metadataOut);
+                    }
+                } catch (Throwable t) {
+                    IOUtils.closeWhileHandlingException(bitSetBuffer, bloomFilterDataOut, metadataOut);
+                    throw t;
+                }
+                IOUtils.close(bitSetBuffer, bloomFilterDataOut, metadataOut);
+            } finally {
+                metadataOut = bloomFilterDataOut = null;
+                bitSetBuffer = null;
+            }
         }
 
         @Override
@@ -478,7 +489,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             }
 
             this.bitSetBuffer = new BitSetBuffer(bigArrays, sizeInBytes);
-            toClose.add(bitSetBuffer);
         }
     }
 
@@ -676,7 +686,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         int getBloomFilterBitSetSizeInBytes() {
-            return Math.divideExact(bloomFilterBitSetSizeInBits, Byte.BYTES);
+            return Math.divideExact(bloomFilterBitSetSizeInBits, Byte.SIZE);
         }
 
         @Override

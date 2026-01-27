@@ -45,7 +45,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
@@ -234,7 +233,7 @@ public class DfsPhase {
         var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
             ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
             : null;
-        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : DEFAULT_OVERSAMPLE;
+        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 1f;
 
     }
 
@@ -246,8 +245,9 @@ public class DfsPhase {
         ContextIndexSearcher searcher,
         String nestedPath
     ) throws IOException {
+        var localK = oversample > 1 ? k * oversample : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
-            Math.round(k * oversample),
+            Math.round(localK),
             null,
             Integer.MAX_VALUE
         );

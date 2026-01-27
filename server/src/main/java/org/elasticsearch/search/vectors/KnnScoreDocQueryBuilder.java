@@ -180,9 +180,9 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         var query = new KnnScoreDocQuery(scoreDocs, context.getIndexReader());
-        if (queryVector.asFloatVector() != null && oversample != null && oversample > 0) {
+        var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
+        if (fieldType.needsRescore(oversample)) {
             int localK = k == null ? scoreDocs.length : k;
-            var fieldType = (DenseVectorFieldMapper.DenseVectorFieldType) context.getFieldType(fieldName);
             var similarityFunction = fieldType.getSimilarity()
                 .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
             var adjustedK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
@@ -194,9 +194,8 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
                 adjustedK,
                 query
             );
-        } else {
-            return query;
         }
+        return query;
     }
 
     @Override

@@ -51,7 +51,12 @@ public class OffsetCodecStageTests extends NumericCodecStageTestCase {
     public void testSkipZeroMin() throws IOException {
         final int blockSize = randomBlockSize();
         final long increment = randomLongBetween(1, 10);
-        assertStageSkipped(LongStream.iterate(0, v -> v + increment).limit(blockSize).toArray(), blockSize, StageId.OFFSET.id, OffsetCodecStage.INSTANCE);
+        assertStageSkipped(
+            LongStream.iterate(0, v -> v + increment).limit(blockSize).toArray(),
+            blockSize,
+            StageId.OFFSET.id,
+            OffsetCodecStage.INSTANCE
+        );
     }
 
     public void testRoundTripOverflow() throws IOException {

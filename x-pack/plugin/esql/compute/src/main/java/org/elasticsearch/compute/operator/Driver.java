@@ -17,7 +17,7 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.exchange.BatchPage;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
-import org.elasticsearch.compute.operator.exchange.PageCacheSinkOperator;
+import org.elasticsearch.compute.operator.exchange.PageBufferOperator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -286,7 +286,7 @@ public class Driver implements Releasable, Describable {
                 assert nextOp.isFinished() == false
                     || nextOp instanceof ExchangeSinkOperator
                     || nextOp instanceof LimitOperator
-                    || nextOp instanceof PageCacheSinkOperator : "next operator should not be finished yet: " + nextOp;
+                    || nextOp instanceof PageBufferOperator : "next operator should not be finished yet: " + nextOp;
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration

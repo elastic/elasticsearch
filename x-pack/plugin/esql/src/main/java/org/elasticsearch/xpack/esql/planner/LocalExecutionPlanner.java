@@ -850,7 +850,7 @@ public class LocalExecutionPlanner {
     /**
      * The transport version that introduced streaming lookup support.
      */
-    private static final TransportVersion ESQL_LOOKUP_STREAMING_SESSION_ID = TransportVersion.fromName("esql_lookup_streaming_session_id");
+    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
 
     /**
      * Determines whether streaming lookup should be used based on the target node's transport version.
@@ -876,12 +876,12 @@ public class LocalExecutionPlanner {
                     DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();
-                    if (nodeVersion.supports(ESQL_LOOKUP_STREAMING_SESSION_ID) == false) {
+                    if (nodeVersion.supports(ESQL_STREAMING_LOOKUP_JOIN) == false) {
                         logger.debug(
                             "Using non-streaming lookup operator: node [{}] has transport version [{}] which does not support [{}]",
                             node.getId(),
                             nodeVersion,
-                            ESQL_LOOKUP_STREAMING_SESSION_ID
+                            ESQL_STREAMING_LOOKUP_JOIN
                         );
                         return false;
                     }

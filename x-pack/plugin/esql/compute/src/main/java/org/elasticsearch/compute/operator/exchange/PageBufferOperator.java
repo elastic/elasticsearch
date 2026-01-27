@@ -27,8 +27,8 @@ import java.util.Queue;
  * The downstream consumer calls {@link #poll()} to retrieve pages and {@link #waitForPage()}
  * to get an {@link IsBlockedResult} that resolves when a page is available.
  */
-public class PageCacheSinkOperator extends SinkOperator {
-    private static final Logger logger = LogManager.getLogger(PageCacheSinkOperator.class);
+public class PageBufferOperator extends SinkOperator {
+    private static final Logger logger = LogManager.getLogger(PageBufferOperator.class);
 
     private static final int CACHE_SIZE = 1;
 
@@ -47,7 +47,7 @@ public class PageCacheSinkOperator extends SinkOperator {
     @Override
     protected void doAddInput(Page page) {
         if (page instanceof BatchPage == false) {
-            throw new IllegalArgumentException("PageCacheSinkOperator only accepts BatchPage, got: " + page.getClass().getSimpleName());
+            throw new IllegalArgumentException("PageBufferOperator only accepts BatchPage, got: " + page.getClass().getSimpleName());
         }
         BatchPage batchPage = (BatchPage) page;
 
@@ -65,7 +65,7 @@ public class PageCacheSinkOperator extends SinkOperator {
 
         // Log and notify outside the lock
         logger.trace(
-            "[PageCacheSinkOperator] Added page to cache: batchId={}, pageIndex={}, isLast={}, positions={}, cacheSize={}/{}",
+            "[PageBufferOperator] Added page to cache: batchId={}, pageIndex={}, isLast={}, positions={}, cacheSize={}/{}",
             batchPage.batchId(),
             batchPage.pageIndexInBatch(),
             batchPage.isLastPageInBatch(),
@@ -96,7 +96,7 @@ public class PageCacheSinkOperator extends SinkOperator {
             if (spaceAvailableFuture == null) {
                 spaceAvailableFuture = new SubscribableListener<>();
             }
-            logger.debug("[PageCacheSinkOperator] Blocking - cache full: cacheSize={}/{}", cache.size(), CACHE_SIZE);
+            logger.debug("[PageBufferOperator] Blocking - cache full: cacheSize={}/{}", cache.size(), CACHE_SIZE);
             return new IsBlockedResult(spaceAvailableFuture, "page cache full");
         }
     }
@@ -105,7 +105,7 @@ public class PageCacheSinkOperator extends SinkOperator {
     public void finish() {
         synchronized (lock) {
             logger.debug(
-                "[PageCacheSinkOperator] finish() called: cacheSize={}, upstreamFinished={}, finished={}",
+                "[PageBufferOperator] finish() called: cacheSize={}, upstreamFinished={}, finished={}",
                 cache.size(),
                 upstreamFinished,
                 finished
@@ -117,7 +117,7 @@ public class PageCacheSinkOperator extends SinkOperator {
             }
             // Notify anyone waiting for pages that no more will come
             if (pageAvailableFuture != null) {
-                logger.debug("[PageCacheSinkOperator] Notifying pageAvailableFuture (no more pages)");
+                logger.debug("[PageBufferOperator] Notifying pageAvailableFuture (no more pages)");
                 pageAvailableFuture.onResponse(null);
                 pageAvailableFuture = null;
             }
@@ -164,7 +164,7 @@ public class PageCacheSinkOperator extends SinkOperator {
             BatchPage page = cache.poll();
             if (page != null) {
                 logger.debug(
-                    "[PageCacheSinkOperator] Polled page from cache: batchId={}, pageIndex={}, cacheSize={}/{}",
+                    "[PageBufferOperator] Polled page from cache: batchId={}, pageIndex={}, cacheSize={}/{}",
                     page.batchId(),
                     page.pageIndexInBatch(),
                     cache.size(),
@@ -198,7 +198,7 @@ public class PageCacheSinkOperator extends SinkOperator {
             if (pageAvailableFuture == null) {
                 pageAvailableFuture = new SubscribableListener<>();
             }
-            logger.debug("[PageCacheSinkOperator] Waiting for page - cache empty");
+            logger.debug("[PageBufferOperator] Waiting for page - cache empty");
             return new IsBlockedResult(pageAvailableFuture, "waiting for page");
         }
     }

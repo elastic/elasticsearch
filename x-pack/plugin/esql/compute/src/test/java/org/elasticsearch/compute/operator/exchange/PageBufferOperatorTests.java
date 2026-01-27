@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PageCacheSinkOperatorTests extends ESTestCase {
+public class PageBufferOperatorTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
@@ -43,7 +43,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testInitialState() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
         assertThat(sink.size(), equalTo(0));
         assertThat(sink.needsInput(), is(true));
         assertThat(sink.isFinished(), is(false));
@@ -51,7 +51,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testAddAndPollSinglePage() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         BatchPage page = createTestBatchPage(1, 0);
         sink.addInput(page);
@@ -68,7 +68,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testBlocksWhenFull() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         BatchPage page = createTestBatchPage(1, 0);
         sink.addInput(page);
@@ -85,7 +85,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testWaitForPage() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         // Initially empty - should be blocked waiting for page
         IsBlockedResult waitResult = sink.waitForPage();
@@ -104,7 +104,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testFinishWithEmptyCache() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
         assertThat(sink.isFinished(), is(false));
 
         sink.finish();
@@ -115,7 +115,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testFinishWithPagesInCache() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         BatchPage page = createTestBatchPage(1, 0);
         sink.addInput(page);
@@ -137,7 +137,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testWaitForPageUnblocksOnFinish() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         // Wait for page
         IsBlockedResult waitResult = sink.waitForPage();
@@ -151,12 +151,12 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testPollReturnsNullWhenEmpty() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
         assertThat(sink.poll(), nullValue());
     }
 
     public void testClose() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         // Add a page
         BatchPage page = createTestBatchPage(1, 0);
@@ -170,7 +170,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testCloseUnblocksFutures() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         // Fill cache to get blocked future
         sink.addInput(createTestBatchPage(1, 0));
@@ -178,7 +178,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
         assertThat(blocked.listener().isDone(), is(false));
 
         // Get wait for page future on another sink
-        PageCacheSinkOperator sink2 = new PageCacheSinkOperator();
+        PageBufferOperator sink2 = new PageBufferOperator();
         IsBlockedResult waitResult = sink2.waitForPage();
         assertThat(waitResult.listener().isDone(), is(false));
 
@@ -192,7 +192,7 @@ public class PageCacheSinkOperatorTests extends ESTestCase {
     }
 
     public void testOnlyAcceptsBatchPage() {
-        PageCacheSinkOperator sink = new PageCacheSinkOperator();
+        PageBufferOperator sink = new PageBufferOperator();
 
         IntBlock block = blockFactory.newConstantIntBlockWith(42, 1);
         Page regularPage = new Page(block);

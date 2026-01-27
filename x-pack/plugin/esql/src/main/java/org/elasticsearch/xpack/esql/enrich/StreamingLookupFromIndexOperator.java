@@ -710,7 +710,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         );
 
         // Reuse the streaming session ID version since streaming is not in production yet
-        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_lookup_streaming_session_id");
+        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_streaming_lookup_join");
 
         private final long pagesReceived;
         private final long pagesEmitted;

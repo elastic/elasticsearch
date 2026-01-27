@@ -242,9 +242,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             "esql_lookup_join_on_many_fields"
         );
         private static final TransportVersion ESQL_LOOKUP_JOIN_ON_EXPRESSION = TransportVersion.fromName("esql_lookup_join_on_expression");
-        private static final TransportVersion ESQL_LOOKUP_STREAMING_SESSION_ID = TransportVersion.fromName(
-            "esql_lookup_streaming_session_id"
-        );
+        private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
 
         private final List<MatchConfig> matchFields;
         private final PhysicalPlan rightPreJoinPlan;
@@ -324,11 +322,11 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 joinOnConditions = planIn.readOptionalNamedWriteable(Expression.class);
             }
             String streamingSessionId = null;
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+            if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 streamingSessionId = in.readOptionalString();
             }
             boolean profile = false;
-            if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+            if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 profile = in.readBoolean();
             }
             TransportRequest result = new TransportRequest(
@@ -409,10 +407,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                     throw new IllegalArgumentException("LOOKUP JOIN with ON conditions is not supported on remote node");
                 }
             }
-            if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+            if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeOptionalString(streamingSessionId);
             }
-            if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+            if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
                 out.writeBoolean(profile);
             }
         }
@@ -428,7 +426,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
     protected static class LookupResponse extends AbstractLookupService.LookupResponse {
         // Reuse the streaming session ID version since streaming is not in production yet
-        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_lookup_streaming_session_id");
+        private static final TransportVersion ESQL_LOOKUP_PLAN_STRING = TransportVersion.fromName("esql_streaming_lookup_join");
 
         private List<Page> pages;
         @Nullable

@@ -60,7 +60,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private Driver clientDriver;
     private PlainActionFuture<Void> clientDriverFuture; // Future for client driver completion
     private LocalCircuitBreaker clientLocalBreaker; // Local breaker for client driver context
-    private PageCacheSinkOperator pageCacheSink;
+    private PageBufferOperator pageCacheSink;
     private final AtomicReference<Exception> failureRef = new AtomicReference<>();
     private final Object sendFinishLock = new Object(); // Synchronizes sendPage() and finish() to prevent race
     private final DiscoveryNode serverNode; // Server node for transport connection
@@ -158,7 +158,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
         // Create page cache sink - caches pages for the consumer to poll
         // The consumer is responsible for detecting batch completion by checking isLastPageInBatch()
-        pageCacheSink = new PageCacheSinkOperator();
+        pageCacheSink = new PageBufferOperator();
 
         // Get node name from transport service
         String nodeName = transportService.getLocalNode().getName();

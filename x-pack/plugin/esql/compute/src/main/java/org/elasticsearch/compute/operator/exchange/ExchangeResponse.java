@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 public final class ExchangeResponse extends TransportResponse implements Releasable {
-    private static final TransportVersion ESQL_LOOKUP_STREAMING_SESSION_ID = TransportVersion.fromName("esql_lookup_streaming_session_id");
+    private static final TransportVersion ESQL_STREAMING_LOOKUP_JOIN = TransportVersion.fromName("esql_streaming_lookup_join");
     private final RefCounted counted = AbstractRefCounted.of(this::closeInternal);
     private final Page page;
     private final boolean finished;
@@ -136,7 +136,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
             return null;
         }
         boolean isBatchPage = false;
-        if (in.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+        if (in.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
             isBatchPage = in.readBoolean();
         }
         return isBatchPage ? new BatchPage(in) : new Page(in);
@@ -154,7 +154,7 @@ public final class ExchangeResponse extends TransportResponse implements Releasa
             return;
         }
         boolean isBatchPage = page instanceof BatchPage;
-        if (out.getTransportVersion().supports(ESQL_LOOKUP_STREAMING_SESSION_ID)) {
+        if (out.getTransportVersion().supports(ESQL_STREAMING_LOOKUP_JOIN)) {
             out.writeBoolean(isBatchPage);
         } else {
             // For older versions, BatchPage is not supported

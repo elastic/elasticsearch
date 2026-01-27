@@ -47,7 +47,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.time.FormatNames.STRICT_DATE_OPTIONAL_TIME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -212,7 +211,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         assertBusy(() -> {
             refresh(followerClient(), dataStreamName);
             assertHitCount(followerClient().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
-        }, 120L, TimeUnit.SECONDS);
+        });
 
         // Verify (a random subset of) documents
         assertBusyDocumentsExist(leaderClient(), randomSubsetOf(nonDeletedDocs), docsIndicesById);
@@ -267,7 +266,7 @@ public class CcrTimeSeriesDataStreamsIT extends CcrIntegTestCase {
         assertBusy(() -> {
             refresh(followerClient(), dataStreamName);
             assertHitCount(followerClient().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
-        }, 120L, TimeUnit.SECONDS);
+        });
     }
 
     private static void putDataStreamTemplate(Client client, String dataStreamName, int primaries, int replicas, boolean useSyntheticId)

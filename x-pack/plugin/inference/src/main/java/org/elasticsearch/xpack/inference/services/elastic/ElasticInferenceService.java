@@ -366,11 +366,10 @@ public class ElasticInferenceService extends SenderService {
 
         ElasticInferenceServiceExecutableActionModel eisModel = (ElasticInferenceServiceExecutableActionModel) model;
         var batchedRequests = embeddingRequestChunker.batchRequestsWithListeners(listener);
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
         for (var request : batchedRequests) {
-            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
             var action = eisModel.accept(actionCreator, taskSettings);
             action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
-            return;
         }
     }
 

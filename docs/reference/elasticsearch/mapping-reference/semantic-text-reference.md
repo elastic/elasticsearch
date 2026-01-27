@@ -22,34 +22,34 @@ endpoint will only be used at index time. Learn more about [configuring this par
 
 **Updating the `inference_id` parameter**
 
-::::{applies-switch}
+:::::{applies-switch}
 
-:::{applies-item} stack: ga 9.3+
+::::{applies-item} stack: ga 9.3+
 
 You can update this parameter by using
 the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
 You can update the {{infer}} endpoint if no values have been indexed or if the new endpoint is compatible with the current one.
 
-::::{important}
+:::{important}
 When updating an `inference_id` it is important to ensure the new {{infer}} endpoint produces embeddings compatible with those already indexed. This typically means using the same underlying model.
-::::
-
 :::
 
-:::{applies-item} stack: ga 9.0-9.2
+::::
+
+::::{applies-item} stack: ga 9.0-9.2
 This parameter cannot be updated.
-:::
-
 ::::
+
+:::::
 
 `search_inference_id`
 :   (Optional, string) The {{infer}} endpoint that will be used to generate
 embeddings at query time. Use the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to create the endpoint. If not specified, the {{infer}} endpoint defined by
-`inference_id` will be used at both index and query time. 
-    
+`inference_id` will be used at both index and query time.
+
     You can update this parameter by using
-the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).     
-    
+the [Update mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping).
+
     Learn how to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 `index_options` {applies_to}`stack: ga 9.1`
@@ -119,13 +119,13 @@ The `semantic_text` field type specifies an {{infer}} endpoint identifier (`infe
 
 The following {{infer}} endpoint configurations are available:
 
-- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually. 
+- [Default and preconfigured endpoints](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints): Use `semantic_text` without creating an {{infer}} endpoint manually.
 
-- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service. 
+- [ELSER on EIS](./semantic-text-setup-configuration.md#using-elser-on-eis): Use the ELSER model through the Elastic {{infer-cap}} Service.
 
 - [Custom endpoints](./semantic-text-setup-configuration.md#using-custom-endpoint): Create your own {{infer}} endpoint using the [Create {{infer}} API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put) to use custom models or third-party services.
 
-If you use a [custom {{infer}} endpoint](./semantic-text-setup-configuration.md#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search). 
+If you use a [custom {{infer}} endpoint](./semantic-text-setup-configuration.md#using-custom-endpoint) through your ML node and not through Elastic {{infer-cap}} Service (EIS), the recommended method is to [use dedicated endpoints for ingestion and search](./semantic-text-setup-configuration.md#dedicated-endpoints-for-ingestion-and-search).
 
 {applies_to}`stack: ga 9.1.0` If you use EIS, you don't have to set up dedicated endpoints.
 
@@ -229,15 +229,13 @@ POST /_query
 * `semantic_text` fields can't currently be set as part
   of [dynamic templates](docs-content://manage-data/data-store/mapping/dynamic-templates.md).
 * `semantic_text` fields are not supported in indices created prior to 8.11.0.
-* `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) when [`ccs_minimize_roundtrips`](docs-content://explore-analyze/cross-cluster-search.md#ccs-network-delays) is set to `false`.
-* `semantic_text` fields do not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) in [ES|QL](/reference/query-languages/esql.md).
 * `semantic_text` fields do not support [Cross-Cluster Replication (CCR)](docs-content://deploy-manage/tools/cross-cluster-replication.md).
 * [Automatic pre-filtering](#pre-filtering-for-dense-vector-queries) in Query DSL does not apply to [Nested queries](/reference/query-languages/query-dsl/query-dsl-nested-query.md). Such queries will be applied as post-filters.
 * [Automatic pre-filtering](#pre-filtering-for-dense-vector-queries) in ES|QL does not apply to filters that use certain functions (like `WHERE TO_LOWER(my_field) == 'a'`). Such filters will be applied as post-filters.
 
 ## Document count discrepancy in `_cat/indices` [document-count-discrepancy]
 
-When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed. 
+When an index contains a `semantic_text` field, the `docs.count` value returned by the [`_cat/indices`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-indices) API may be higher than the number of documents you indexed.
 This occurs because `semantic_text` stores embeddings in [nested documents](/reference/elasticsearch/mapping-reference/nested.md), one per chunk. The `_cat/indices` API counts all documents in the Lucene index, including these hidden nested documents.
 
 To count only top-level documents, excluding the nested documents that store embeddings, use one of the following APIs:

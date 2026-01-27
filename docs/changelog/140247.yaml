@@ -1,5 +1,0 @@
-pr: 140247
-summary: Make modifications to enable `RestBulkPutRolesAction` for Serverless
-area: Authorization
-type: bug
-issues: []

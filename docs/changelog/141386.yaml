@@ -1,5 +1,5 @@
 pr: 141386
 summary: Make TDigest field type a time series metric
-area: "Downsampling, TSDB"
+area: "TSDB"
 type: enhancement
 issues: []

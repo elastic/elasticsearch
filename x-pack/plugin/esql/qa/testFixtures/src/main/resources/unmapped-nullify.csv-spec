@@ -302,7 +302,7 @@ s:long | bar:null
 ;
 
 statsGroupAliasShadowingSourceColumnNoFilter
-required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
 FROM languages
@@ -314,7 +314,7 @@ c:long         |language_code:null
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilter
-required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
 FROM languages
@@ -327,7 +327,7 @@ c:long         |language_code:null |language_name :keyword
 ;
 
 statsGroupAliasShadowingSourceColumnWithFilterAndAggExpression
-required_capability: optional_fields_nullify_tech_preview
+required_capability: optional_fields_nullify_skip_group_aliases
 
 SET unmapped_fields="nullify"\;
 FROM languages

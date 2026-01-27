@@ -479,6 +479,19 @@ public class AnalyzerUnmappedTests extends ESTestCase {
         verificationFailure(setUnmappedLoad(query), failure);
     }
 
+    public void testFailFilterAfterDrop() {
+        var query = """
+            FROM test
+            | WHERE emp_no > 1000
+            | DROP emp_no
+            | WHERE emp_no < 2000
+            """;
+
+        var failure = "line 4:9: Unknown column [emp_no]";
+        verificationFailure(setUnmappedNullify(query), failure);
+        verificationFailure(setUnmappedLoad(query), failure);
+    }
+
     /*
      * Limit[1000[INTEGER],false,false]
      * \_Project[[_meta_field{f}#16, emp_no{f}#10 AS employee_number#8, first_name{f}#11, gender{f}#12, hire_date{f}#17, job{f}#18,

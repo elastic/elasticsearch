@@ -23,6 +23,8 @@ If you experience a force merge task queue backlog, you might need to increase t
 
 ::::{important}
 Note that `thread_pool.force_merge.size` is an advanced setting. Adjusting it can cause cascading performance impacts. Monitor cluster performance and increment the size of the thread pool slowly to reduce the backlog.
+
+Lucene automatically merges segments only up to a `5GB` size limit. Segments that exceed this limit will no longer automatically clear deleted documents. Therefore, it's important not to perform a forced merge until you have completed all modifications to the index.
 ::::
 
 Force merging will be performed by the node hosting the shard. Usually, the [node's role](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#set-node-roles) matches the [data tier](docs-content://manage-data/lifecycle/data-tiers.md) of the {{ilm-init}} phase that the index is in. One of the exceptions is when you have manually disabled [ILM Migrate](https://www.elastic.co/docs/reference/elasticsearch/index-lifecycle-actions/ilm-migrate) and have specified custom allocations using [ILM allocate](https://www.elastic.co/docs/reference/elasticsearch/index-lifecycle-actions/ilm-allocate). The other exception is searchable snapshots; force merges for [{{ilm-init}} Searchable Snapshots](./ilm-searchable-snapshot.md) using `force_merge_index` are performed in the phase that the index is in **prior** to the `searchable_snapshot` action. You may want to explicitly choose in which data tier the force merge should occur, for example:
@@ -31,6 +33,12 @@ Force merging will be performed by the node hosting the shard. Usually, the [nod
 *  [{{ilm-init}} Searchable Snapshot](./ilm-searchable-snapshot.md) performance is dependant upon the shard having been force merged, so by default this ILM action will enable `force_merge_index`. This will trigger force merges in the preceding node data tier for `cold` and `frozen` phases.
 
 We recommend that merges be targetted against SSD and not HDD disks.
+
+Merges are one of the more expensive background tasks a cluster must perform. Merge frequencies spike during ingest as new segments are created. You can bypass some of the background merge overhead by [optimizing ingestion settings](docs-content://deploy-manage/production-guidance/optimize-performance/indexing-speed.md) such as:
+* Increasing the [`index.refresh_interval`](../index-settings/index-modules.md#dynamic-index-settings) setting.
+* [Using bulk requests](docs-content://deploy-manage/production-guidance/optimize-performance/indexing-speed.md#_use_bulk_requests). For examples, refer to Elastic's client-side product tuning guides:
+    * The {{agent}} [performance tuning settings](docs-content://reference/fleet/elasticsearch-output.md#output-elasticsearch-performance-tuning-settings) in the [Fleet Settings UI](docs-content://reference/fleet/fleet-settings.md#output-settings)
+     * The {{ls}} [tuning settings](logstash://reference/tuning-logstash.md#tuning-logstash-settings)
 :::::
 
 

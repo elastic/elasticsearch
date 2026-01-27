@@ -198,19 +198,15 @@ public class IndexAbstractionResolver {
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
-                    boolean visible = indexExists(projectMetadata, indexAbstraction);
-                    if (visible) {
-                        try {
-                            visible = indexNameExpressionResolver.concreteIndexNamesWithSystemAccess(
-                                projectMetadata,
-                                indicesOptions,
-                                includeDataStreams,
-                                indexAbstraction
-                            ).length != 0;
-                        } catch (Exception e) {
-                            visible = false;
-                        }
-                    }
+                    boolean visible = indexExists(projectMetadata, indexAbstraction)
+                        && isConcreteIndexVisible(
+                            selectorString,
+                            indexAbstraction,
+                            indicesOptions,
+                            projectMetadata,
+                            indexNameExpressionResolver,
+                            includeDataStreams
+                        );
                     final LocalIndexResolutionResult result = visible ? SUCCESS : CONCRETE_RESOURCE_NOT_VISIBLE;
                     resolvedExpressionsBuilder.addExpressions(originalIndexExpression, resolvedIndices, result, remoteExpressions);
                 } else if (indicesOptions.ignoreUnavailable()) {
@@ -270,6 +266,101 @@ public class IndexAbstractionResolver {
                 : "A selector string [" + selectorString + "] is present but selectors are disabled in this context";
             collect.add(indexAbstraction);
         }
+    }
+
+    public static boolean isConcreteIndexVisible(
+        @Nullable String selectorString,
+        String index,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver resolver,
+        boolean includeDataStreams
+    ) {
+        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
+        if (indexAbstraction == null) {
+            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
+        }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
+            // TODO: perhaps revisit this in the future if we make views "visible" or "hidden"?
+            return false;
+        }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+            if (indicesOptions.ignoreAliases()) return false;
+
+            if (indexAbstraction.isSystem()) {
+                // check if it is net new
+                if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                    // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
+                    // issues in a way that happens to *work*. there's probably a better way of writing things such that this won't
+                    // be necessary, but for the moment, it happens to be expedient to write things this way.
+
+                    // unwrap the alias and re-run the function on the write index of the alias -- that is, the alias is visible if
+                    // the concrete index that it refers to is visible
+                    Index writeIndex = indexAbstraction.getWriteIndex();
+                    if (writeIndex == null) {
+                        return false;
+                    } else {
+                        return isConcreteIndexVisible(
+                            selectorString,
+                            writeIndex.getName(),
+                            indicesOptions,
+                            projectMetadata,
+                            resolver,
+                            includeDataStreams
+                        );
+                    }
+                }
+            }
+
+            if (selectorString != null) {
+                // Check if a selector was present, and if it is, check if this alias is applicable to it
+                IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
+                if (IndexComponentSelector.FAILURES.equals(selector)) {
+                    return indexAbstraction.isDataStreamRelated();
+                }
+            }
+            return true;
+        }
+        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
+            if (includeDataStreams == false) {
+                return false;
+            }
+            if (indexAbstraction.isSystem()) {
+                return isSystemIndexVisible(resolver, indexAbstraction);
+            } else {
+                return true;
+            }
+        }
+        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
+        if (indexAbstraction.isSystem()) {
+            // check if it is net new
+            if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                return isSystemIndexVisible(resolver, indexAbstraction);
+            }
+
+            // does the system index back a system data stream?
+            if (indexAbstraction.getParentDataStream() != null) {
+                if (indexAbstraction.getParentDataStream().isSystem() == false) {
+                    assert false : "system index is part of a data stream that is not a system data stream";
+                    throw new IllegalStateException("system index is part of a data stream that is not a system data stream");
+                }
+                return isSystemIndexVisible(resolver, indexAbstraction);
+            }
+        }
+        if (selectorString != null && Regex.isMatchAllPattern(selectorString) == false) {
+            // Check if a selector was present, and if it is, check if this index is applicable to it
+            IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
+            if (IndexComponentSelector.FAILURES.equals(selector)) {
+                return false;
+            }
+        }
+
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().getFirst());
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.forbidClosedIndices()) {
+            return false;
+        }
+
+        return true;
     }
 
     public static boolean isIndexVisible(

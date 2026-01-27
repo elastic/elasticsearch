@@ -3622,6 +3622,95 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(resolved.expressions(), contains(resolvedIndexExpression(targetIndex, Set.of(targetIndex), SUCCESS)));
     }
 
+    public void testCpsResolveClosedIndexWithForbidClosed() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var request = new SearchRequest().indices("hidden-closed");
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains("hidden-closed"));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:hidden-closed", "P2:hidden-closed"));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    "hidden-closed",
+                    Set.of("hidden-closed"),
+                    CONCRETE_RESOURCE_NOT_VISIBLE,
+                    Set.of("P1:hidden-closed", "P2:hidden-closed")
+                )
+            )
+        );
+    }
+
+    public void testCpsResolveAliasWithIgnoreAliases() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(true);
+        var user = new User("data_stream_test3", "data_stream_test3");
+        var request = new SearchRequest().indices("logs-alias");
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                true,
+                randomBoolean()
+            )
+        );
+        var resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            "indices:/" + randomAlphaOfLength(8),
+            request,
+            projectMetadata,
+            buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()),
+            new TargetProjects(
+                createRandomProjectWithAlias("P0"),
+                List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"))
+            )
+        );
+
+        assertThat(resolvedIndices.getLocal(), contains("logs-alias"));
+        assertThat(resolvedIndices.getRemote(), containsInAnyOrder("P1:logs-alias", "P2:logs-alias"));
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(
+                resolvedIndexExpression(
+                    "logs-alias",
+                    Set.of("logs-alias"),
+                    CONCRETE_RESOURCE_NOT_VISIBLE,
+                    Set.of("P1:logs-alias", "P2:logs-alias")
+                )
+            )
+        );
+    }
+
     private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {
         assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
@@ -3680,7 +3769,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {
         final List<String> localIndices = resolvedIndices.getLocal();
         assertEquals(1, localIndices.size());
-        assertEquals(IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER, localIndices.iterator().next());
+        assertEquals("-*", localIndices.iterator().next());
         assertEquals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_LIST, Arrays.asList(request.indices()));
         assertEquals(0, resolvedIndices.getRemote().size());
     }

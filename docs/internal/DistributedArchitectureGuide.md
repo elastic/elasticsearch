@@ -276,7 +276,6 @@ to communicate with Elasticsearch.
 [Proxy Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-proxy-settings
 [ProxyConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ProxyConnectionStrategy.java
 [ProxyLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L65
-[Remote Connection Management Diagram]:https://docs.google.com/document/d/17U5lpM7UIImGCnDl_ykChlz_THRCpOk-zXEWEdDxCc4
 [RemoteClusterConnection]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterConnection.java
 [RemoteClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterService.java
 [RemoteConnectionManager]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteConnectionManager.java
@@ -288,8 +287,7 @@ to communicate with Elasticsearch.
 This section covers the management of connections from local clusters to remote clusters in the context of
 [CCR](#cross-cluster-replication-ccr) (Cross-Cluster-Replication) and
 [CCS](#cross-cluster-search) (Cross-Cluster-Search), and from origin projects to linked projects in the context of serverless
-CPS (Cross-Project-Search).  Please see the [Remote Connection Management Diagram] for a visual reference to accompany the text
-in this section.
+CPS (Cross-Project-Search).
 
 ### Configuration
 

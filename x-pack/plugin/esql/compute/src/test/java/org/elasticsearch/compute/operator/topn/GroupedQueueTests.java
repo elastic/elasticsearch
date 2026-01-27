@@ -68,7 +68,7 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = new GroupedQueue(breaker, topCount)) {
             for (int i = 0; i < topCount; i++) {
                 Row row = createRow(breaker, i % 2, i * 10);
-                Row result = queue.add(row);
+                Row result = queue.addRow(row);
                 assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
@@ -80,7 +80,7 @@ public class GroupedQueueTests extends ESTestCase {
         try (GroupedQueue queue = new GroupedQueue(breaker, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
-            try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
+            try (Row evicted = queue.addRow(createRow(breaker, 0, 5))) {
                 assertRowValues(evicted, 0, 20, 40);
             }
         }
@@ -91,7 +91,7 @@ public class GroupedQueueTests extends ESTestCase {
             addRows(queue, 0, 30, 40, 50);
 
             try (Row row = createRow(breaker, 0, 60)) {
-                Row result = queue.add(row);
+                Row result = queue.addRow(row);
                 assertThat(result, sameInstance(row));
             }
         }
@@ -99,27 +99,27 @@ public class GroupedQueueTests extends ESTestCase {
 
     public void testAddWithDifferentGroupKeys() {
         try (GroupedQueue queue = new GroupedQueue(breaker, 2)) {
-            assertThat(queue.add(createRow(breaker, 0, 10)), nullValue());
-            assertThat(queue.add(createRow(breaker, 1, 20)), nullValue());
-            assertThat(queue.add(createRow(breaker, 0, 30)), nullValue());
-            assertThat(queue.add(createRow(breaker, 1, 40)), nullValue());
+            assertThat(queue.addRow(createRow(breaker, 0, 10)), nullValue());
+            assertThat(queue.addRow(createRow(breaker, 1, 20)), nullValue());
+            assertThat(queue.addRow(createRow(breaker, 0, 30)), nullValue());
+            assertThat(queue.addRow(createRow(breaker, 1, 40)), nullValue());
             assertThat(queue.size(), equalTo(4));
 
-            try (Row evicted = queue.add(createRow(breaker, 0, 5))) {
+            try (Row evicted = queue.addRow(createRow(breaker, 0, 5))) {
                 assertThat(evicted, notNullValue());
                 assertRowValues(evicted, 0, 30, 60);
             }
-            try (Row evicted = queue.add(createRow(breaker, 1, 15))) {
+            try (Row evicted = queue.addRow(createRow(breaker, 1, 15))) {
                 assertThat(evicted, notNullValue());
                 assertRowValues(evicted, 1, 40, 80);
             }
             assertThat(queue.size(), equalTo(4));
 
-            try (Row row = queue.add(createRow(breaker, 0, 50))) {
+            try (Row row = queue.addRow(createRow(breaker, 0, 50))) {
                 assertThat(row, notNullValue());
                 assertRowValues(row, 0, 50, 100);
             }
-            try (Row row = queue.add(createRow(breaker, 1, 50))) {
+            try (Row row = queue.addRow(createRow(breaker, 1, 50))) {
                 assertThat(row, notNullValue());
                 assertRowValues(row, 1, 50, 100);
             }
@@ -222,7 +222,7 @@ public class GroupedQueueTests extends ESTestCase {
     private void addRow(GroupedQueue queue, int groupKey, int value) {
         Row row = createRow(breaker, groupKey, value);
         // This row is either the input or the evicted row, but either way it should be closed.
-        Releasables.close(queue.add(row));
+        Releasables.close(queue.addRow(row));
     }
 
     private void fillQueueToCapacity(GroupedQueue queue, int capacity) {

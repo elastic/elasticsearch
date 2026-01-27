@@ -292,7 +292,7 @@ public class TopNOperator implements Operator, Accountable {
                 }
                 rowFiller.writeKey(i, spare);
 
-                var nextSpare = inputQueue.add(spare);
+                var nextSpare = inputQueue.addRow(spare);
                 if (nextSpare != spare) {
                     var insertedRow = spare;
                     spare = nextSpare; // Update spare before writing values in case the writing fails, to avoid releasing spare twice.

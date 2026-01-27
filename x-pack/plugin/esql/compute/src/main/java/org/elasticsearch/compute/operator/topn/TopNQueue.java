@@ -25,7 +25,7 @@ interface TopNQueue extends Accountable, Releasable {
      *  full, this is {@code null}. If the row wasn't added, this is the input row. (A 3-variant ADT would have been better design, but this
      *  uses the fewest allocations.)
      */
-    Row add(Row row);
+    Row addRow(Row row);
 
     /**
      * Removes and returns all rows in the queue. For an ascending order, the first element will be the smallest elements in the queue (or

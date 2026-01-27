@@ -57,7 +57,7 @@ public class UngroupedQueueTests extends ESTestCase {
         int topCount = 5;
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
             for (int i = 0; i < topCount; i++) {
-                Row result = queue.add(createRow(breaker, i * 10));
+                Row result = queue.addRow(createRow(breaker, i * 10));
                 assertThat(result, nullValue());
                 assertThat(queue.size(), equalTo(i + 1));
             }
@@ -70,7 +70,7 @@ public class UngroupedQueueTests extends ESTestCase {
         try (UngroupedQueue queue = UngroupedQueue.build(breaker, topCount)) {
             fillQueueToCapacity(queue, topCount);
 
-            try (Row evicted = queue.add(createRow(breaker, 5))) {
+            try (Row evicted = queue.addRow(createRow(breaker, 5))) {
                 assertRowValues(evicted, 20, 40);
             }
             assertQueueContents(queue, List.of(0, 5, 10));
@@ -82,7 +82,7 @@ public class UngroupedQueueTests extends ESTestCase {
             addRows(queue, 30, 40, 50);
 
             try (Row row = createRow(breaker, 60)) {
-                Row result = queue.add(row);
+                Row result = queue.addRow(row);
                 assertThat(result, sameInstance(row));
             }
             assertQueueContents(queue, List.of(30, 40, 50));
@@ -145,7 +145,7 @@ public class UngroupedQueueTests extends ESTestCase {
     }
 
     private void addRow(UngroupedQueue queue, int value) {
-        Row result = queue.add(createRow(breaker, value));
+        Row result = queue.addRow(createRow(breaker, value));
         // This row is either the input or the evicted row, but either way it should be closed.
         Releasables.close(result);
     }
@@ -187,7 +187,7 @@ public class UngroupedQueueTests extends ESTestCase {
             // These are shared, but are only counted once by ramBytesUsed.
             // FIXME(gal, NOCOMMIT) Reduce duplication with UngroupedRowTests
             expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
-            allRows.forEach(queue::add);
+            allRows.forEach(queue::addRow);
         }
         return expected;
     }

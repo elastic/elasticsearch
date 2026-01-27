@@ -18,40 +18,26 @@ import java.util.List;
 
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
-final class UngroupedQueue implements TopNQueue {
-    private static final long SHALLOW_SIZE = shallowSizeOfInstance(UngroupedQueue.class) + shallowSizeOfInstance(PriorityQueue.class);
+final class UngroupedQueue extends PriorityQueue<Row> implements TopNQueue {
+    private static final long SHALLOW_SIZE = shallowSizeOfInstance(UngroupedQueue.class);
 
-    private final PriorityQueueHack pq;
     private final CircuitBreaker breaker;
     private final int topCount;
-    private Object[] heapForClosing;
+
+    UngroupedQueue(CircuitBreaker breaker, int topCount) {
+        super(topCount);
+        this.topCount = topCount;
+        this.breaker = breaker;
+    }
 
     static UngroupedQueue build(CircuitBreaker breaker, int topCount) {
         breaker.addEstimateBytesAndMaybeBreak(sizeOf(topCount), "topn");
         return new UngroupedQueue(breaker, topCount);
     }
 
-    // FIXME(gal, NOCOMMIT) yuck, hack
-    private static class PriorityQueueHack extends PriorityQueue<Row> {
-        PriorityQueueHack(int maxSize) {
-            super(maxSize);
-        }
-
-        Object[] getHeapArrayHack() {
-            return getHeapArray();
-        }
-
-        @Override
-        protected boolean lessThan(Row r1, Row r2) {
-            return TopNOperator.compareRows(r1, r2) < 0;
-        }
-    }
-
-    private UngroupedQueue(CircuitBreaker breaker, int topCount) {
-        // FIXME(gal, NOCOMMIT) Verify with Nik that composition over inheritance is fine here.
-        this.pq = new PriorityQueueHack(topCount);
-        this.breaker = breaker;
-        this.topCount = topCount;
+    @Override
+    protected boolean lessThan(Row r1, Row r2) {
+        return TopNOperator.compareRows(r1, r2) < 0;
     }
 
     @Override
@@ -60,20 +46,15 @@ final class UngroupedQueue implements TopNQueue {
     }
 
     @Override
-    public int size() {
-        return pq.size();
-    }
-
-    @Override
-    public Row add(Row row) {
+    public Row addRow(Row row) {
         if (size() < topCount) {
             // Heap not yet full, just add the element.
-            pq.add(row);
+            add(row);
             return null;
-        } else if (TopNOperator.compareRows(pq.top(), row) < 0) {
+        } else if (TopNOperator.compareRows(top(), row) < 0) {
             // Heap full BUT this node fits in it.
-            Row evicted = pq.top();
-            pq.updateTop(row);
+            Row evicted = top();
+            updateTop(row);
             return evicted;
         }
         // Heap full AND this node does not fit in it.
@@ -83,11 +64,15 @@ final class UngroupedQueue implements TopNQueue {
     @Override
     public List<Row> popAll() {
         var results = new ArrayList<Row>(size());
-        while (size() > 0) {
-            results.add(pq.pop());
-        }
+        popAllInto(results);
         Collections.reverse(results);
         return results;
+    }
+
+    void popAllInto(List<Row> target) {
+        while (size() > 0) {
+            target.add(pop());
+        }
     }
 
     @Override
@@ -97,7 +82,7 @@ final class UngroupedQueue implements TopNQueue {
         total += RamUsageEstimator.alignObjectSize(
             RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + RamUsageEstimator.NUM_BYTES_OBJECT_REF * ((long) topCount + 1)
         );
-        for (Row r : pq) {
+        for (Row r : this) {
             total += r == null ? 0 : r.ramBytesUsed();
         }
         return total;
@@ -105,7 +90,6 @@ final class UngroupedQueue implements TopNQueue {
 
     @Override
     public void close() {
-
         Releasables.close(
             /*
              * Release all entries in the topn, nulling references to each row after closing them
@@ -115,7 +99,7 @@ final class UngroupedQueue implements TopNQueue {
              * to live with being inaccurate by one row.
              */
             () -> {
-                var heapArray = pq.getHeapArrayHack();
+                var heapArray = getHeapArray();
                 for (int i = 0; i < heapArray.length; i++) {
                     Row row = (Row) heapArray[i];
                     if (row != null) {

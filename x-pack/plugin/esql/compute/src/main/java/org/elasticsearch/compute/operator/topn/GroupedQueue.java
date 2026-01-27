@@ -21,11 +21,11 @@ import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 
+// Note: This is a temporary implementation. The "real" implementation, to be done later, will use a BlockHash instead of a HashMap.
 class GroupedQueue implements TopNQueue {
     private static final long SHALLOW_SIZE = shallowSizeOfInstance(GroupedQueue.class) + shallowSizeOfInstance(HashMap.class);
     public static final long BYTES_REF_HEADER_SIZE = shallowSizeOfInstance(BytesRef.class);
 
-    // FIXME(gal, NOCOMMIT) Use a BlockHash here
     private final Map<BytesRef, UngroupedQueue> queuesByGroupKey = new HashMap<>(0);
     private final CircuitBreaker breaker;
     private final int topCount;
@@ -50,9 +50,9 @@ class GroupedQueue implements TopNQueue {
     }
 
     @Override
-    public Row add(Row row) {
+    public Row addRow(Row row) {
         var groupedRow = (GroupedRow) row;
-        return getQueue(groupedRow).add(groupedRow);
+        return getQueue(groupedRow).addRow(groupedRow);
     }
 
     private UngroupedQueue getQueue(GroupedRow row) {
@@ -66,7 +66,6 @@ class GroupedQueue implements TopNQueue {
         BytesRef key = null;
         try {
             newQueue = UngroupedQueue.build(breaker, topCount);
-            // FIXME(gal, NOCOMMIT) Inaccurate count here.
             breaker.addEstimateBytesAndMaybeBreak(keyView.length, "topn");
             key = BytesRef.deepCopyOf(keyView);
             queuesByGroupKey.put(key, newQueue);
@@ -77,7 +76,9 @@ class GroupedQueue implements TopNQueue {
                 if (key != null) {
                     breaker.addWithoutBreaking(-keyView.length);
                 }
-                Releasables.close(newQueue);
+                if (newQueue != null) {
+                    newQueue.close();
+                }
             }
         }
     }
@@ -89,18 +90,17 @@ class GroupedQueue implements TopNQueue {
         while (iterator.hasNext()) {
             var next = iterator.next();
             try (UngroupedQueue queue = next.getValue()) {
-                // FIXME(gal, NOCOMMIT) Use regular pop here.
-                allRows.addAll(queue.popAll());
-                // FIXME(gal, NOCOMMIT) Inaccurate count here.
+                queue.popAllInto(allRows);
                 breaker.addWithoutBreaking(-next.getKey().length);
                 iterator.remove();
             }
         }
-        // FIXME(gal, NOCOMMIT) This should sort by group key first and then by sort key.
+        // TODO this sorts all rows across all groups. We *might* want to sort only within each group.
         allRows.sort((r1, r2) -> -TopNOperator.compareRows(r1, r2));
         return allRows;
     }
 
+    // Note: This implementation is temporary anyway, so this might not be entirely accurate, but that's fine.
     @Override
     public long ramBytesUsed() {
         long total = SHALLOW_SIZE;
@@ -119,11 +119,8 @@ class GroupedQueue implements TopNQueue {
     @Override
     public void close() {
         Releasables.close(
-            // Release all entries in the topn
             () -> breaker.addWithoutBreaking(-sizeOf(queuesByGroupKey.keySet())),
             Releasables.wrap(queuesByGroupKey.values())
-        // Releasables.wrap(queuesByGroupKey.keySet()),
-        // Release the array itself
         );
     }
 

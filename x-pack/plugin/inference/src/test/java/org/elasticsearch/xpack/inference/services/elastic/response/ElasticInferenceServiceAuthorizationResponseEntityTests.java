@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
@@ -32,6 +34,7 @@ import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.Elast
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsServiceSettings;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
@@ -40,6 +43,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_VERSION;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 
@@ -307,7 +311,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
-            new SentenceBoundaryChunkingSettings(250, 1)
+            new SentenceBoundaryChunkingSettings(250, 1),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("english"),
+                    StatusHeuristic.fromString("preview"),
+                    LocalDate.parse("2024-05-01"),
+                    null
+                ),
+                new EndpointMetadata.Internal("fingerprint789", ENDPOINT_VERSION),
+                "Elser 2 Elastic"
+            )
         );
     }
 
@@ -390,7 +404,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("multilingual"),
+                    StatusHeuristic.fromString("ga"),
+                    LocalDate.parse("2024-05-01"),
+                    null
+                ),
+                new EndpointMetadata.Internal("fingerprint234", ENDPOINT_VERSION),
+                "Gp Llm V2 Chat Completion"
+            )
         );
     }
 
@@ -402,7 +426,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceCompletionServiceSettings(GP_LLM_V2_MODEL_NAME),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("multilingual"),
+                    StatusHeuristic.fromString("ga"),
+                    LocalDate.parse("2024-05-01"),
+                    null
+                ),
+                new EndpointMetadata.Internal("fingerprint345", ENDPOINT_VERSION),
+                "Gp Llm V2 Completion"
+            )
         );
     }
 
@@ -444,7 +478,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceCompletionServiceSettings(RAINBOW_SPRINKLES_MODEL_NAME),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("multilingual"),
+                    StatusHeuristic.fromString("ga"),
+                    LocalDate.parse("2024-05-01"),
+                    LocalDate.parse("2025-12-31")
+                ),
+                new EndpointMetadata.Internal("fingerprint123", ENDPOINT_VERSION),
+                "Rainbow Sprinkles Elastic"
+            )
         );
     }
 
@@ -507,7 +551,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
-            new WordBoundaryChunkingSettings(500, 2)
+            new WordBoundaryChunkingSettings(500, 2),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of("multilingual", "open-weights"),
+                    StatusHeuristic.fromString("beta"),
+                    LocalDate.parse("2024-05-01"),
+                    null
+                ),
+                new EndpointMetadata.Internal("fingerprint456", ENDPOINT_VERSION),
+                "Jina Embeddings V3"
+            )
         );
     }
 
@@ -534,7 +588,17 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             new ElasticInferenceServiceRerankServiceSettings(RERANK_V1_MODEL_NAME),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            new ElasticInferenceServiceComponents(url),
+            new EndpointMetadata(
+                new EndpointMetadata.Heuristics(
+                    List.of(),
+                    StatusHeuristic.fromString("preview"),
+                    LocalDate.parse("2024-05-01"),
+                    null
+                ),
+                new EndpointMetadata.Internal("fingerprint567", ENDPOINT_VERSION),
+                "Jina Reranker V2"
+            )
         );
     }
 

@@ -285,6 +285,7 @@ setup:
   - gt: { esql.features.limit: $limit_counter }
   - gt: { esql.features.sort: $sort_counter }
   - gt: { esql.features.stats: $stats_counter }
+  - match: { esql.features.promql: $promql_counter }
   - gt: { esql.features.where: $where_counter }
   - match: { esql.features.lookup_join: $lookup_join_counter }
   - match: { esql.features.lookup_join_on_expression: $lookup_join_on_expression_counter }

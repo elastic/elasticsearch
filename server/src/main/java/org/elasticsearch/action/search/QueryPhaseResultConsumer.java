@@ -298,6 +298,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
+//            aggs.forEach(agg -> {agg.close();});
         }
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(
@@ -480,21 +481,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     private void consume(QuerySearchResult result, Runnable next) {
-        boolean isReferrence = result.aggregations() != null && result.aggregations().isSerialized() == false;
         if (hasFailure()) {
             result.consumeAll();
-            if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> { agg.close(); });
-            }
             next.run();
         } else if (result.isNull() || result.isPartiallyReduced()) {
             SearchShardTarget target = result.getSearchShardTarget();
             SearchShard searchShard = new SearchShard(target.getClusterAlias(), target.getShardId());
             synchronized (this) {
                 emptyResults.add(searchShard);
-            }
-            if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> { agg.close(); });
             }
             next.run();
         } else {
@@ -535,9 +529,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             }
             if (hasFailure) {
                 result.consumeAll();
-            }
-            if (isReferrence) {
-                result.aggregations().expand().forEach(agg -> { agg.close(); });
             }
             if (executeNextImmediately) {
                 next.run();

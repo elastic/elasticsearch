@@ -9,12 +9,14 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 $if(BytesRef)$ import org.apache.lucene.util.BytesRef; $endif$
+import org.elasticsearch.common.util.BigArrays;
+$if(v2_boolean)$
+import org.elasticsearch.common.util.ByteArray;
+$else$
 import org.elasticsearch.common.util.$v2_Array$;
+$endif$
 import org.elasticsearch.compute.data.Block;
-$if(BytesRef)$ import org.elasticsearch.compute.data.$v2_Type$Block; $endif$
 import org.elasticsearch.compute.operator.DriverContext;
-$if(BytesRef)$ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder; $endif$
-$if(BytesRef)$ import org.elasticsearch.common.breaker.CircuitBreaker; $endif$
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
@@ -23,17 +25,40 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class All$v1_Type$$v2_Type$State implements AggregatorState {
-    // Whether an observation was recorded in this state
+
+    private BigArrays bigArrays;
+
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private $v1_type$ v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
+    /**
+     * The value can be null, single valued or multivalued.
+     */
+$if(v2_boolean)$
+    private ByteArray v2;
+$else$
     private $v2_Array$ v2;
+$endif$
+
+    public All$v1_Type$$v2_Type$State(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     boolean observed() {
         return observed;
@@ -59,11 +84,19 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
+$if(v2_boolean)$
+    ByteArray v2() {
+$else$
     $v2_Array$ v2() {
+$endif$
         return v2;
     }
 
+$if(v2_boolean)$
+    void v2(ByteArray v2) {
+$else$
     void v2($v2_Array$ v2) {
+$endif$
         this.v2 = v2;
     }
 
@@ -83,15 +116,17 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         }
 
         int size = (int) v2.size();
-        $if(v2_BytesRef)$
-        return driverContext.blockFactory().newBytesRefArrayBlock(v2, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
-        $else$
+$if(v2_BytesRef)$
+        var result = driverContext.blockFactory().newBytesRefArrayBlock(v2, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+        v2 = null; // transfer the ownership of v2 to the block
+        return result;
+$else$
         $v2_type$[] values = new $v2_type$[size];
         for (int i = 0; i < size; ++i) {
-            values[i] = v2.get(i);
+            values[i] = $if(v2_boolean)$v2.get(i) == 1$else$v2.get(i)$endif$;
         }
         return driverContext.blockFactory().new$v2_Type$ArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
-        $endif$
+$endif$
     }
 
     @Override

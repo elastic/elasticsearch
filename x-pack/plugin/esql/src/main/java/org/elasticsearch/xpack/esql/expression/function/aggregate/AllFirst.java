@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstFloatByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstIntByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByTimestampAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.AllLastBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -153,7 +153,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
             case DOUBLE -> new AllFirstDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new AllFirstFloatByTimestampAggregatorFunctionSupplier();
             case KEYWORD, TEXT, IP -> new AllFirstBytesRefByTimestampAggregatorFunctionSupplier();
-            case BOOLEAN -> new AllLastBooleanByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new AllFirstBooleanByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

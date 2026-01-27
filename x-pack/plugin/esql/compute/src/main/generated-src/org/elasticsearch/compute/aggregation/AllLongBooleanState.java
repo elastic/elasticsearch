@@ -8,7 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
-import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -19,17 +20,35 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongBooleanState implements AggregatorState {
-    // Whether an observation was recorded in this state
+
+    private BigArrays bigArrays;
+
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private long v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
-    private BitArray v2;
+    /**
+     * The value can be null, single valued or multivalued.
+     */
+    private ByteArray v2;
+    public AllLongBooleanState(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     boolean observed() {
         return observed;
@@ -55,11 +74,11 @@ final class AllLongBooleanState implements AggregatorState {
         this.v1Seen = v1Seen;
     }
 
-    BitArray v2() {
+    ByteArray v2() {
         return v2;
     }
 
-    void v2(BitArray v2) {
+    void v2(ByteArray v2) {
         this.v2 = v2;
     }
 
@@ -81,7 +100,7 @@ final class AllLongBooleanState implements AggregatorState {
         int size = (int) v2.size();
         boolean[] values = new boolean[size];
         for (int i = 0; i < size; ++i) {
-            values[i] = v2.get(i);
+            values[i] = v2.get(i) == 1;
         }
         return driverContext.blockFactory().newBooleanArrayBlock(values, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
     }

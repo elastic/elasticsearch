@@ -36,7 +36,13 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        for (DataType valueType : List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS)) {
+        List<DataType> types = new ArrayList<>( List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS));
+
+        if (isNullable) {
+            types.add(DataType.BOOLEAN);
+        }
+
+        for (DataType valueType : types) {
             for (TestCaseSupplier.TypedDataSupplier valueSupplier : unlimitedSuppliers(valueType, rows, rows)) {
                 for (DataType sortType : List.of(DataType.DATETIME, DataType.DATE_NANOS)) {
                     for (TestCaseSupplier.TypedDataSupplier sortSupplier : unlimitedSuppliers(sortType, rows, rows)) {
@@ -80,22 +86,12 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 return new TestCaseSupplier.TestCase(
                     List.of(values, sorts),
                     (isNullable ? "All" : "")
-                        + standardAggregatorName(first ? "First" : "Last", toBackingType(values.type()))
+                        + standardAggregatorNameAllBytesTheSame(first ? "First" : "Last", values.type())
                         + "ByTimestamp",
                     values.type(),
                     anyOf(() -> Iterators.map(expected.iterator(), Matchers::equalTo))
                 );
             }
         );
-    }
-
-    // We don't need a specialized class to grab last / first
-    private static DataType toBackingType(DataType type) {
-        switch (type) {
-            case IP:
-                return KEYWORD;
-            default:
-                return type;
-        }
     }
 }

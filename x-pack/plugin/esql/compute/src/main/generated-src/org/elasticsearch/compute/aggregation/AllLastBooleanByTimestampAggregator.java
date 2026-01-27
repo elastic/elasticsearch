@@ -11,11 +11,8 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
@@ -54,8 +51,8 @@ public class AllLastBooleanByTimestampAggregator {
         return "all_last_boolean_by_timestamp";
     }
 
-    public static AllLongBooleanState initSingle() {
-        return new AllLongBooleanState();
+    public static AllLongBooleanState initSingle(DriverContext driverContext) {
+        return new AllLongBooleanState(driverContext.bigArrays());
     }
 
     private static void overrideState(
@@ -63,26 +60,36 @@ public class AllLastBooleanByTimestampAggregator {
         boolean timestampPresent,
         long timestamp,
         BooleanBlock values,
-        @Position int position
+        int position
     ) {
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
-        Releasables.close(current.v2());
         if (values.isNull(position)) {
+            Releasables.close(current.v2());
             current.v2(null);
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            BitArray a = new BitArray(count, BigArrays.NON_RECYCLING_INSTANCE);
-            for (int i = 0; i < count; ++i) {
-                a.set(i, values.getBoolean(offset + i));
+            ByteArray a = null;
+            boolean success = false;
+            try {
+                a = current.bigArrays().newByteArray(count);
+                for (int i = 0; i < count; ++i) {
+                    a.set(i, (byte) (values.getBoolean(offset + i) ? 1 : 0));
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
             }
-            current.v2(a);
         }
     }
 
-    private static long dominantTimestampAtPosition(@Position int position, LongBlock timestamps) {
+    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
         assert timestamps.isNull(position) == false : "The timestamp is null at this position";
         int lo = timestamps.getFirstValueIndex(position);
         int hi = lo + timestamps.getValueCount(position);
@@ -173,18 +180,25 @@ public class AllLastBooleanByTimestampAggregator {
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
 
-        // The group-indexed observed flags
+        /**
+         * The group-indexed observed flags
+         */
         private ByteArray observed;
 
-        // The group-indexed timestamps seen flags
+        /**
+         * The group-indexed timestamps seen flags
+         */
         private ByteArray hasTimestamp;
 
-        // The group-indexed timestamps
+        /**
+         * The group-indexed timestamps
+         */
         private LongArray timestamps;
 
-        // The group-indexed values
-        private ObjectArray<BitArray> values;
-
+        /**
+         * The group-indexed values
+         */
+        private ObjectArray<ByteArray> values;
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
@@ -220,6 +234,11 @@ public class AllLastBooleanByTimestampAggregator {
                 success = true;
             } finally {
                 if (success == false) {
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
                     Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
@@ -248,16 +267,25 @@ public class AllLastBooleanByTimestampAggregator {
                 observed.set(group, (byte) 1);
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
-                BitArray a = null;
-                if (valuesBlock.isNull(position) == false) {
-                    int count = valuesBlock.getValueCount(position);
-                    int offset = valuesBlock.getFirstValueIndex(position);
-                    a = new BitArray(count, BigArrays.NON_RECYCLING_INSTANCE);
-                    for (int i = 0; i < count; ++i) {
-                        a.set(i, valuesBlock.getBoolean(i + offset));
+                boolean success = false;
+ByteArray groupValues = null;
+                try {
+                    if (valuesBlock.isNull(position) == false) {
+                        int count = valuesBlock.getValueCount(position);
+                        int offset = valuesBlock.getFirstValueIndex(position);
+                        groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, (byte) (valuesBlock.getBoolean(i + offset) ? 1 : 0));
+                        }
+                    }
+                    success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
+                } finally {
+                    if (success == false) {
+                        Releasables.close(groupValues);
                     }
                 }
-                values.set(group, a);
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -265,6 +293,9 @@ public class AllLastBooleanByTimestampAggregator {
 
         @Override
         public void close() {
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
             Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
@@ -316,11 +347,11 @@ public class AllLastBooleanByTimestampAggregator {
                     }
                     switch (count) {
                         case 0 -> valuesBuilder.appendNull();
-                        case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0));
+                        case 1 -> valuesBuilder.appendBoolean(values.get(group).get(0) == 1);
                         default -> {
                             valuesBuilder.beginPositionEntry();
                             for (int i = 0; i < count; ++i) {
-                                valuesBuilder.appendBoolean(values.get(group).get(i));
+                                valuesBuilder.appendBoolean(values.get(group).get(i) == 1);
                             }
                             valuesBuilder.endPositionEntry();
                         }

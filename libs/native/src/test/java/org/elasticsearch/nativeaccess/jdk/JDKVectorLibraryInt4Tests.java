@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
@@ -29,7 +30,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     private final byte maxQueryValue = (1 << queryBits) - 1;
     private final byte maxIndexValue = (1 << indexBits) - 1;
 
-    public JDKVectorLibraryInt4Tests(SimilarityFunction function, int size) {
+    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
     }
 
@@ -334,22 +335,27 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
     }
 
     long nativeSimilarity(MemorySegment a, MemorySegment b, int length) {
+        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
+            "square distance not implemented"
+        );
         try {
-            return switch (function) {
-                case DOT_PRODUCT -> (long) getVectorDistance().dotProductHandleI1I4().invokeExact(a, b, length);
-                case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-            };
+            return (long) getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.I1I4,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable t) {
             throw rethrow(t);
         }
     }
 
     void nativeSimilarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
+        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
+            "square distance not implemented"
+        );
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandleI1I4Bulk().invokeExact(a, b, dims, count, result);
-                case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-            }
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.I1I4, VectorSimilarityFunctions.Operation.BULK)
+                .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -364,12 +370,15 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
+        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
+            "square distance not implemented"
+        );
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandleI1I4BulkWithOffsets()
-                    .invokeExact(a, b, dims, pitch, offsets, count, result);
-                case SQUARE_DISTANCE -> throw new AssumptionViolatedException("square distance not implemented");
-            }
+            getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.I1I4,
+                VectorSimilarityFunctions.Operation.BULK_OFFSETS
+            ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

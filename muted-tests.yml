@@ -249,9 +249,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=mustache/10_webhook/Test webhook action with mustache integration}
   issue: https://github.com/elastic/elasticsearch/issues/139663
-- class: org.elasticsearch.snapshots.SnapshotStressTestsIT
-  method: testRandomActivities
-  issue: https://github.com/elastic/elasticsearch/issues/139974
 - class: org.elasticsearch.xpack.ml.integration.DatafeedCcsIT
   method: testDatafeedWithCcsRemoteUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/140612
@@ -282,12 +279,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/139213
-- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/140804
-- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/140805
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140809
@@ -336,6 +327,15 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
   method: testIndexing
   issue: https://github.com/elastic/elasticsearch/issues/141235
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141270
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141271
+- class: org.elasticsearch.snapshots.SnapshotStatusApisIT
+  method: testFailedSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/141279
 
 # Examples:
 #

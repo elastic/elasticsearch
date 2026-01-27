@@ -3751,11 +3751,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testRerankComputedFieldsWithoutName() {
-        // Unnamed alias are forbidden
-        expectError(
-            "FROM books METADATA _score | RERANK \"food\" ON title, SUBSTRING(description, 0, 100), yearRenamed=year`",
-            "line 1:63: mismatched input '(' expecting {<EOF>, '|', '=', ',', '.', 'with'}"
+        var plan = processingCommand("""
+            RERANK "statement text" ON title, SUBSTRING(description, 0, 100), yearRenamed=year WITH { "inference_id": "inferenceID" }
+            """);
+        var rerank = as(plan, Rerank.class);
+
+        assertThat(rerank.queryText(), equalTo(literalString("statement text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
+        assertThat(
+            rerank.rerankFields(),
+            equalToIgnoringIds(
+                List.of(
+                    alias("title", attribute("title")),
+                    alias(
+                        "SUBSTRING(description, 0, 100)",
+                        function("SUBSTRING", List.of(attribute("description"), integer(0), integer(100)))
+                    ),
+                    alias("yearRenamed", attribute("year"))
+                )
+            )
         );
+        assertThat(rerank.scoreAttribute(), equalToIgnoringIds(attribute("_score")));
+        assertThat(rerank.rowLimit(), equalTo(integer(1_000)));
     }
 
     public void testRerankWithPositionalParameters() {

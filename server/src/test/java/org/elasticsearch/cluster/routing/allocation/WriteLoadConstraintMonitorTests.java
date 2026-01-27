@@ -501,7 +501,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     }
 
     public void testClusterInfoClusterStateMismatch() {
-        TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5, true);
+        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5, true);
 
         final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(testState.clusterState());
@@ -520,15 +520,15 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reset(testState.mockRerouteService);
 
         // remove a node from cluster info and cluster state that isn't the master
-        String removeHotspotId;
-        do {
-            removeHotspotId = randomFrom(testState.hotspotNodeIds());
-        } while (removeHotspotId == clusterStateRef.get().nodes().getMasterNodeId());
+        String removeHotspotId = randomValueOtherThan(
+            clusterStateRef.get().nodes().getMasterNodeId(),
+            () -> randomFrom(testState.hotspotNodeIds())
+        );
 
-        testState = testState.dropClusterStateNodeWithClusterInfoSkew(removeHotspotId);
-        clusterStateRef.set(testState.clusterState());
+        TestState testStateUpdated = testState.dropClusterStateNodeWithStaleClusterInfo(removeHotspotId);
+        clusterStateRef.set(testStateUpdated.clusterState());
 
-        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
+        writeLoadConstraintMonitor.onNewInfo(testStateUpdated.clusterInfo());
     }
 
     private boolean indexingNodeBelowQueueLatencyThreshold(
@@ -806,7 +806,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             );
         }
 
-        private TestState dropClusterStateNodeWithClusterInfoSkew(String nodeId) {
+        /* Makes a change to cluster state by removing a node, but leave cluster info stale */
+        private TestState dropClusterStateNodeWithStaleClusterInfo(String nodeId) {
             assert clusterState.nodes().get(nodeId) != null : "must be a known node";
             Set<String> newHotspotNodeIds = new HashSet<>(hotspotNodeIds);
             newHotspotNodeIds.remove(nodeId);

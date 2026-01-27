@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
 
-import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;

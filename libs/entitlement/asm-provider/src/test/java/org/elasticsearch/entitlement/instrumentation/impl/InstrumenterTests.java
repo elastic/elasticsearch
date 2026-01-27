@@ -370,7 +370,8 @@ public class InstrumenterTests extends ESTestCase {
                 Type.getInternalName(MockEntitlementChecker.class),
                 checkMethod.getName(),
                 Arrays.stream(Type.getArgumentTypes(checkMethod)).map(Type::getDescriptor).toList().stream().toList(),
-                IOException.class);
+                IOException.class
+            );
         }
         return new CheckMethod(
             Type.getInternalName(MockEntitlementChecker.class),

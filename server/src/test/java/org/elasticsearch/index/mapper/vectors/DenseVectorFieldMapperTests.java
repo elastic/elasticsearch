@@ -665,9 +665,11 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             DenseVectorFieldMapper.BBQIVFIndexOptions indexOptions = (DenseVectorFieldMapper.BBQIVFIndexOptions) denseVectorFieldMapper
                 .fieldType()
                 .getIndexOptions();
-            assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
             if (Build.current().isSnapshot()) {
                 assertEquals(4, indexOptions.bits, 0.0F);
+                assertNull(indexOptions.rescoreVector);
+            } else {
+                assertEquals(3.0F, indexOptions.rescoreVector.oversample(), 0.0F);
             }
             assertEquals(ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER, indexOptions.clusterSize);
             assertEquals(DYNAMIC_VISIT_RATIO, indexOptions.defaultVisitPercentage, 0.0);

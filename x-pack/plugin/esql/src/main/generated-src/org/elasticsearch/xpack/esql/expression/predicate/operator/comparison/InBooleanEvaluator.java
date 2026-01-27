@@ -193,6 +193,7 @@ public class InBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
                 driverContext.warningsMode(),
                 source.source().getLineNumber(),
                 source.source().getColumnNumber(),
+                source.viewName(),
                 source.text()
             );
         }

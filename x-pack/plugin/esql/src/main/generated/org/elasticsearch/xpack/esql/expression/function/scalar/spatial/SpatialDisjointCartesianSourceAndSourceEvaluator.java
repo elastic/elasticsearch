@@ -103,6 +103,7 @@ public final class SpatialDisjointCartesianSourceAndSourceEvaluator implements E
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

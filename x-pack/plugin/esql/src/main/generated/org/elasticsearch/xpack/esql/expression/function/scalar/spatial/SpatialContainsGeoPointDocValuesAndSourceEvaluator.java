@@ -104,6 +104,7 @@ public final class SpatialContainsGeoPointDocValuesAndSourceEvaluator implements
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

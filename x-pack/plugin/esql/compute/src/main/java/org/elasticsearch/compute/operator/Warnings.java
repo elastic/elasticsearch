@@ -16,7 +16,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class Warnings {
     static final int MAX_ADDED_WARNINGS = 20;
 
-    public static final Warnings NOOP_WARNINGS = new Warnings(-1, -2, "", "") {
+    public static final Warnings NOOP_WARNINGS = new Warnings(-1, -2, null, "", "") {
         @Override
         public void registerException(Exception exception) {
             // this space intentionally left blank
@@ -28,12 +28,38 @@ public class Warnings {
      * @param warningsMode The warnings collection strategy to use
      * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
      * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
+     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
     // TODO: rename to createWarningsTreatedAsNull
+    public static Warnings createWarnings(
+        DriverContext.WarningsMode warningsMode,
+        int lineNumber,
+        int columnNumber,
+        String viewName,
+        String sourceText
+    ) {
+        return createWarnings(
+            warningsMode,
+            lineNumber,
+            columnNumber,
+            viewName,
+            sourceText,
+            "evaluation of [{}] failed, treating result as null"
+        );
+    }
+
+    // TODO: remove once all callers have been updated to use the viewName overload
     public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, int lineNumber, int columnNumber, String sourceText) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "evaluation of [{}] failed, treating result as null");
+        return createWarnings(
+            warningsMode,
+            lineNumber,
+            columnNumber,
+            null,
+            sourceText,
+            "evaluation of [{}] failed, treating result as null"
+        );
     }
 
     /**
@@ -42,6 +68,7 @@ public class Warnings {
      * @param warningsMode The warnings collection strategy to use
      * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
      * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
+     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
@@ -49,9 +76,17 @@ public class Warnings {
         DriverContext.WarningsMode warningsMode,
         int lineNumber,
         int columnNumber,
+        String viewName,
         String sourceText
     ) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "evaluation of [{}] failed, treating result as false");
+        return createWarnings(
+            warningsMode,
+            lineNumber,
+            columnNumber,
+            viewName,
+            sourceText,
+            "evaluation of [{}] failed, treating result as false"
+        );
     }
 
     /**
@@ -60,6 +95,7 @@ public class Warnings {
      * @param warningsMode The warnings collection strategy to use
      * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
      * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
+     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
      * @param sourceText The source text that caused the warning. Same as `source.text()`
      * @return A warnings collector object
      */
@@ -68,21 +104,33 @@ public class Warnings {
         DriverContext.WarningsMode warningsMode,
         int lineNumber,
         int columnNumber,
+        String viewName,
         String sourceText
     ) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, sourceText, "warnings during evaluation of [{}]");
+        return createWarnings(warningsMode, lineNumber, columnNumber, viewName, sourceText, "warnings during evaluation of [{}]");
+    }
+
+    // TODO: remove once all callers have been updated to use the viewName overload
+    public static Warnings createOnlyWarnings(
+        DriverContext.WarningsMode warningsMode,
+        int lineNumber,
+        int columnNumber,
+        String sourceText
+    ) {
+        return createWarnings(warningsMode, lineNumber, columnNumber, null, sourceText, "warnings during evaluation of [{}]");
     }
 
     private static Warnings createWarnings(
         DriverContext.WarningsMode warningsMode,
         int lineNumber,
         int columnNumber,
+        String viewName,
         String sourceText,
         String first
     ) {
         switch (warningsMode) {
             case COLLECT -> {
-                return new Warnings(lineNumber, columnNumber, sourceText, first);
+                return new Warnings(lineNumber, columnNumber, viewName, sourceText, first);
             }
             case IGNORE -> {
                 return NOOP_WARNINGS;
@@ -96,8 +144,12 @@ public class Warnings {
 
     private int addedWarnings;
 
-    private Warnings(int lineNumber, int columnNumber, String sourceText, String first) {
-        this.location = format("Line {}:{}: ", lineNumber, columnNumber);
+    private Warnings(int lineNumber, int columnNumber, String viewName, String sourceText, String first) {
+        if (viewName == null) {
+            this.location = format("Line {}:{}: ", lineNumber, columnNumber);
+        } else {
+            this.location = format("Line {}:{} (in view [{}]): ", lineNumber, columnNumber, viewName);
+        }
         this.first = format(null, "{}" + first + ". Only first {} failures recorded.", location, sourceText, MAX_ADDED_WARNINGS);
     }
 

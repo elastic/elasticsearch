@@ -125,6 +125,7 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

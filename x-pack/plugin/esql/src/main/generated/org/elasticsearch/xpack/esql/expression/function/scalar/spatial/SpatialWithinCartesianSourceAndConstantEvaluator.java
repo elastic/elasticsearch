@@ -97,6 +97,7 @@ public final class SpatialWithinCartesianSourceAndConstantEvaluator implements E
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

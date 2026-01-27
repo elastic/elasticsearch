@@ -115,6 +115,7 @@ public final class MvPercentileIntegerEvaluator implements EvalOperator.Expressi
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

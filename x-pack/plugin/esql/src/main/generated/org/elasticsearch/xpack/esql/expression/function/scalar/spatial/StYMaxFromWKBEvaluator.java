@@ -92,6 +92,7 @@ public final class StYMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

@@ -97,6 +97,7 @@ public final class SpatialWithinGeoSourceAndConstantEvaluator implements EvalOpe
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

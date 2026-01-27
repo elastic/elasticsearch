@@ -120,6 +120,7 @@ public final class RoundToDouble5Evaluator implements EvalOperator.ExpressionEva
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

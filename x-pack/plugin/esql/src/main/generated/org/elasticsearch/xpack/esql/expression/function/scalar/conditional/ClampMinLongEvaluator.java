@@ -128,6 +128,7 @@ public final class ClampMinLongEvaluator implements EvalOperator.ExpressionEvalu
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

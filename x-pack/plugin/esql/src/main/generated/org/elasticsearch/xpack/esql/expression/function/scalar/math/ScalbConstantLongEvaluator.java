@@ -119,6 +119,7 @@ public final class ScalbConstantLongEvaluator implements EvalOperator.Expression
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

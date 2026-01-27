@@ -102,6 +102,7 @@ public final class StDistanceCartesianSourceAndSourceEvaluator implements EvalOp
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

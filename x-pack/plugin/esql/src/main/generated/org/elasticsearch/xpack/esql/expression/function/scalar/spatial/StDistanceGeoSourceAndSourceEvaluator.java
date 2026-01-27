@@ -101,6 +101,7 @@ public final class StDistanceGeoSourceAndSourceEvaluator implements EvalOperator
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

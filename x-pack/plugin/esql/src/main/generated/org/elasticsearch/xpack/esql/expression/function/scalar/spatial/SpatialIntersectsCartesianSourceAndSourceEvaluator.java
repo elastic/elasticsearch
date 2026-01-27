@@ -103,6 +103,7 @@ public final class SpatialIntersectsCartesianSourceAndSourceEvaluator implements
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

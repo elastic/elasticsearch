@@ -76,6 +76,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

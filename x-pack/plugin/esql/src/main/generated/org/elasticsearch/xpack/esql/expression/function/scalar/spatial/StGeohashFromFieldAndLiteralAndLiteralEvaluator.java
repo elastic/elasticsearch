@@ -97,6 +97,7 @@ public final class StGeohashFromFieldAndLiteralAndLiteralEvaluator implements Ev
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

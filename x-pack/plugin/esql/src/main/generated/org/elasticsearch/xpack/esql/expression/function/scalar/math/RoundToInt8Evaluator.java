@@ -129,6 +129,7 @@ public final class RoundToInt8Evaluator implements EvalOperator.ExpressionEvalua
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

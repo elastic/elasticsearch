@@ -91,6 +91,7 @@ public final class StEnvelopeFromWKBEvaluator implements EvalOperator.Expression
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

@@ -96,6 +96,7 @@ public final class StGeotileFromFieldDocValuesAndLiteralAndLiteralEvaluator impl
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

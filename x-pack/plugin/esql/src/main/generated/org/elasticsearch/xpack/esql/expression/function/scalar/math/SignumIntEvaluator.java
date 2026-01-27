@@ -107,6 +107,7 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

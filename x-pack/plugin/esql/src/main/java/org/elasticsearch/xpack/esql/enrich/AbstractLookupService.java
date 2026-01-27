@@ -347,6 +347,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 DriverContext.WarningsMode.COLLECT,
                 request.source.source().getLineNumber(),
                 request.source.source().getColumnNumber(),
+                request.source.viewName(),
                 request.source.text()
             );
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);

@@ -138,6 +138,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

@@ -226,6 +226,17 @@ public class EsqlSession {
         PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
+        var viewResolution = viewResolver.replaceViews(
+            statement.plan(),
+            (query, viewName) -> EsqlParser.INSTANCE.parseView(
+                query,
+                request.params(),
+                SettingsValidationContext.from(remoteClusterService),
+                planTelemetry,
+                inferenceService.inferenceSettings(),
+                viewName
+            ).plan()
+        );
         parsingProfile.stop();
         PlanTimeProfile planTimeProfile = request.profile() ? new PlanTimeProfile() : null;
 
@@ -251,20 +262,12 @@ public class EsqlSession {
             request.allowPartialResults(),
             analyzerSettings.timeseriesResultTruncationMaxSize(),
             analyzerSettings.timeseriesResultTruncationDefaultSize(),
-            projectRouting(request, statement)
+            projectRouting(request, statement),
+            viewResolution.viewQueries()
         );
-        FoldContext foldContext = configuration.newFoldContext();
+        final FoldContext foldContext = configuration.newFoldContext();
 
-        LogicalPlan plan = viewResolver.replaceViews(
-            statement.plan(),
-            (query) -> EsqlParser.INSTANCE.parse(
-                query,
-                request.params(),
-                SettingsValidationContext.from(remoteClusterService),
-                planTelemetry,
-                inferenceService.inferenceSettings()
-            ).plan()
-        );
+        LogicalPlan plan = viewResolution.plan();
         if (plan instanceof Explain explain) {
             explainMode = true;
             plan = explain.query();

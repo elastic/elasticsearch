@@ -94,6 +94,7 @@ public final class StGeotileFromFieldDocValuesAndLiteralEvaluator implements Eva
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

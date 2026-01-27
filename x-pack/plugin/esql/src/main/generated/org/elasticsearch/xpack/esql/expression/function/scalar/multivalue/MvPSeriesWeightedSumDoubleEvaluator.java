@@ -99,6 +99,7 @@ public final class MvPSeriesWeightedSumDoubleEvaluator implements EvalOperator.E
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

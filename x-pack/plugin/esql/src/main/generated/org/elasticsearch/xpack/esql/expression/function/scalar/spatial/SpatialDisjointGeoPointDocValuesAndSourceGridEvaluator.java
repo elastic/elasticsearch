@@ -108,6 +108,7 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceGridEvaluator implem
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

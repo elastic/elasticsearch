@@ -91,6 +91,7 @@ public final class StEnvelopeFromWKBGeoEvaluator implements EvalOperator.Express
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

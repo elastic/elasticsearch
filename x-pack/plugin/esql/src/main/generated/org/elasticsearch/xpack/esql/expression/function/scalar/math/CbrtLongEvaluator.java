@@ -117,6 +117,7 @@ public final class CbrtLongEvaluator implements EvalOperator.ExpressionEvaluator
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

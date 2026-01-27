@@ -113,6 +113,7 @@ public final class DateExtractConstantNanosEvaluator implements EvalOperator.Exp
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

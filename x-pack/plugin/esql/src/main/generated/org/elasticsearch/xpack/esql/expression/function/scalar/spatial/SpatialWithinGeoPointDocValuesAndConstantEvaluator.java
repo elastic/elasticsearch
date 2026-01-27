@@ -97,6 +97,7 @@ public final class SpatialWithinGeoPointDocValuesAndConstantEvaluator implements
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

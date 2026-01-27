@@ -114,6 +114,7 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

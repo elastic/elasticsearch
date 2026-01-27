@@ -28,12 +28,13 @@ import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.view.ViewService.MAX_VIEW_DEPTH_SETTING;
@@ -64,14 +65,27 @@ public class ViewResolver {
         return EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled();
     }
 
-    public LogicalPlan replaceViews(LogicalPlan plan, Function<String, LogicalPlan> parser) {
+    /**
+     * Result of view resolution containing both the rewritten plan and the view queries.
+     */
+    public record ViewResolutionResult(LogicalPlan plan, Map<String, String> viewQueries) {}
+
+    /**
+     * Replaces views in the plan with their resolved definitions.
+     * @param plan the plan to resolve views in
+     * @param parser a function that parses a view query with a given view name
+     *               The BiFunction takes (query, viewName) and returns the parsed LogicalPlan.
+     *               The viewName is used to tag Source objects so they can be correctly deserialized.
+     * @return the resolution result containing the rewritten plan and collected view queries
+     */
+    public ViewResolutionResult replaceViews(LogicalPlan plan, BiFunction<String, String, LogicalPlan> parser) {
         if (viewsFeatureEnabled() == false) {
-            return plan;
+            return new ViewResolutionResult(plan, Map.of());
         }
         ViewMetadata views = getMetadata();
         if (views.views().isEmpty()) {
             // Don't bother to traverse the plan if there are no views defined
-            return plan;
+            return new ViewResolutionResult(plan, Map.of());
         }
         // Get all non-view names for this project, so we know if wildcards match any non-view indexes
         Set<String> nonViewNames = getIndicesLookup().entrySet()
@@ -79,13 +93,23 @@ public class ViewResolver {
             .filter(e -> e.getValue() == null || e.getValue().getType() != IndexAbstraction.Type.VIEW)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
-        LogicalPlan rewritten = replaceViewsInSubplan(plan, parser, views, nonViewNames, new LinkedHashSet<>(), new HashSet<>(), 0);
+        Map<String, String> viewQueries = new HashMap<>();
+        LogicalPlan rewritten = replaceViewsInSubplan(
+            plan,
+            parser,
+            views,
+            nonViewNames,
+            new LinkedHashSet<>(),
+            new HashSet<>(),
+            0,
+            viewQueries
+        );
         if (rewritten.equals(plan)) {
             log.debug("No views resolved");
-            return plan;
+            return new ViewResolutionResult(plan, Map.of());
         }
         log.debug("Views resolved:\n" + rewritten);
-        return rewritten;
+        return new ViewResolutionResult(rewritten, viewQueries);
     }
 
     /**
@@ -96,12 +120,13 @@ public class ViewResolver {
      */
     private LogicalPlan replaceViewsInSubplan(
         LogicalPlan plan,
-        Function<String, LogicalPlan> parser,
+        BiFunction<String, String, LogicalPlan> parser,
         ViewMetadata views,
         Set<String> nonViewNames,
         LinkedHashSet<String> outerSeen,
         HashSet<String> outerSeenWildcards,
-        int depth
+        int depth,
+        Map<String, String> viewQueries
     ) {
         // Do not modify the outer seen set, copy it for this subplan, allowing multiple subplans to refer to the same view
         LinkedHashSet<String> seen = new LinkedHashSet<>(outerSeen);
@@ -129,7 +154,8 @@ public class ViewResolver {
                             nonViewNames,
                             seen,
                             seenWildcards,
-                            depth + 1
+                            depth + 1,
+                            viewQueries
                         );
                         if (subplan.equals(subplans.get(i)) == false) {
                             changed = true;
@@ -157,10 +183,20 @@ public class ViewResolver {
                         if (seen.size() > this.maxViewDepth) {
                             throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
                         }
+                        LogicalPlan resolvedView = resolve(view, parser, viewQueries);
                         subqueries.add(
                             new ViewPlan(
                                 view.name(),
-                                replaceViewsInSubplan(resolve(view, parser), parser, views, nonViewNames, seen, seenWildcards, depth + 1)
+                                replaceViewsInSubplan(
+                                    resolvedView,
+                                    parser,
+                                    views,
+                                    nonViewNames,
+                                    seen,
+                                    seenWildcards,
+                                    depth + 1,
+                                    viewQueries
+                                )
                             )
                         );
                     }
@@ -290,12 +326,14 @@ public class ViewResolver {
         return new UnionAll(ur.source(), otherPlans, List.of());
     }
 
-    private LogicalPlan resolve(View view, Function<String, LogicalPlan> parser) {
-        // TODO don't reparse every time. Store parsed? Or cache parsing? dunno
-        // this will make super-wrong Source. the _source should be the view.
-        // if there's a `filter` it applies "under" the view. that's weird. right?
+    private LogicalPlan resolve(View view, BiFunction<String, String, LogicalPlan> parser, Map<String, String> viewQueries) {
         log.debug("Resolving view '{}'", view.name());
-        return parser.apply(view.query());
+        // Store the view query so it can be used during Source deserialization
+        viewQueries.put(view.name(), view.query());
+
+        // Parse the view query with the view name, which causes all Source objects
+        // to be tagged with the view name during parsing
+        return parser.apply(view.query(), view.name());
     }
 
     private VerificationException viewError(String type, Collection<String> seen) {

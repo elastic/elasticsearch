@@ -131,6 +131,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

@@ -103,6 +103,7 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

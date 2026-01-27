@@ -367,6 +367,7 @@ public final class Case extends EsqlScalarFunction {
                     driverContext.warningsMode(),
                     conditionSource.source().getLineNumber(),
                     conditionSource.source().getColumnNumber(),
+                    conditionSource.viewName(),
                     conditionSource.text()
                 ),
                 condition.get(driverContext),

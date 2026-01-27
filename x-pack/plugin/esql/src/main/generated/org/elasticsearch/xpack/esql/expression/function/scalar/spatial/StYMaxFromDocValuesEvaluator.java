@@ -92,6 +92,7 @@ public final class StYMaxFromDocValuesEvaluator implements EvalOperator.Expressi
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

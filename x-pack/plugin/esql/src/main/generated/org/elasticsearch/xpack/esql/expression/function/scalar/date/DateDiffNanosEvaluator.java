@@ -175,6 +175,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

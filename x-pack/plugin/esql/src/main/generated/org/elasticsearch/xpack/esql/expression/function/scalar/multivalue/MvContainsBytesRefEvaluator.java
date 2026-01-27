@@ -85,6 +85,7 @@ public final class MvContainsBytesRefEvaluator implements EvalOperator.Expressio
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

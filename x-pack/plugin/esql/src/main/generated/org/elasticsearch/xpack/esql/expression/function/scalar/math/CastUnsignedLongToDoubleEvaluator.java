@@ -107,6 +107,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

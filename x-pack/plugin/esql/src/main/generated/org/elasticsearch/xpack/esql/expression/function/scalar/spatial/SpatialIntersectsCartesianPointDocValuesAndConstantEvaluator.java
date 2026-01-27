@@ -97,6 +97,7 @@ public final class SpatialIntersectsCartesianPointDocValuesAndConstantEvaluator 
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

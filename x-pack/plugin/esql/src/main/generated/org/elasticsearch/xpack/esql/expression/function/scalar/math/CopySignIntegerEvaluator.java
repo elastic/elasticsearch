@@ -130,6 +130,7 @@ public final class CopySignIntegerEvaluator implements EvalOperator.ExpressionEv
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

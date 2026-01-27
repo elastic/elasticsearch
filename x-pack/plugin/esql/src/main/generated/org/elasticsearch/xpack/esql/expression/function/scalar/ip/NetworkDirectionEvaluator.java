@@ -139,6 +139,7 @@ public final class NetworkDirectionEvaluator implements EvalOperator.ExpressionE
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

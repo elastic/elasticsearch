@@ -94,6 +94,7 @@ public final class MvIntersectionBooleanEvaluator implements EvalOperator.Expres
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

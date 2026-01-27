@@ -136,6 +136,7 @@ public final class RoundToDouble10Evaluator implements EvalOperator.ExpressionEv
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

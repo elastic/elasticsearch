@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
@@ -622,7 +623,7 @@ public class CsvTests extends ESTestCase {
             for (var viewConfig : VIEW_CONFIGS) {
                 loadView(viewService, viewConfig);
             }
-            return viewService.getViewResolver().replaceViews(parsed, this::parseView);
+            return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();
         }
     }
 
@@ -642,13 +643,15 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    private LogicalPlan parseView(String query) {
-        return EsqlParser.INSTANCE.parseQuery(
+    private LogicalPlan parseView(String query, String viewName) {
+        return EsqlParser.INSTANCE.parseView(
             query,
             new QueryParams(),
+            new SettingsValidationContext(false, false),
             new PlanTelemetry(functionRegistry),
-            new InferenceSettings(Settings.EMPTY)
-        );
+            new InferenceSettings(Settings.EMPTY),
+            viewName
+        ).plan();
     }
 
     public static Map<IndexPattern, CsvTestsDataLoader.MultiIndexTestDataset> testDatasets(LogicalPlan parsed) {

@@ -205,6 +205,7 @@ public class SingleValueQuery extends Query {
                     DriverContext.WarningsMode.COLLECT,
                     source().source().getLineNumber(),
                     source().source().getColumnNumber(),
+                    source().viewName(),
                     source().text()
                 ),
                 "single-value function encountered multi-value"
@@ -337,6 +338,7 @@ public class SingleValueQuery extends Query {
                     DriverContext.WarningsMode.COLLECT,
                     source().source().getLineNumber(),
                     source().source().getColumnNumber(),
+                    source().viewName(),
                     source().text()
                 ),
                 "single-value function encountered multi-value"

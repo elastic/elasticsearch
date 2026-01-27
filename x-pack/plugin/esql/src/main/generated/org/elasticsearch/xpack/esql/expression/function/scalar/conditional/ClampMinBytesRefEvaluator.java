@@ -134,6 +134,7 @@ public final class ClampMinBytesRefEvaluator implements EvalOperator.ExpressionE
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

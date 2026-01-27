@@ -389,6 +389,7 @@ public class LookupExecutionPlanner {
                 driverContext.warningsMode(),
                 lookupDriverContext.request().source.source().getLineNumber(),
                 lookupDriverContext.request().source.source().getColumnNumber(),
+                lookupDriverContext.request().source.viewName(),
                 lookupDriverContext.request().source.text()
             );
 

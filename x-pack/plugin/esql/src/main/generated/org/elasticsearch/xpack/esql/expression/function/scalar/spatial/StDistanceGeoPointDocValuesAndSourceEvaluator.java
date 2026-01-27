@@ -103,6 +103,7 @@ public final class StDistanceGeoPointDocValuesAndSourceEvaluator implements Eval
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

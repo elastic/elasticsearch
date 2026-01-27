@@ -123,6 +123,7 @@ public final class RoundToLong6Evaluator implements EvalOperator.ExpressionEvalu
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

@@ -94,6 +94,7 @@ public final class StSimplifyNonFoldableGeometryAndFoldableToleranceEvaluator im
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

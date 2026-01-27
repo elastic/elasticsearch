@@ -97,6 +97,7 @@ public final class SpatialWithinCartesianPointDocValuesAndConstantEvaluator impl
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

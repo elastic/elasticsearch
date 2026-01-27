@@ -105,6 +105,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

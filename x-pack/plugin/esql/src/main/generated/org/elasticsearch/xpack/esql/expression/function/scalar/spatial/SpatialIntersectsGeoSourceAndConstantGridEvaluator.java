@@ -101,6 +101,7 @@ public final class SpatialIntersectsGeoSourceAndConstantGridEvaluator implements
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

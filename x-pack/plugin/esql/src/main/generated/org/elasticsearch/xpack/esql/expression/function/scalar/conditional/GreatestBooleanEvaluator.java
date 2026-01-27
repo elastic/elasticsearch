@@ -127,6 +127,7 @@ public final class GreatestBooleanEvaluator implements EvalOperator.ExpressionEv
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

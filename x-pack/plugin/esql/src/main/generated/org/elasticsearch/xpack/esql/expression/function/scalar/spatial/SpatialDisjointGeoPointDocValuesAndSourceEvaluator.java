@@ -104,6 +104,7 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceEvaluator implements
               driverContext.warningsMode(),
               source.source().getLineNumber(),
               source.source().getColumnNumber(),
+              source.viewName(),
               source.text()
           );
     }

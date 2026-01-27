@@ -5,7 +5,6 @@
 serverless: preview
 stack: preview 9.3.0
 ```
-
 :   Defines how unmapped fields are treated. Possible values are: "FAIL" (default) - fails the query if unmapped fields are present; "NULLIFY" - treats unmapped fields as null values.  **Type**: `keyword`.
     
     **Example**

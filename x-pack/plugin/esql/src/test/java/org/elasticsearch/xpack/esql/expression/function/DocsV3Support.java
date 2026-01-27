@@ -1179,7 +1179,7 @@ public abstract class DocsV3Support {
                 }
                 builder.append("\n");
             }
-            builder.append("```\n\n");
+            builder.append("```\n");
 
             builder.append(":   ");
             builder.append(param != null ? param.description() : mapParam.description());
@@ -1201,7 +1201,7 @@ public abstract class DocsV3Support {
                     builder.append("(`").append(mapArgSignature.type()).append("`): ");
                     builder.append(mapArgSignature.description()).append("\n");
                 }
-                builder.append("\n   \n");
+                builder.append("\n    \n");
             }
 
             for (Example value : examples(setting)) {

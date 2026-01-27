@@ -40,6 +40,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -70,10 +72,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.analysis.VerifierTests.error;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -622,17 +623,6 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(literal.value(), equalTo(2.0));
     }
 
-    public void testUnsupportedBinaryOperators() {
-        assertThat(
-            error("PROMQL index=k8s step=5m foo or bar", tsAnalyzer),
-            containsString("VectorBinarySet queries are not supported at this time [foo or bar]")
-        );
-        assertThat(
-            error("PROMQL index=k8s step=5m foo > bar", tsAnalyzer),
-            containsString("VectorBinaryComparison queries are not supported at this time [foo > bar]")
-        );
-    }
-
     public void testTopLevelBinaryArithmeticQuery() {
         var plan = planPromql("""
             PROMQL index=k8s step=1m in_n_out=(
@@ -660,6 +650,32 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticInstantSelectorAndScalarFunction() {
+        boolean piFirst = randomBoolean();
+        LogicalPlan plan;
+        if (piFirst) {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(pi() - network.bytes_in)");
+        } else {
+            plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in - pi())");
+        }
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
+
+        Sub sub = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Sub.class);
+        Expression piExpression = piFirst ? sub.left() : sub.right();
+        assertThat((double) as(piExpression, Literal.class).fold(null), closeTo(Math.PI, 1e-9));
+
+        Expression bytesInExpression = piFirst ? sub.right() : sub.left();
+        assertThat(as(as(bytesInExpression, ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
+
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
+        assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.bytes_in"));
+    }
+
+    public void testBinaryArithmeticScalarFunctions() {
+        assertConstantResult("pi() - pi()", equalTo(0.0));
     }
 
     public void testBinaryAcrossSeriesAndLiteral() {
@@ -744,6 +760,18 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertConstantResult("clamp_max(vector(5), 10)", equalTo(5.0));
         assertConstantResult("clamp_max(vector(15), 10)", equalTo(10.0));
         assertConstantResult("clamp_max(vector(10), 10)", equalTo(10.0));
+    }
+
+    public void testComparisonAcrossSeriesWithScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
+        Filter filter = plan.collect(Filter.class).getFirst();
+        GreaterThan gt = as(filter.condition(), GreaterThan.class);
+        assertThat(gt.left().sourceText(), equalTo("max(network.eth0.rx)"));
+        assertThat(as(gt.right(), Literal.class).fold(null), equalTo(1000.0));
+
+        Aggregate acrossSeries = plan.collect(Aggregate.class).getFirst();
+        Max max = as(Alias.unwrap(acrossSeries.aggregates().getFirst()), Max.class);
+        assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.eth0.rx"));
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {

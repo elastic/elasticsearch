@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,7 +61,7 @@ public class CompletionExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
-            Completion.DEFAULT_TASK_SETTINGS
+            (MapExpression) in.readNamedWriteable(Expression.class)
         );
     }
 

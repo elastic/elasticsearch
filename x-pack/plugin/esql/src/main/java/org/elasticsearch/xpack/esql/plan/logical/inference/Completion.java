@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -101,10 +100,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
-            // COMPLETION is coordinator-only (#139074) and should not be serialized
-            // in normal operation. Since old versions don't know about task_settings,
-            // we safely default to empty settings.
-            DEFAULT_TASK_SETTINGS
+            // COMPLETION is coordinator-only and should not be serialized in normal operation.
+            // Deserialization is kept for rolling upgrade safety. Since old versions don't
+            // know about task_settings, we use empty defaults.
+            (MapExpression) in.readNamedWriteable(Expression.class)
         );
     }
 

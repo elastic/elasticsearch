@@ -812,9 +812,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             newHotspotNodeIds.remove(nodeId);
 
             ClusterState oldClusterState = clusterState;
-            ClusterState newClusterState = new ClusterState.Builder(oldClusterState)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId))
-                .build();
+            ClusterState newClusterState = new ClusterState.Builder(oldClusterState).nodes(
+                DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)
+            ).build();
 
             return new TestState(
                 latencyThresholdMillis,

@@ -127,6 +127,12 @@ public class KnnIndexTester {
         } else if (args.indexType() == IndexType.IVF) {
             suffix.add("ivf");
             suffix.add(Integer.toString(args.ivfClusterSize()));
+            suffix.add(Integer.toString(
+                args.secondaryClusterSize() == -1 ?
+                    ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER :
+                    args.secondaryClusterSize())
+            );
+            suffix.add(Integer.toString(args.quantizeBits()));
         } else {
             suffix.add(Integer.toString(args.hnswM()));
             suffix.add(Integer.toString(args.hnswEfConstruction()));
@@ -157,7 +163,8 @@ public class KnnIndexTester {
             format = new ESNextDiskBBQVectorsFormat(
                 encoding,
                 args.ivfClusterSize(),
-                ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                args.secondaryClusterSize() == -1 ? ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER
+                    : args.secondaryClusterSize(),
                 elementType,
                 args.onDiskRescore(),
                 exec,
@@ -323,16 +330,17 @@ public class KnnIndexTester {
         FormattedResults formattedResults = new FormattedResults();
 
         for (TestConfiguration testConfiguration : testConfigurationList) {
+            String indexPathName = formatIndexPath(testConfiguration);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(
-                testConfiguration.docVectors().get(0).getFileName().toString(),
+                indexPathName,
                 indexType,
                 testConfiguration.numDocs()
             );
             Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
             for (int i = 0; i < results.length; i++) {
                 results[i] = new Results(
-                    testConfiguration.docVectors().get(0).getFileName().toString(),
+                    indexPathName,
                     indexType,
                     testConfiguration.numDocs()
                 );
@@ -347,7 +355,7 @@ public class KnnIndexTester {
             }
             try {
                 Codec codec = createCodec(testConfiguration, exec);
-                Path indexPath = PathUtils.get(formatIndexPath(testConfiguration));
+                Path indexPath = PathUtils.get(indexPathName);
                 MergePolicy mergePolicy = getMergePolicy(testConfiguration);
                 if (testConfiguration.reindex() || testConfiguration.forceMerge()) {
                     KnnIndexer knnIndexer = new KnnIndexer(
@@ -382,7 +390,7 @@ public class KnnIndexTester {
                     for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
                         for (int i = 0; i < results.length; i++) {
                             var ignoreResults = new Results(
-                                testConfiguration.docVectors().get(0).getFileName().toString(),
+                                indexPathName,
                                 indexType,
                                 testConfiguration.numDocs()
                             );
@@ -455,8 +463,6 @@ public class KnnIndexTester {
                 "QPS",
                 "recall",
                 "visited",
-                "filter_selectivity",
-                "filter_cached",
                 "oversampling_factor",
                 "num_candidates",
                 "early_termination" };

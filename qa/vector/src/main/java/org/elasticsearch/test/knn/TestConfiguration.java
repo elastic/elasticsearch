@@ -54,7 +54,8 @@ record TestConfiguration(
     List<SearchParameters> searchParams,
     int numMergeWorkers,
     boolean doPrecondition,
-    int preconditioningBlockDims
+    int preconditioningBlockDims,
+    int secondaryClusterSize
 ) {
 
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
@@ -66,6 +67,7 @@ record TestConfiguration(
     static final ParseField K_FIELD = new ParseField("k");
     static final ParseField VISIT_PERCENTAGE_FIELD = new ParseField("visit_percentage");
     static final ParseField IVF_CLUSTER_SIZE_FIELD = new ParseField("ivf_cluster_size");
+    static final ParseField SECONDARY_CLUSTER_SIZE = new ParseField("secondary_cluster_size");
     static final ParseField OVER_SAMPLING_FACTOR_FIELD = new ParseField("over_sampling_factor");
     static final ParseField HNSW_M_FIELD = new ParseField("hnsw_m");
     static final ParseField HNSW_EF_CONSTRUCTION_FIELD = new ParseField("hnsw_ef_construction");
@@ -146,6 +148,7 @@ record TestConfiguration(
         PARSER.declareFieldArray(Builder::setFilterCached, (p, c) -> p.booleanValue(), FILTER_CACHED, ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
+        PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
     }
 
     public int numberOfSearchRuns() {
@@ -196,6 +199,7 @@ record TestConfiguration(
         private List<Boolean> filterCached = List.of(Boolean.TRUE);
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
+        private int secondaryClusterSize = -1;
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -377,6 +381,11 @@ record TestConfiguration(
             return this;
         }
 
+        public Builder setSecondaryClusterSize(int secondaryClusterSize) {
+            this.secondaryClusterSize = secondaryClusterSize;
+            return this;
+        }
+
         public TestConfiguration build() {
             if (docVectors == null) {
                 throw new IllegalArgumentException("Document vectors path must be provided");
@@ -447,7 +456,8 @@ record TestConfiguration(
                 searchRuns,
                 numMergeWorkers,
                 doPrecondition,
-                preconditioningBlockDims
+                preconditioningBlockDims,
+                secondaryClusterSize
             );
         }
 

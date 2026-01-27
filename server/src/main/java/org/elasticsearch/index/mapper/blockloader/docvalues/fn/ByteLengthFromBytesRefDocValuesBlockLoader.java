@@ -39,14 +39,14 @@ public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesRe
         return factory.bytesRefs(expectedCount);
     }
 
-//    @Override
-//    public final AllReader reader(LeafReaderContext context) throws IOException {
-//        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-//        if (docValues == null) {
-//            return ConstantNull.READER;
-//        }
-//        return new BytesRefsFromCustomBinary(docValues);
-//    }
+    // @Override
+    // public final AllReader reader(LeafReaderContext context) throws IOException {
+    // BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+    // if (docValues == null) {
+    // return ConstantNull.READER;
+    // }
+    // return new BytesRefsFromCustomBinary(docValues);
+    // }
 
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {

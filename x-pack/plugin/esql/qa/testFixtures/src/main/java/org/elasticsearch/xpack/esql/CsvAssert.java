@@ -186,17 +186,18 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, (t, v) -> v);
+        assertData(expected, actual.values(), ignoreOrder, false, logger, (t, v) -> v);
     }
 
     public static void assertData(
         ExpectedResults expected,
         Iterator<Iterator<Object>> actualValuesIterator,
         boolean ignoreOrder,
+        boolean ignoreValueOrder,
         Logger logger,
         BiFunction<Type, Object, Object> valueTransformer
     ) {
-        assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
+        assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, ignoreValueOrder, logger, valueTransformer);
     }
 
     private record DataFailure(int row, int column, Object expected, Object actual) {}
@@ -205,6 +206,7 @@ public final class CsvAssert {
         ExpectedResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
+        boolean ignoreValueOrder,
         Logger logger,
         BiFunction<Type, Object, Object> valueTransformer
     ) {
@@ -242,7 +244,7 @@ public final class CsvAssert {
                     Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);
                     Object transformedActual = valueTransformer.apply(expectedType, actualValue);
 
-                    if (equals(transformedExpected, transformedActual) == false) {
+                    if (equals(transformedExpected, transformedActual, ignoreValueOrder) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -281,14 +283,26 @@ public final class CsvAssert {
         }
     }
 
-    private static boolean equals(Object expected, Object actual) {
+    private static boolean equals(Object expected, Object actual, boolean ignoreValueOrder) {
         if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
             if (expectedList.size() != actualList.size()) {
                 return false;
             }
             for (int i = 0; i < expectedList.size(); i++) {
-                if (equals(expectedList.get(i), actualList.get(i)) == false) {
-                    return false;
+                if (ignoreValueOrder) {
+                    boolean found = false;
+                    for (int j = 0; j < actualList.size() && found == false; j++) {
+                        if (equals(expectedList.get(i), actualList.get(j), true)) {
+                            found = true;
+                        }
+                    }
+                    if (found == false) {
+                        return false;
+                    }
+                } else {
+                    if (equals(expectedList.get(i), actualList.get(i), ignoreValueOrder) == false) {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -401,11 +415,11 @@ public final class CsvAssert {
             for (int i = 0; i < x.size(); i++) {
                 Object left = x.get(i);
                 if (left instanceof List<?> l) {
-                    left = l.isEmpty() ? null : l.get(0);
+                    left = l.stream().min(types.get(i).comparator()).orElse(null);
                 }
                 Object right = y.get(i);
                 if (right instanceof List<?> r) {
-                    right = r.isEmpty() ? null : r.get(0);
+                    right = r.stream().min(types.get(i).comparator()).orElse(null);
                 }
                 if (left == null && right == null) {
                     continue;

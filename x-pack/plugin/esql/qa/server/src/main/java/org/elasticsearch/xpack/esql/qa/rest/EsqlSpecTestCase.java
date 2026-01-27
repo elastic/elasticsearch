@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -23,6 +24,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.MapMatcher;
@@ -37,6 +39,7 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.telemetry.TookMetrics;
@@ -346,6 +349,11 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
+        MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
+        if (preference != null) {
+            Settings settings = Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
+            builder.pragmas(settings).pragmasOk();
+        }
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
@@ -376,7 +384,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         @SuppressWarnings("unchecked")
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
-        assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, logger);
+        assertResults(expectedColumnsWithValues, actualColumns, actualValues, testCase.ignoreOrder, ignoreValueOrder(), logger);
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);
@@ -384,6 +392,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
         }
+    }
+
+    protected MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+        return null;
     }
 
     private Map<?, ?> tooks() throws IOException {
@@ -412,15 +424,23 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return false;
     }
 
+    /**
+     * Should the test ignore the order of individual values.
+     */
+    protected boolean ignoreValueOrder() {
+        return false;
+    }
+
     protected void assertResults(
         ExpectedResults expected,
         List<Map<String, String>> actualColumns,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
+        boolean ignoreValueOrder,
         Logger logger
     ) {
         assertMetadata(expected, actualColumns, logger);
-        assertData(expected, actualValues, testCase.ignoreOrder, logger, this::valueMapper);
+        assertData(expected, actualValues, testCase.ignoreOrder, ignoreValueOrder, logger, this::valueMapper);
     }
 
     private Object valueMapper(CsvTestUtils.Type type, Object value) {
@@ -441,24 +461,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 } catch (Throwable ignored) {}
             }
         }
-        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
-            if (value instanceof List<?> vs) {
-                List<Object> values = new ArrayList<>();
-                for (Object v : vs) {
-                    values.add(valueMapper(type, v));
-                }
-                return values;
-            } else if (value instanceof Double d) {
-                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-            } else if (value instanceof String s) {
-                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-            }
-        }
-        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
-            if (value instanceof String s) {
-                value = s.replaceAll("\\\\n", "\n");
-            }
-        }
         if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
             if (value instanceof Map<?, ?> map) {
                 return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
@@ -471,16 +473,29 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 }
             }
         }
-        if (type == CsvTestUtils.Type.DOUBLE || type == CsvTestUtils.Type.INTEGER || type == CsvTestUtils.Type.LONG) {
-            if (value instanceof List<?> vs) {
-                return vs.stream().map(v -> valueMapper(type, v)).toList();
-            } else if (type == CsvTestUtils.Type.DOUBLE) {
-                return ((Number) value).doubleValue();
-            } else if (type == CsvTestUtils.Type.INTEGER) {
-                return ((Number) value).intValue();
-            } else if (type == CsvTestUtils.Type.LONG) {
-                return ((Number) value).longValue();
+        if (value instanceof List<?> vs) {
+            return vs.stream().map(v -> valueMapper(type, v)).toList();
+        }
+        if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
+            if (value instanceof Double d) {
+                return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+            } else if (value instanceof String s) {
+                return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
+        }
+        if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+            if (value instanceof String s) {
+                value = s.replaceAll("\\\\n", "\n");
+            }
+        }
+        if (type == CsvTestUtils.Type.DOUBLE) {
+            return ((Number) value).doubleValue();
+        }
+        if (type == CsvTestUtils.Type.INTEGER) {
+            return ((Number) value).intValue();
+        }
+        if (type == CsvTestUtils.Type.LONG) {
+            return ((Number) value).longValue();
         }
         return value.toString();
     }

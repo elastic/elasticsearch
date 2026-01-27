@@ -58,6 +58,7 @@ import org.elasticsearch.script.field.DateMillisDocValuesField;
 import org.elasticsearch.script.field.DateNanosDocValuesField;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
@@ -603,7 +604,11 @@ public final class DateFieldMapper extends FieldMapper {
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
                 : defaultFormatter;
             if (scriptValues != null) {
-                return FieldValues.valueFetcher(scriptValues, v -> format((long) v, formatter), context);
+                return new DocValueFetcher(
+                    docValueFormat(format, null),
+                    context.getForField(this, FielddataOperation.SEARCH),
+                    StoredFieldsSpec.NO_REQUIREMENTS
+                );
             }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override

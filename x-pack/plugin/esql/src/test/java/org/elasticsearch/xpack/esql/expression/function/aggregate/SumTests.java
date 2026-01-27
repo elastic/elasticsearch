@@ -116,19 +116,10 @@ public class SumTests extends AbstractAggregationTestCase {
             DataType type = fieldTypedData.type().widenSmallNumeric();
             try {
                 expected = switch (type) {
-                    case INTEGER -> fieldTypedData.multiRowData()
-                        .stream()
-                        .mapToLong(v -> (int) v)
-                        .sum();
-                    case LONG -> fieldTypedData.multiRowData()
-                        .stream()
-                        .mapToLong(v -> (long) v)
-                        .reduce(0L, Math::addExact);
+                    case INTEGER -> fieldTypedData.multiRowData().stream().mapToLong(v -> (int) v).sum();
+                    case LONG -> fieldTypedData.multiRowData().stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
                     case DOUBLE -> {
-                        var value = fieldTypedData.multiRowData()
-                            .stream()
-                            .mapToDouble(v -> (double) v)
-                            .sum();
+                        var value = fieldTypedData.multiRowData().stream().mapToDouble(v -> (double) v).sum();
 
                         if (Double.isInfinite(value) || Double.isNaN(value)) {
                             yield null;
@@ -144,10 +135,7 @@ public class SumTests extends AbstractAggregationTestCase {
                         .stream()
                         .mapToDouble(obj -> ((ExponentialHistogram) obj).sum())
                         .sum();
-                    case TDIGEST -> fieldTypedData.multiRowData()
-                        .stream()
-                        .mapToDouble(obj -> ((TDigestHolder) obj).getSum())
-                        .sum();
+                    case TDIGEST -> fieldTypedData.multiRowData().stream().mapToDouble(obj -> ((TDigestHolder) obj).getSum()).sum();
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
             } catch (ArithmeticException e) {
@@ -159,9 +147,7 @@ public class SumTests extends AbstractAggregationTestCase {
                 }
             }
 
-            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG
-                ? DataType.DOUBLE
-                : DataType.LONG;
+            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
 
             var testCase = new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
@@ -171,8 +157,9 @@ public class SumTests extends AbstractAggregationTestCase {
             );
 
             if (expectedWarning != null) {
-                testCase = testCase.withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line 1:1: " + expectedWarning);
+                testCase = testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedWarning);
             }
 
             return testCase;

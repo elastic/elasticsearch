@@ -264,29 +264,32 @@ to communicate with Elasticsearch.
 ## Remote Connection Management
 
 [ClusterSettings]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/common/settings/ClusterSettings.java
-[Sniff Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-sniff-settings
-[Proxy Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-proxy-settings
-[ProjectCustom]:https://github.com/elastic/elasticsearch/blob/de452acf6bf84fa59bc80f90c5dd7ea548c5a4c0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L152
+[ClusterSettingsLinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ClusterSettingsLinkedProjectConfigService.java
 [LinkedProject]:https://github.com/elastic/elasticsearch-serverless/blob/f7ff3375a50d554beac04453a7315e948b44ff06/modules/serverless-cross-project/src/main/java/co/elastic/elasticsearch/serverless/crossproject/config/state/LinkedProjectsState.java#L174
 [LinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java
-[LinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java
-[ProxyLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L65
-[SniffLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L98
 [LinkedProjectConfigListener]:https://github.com/elastic/elasticsearch/blob/92a33f3fa5785be099d5f48975a838c146fd7bd9/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java#L37
+[LinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java
 [LinkedProjectConfigService.Provider]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfigService.java#L25
-[ClusterSettingsLinkedProjectConfigService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ClusterSettingsLinkedProjectConfigService.java
 [LinkedProjectsStateConfigService]:https://github.com/elastic/elasticsearch-serverless/blob/main/modules/serverless-cross-project/src/main/java/co/elastic/elasticsearch/serverless/crossproject/config/LinkedProjectsStateConfigService.java
 [PluginServiceInstances]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/node/PluginServiceInstances.java
-[RemoteClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterService.java
-[RemoteClusterConnection]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterConnection.java
-[RemoteConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteConnectionStrategy.java
+[ProjectCustom]:https://github.com/elastic/elasticsearch/blob/de452acf6bf84fa59bc80f90c5dd7ea548c5a4c0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L152
+[Proxy Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-proxy-settings
 [ProxyConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/ProxyConnectionStrategy.java
+[ProxyLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L65
+[Remote Connection Management Diagram]:https://docs.google.com/document/d/17U5lpM7UIImGCnDl_ykChlz_THRCpOk-zXEWEdDxCc4
+[RemoteClusterConnection]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterConnection.java
+[RemoteClusterService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteClusterService.java
+[RemoteConnectionManager]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteConnectionManager.java
+[RemoteConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/RemoteConnectionStrategy.java
+[Sniff Mode]:https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/remote-clusters#remote-cluster-sniff-settings
 [SniffConnectionStrategy]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/transport/SniffConnectionStrategy.java
+[SniffLinkedProjectConfig]:https://github.com/elastic/elasticsearch/blob/ff908f9cbce2781af15c9eb7fc094867e71ab78e/server/src/main/java/org/elasticsearch/transport/LinkedProjectConfig.java#L98
 
 This section covers the management of connections from local clusters to remote clusters in the context of
 [CCR](#cross-cluster-replication-ccr) (Cross-Cluster-Replication) and
 [CCS](#cross-cluster-search) (Cross-Cluster-Search), and from origin projects to linked projects in the context of serverless
-CPS (Cross-Project-Search).
+CPS (Cross-Project-Search).  Please see the [Remote Connection Management Diagram] for a visual reference to accompany the text
+in this section.
 
 ### Configuration
 

@@ -1805,9 +1805,9 @@ public class EsqlCapabilities {
         /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
-        ALL_FIRST(Build.current().isSnapshot()),
+        ALL_FIRST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
-        ALL_LAST(Build.current().isSnapshot()),
+        ALL_LAST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -1832,7 +1832,13 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_MATH_V0(),
+
+        /**
+         * Initial support for simple binary comparisons in PromQL.
+         * Only top-level comparisons are supported where the right-hand side is a scalar.
+         */
+        PROMQL_BINARY_COMPARISON_V0(),
 
         /**
          * Support for PromQL time() function.
@@ -1861,6 +1867,12 @@ public class EsqlCapabilities {
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * A fix allowing the {@code TOP_SNIPPETS} function to process string config
+         * parameters like the other functions.
+         */
+        TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.

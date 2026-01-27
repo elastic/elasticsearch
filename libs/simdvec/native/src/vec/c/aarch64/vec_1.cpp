@@ -339,8 +339,76 @@ static inline void dotf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
+    int c = 0;
+    for (; c + 7 < count; c += 8) {
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
+        const f32_t *a4 = a + mapper(c + 4, offsets) * vec_size;
+        const f32_t *a5 = a + mapper(c + 5, offsets) * vec_size;
+        const f32_t *a6 = a + mapper(c + 6, offsets) * vec_size;
+        const f32_t *a7 = a + mapper(c + 7, offsets) * vec_size;
+
+        float32x4_t sum0 = vdupq_n_f32(0.0f);
+        float32x4_t sum1 = vdupq_n_f32(0.0f);
+        float32x4_t sum2 = vdupq_n_f32(0.0f);
+        float32x4_t sum3 = vdupq_n_f32(0.0f);
+        float32x4_t sum4 = vdupq_n_f32(0.0f);
+        float32x4_t sum5 = vdupq_n_f32(0.0f);
+        float32x4_t sum6 = vdupq_n_f32(0.0f);
+        float32x4_t sum7 = vdupq_n_f32(0.0f);
+
+        int32_t i = 0;
+        int32_t unrolled_limit = dims & ~3UL;
+        // do 8 vectors at a time, iterating through the dimensions in parallel
+        // Each float32x4_t holds 4 floats
+        for (; i < unrolled_limit; i += 4) {
+            float32x4_t bi = vld1q_f32(b + i);
+            sum0 = vfmaq_f32(sum0, vld1q_f32(a0 + i), bi);
+            sum1 = vfmaq_f32(sum1, vld1q_f32(a1 + i), bi);
+            sum2 = vfmaq_f32(sum2, vld1q_f32(a2 + i), bi);
+            sum3 = vfmaq_f32(sum3, vld1q_f32(a3 + i), bi);
+            sum4 = vfmaq_f32(sum4, vld1q_f32(a4 + i), bi);
+            sum5 = vfmaq_f32(sum5, vld1q_f32(a5 + i), bi);
+            sum6 = vfmaq_f32(sum6, vld1q_f32(a6 + i), bi);
+            sum7 = vfmaq_f32(sum7, vld1q_f32(a7 + i), bi);
+        }
+
+        f32_t result0 = vaddvq_f32(sum0);
+        f32_t result1 = vaddvq_f32(sum1);
+        f32_t result2 = vaddvq_f32(sum2);
+        f32_t result3 = vaddvq_f32(sum3);
+        f32_t result4 = vaddvq_f32(sum4);
+        f32_t result5 = vaddvq_f32(sum5);
+        f32_t result6 = vaddvq_f32(sum6);
+        f32_t result7 = vaddvq_f32(sum7);
+
+        // dimensions tail
+        for (; i < dims; i++) {
+            result0 += a0[i] * b[i];
+            result1 += a1[i] * b[i];
+            result2 += a2[i] * b[i];
+            result3 += a3[i] * b[i];
+            result4 += a4[i] * b[i];
+            result5 += a5[i] * b[i];
+            result6 += a6[i] * b[i];
+            result7 += a7[i] * b[i];
+        }
+
+        results[c + 0] = result0;
+        results[c + 1] = result1;
+        results[c + 2] = result2;
+        results[c + 3] = result3;
+        results[c + 4] = result4;
+        results[c + 5] = result5;
+        results[c + 6] = result6;
+        results[c + 7] = result7;
+    }
+
+    // vectors tail
+    for (; c < count; c++) {
         const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_dotf32(a0, b, dims);
     }
@@ -419,8 +487,94 @@ static inline void sqrf32_inner_bulk(
     const int32_t count,
     f32_t *results
 ) {
-    int32_t vec_size = pitch / sizeof(f32_t);
-    for (size_t c = 0; c < count; c++) {
+    const int32_t vec_size = pitch / sizeof(f32_t);
+    int c = 0;
+    for (; c + 7 < count; c += 8) {
+        const f32_t *a0 = a + mapper(c + 0, offsets) * vec_size;
+        const f32_t *a1 = a + mapper(c + 1, offsets) * vec_size;
+        const f32_t *a2 = a + mapper(c + 2, offsets) * vec_size;
+        const f32_t *a3 = a + mapper(c + 3, offsets) * vec_size;
+        const f32_t *a4 = a + mapper(c + 4, offsets) * vec_size;
+        const f32_t *a5 = a + mapper(c + 5, offsets) * vec_size;
+        const f32_t *a6 = a + mapper(c + 6, offsets) * vec_size;
+        const f32_t *a7 = a + mapper(c + 7, offsets) * vec_size;
+
+        float32x4_t sum0 = vdupq_n_f32(0.0f);
+        float32x4_t sum1 = vdupq_n_f32(0.0f);
+        float32x4_t sum2 = vdupq_n_f32(0.0f);
+        float32x4_t sum3 = vdupq_n_f32(0.0f);
+        float32x4_t sum4 = vdupq_n_f32(0.0f);
+        float32x4_t sum5 = vdupq_n_f32(0.0f);
+        float32x4_t sum6 = vdupq_n_f32(0.0f);
+        float32x4_t sum7 = vdupq_n_f32(0.0f);
+
+        int32_t i = 0;
+        int32_t unrolled_limit = dims & ~3UL;
+        // do 8 vectors at a time, iterating through the dimensions in parallel
+        // Each float32x4_t holds 4 floats
+        for (; i < unrolled_limit; i += 4) {
+            float32x4_t bi = vld1q_f32(b + i);
+            float32x4_t d0 = vsubq_f32(vld1q_f32(a0 + i), bi);
+            float32x4_t d1 = vsubq_f32(vld1q_f32(a1 + i), bi);
+            float32x4_t d2 = vsubq_f32(vld1q_f32(a2 + i), bi);
+            float32x4_t d3 = vsubq_f32(vld1q_f32(a3 + i), bi);
+            float32x4_t d4 = vsubq_f32(vld1q_f32(a4 + i), bi);
+            float32x4_t d5 = vsubq_f32(vld1q_f32(a5 + i), bi);
+            float32x4_t d6 = vsubq_f32(vld1q_f32(a6 + i), bi);
+            float32x4_t d7 = vsubq_f32(vld1q_f32(a7 + i), bi);
+
+            sum0 = vmlaq_f32(sum0, d0, d0);
+            sum1 = vmlaq_f32(sum1, d1, d1);
+            sum2 = vmlaq_f32(sum2, d2, d2);
+            sum3 = vmlaq_f32(sum3, d3, d3);
+            sum4 = vmlaq_f32(sum4, d4, d4);
+            sum5 = vmlaq_f32(sum5, d5, d5);
+            sum6 = vmlaq_f32(sum6, d6, d6);
+            sum7 = vmlaq_f32(sum7, d7, d7);
+        }
+
+        f32_t result0 = vaddvq_f32(sum0);
+        f32_t result1 = vaddvq_f32(sum1);
+        f32_t result2 = vaddvq_f32(sum2);
+        f32_t result3 = vaddvq_f32(sum3);
+        f32_t result4 = vaddvq_f32(sum4);
+        f32_t result5 = vaddvq_f32(sum5);
+        f32_t result6 = vaddvq_f32(sum6);
+        f32_t result7 = vaddvq_f32(sum7);
+
+        // dimensions tail
+        for (; i < dims; i++) {
+            f32_t diff0 = a0[i] - b[i];
+            f32_t diff1 = a1[i] - b[i];
+            f32_t diff2 = a2[i] - b[i];
+            f32_t diff3 = a3[i] - b[i];
+            f32_t diff4 = a4[i] - b[i];
+            f32_t diff5 = a5[i] - b[i];
+            f32_t diff6 = a6[i] - b[i];
+            f32_t diff7 = a7[i] - b[i];
+
+            result0 += diff0 * diff0;
+            result1 += diff1 * diff1;
+            result2 += diff2 * diff2;
+            result3 += diff3 * diff3;
+            result4 += diff4 * diff4;
+            result5 += diff5 * diff5;
+            result6 += diff6 * diff6;
+            result7 += diff7 * diff7;
+        }
+
+        results[c + 0] = result0;
+        results[c + 1] = result1;
+        results[c + 2] = result2;
+        results[c + 3] = result3;
+        results[c + 4] = result4;
+        results[c + 5] = result5;
+        results[c + 6] = result6;
+        results[c + 7] = result7;
+    }
+
+    // vectors tail
+    for (; c < count; c++) {
         const f32_t *a0 = a + mapper(c, offsets) * vec_size;
         results[c] = vec_sqrf32(a0, b, dims);
     }

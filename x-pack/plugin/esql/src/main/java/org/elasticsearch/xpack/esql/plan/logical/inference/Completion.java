@@ -39,8 +39,6 @@ import static org.elasticsearch.xpack.esql.inference.InferenceSettings.COMPLETIO
 
 public class Completion extends InferencePlan<Completion> implements TelemetryAware, PostAnalysisVerificationAware {
 
-    private static final TransportVersion ESQL_COMPLETION_TASK_SETTINGS = TransportVersion.fromName("esql_completion_task_settings");
-
     public static final String DEFAULT_OUTPUT_FIELD_NAME = "completion";
 
     public static final String TASK_SETTINGS_OPTION_NAME = "task_settings";
@@ -103,9 +101,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
             in.getTransportVersion().supports(ESQL_INFERENCE_ROW_LIMIT) ? in.readNamedWriteable(Expression.class) : DEFAULT_ROW_LIMIT,
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)
-                ? (MapExpression) in.readNamedWriteable(Expression.class)
-                : DEFAULT_TASK_SETTINGS
+            // COMPLETION is coordinator-only (#139074) and should not be serialized
+            // in normal operation. Since old versions don't know about task_settings,
+            // we safely default to empty settings.
+            DEFAULT_TASK_SETTINGS
         );
     }
 
@@ -114,9 +113,7 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
-        if (out.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)) {
-            out.writeNamedWriteable(taskSettings);
-        }
+        out.writeNamedWriteable(taskSettings);
     }
 
     @Override

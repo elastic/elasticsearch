@@ -30,8 +30,6 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 public class CompletionExec extends InferenceExec {
 
-    private static final TransportVersion ESQL_COMPLETION_TASK_SETTINGS = TransportVersion.fromName("esql_completion_task_settings");
-
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
         "CompletionExec",
@@ -64,9 +62,7 @@ public class CompletionExec extends InferenceExec {
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Attribute.class),
-            in.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)
-                ? (MapExpression) in.readNamedWriteable(Expression.class)
-                : Completion.DEFAULT_TASK_SETTINGS
+            Completion.DEFAULT_TASK_SETTINGS
         );
     }
 
@@ -80,9 +76,7 @@ public class CompletionExec extends InferenceExec {
         super.writeTo(out);
         out.writeNamedWriteable(prompt);
         out.writeNamedWriteable(targetField);
-        if (out.getTransportVersion().supports(ESQL_COMPLETION_TASK_SETTINGS)) {
-            out.writeNamedWriteable(taskSettings);
-        }
+        out.writeNamedWriteable(taskSettings);
     }
 
     public Expression prompt() {

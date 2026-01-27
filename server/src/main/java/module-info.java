@@ -514,4 +514,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
     exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
+    exports org.elasticsearch.search.diversification.mmr;
 }

@@ -34,6 +34,7 @@ import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
+import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
@@ -78,6 +80,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -100,6 +103,7 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -119,6 +123,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -136,6 +141,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -149,6 +155,8 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
+import static org.elasticsearch.xpack.esql.plan.logical.MMR.extractLambdaFromMMROptions;
+import static org.elasticsearch.xpack.esql.plan.logical.MMR.getMMRLimitValue;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
 /**
@@ -315,9 +323,68 @@ public class LocalExecutionPlanner {
             return planExchangeSink(exchangeSink, context);
         } else if (node instanceof FuseScoreEvalExec fuse) {
             return planFuseScoreEvalExec(fuse, context);
+        } else if (node instanceof MMRExec mmr) {
+            return planMMR(mmr, context);
         }
 
         throw new EsqlIllegalArgumentException("unknown physical plan node [" + node.nodeName() + "]");
+    }
+
+    private PhysicalOperation planMMR(MMRExec mmr, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(mmr.child(), context);
+
+        var diversifyField = mmr.diversifyField().qualifiedName();
+        var limit = getMMRLimitValue(mmr.limit());
+        VectorData queryVector = null;
+        if (mmr.queryVector() != null) {
+            // we've already verified this is resolved and is a DENSE_VECTOR data type
+            var testValue = mmr.queryVector();
+            // TODO -- get the realized query vector as VectorData
+            // queryVector.dataType() != DataType.DENSE_VECTOR
+        }
+
+        Float lambda = null;
+        var options = mmr.options();
+        if (options instanceof MapExpression optionsMap) {
+            Map<String, Expression> optionsHashMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
+            try {
+                Expression lambdaValueExpression = optionsHashMap.remove(MMR.LAMBDA_OPTION_NAME);
+                lambda = extractLambdaFromMMROptions(lambdaValueExpression).floatValue();
+            } catch (RuntimeException rtEx) {
+                // ignore errors as any would have been caught in the logical plan validation
+            }
+        }
+
+        // output fields: use the source fields - no change
+        Layout outputLayout = source.layout;
+
+        // TODO - _score channel?
+        Integer docIdChannel = null;
+        Integer diversifyFieldChannel = null;
+        for (var input : mmr.inputSet()) {
+            if (input.name().equals("_doc")) {
+                docIdChannel = source.layout.get(input.id()).channel();
+                continue;
+            }
+
+            if (input.name().equals(diversifyField)) {
+                diversifyFieldChannel = source.layout.get(input.id()).channel();
+                continue;
+            }
+        }
+
+        if (docIdChannel == null) {
+            throw new EsqlIllegalArgumentException("Could not determine doc id channel for MMROperator");
+        }
+
+        if (diversifyFieldChannel == null) {
+            throw new EsqlIllegalArgumentException("Could not determine diversifyField channel for MMROperator");
+        }
+
+        return source.with(
+            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, lambda),
+            outputLayout
+        );
     }
 
     private PhysicalOperation planCompletion(CompletionExec completion, LocalExecutionPlannerContext context) {

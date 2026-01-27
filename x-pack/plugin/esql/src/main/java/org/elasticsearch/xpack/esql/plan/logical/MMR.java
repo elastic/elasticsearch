@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -127,13 +128,9 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
 
         // ensure LIMIT value is integer
-        if (limit instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
-            int limitValue = (Integer) litLimit.value();
-            if (limitValue < 1) {
-                failures.add(fail(this, "MMR limit must be an positive integer"));
-            }
-        } else {
-            failures.add(fail(this, "MMR limit must be an positive integer"));
+        Integer limitValue = getMMRLimitValue(limit);
+        if (limitValue == null || limitValue < 1) {
+            failures.add(fail(this, "MMR limit must be a positive integer"));
         }
 
         // ensure query_vector, if given, is resolved to a DENSE_VECTOR type
@@ -157,7 +154,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             return;
         }
 
-        Map<String, Expression> optionsMap = ((MapExpression) options).keyFoldedMap();
+        Map<String, Expression> optionsMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
 
         try {
             // set our Lambda value if we have it so it makes it easier to get it later without having to parse the expression
@@ -190,6 +187,13 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
             throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
         }
 
+        return null;
+    }
+
+    public static Integer getMMRLimitValue(Expression limitExpression) {
+        if (limitExpression instanceof Literal litLimit && litLimit.dataType() == INTEGER) {
+            return (Integer) litLimit.value();
+        }
         return null;
     }
 }

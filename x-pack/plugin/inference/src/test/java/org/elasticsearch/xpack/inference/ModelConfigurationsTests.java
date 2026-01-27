@@ -105,10 +105,9 @@ public class ModelConfigurationsTests extends AbstractBWCWireSerializationTestCa
                 if (chunkingSettings == null) {
                     chunkingSettings = ChunkingSettingsTests.createRandomChunkingSettings();
                 } else {
-                    chunkingSettings = randomBoolean() ? null : randomValueOtherThan(
-                        chunkingSettings,
-                        ChunkingSettingsTests::createRandomChunkingSettings
-                    );
+                    chunkingSettings = randomBoolean()
+                        ? null
+                        : randomValueOtherThan(chunkingSettings, ChunkingSettingsTests::createRandomChunkingSettings);
                 }
                 yield new ModelConfigurations(
                     instance.getInferenceEntityId(),

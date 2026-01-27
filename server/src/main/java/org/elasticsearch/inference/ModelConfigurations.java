@@ -14,11 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
@@ -96,14 +94,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         ServiceSettings serviceSettings,
         TaskSettings taskSettings
     ) {
-        this(
-            inferenceEntityId,
-            taskType,
-            service,
-            serviceSettings,
-            taskSettings,
-            null
-        );
+        this(inferenceEntityId, taskType, service, serviceSettings, taskSettings, null);
     }
 
     public ModelConfigurations(
@@ -114,15 +105,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         TaskSettings taskSettings,
         @Nullable ChunkingSettings chunkingSettings
     ) {
-        this(
-            inferenceEntityId,
-            taskType,
-            service,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            null
-        );
+        this(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings, null);
     }
 
     public ModelConfigurations(
@@ -233,11 +216,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
         if (includeFilteredFields) {
             builder.field(EndpointMetadata.METADATA, endpointMetadata);
         } else {
-            builder.field(
-                EndpointMetadata.METADATA,
-                endpointMetadata,
-                endpointMetadata.getXContentParamsExcludeInternalFields()
-            );
+            builder.field(EndpointMetadata.METADATA, endpointMetadata, endpointMetadata.getXContentParamsExcludeInternalFields());
         }
 
         builder.endObject();
@@ -246,7 +225,7 @@ public class ModelConfigurations implements ToFilteredXContentObject, VersionedN
 
     @Override
     public XContentBuilder toFilteredXContent(XContentBuilder builder, Params params) throws IOException {
-       return toXContentHelper(builder, params, false);
+        return toXContentHelper(builder, params, false);
     }
 
     @Override

@@ -60,16 +60,7 @@ public class ElasticInferenceServiceRerankModel extends ElasticInferenceServiceM
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
-        this(
-            inferenceEntityId,
-            taskType,
-            service,
-            serviceSettings,
-            taskSettings,
-            secretSettings,
-            elasticInferenceServiceComponents,
-            null
-        );
+        this(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings, elasticInferenceServiceComponents, null);
     }
 
     public ElasticInferenceServiceRerankModel(

@@ -330,7 +330,7 @@ public class Driver implements Releasable, Describable {
             // Before blocking, check if any operator can produce more data without extra input.
             // If so, we should continue looping rather than waiting, because that operator
             // has buffered data that needs to be processed. This prevents deadlock when an
-            // intermediate operator (like EnrichQueryFromExchangeOperator) has data to process
+            // intermediate operator (like LookupQueryOperator) has data to process
             // but the source operator is blocked waiting for more input.
             for (Operator op : activeOperators) {
                 if (op.canProduceMoreDataWithoutExtraInput()) {

@@ -47,7 +47,7 @@ import java.util.Objects;
  * and {@link IntBlock} of positions for each query.
  * Similar to {@link EnrichQuerySourceOperator} but reads from exchange instead of a stored page.
  */
-public final class EnrichQueryFromExchangeOperator implements Operator {
+public final class LookupQueryOperator implements Operator {
     private final BlockFactory blockFactory;
     private final LookupEnrichQueryGenerator queryList;
     private final BlockOptimization blockOptimization;
@@ -74,7 +74,7 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
     // using smaller pages enables quick cancellation and reduces sorting costs
     public static final int DEFAULT_MAX_PAGE_SIZE = 256;
 
-    public EnrichQueryFromExchangeOperator(
+    public LookupQueryOperator(
         BlockFactory blockFactory,
         int maxPageSize,
         LookupEnrichQueryGenerator queryList,
@@ -367,7 +367,7 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
 
     @Override
     public String toString() {
-        return "EnrichQueryFromExchangeOperator[maxPageSize=" + maxPageSize + "]";
+        return "LookupQueryOperator[maxPageSize=" + maxPageSize + "]";
     }
 
     @Override
@@ -378,7 +378,7 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
     public static class Status implements Operator.Status {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
-            "enrich_query_from_exchange",
+            "lookup_query",
             Status::new
         );
 
@@ -458,7 +458,7 @@ public final class EnrichQueryFromExchangeOperator implements Operator {
 
         @Override
         public String toString() {
-            return "EnrichQueryFromExchangeOperator.Status["
+            return "LookupQueryOperator.Status["
                 + "pagesReceived="
                 + pagesReceived
                 + ", pagesEmitted="

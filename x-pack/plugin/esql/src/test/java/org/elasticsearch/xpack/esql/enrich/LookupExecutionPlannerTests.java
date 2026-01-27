@@ -35,8 +35,8 @@ import org.elasticsearch.compute.operator.ProjectOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
-import org.elasticsearch.compute.operator.lookup.EnrichQueryFromExchangeOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -227,10 +227,10 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
-        // Expected: EnrichQueryFromExchangeOperator -> ProjectOperator
+        // Expected: LookupQueryOperator -> ProjectOperator
         // Only the intermediate operators are in the plan for Streaming mode,
         // the source and sink are added by the BidirectionalBatchExchangeServer automatically
-        verifyCompletePlan(queryPlan, List.of(EnrichQueryFromExchangeOperator.class, ProjectOperator.class), extractFields);
+        verifyCompletePlan(queryPlan, List.of(LookupQueryOperator.class, ProjectOperator.class), extractFields);
     }
 
     public void testLookupJoinNoExtraFields() throws Exception {
@@ -243,11 +243,11 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure
-        // Expected: EnrichQueryFromExchangeOperator -> ProjectOperator
+        // Expected: LookupQueryOperator -> ProjectOperator
         // No ValuesSourceReaderOperator (no extract fields)
         // Only the intermediate operators are in the plan for Streaming mode,
         // the source and sink are added by the BidirectionalBatchExchangeServer automatically
-        verifyCompletePlan(queryPlan, List.of(EnrichQueryFromExchangeOperator.class, ProjectOperator.class), extractFields);
+        verifyCompletePlan(queryPlan, List.of(LookupQueryOperator.class, ProjectOperator.class), extractFields);
     }
 
     public void testLookupJoinWithExtractFields() throws Exception {
@@ -260,10 +260,10 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         // Verify complete plan structure
         // Only the intermediate operators are in the plan for Streaming mode,
         // the source and sink are added by the BidirectionalBatchExchangeServer automatically
-        // Expected: EnrichQueryFromExchangeOperator -> ValuesSourceReaderOperator -> ProjectOperator
+        // Expected: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQueryFromExchangeOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
+            List.of(LookupQueryOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
             extractFields
         );
     }
@@ -281,10 +281,10 @@ public class LookupExecutionPlannerTests extends ESTestCase {
         MatcherAssert.assertThat(queryPlan, notNullValue());
 
         // Verify complete plan structure - same as with extract fields
-        // Expected: EnrichQueryFromExchangeOperator -> ValuesSourceReaderOperator -> ProjectOperator
+        // Expected: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
         verifyCompletePlan(
             queryPlan,
-            List.of(EnrichQueryFromExchangeOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
+            List.of(LookupQueryOperator.class, ValuesSourceReaderOperator.class, ProjectOperator.class),
             extractFields
         );
     }

@@ -109,13 +109,15 @@ public class BatchPageSorterOperator implements Operator {
             state.bufferedPages.put(pageIndex, batchPage);
         } else {
             // Page index is less than expected - this shouldn't happen (duplicate or invalid)
-            logger.warn(
-                "[BatchPageSorterOperator] Received page with unexpected index: batchId={}, pageIndex={}, expected={}. Releasing page.",
-                batchId,
-                pageIndex,
-                state.nextExpectedIndex
-            );
             batchPage.releaseBlocks();
+            throw new IllegalStateException(
+                "Received page with unexpected index: batchId="
+                    + batchId
+                    + ", pageIndex="
+                    + pageIndex
+                    + ", expected="
+                    + state.nextExpectedIndex
+            );
         }
 
         // Clean up completed batches

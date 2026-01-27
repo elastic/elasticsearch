@@ -186,7 +186,7 @@ public class BatchDriverTests extends ESTestCase {
 
     /**
      * Test that verifies we fail when receiving a page for batch 2 while still processing batch 1,
-     * even after finish() is called. This ensures the driver processes all buffered pages before completing.
+     * even after finish() is called.
      */
     public void testOutOfOrderBatchPagesAfterFinish() throws Exception {
         DriverContext driverContext = driverContext();

@@ -25,9 +25,9 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator.SourceOperatorFactory;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.BlockOptimization;
-import org.elasticsearch.compute.operator.lookup.EnrichQueryFromExchangeOperator;
 import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
+import org.elasticsearch.compute.operator.lookup.LookupQueryOperator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -213,7 +213,7 @@ public class LookupExecutionPlanner {
         // - ExchangeSourceOperator (source) - receives pages from client
         // - ExchangeSinkOperator (sink) - sends results back to client
         // So we only need to create the intermediate operators that process the pages
-        // The operator chain on server is: EnrichQueryFromExchangeOperator -> ValuesSourceReaderOperator -> ProjectOperator
+        // The operator chain on server is: LookupQueryOperator -> ValuesSourceReaderOperator -> ProjectOperator
         List<Operator> intermediateOperators = new ArrayList<>();
 
         physicalOperation.operators(intermediateOperators, driverContext);
@@ -263,10 +263,10 @@ public class LookupExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        // Create intermediate operator factory for EnrichQueryFromExchangeOperator
+        // Create intermediate operator factory for LookupQueryOperator
         // This operator receives pages from ExchangeSourceOperator and generates queries
-        OperatorFactory enrichQueryFactory = new EnrichQueryFromExchangeOperatorFactory(
-            EnrichQueryFromExchangeOperator.DEFAULT_MAX_PAGE_SIZE,
+        OperatorFactory enrichQueryFactory = new LookupQueryOperatorFactory(
+            LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE,
             optimizationState,
             0
         );
@@ -411,11 +411,11 @@ public class LookupExecutionPlanner {
     }
 
     /**
-     * Factory for EnrichQueryFromExchangeOperator.
+     * Factory for LookupQueryOperator.
      * Creates an intermediate operator that processes match field pages from ExchangeSourceOperator
      * and generates queries to lookup document IDs.
      */
-    private record EnrichQueryFromExchangeOperatorFactory(int maxPageSize, BlockOptimization blockOptimization, int shardId)
+    private record LookupQueryOperatorFactory(int maxPageSize, BlockOptimization blockOptimization, int shardId)
         implements
             OperatorFactory {
         @Override
@@ -438,7 +438,7 @@ public class LookupExecutionPlanner {
             LookupEnrichQueryGenerator queryList = lookupDriverContext.queryListFactory()
                 .create(lookupDriverContext.request(), searchExecutionContext, lookupDriverContext.aliasFilter(), warnings);
 
-            return new EnrichQueryFromExchangeOperator(
+            return new LookupQueryOperator(
                 driverContext.blockFactory(),
                 maxPageSize,
                 queryList,
@@ -452,7 +452,7 @@ public class LookupExecutionPlanner {
 
         @Override
         public String describe() {
-            return "EnrichQueryFromExchangeOperator[maxPageSize=" + maxPageSize + "]";
+            return "LookupQueryOperator[maxPageSize=" + maxPageSize + "]";
         }
     }
 

@@ -422,7 +422,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 pushedDownFilter,
                 Predicates.combineAnd(joinOnConditions),
                 true,  // useStreamingOperator
-                QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY)
+                QueryPragmas.EXCHANGE_BUFFER_SIZE.getDefault(Settings.EMPTY),
+                false  // profile
             );
             DriverContext driverContext = driverContext();
             try (

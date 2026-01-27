@@ -47,9 +47,6 @@ final class ExchangeBuffer {
         }
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with the stop API, and the queue size should be very small.
-            // CRITICAL: Don't drop BatchPages (marker pages) even when noMoreInputs=true, as they're needed for
-            // batch completion tracking. Marker pages may arrive after the source is marked finished due to
-            // race conditions with buffer size 1, and dropping them causes deadlocks.
             if (page instanceof BatchPage == false) {
                 if (queue.removeIf(p -> p == page)) {
                     page.releaseBlocks();

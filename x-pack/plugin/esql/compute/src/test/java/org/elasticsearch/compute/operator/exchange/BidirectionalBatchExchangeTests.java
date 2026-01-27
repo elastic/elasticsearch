@@ -397,7 +397,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
     }
 
     /**
-     * Test that sending a multi-page batch (page with isLastPageInBatch=false) throws an AssertionError.
+     * Test that sending a multi-page batch (page with isLastPageInBatch=false) throws an IllegalArgumentException.
      * Currently only single-page batches are supported.
      */
     public void testMultiPageBatchNotSupported() throws Exception {
@@ -422,9 +422,11 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
 
             // Try to send a page with isLastPageInBatch=false (multi-page batch)
             // This should throw an IllegalArgumentException because only single-page batches are supported
+            logger.info("[TEST] About to call sendPage with isLastPageInBatch=false");
             IllegalArgumentException error = expectThrows(IllegalArgumentException.class, () -> {
                 client.sendPage(new BatchPage(page, 0, 0, false));  // isLastPageInBatch=false
             });
+            logger.info("[TEST] Caught expected IllegalArgumentException: {}", error.getMessage());
 
             // Verify the error message
             assertThat(error.getMessage(), containsString("Multi-page batches are not yet supported"));
@@ -437,7 +439,7 @@ public class BidirectionalBatchExchangeTests extends ESTestCase {
             // Clean up client
             client.close();
 
-            logger.info("[TEST] Test completed successfully - AssertionError was thrown as expected");
+            logger.info("[TEST] Test completed successfully - IllegalArgumentException was thrown as expected");
         } finally {
             cleanupServices(infra, threadPool);
         }

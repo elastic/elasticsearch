@@ -226,7 +226,6 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
         );
         lookupService.lookupAsync(request, parentTask, listener.map(response -> {
             List<Page> pages = response.takePages();
-            response.decRef();
             return new OngoingJoin(new RightChunkedLeftJoin(inputPage, loadFields.size()), pages.iterator());
         }));
     }

@@ -42,11 +42,8 @@ import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
  * <ul>
  *   <li>Sends batches to the server via clientToServer exchange (using ExchangeSink)</li>
  *   <li>Receives results from the server via serverToClient exchange (using ExchangeSource)</li>
- *   <li>Detects batch completion by reading BatchPage with isLastPageInBatch=true</li>
- *   <li>Triggers onBatchDone callback when batch completes</li>
+ *   <li>Tracks batch completion via {@link #markBatchCompleted(long)}</li>
  * </ul>
- * <p>
- * Only one batch can be active at a time. The client must wait for onBatchDone before sending the next batch.
  */
 public final class BidirectionalBatchExchangeClient extends BidirectionalBatchExchangeBase {
     private static final org.apache.logging.log4j.Logger logger = LogManager.getLogger(BidirectionalBatchExchangeClient.class);
@@ -552,12 +549,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 }
                 logger.debug("[LookupJoinClient] Server response received, server has finished processing");
             } catch (Exception e) {
-                logger.error(
+                logger.warn(
                     "[LookupJoinClient] Timeout or exception waiting for server response - server may not have finished processing",
                     e
                 );
-                // If waiting failed, this is an error - the server should have responded
-                // But proceed with close to avoid hanging - this indicates a bug
+                // Proceed with close to avoid hanging - timeout could be due to network issues or server failure
             }
         }
 
@@ -576,68 +572,40 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             long timeoutMs = 30_000; // 30 seconds
             long startTime = System.currentTimeMillis();
             long pollIntervalMs = 10; // Poll every 10ms
-            long lastLogTime = startTime;
-            long logIntervalMs = 1000; // Log every second during wait
             while (completedBatchId < startedBatchId && (System.currentTimeMillis() - startTime) < timeoutMs) {
                 // Check for errors during wait - if error occurs, stop waiting immediately
-                // Driver exceptions are automatically propagated to failureRef via listener
                 if (failureRef.get() != null) {
                     logger.debug("[LookupJoinClient] Error detected during batch completion wait, stopping wait");
                     break;
                 }
 
                 // Check if the source is finished with no more data - if so, no more batch completions will arrive
-                // This can happen if the server completed before processing all batches (e.g., due to circuit breaker)
                 boolean sourceFinished = serverToClientSource != null && serverToClientSource.isFinished();
                 int bufferSize = serverToClientSource != null ? serverToClientSource.bufferSize() : -1;
                 if (sourceFinished && bufferSize == 0) {
-                    // Source is finished and buffer is empty - no more batch completion markers will arrive
                     logger.warn(
-                        "[LookupJoinClient] Source finished with empty buffer but batches incomplete: started={}, completed={}. "
-                            + "Server may have completed before processing all batches.",
+                        "[LookupJoinClient] Source finished with empty buffer but batches incomplete: started={}, completed={}",
                         startedBatchId,
                         completedBatchId
                     );
-                    IllegalStateException serverCompletedEarly = new IllegalStateException(
-                        String.format(
-                            Locale.ROOT,
-                            "Server completed before processing all batches: started=%d, completed=%d",
-                            startedBatchId,
-                            completedBatchId
+                    handleFailure(
+                        "source finished early",
+                        new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "Server completed before processing all batches: started=%d, completed=%d",
+                                startedBatchId,
+                                completedBatchId
+                            )
                         )
                     );
-                    handleFailure("source finished early", serverCompletedEarly);
                     break;
-                }
-
-                // Log periodically during wait to diagnose issues
-                long currentTime = System.currentTimeMillis();
-                if (currentTime - lastLogTime >= logIntervalMs) {
-                    boolean driverFinished = clientDriver != null && clientDriverFuture.isDone();
-                    boolean hasIncomplete = startedBatchId >= 0 && completedBatchId < startedBatchId;
-                    boolean sourceBlocked = serverToClientSource != null && serverToClientSource.isBlocked().listener().isDone() == false;
-                    boolean canProduceMore = serverToClientSource != null && serverToClientSource.canProduceMoreDataWithoutExtraInput();
-                    logger.trace(
-                        "[LookupJoinClient] Still waiting for batches: started={}, completed={}, elapsedMs={}, driverFinished={},"
-                            + " sourceFinished={}, hasIncomplete={}, bufferSize={}, sourceBlocked={}, canProduceMore={}",
-                        startedBatchId,
-                        completedBatchId,
-                        currentTime - startTime,
-                        driverFinished,
-                        sourceFinished,
-                        hasIncomplete,
-                        bufferSize,
-                        sourceBlocked,
-                        canProduceMore
-                    );
-                    lastLogTime = currentTime;
                 }
 
                 try {
                     Thread.sleep(pollIntervalMs);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    logger.debug("[LookupJoinClient] Interrupted while waiting for batch completion");
                     break;
                 }
             }

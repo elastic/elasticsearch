@@ -52,9 +52,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Tests for {@link EnrichQueryFromExchangeOperator}.
+ * Tests for {@link LookupQueryOperator}.
  */
-public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
+public class LookupQueryOperatorTests extends OperatorTestCase {
 
     private DirectoryData directoryData;
 
@@ -116,9 +116,9 @@ public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
             @Override
             public Operator get(DriverContext driverContext) {
                 QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
-                return new EnrichQueryFromExchangeOperator(
+                return new LookupQueryOperator(
                     driverContext.blockFactory(),
-                    EnrichQueryFromExchangeOperator.DEFAULT_MAX_PAGE_SIZE,
+                    LookupQueryOperator.DEFAULT_MAX_PAGE_SIZE,
                     queryList,
                     BlockOptimization.NONE,
                     new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
@@ -130,19 +130,19 @@ public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
 
             @Override
             public String describe() {
-                return "EnrichQueryFromExchangeOperator[maxPageSize=256]";
+                return "LookupQueryOperator[maxPageSize=256]";
             }
         };
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return equalTo("EnrichQueryFromExchangeOperator[maxPageSize=256]");
+        return equalTo("LookupQueryOperator[maxPageSize=256]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return equalTo("EnrichQueryFromExchangeOperator[maxPageSize=256]");
+        return equalTo("LookupQueryOperator[maxPageSize=256]");
     }
 
     @Override
@@ -173,7 +173,7 @@ public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
 
             DriverContext driverContext = driverContext();
             try (
-                EnrichQueryFromExchangeOperator operator = new EnrichQueryFromExchangeOperator(
+                LookupQueryOperator operator = new LookupQueryOperator(
                     driverContext.blockFactory(),
                     128,
                     queryList,
@@ -231,7 +231,7 @@ public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
         QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
 
         try (
-            EnrichQueryFromExchangeOperator operator = new EnrichQueryFromExchangeOperator(
+            LookupQueryOperator operator = new LookupQueryOperator(
                 driverContext.blockFactory(),
                 10, // Small page size to produce multiple pages
                 queryList,
@@ -278,7 +278,7 @@ public class EnrichQueryFromExchangeOperatorTests extends OperatorTestCase {
         QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
 
         try (
-            EnrichQueryFromExchangeOperator operator = new EnrichQueryFromExchangeOperator(
+            LookupQueryOperator operator = new LookupQueryOperator(
                 driverContext.blockFactory(),
                 128,
                 queryList,

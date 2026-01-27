@@ -128,7 +128,6 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
         );
         CheckedFunction<AbstractLookupService.LookupResponse, Page, Exception> handleResponse = response -> {
             List<Page> pages = response.takePages();
-            response.decRef();
             if (pages.size() != 1) {
                 throw new UnsupportedOperationException("ENRICH should only return a single page");
             }

@@ -189,12 +189,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
             );
 
             planningStartNanos = System.nanoTime();
-            lookupService.lookupAsync(setupRequest, parentTask, ActionListener.wrap(response -> {
+            lookupService.lookupAsync(setupRequest, serverNode, parentTask, ActionListener.wrap(response -> {
                 planningEndNanos = System.nanoTime();
                 // Store the lookup plan from the response (if profiling is enabled)
                 lookupPlan = response.planString();
-                // Release the response (it has no pages for streaming setup)
-                response.decRef();
                 logger.debug("Client setup complete, connecting to server sink");
                 // Connect to server's sink to receive results and send BatchExchangeStatusRequest
                 // This starts the server's driver which processes the batches

@@ -1781,14 +1781,21 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     quantizeBits = 1;
                 }
 
-
                 boolean doPrecondition = false;
                 if (Build.current().isSnapshot()) {
                     doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion, doPrecondition, quantizeBits);
+                return new BBQIVFIndexOptions(
+                    clusterSize,
+                    visitPercentage,
+                    onDiskRescore,
+                    rescoreVector,
+                    indexVersion,
+                    doPrecondition,
+                    quantizeBits
+                );
             }
 
             @Override

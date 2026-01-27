@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.index.FloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
 
 import java.io.IOException;
@@ -24,9 +25,17 @@ public interface CentroidSupplier {
 
     float[] centroid(int centroidOrdinal) throws IOException;
 
+    default KMeansResult secondLevelClusters() throws IOException {
+        return null;
+    }
+
     FloatVectorValues asFloatVectorValues() throws IOException;
 
-    static CentroidSupplier fromArray(float[][] centroids, int dims) {
+    static CentroidSupplier empty(int dims) {
+        return fromArray(new float[0][dims], KMeansResult.EMPTY, dims);
+    }
+
+    static CentroidSupplier fromArray(float[][] centroids, KMeansResult secondLevelClusters, int dims) {
         return new CentroidSupplier() {
             @Override
             public int size() {
@@ -36,6 +45,11 @@ public interface CentroidSupplier {
             @Override
             public float[] centroid(int centroidOrdinal) {
                 return centroids[centroidOrdinal];
+            }
+
+            @Override
+            public KMeansResult secondLevelClusters() {
+                return secondLevelClusters;
             }
 
             @Override

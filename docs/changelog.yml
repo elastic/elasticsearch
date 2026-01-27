@@ -44,9 +44,9 @@ pivot:
     docs: ">docs, documentation"
     enhancement: "release_note:enhancement, >enhancement"
     feature: ">feature"
-    # known-issue: "type:known" 
+    known-issue: "release_note:known-issue" 
     regression: ">regression"
-    # security: "type:security"
+    security: "release_note:security"
     other: ">upgrade"
 
   # Area definitions with labels

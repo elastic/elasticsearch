@@ -93,11 +93,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
 
         String expectedResult = Strings.format(
             """
-                {"similarity":"%s","dimensions":%d,"max_input_tokens":%d,"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""",
+                {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d,"rate_limit":{"requests_per_minute":%d}}""",
+            modelId,
             similarity,
             dimensions,
             maxInputTokens,
-            modelId,
             rateLimitSettings.requestsPerTimeUnit()
         );
 
@@ -143,8 +143,20 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
         String xContentResult = Strings.toString(builder);
 
         // Only model_id and rate_limit should be in exposed fields
-        assertThat(xContentResult, is(Strings.format("""
-            {"model_id":"%s","rate_limit":{"requests_per_minute":%d}}""", modelId, rateLimitSettings.requestsPerTimeUnit())));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    "{\"model_id\":\"%s\",\"similarity\":\"%s\",\"dimensions\":%d,\"max_input_tokens\":%d,"
+                        + "\"rate_limit\":{\"requests_per_minute\":%d}}",
+                    modelId,
+                    serviceSettings.similarity(),
+                    serviceSettings.dimensions(),
+                    serviceSettings.maxInputTokens(),
+                    rateLimitSettings.requestsPerTimeUnit()
+                )
+            )
+        );
     }
 
     public static ElasticInferenceServiceDenseTextEmbeddingsServiceSettings createRandom() {

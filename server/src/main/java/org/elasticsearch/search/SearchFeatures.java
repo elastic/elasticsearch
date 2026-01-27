@@ -30,6 +30,7 @@ public final class SearchFeatures implements FeatureSpecification {
     static final NodeFeature MULTI_MATCH_CHECKS_POSITIONS = new NodeFeature("search.multi.match.checks.positions");
     private static final NodeFeature KNN_QUERY_BUGFIX_130254 = new NodeFeature("search.knn.query.bugfix.130254", true);
     public static final NodeFeature SEARCH_WITH_NO_DIMENSIONS_BUGFIX = new NodeFeature("search.vectors.no_dimensions_bugfix");
+    public static final NodeFeature DATE_FORMAT_MISSING_AS_NULL = new NodeFeature("search.sort.date_format_missing_as_null");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -39,7 +40,8 @@ public final class SearchFeatures implements FeatureSpecification {
             INT_SORT_FOR_INT_SHORT_BYTE_FIELDS,
             MULTI_MATCH_CHECKS_POSITIONS,
             KNN_QUERY_BUGFIX_130254,
-            SEARCH_WITH_NO_DIMENSIONS_BUGFIX
+            SEARCH_WITH_NO_DIMENSIONS_BUGFIX,
+            DATE_FORMAT_MISSING_AS_NULL
         );
     }
 }

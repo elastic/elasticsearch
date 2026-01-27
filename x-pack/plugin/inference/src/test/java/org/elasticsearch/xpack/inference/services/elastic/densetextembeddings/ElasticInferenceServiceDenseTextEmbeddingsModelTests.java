@@ -35,5 +35,4 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
     }
-
 }

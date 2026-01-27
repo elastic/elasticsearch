@@ -270,7 +270,7 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESSingleNo
                     defaultEndpointId("elser-v2"),
                     TaskType.SPARSE_EMBEDDING,
                     "test",
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings("elser-v2", null, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     ElasticInferenceServiceComponents.EMPTY_INSTANCE,

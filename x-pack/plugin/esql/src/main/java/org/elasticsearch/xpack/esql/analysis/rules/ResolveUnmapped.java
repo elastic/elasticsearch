@@ -145,30 +145,34 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
      */
     private static Fork patchFork(Fork fork) {
         List<LogicalPlan> newChildren = new ArrayList<>(fork.children().size());
-        Holder<Boolean> changed = new Holder<>(false);
+        boolean childrenChanged = false;
         for (var child : fork.children()) {
             Holder<Boolean> patched = new Holder<>(false);
-            child = child.transformDown(
+            var transformed = child.transformDown(
                 // TODO add a suitable forEachDownMayReturnEarly equivalent
                 n -> patched.get() == false && n instanceof Project, // process top Project only (Fork-injected)
                 n -> {
                     patched.set(true);
-                    return patchForkProject((Project) n, changed);
+                    return patchForkProject((Project) n);
                 }
             );
-            newChildren.add(child);
+            childrenChanged |= transformed != child;
+            newChildren.add(transformed);
         }
-        return changed.get() ? fork.withSubPlans(newChildren) : fork;
+        return childrenChanged ? fork.withSubPlans(newChildren) : fork;
     }
 
-    private static Project patchForkProject(Project project, Holder<Boolean> changed) {
+    /**
+     * Add any missing attributes that are found in the child's output but not in the Project's output. These have been injected before
+     * by the evalUnresolvedAtopXXX methods and need to be "let through" the Project.
+     */
+    private static Project patchForkProject(Project project) {
         var projectOutput = project.output();
         var childOutput = project.child().output();
         if (projectOutput.equals(childOutput) == false) {
             List<Attribute> delta = new ArrayList<>(childOutput);
             delta.removeAll(projectOutput);
             project = project.withProjections(mergeOutputAttributes(delta, projectOutput));
-            changed.set(true);
         }
         return project;
     }
@@ -259,7 +263,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     // Some plans may reference the same UA multiple times (Aggregate groupings in aggregates, Eval): dedupe
-    private static Set<UnresolvedAttribute> unresolvedLinkedSet(List<UnresolvedAttribute> unresolved) {
+    private static LinkedHashSet<UnresolvedAttribute> unresolvedLinkedSet(List<UnresolvedAttribute> unresolved) {
         Map<String, UnresolvedAttribute> aliasesMap = new LinkedHashMap<>(unresolved.size());
         unresolved.forEach(u -> aliasesMap.putIfAbsent(u.name(), u));
         return new LinkedHashSet<>(aliasesMap.values());

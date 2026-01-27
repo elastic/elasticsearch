@@ -42,7 +42,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
     private static final String NAME = "name";
 
     private static final ConstructingObjectParser<EndpointMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "elastic_inference_service_endpoint_fields",
+        "endpoint_metadata_fields",
         true,
         args -> new EndpointMetadata(
             args[0] == null ? Heuristics.EMPTY : (Heuristics) args[0],
@@ -89,7 +89,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
     @Override
     public String toString() {
-        return "ElasticInferenceServiceEndpointFields{" + "heuristics=" + heuristics + ", internal=" + internal + ", name=" + name + '}';
+        return "EndpointMetadata{" + "heuristics=" + heuristics + ", internal=" + internal + ", name=" + name + '}';
     }
 
     @Override
@@ -115,7 +115,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Heuristics, Void> PARSER = new ConstructingObjectParser<>(
-            "elastic_inference_service_endpoint_metadata",
+            "endpoint_metadata_heuristics",
             true,
             args -> {
                 List<String> properties = args[0] == null ? List.of() : (List<String>) args[0];
@@ -183,7 +183,7 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
         @Override
         public String toString() {
-            return "Metadata{"
+            return "Heuristics{"
                 + "properties="
                 + properties
                 + ", status='"
@@ -207,16 +207,16 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         }
     }
 
-    public record Internal(@Nullable Long endpointVersion) implements ToXContentObject, Writeable {
+    public record Internal(@Nullable String endpointFingerprint) implements ToXContentObject, Writeable {
 
-        public static final Internal EMPTY = new Internal((Long) null);
+        public static final Internal EMPTY = new Internal((String) null);
 
         public static final String ENDPOINT_VERSION = "endpoint_version";
 
         private static final ConstructingObjectParser<Internal, Void> PARSER = new ConstructingObjectParser<>(
-            "elastic_inference_service_endpoint_internal",
+            "endpoint_metadata_internal",
             true,
-            args -> new Internal((Long) args[0])
+            args -> new Internal((String) args[0])
         );
 
         static {
@@ -228,15 +228,15 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
         }
 
         public Internal(StreamInput in) throws IOException {
-            this(in.readOptionalVLong());
+            this(in.readOptionalString());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            if (endpointVersion != null) {
-                builder.field(ENDPOINT_VERSION, endpointVersion);
+            if (endpointFingerprint != null) {
+                builder.field(ENDPOINT_VERSION, endpointFingerprint);
             }
 
             builder.endObject();
@@ -245,12 +245,12 @@ public record EndpointMetadata(Heuristics heuristics, Internal internal, @Nullab
 
         @Override
         public String toString() {
-            return "Internal{" + "endpointVersion='" + endpointVersion + '\'' + '}';
+            return "Internal{" + "endpointFingerprint=" + endpointFingerprint + '}';
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalVLong(endpointVersion);
+            out.writeOptionalString(endpointFingerprint);
         }
     }
 }

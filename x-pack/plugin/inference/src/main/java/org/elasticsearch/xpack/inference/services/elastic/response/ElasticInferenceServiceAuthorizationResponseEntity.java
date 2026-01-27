@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.response;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +26,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
+
+import static org.elasticsearch.inference.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -50,10 +51,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class ElasticInferenceServiceAuthorizationResponseEntity implements InferenceServiceResults {
 
     public static final String NAME = "elastic_inference_service_auth_results_v2";
-
-    private static final TransportVersion EIS_AUTHORIZATION_V2_KIBANA_CONNECTOR_NAME_ADDED = TransportVersion.fromName(
-        "eis_authorization_v2_kibana_connector_name_added"
-    );
 
     private static final String INFERENCE_ENDPOINTS = "inference_endpoints";
 
@@ -83,7 +80,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Nullable String endOfLifeDate,
         @Nullable Configuration configuration,
         @Nullable String kibanaConnectorName,
-        @Nullable Long version
+        @Nullable String fingerprint
     ) implements Writeable, ToXContentObject {
 
         private static final String ID = "id";
@@ -95,7 +92,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         private static final String END_OF_LIFE_DATE = "end_of_life_date";
         private static final String CONFIGURATION = "configuration";
         private static final String KIBANA_CONNECTOR_NAME = "kibana_connector_name";
-        private static final String VERSION = "version";
+        private static final String FINGERPRINT = "fingerprint";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -111,7 +108,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 (String) args[6],
                 (Configuration) args[7],
                 (String) args[8],
-                (Long) args[9]
+                (String) args[9]
             )
         );
 
@@ -125,7 +122,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
             AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(KIBANA_CONNECTOR_NAME));
-            AUTHORIZED_ENDPOINT_PARSER.declareLong(optionalConstructorArg(), new ParseField(VERSION));
+            AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
 
         public AuthorizedEndpoint(StreamInput in) throws IOException {
@@ -138,8 +135,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalWriteable(Configuration::new),
-                in.getTransportVersion().supports(EIS_AUTHORIZATION_V2_KIBANA_CONNECTOR_NAME_ADDED) ? in.readOptionalString() : null,
-                in.getTransportVersion().supports(EIS_AUTHORIZATION_V2_KIBANA_CONNECTOR_NAME_ADDED) ? in.readOptionalVLong() : null
+                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null,
+                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null
             );
         }
 
@@ -154,9 +151,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             out.writeOptionalString(endOfLifeDate);
             out.writeOptionalWriteable(configuration);
 
-            if (out.getTransportVersion().supports(EIS_AUTHORIZATION_V2_KIBANA_CONNECTOR_NAME_ADDED)) {
+            if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
                 out.writeOptionalString(kibanaConnectorName);
-                out.writeOptionalVLong(version);
+                out.writeOptionalString(fingerprint);
             }
         }
 
@@ -164,7 +161,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         public String toString() {
             return Strings.format(
                 "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, kibanaConnectorName='%s', version='%d'}",
+                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, kibanaConnectorName='%s', fingerprint='%s'}",
                 id,
                 modelName,
                 taskType,
@@ -174,7 +171,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 endOfLifeDate,
                 configuration,
                 kibanaConnectorName,
-                version
+                fingerprint
             );
         }
 
@@ -201,8 +198,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 builder.field(KIBANA_CONNECTOR_NAME, kibanaConnectorName);
             }
 
-            if (version != null) {
-                builder.field(VERSION, version);
+            if (fingerprint != null) {
+                builder.field(FINGERPRINT, fingerprint);
             }
 
             builder.endObject();

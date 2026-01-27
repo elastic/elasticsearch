@@ -167,7 +167,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     private static EndpointMetadata.Internal getInternalFields(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
     ) {
-        return new EndpointMetadata.Internal(authorizedEndpoint.version());
+        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint());
     }
 
     private static ElasticInferenceServiceCompletionModel createCompletionModel(

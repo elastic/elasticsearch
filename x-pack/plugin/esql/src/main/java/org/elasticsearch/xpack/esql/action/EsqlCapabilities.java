@@ -1805,9 +1805,9 @@ public class EsqlCapabilities {
         /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
-        ALL_FIRST(Build.current().isSnapshot()),
+        ALL_FIRST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
-        ALL_LAST(Build.current().isSnapshot()),
+        ALL_LAST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes

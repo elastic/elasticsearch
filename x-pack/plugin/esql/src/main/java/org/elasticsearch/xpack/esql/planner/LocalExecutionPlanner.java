@@ -360,10 +360,16 @@ public class LocalExecutionPlanner {
 
         // TODO - _score channel?
         Integer docIdChannel = null;
+        Integer scoreChannel = null;
         Integer diversifyFieldChannel = null;
         for (var input : mmr.inputSet()) {
-            if (input.name().equals("_doc")) {
+            if (input.name().equals("_doc") && input.dataType() == DataType.DOC_DATA_TYPE) {
                 docIdChannel = source.layout.get(input.id()).channel();
+                continue;
+            }
+
+            if (input.name().equals("_score") && input.dataType() == DataType.DOUBLE) {
+                scoreChannel = source.layout.get(input.id()).channel();
                 continue;
             }
 
@@ -382,7 +388,7 @@ public class LocalExecutionPlanner {
         }
 
         return source.with(
-            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, lambda),
+            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, lambda, scoreChannel),
             outputLayout
         );
     }

@@ -1162,9 +1162,8 @@ public abstract class DocsV3Support {
 
             builder.append(SETTINGS_WARNING);
 
-            builder.append("`");
-            builder.append(param != null ? param.name() : mapParam.name());
-            builder.append("`");
+            var settingName = param != null ? param.name() : mapParam.name();
+            builder.append(Strings.format("## `%s` [esql-%s]", settingName, settingName));
 
             builder.append(" {applies_to}`serverless: ");
             builder.append(setting.preview() ? "preview`" : "ga`");

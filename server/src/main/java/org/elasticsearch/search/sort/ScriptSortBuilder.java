@@ -377,7 +377,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     LongSortScript leafScript;
 
                     @Override
-                    protected SortedNumericLongValues getValues(LeafReaderContext context) {
+                    protected SortedNumericLongValues getValues(LeafReaderContext context) throws IOException {
                         leafScript = longSortScript.newInstance(new DocValuesDocReader(searchLookup, context));
                         final LongValues values = new LongValues() {
                             @Override

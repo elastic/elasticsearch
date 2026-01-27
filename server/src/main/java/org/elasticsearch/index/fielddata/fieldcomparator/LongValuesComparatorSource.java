@@ -75,7 +75,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
         return SortField.Type.LONG;
     }
 
-    protected SortedNumericLongValues getValues(LeafReaderContext context) {
+    protected SortedNumericLongValues getValues(LeafReaderContext context) throws IOException {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericLongValues values;
         if (data instanceof SortedNumericIndexFieldData.NanoSecondFieldData) {

@@ -11,6 +11,7 @@ package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Releasables;
  */
 // IDs are internally stored as id + 1 so that 0 encodes for an empty slot
 public final class LongLongHash extends AbstractHash implements LongLongHashTable {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongLongHash.class);
     /**
      * The keys of the hash, stored one after another. So the keys for an id
      * are stored in {@code 2 * id} and {@code 2 * id + 1}. This arrangement
@@ -151,5 +153,10 @@ public final class LongLongHash extends AbstractHash implements LongLongHashTabl
 
     static long hash(long key1, long key2) {
         return 31 * BitMixer.mix(key1) + BitMixer.mix(key2);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + keys.ramBytesUsed() + ids.ramBytesUsed();
     }
 }

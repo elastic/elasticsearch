@@ -408,7 +408,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                     }
                 } else if (exp instanceof UnresolvedAttribute ua) { // identifier provided in QueryParam is treated as unquoted string
                     String unquotedIdentifier = ua.name();
-                    String quotedIdentifier = quoteIdString(unquotedIdentifier);
+                    String quotedIdentifier = ParserUtils.quoteIdString(unquotedIdentifier);
                     patternString.append(quotedIdentifier);
                     objects.add(unquotedIdentifier);
                     nameString.append(unquotedIdentifier);
@@ -472,7 +472,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 // quoted - definitely no pattern
                 else {
                     patternString.append(fragment);
-                    var unquotedString = unquoteIdString(fragment);
+                    var unquotedString = ParserUtils.unquoteIdString(fragment);
                     objects.add(unquotedString);
                     nameString.append(unquotedString);
                 }
@@ -1065,25 +1065,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     @Override
     public List<Alias> visitFields(EsqlBaseParser.FieldsContext ctx) {
         return ctx != null ? visitList(this, ctx.field(), Alias.class) : new ArrayList<>();
-    }
-
-    @Override
-    public Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx) {
-        return visitRerankField(ctx, source(ctx));
-    }
-
-    private Alias visitRerankField(EsqlBaseParser.RerankFieldContext ctx, Source source) {
-        UnresolvedAttribute id = visitQualifiedName(ctx.qualifiedName());
-        assert id != null;
-
-        var boolExprCtx = ctx.booleanExpression();
-        Expression value = boolExprCtx == null ? id : expression(boolExprCtx);
-        return new Alias(source, id.qualifier() != null ? id.qualifiedName() : id.name(), value);
-    }
-
-    @Override
-    public List<Alias> visitRerankFields(EsqlBaseParser.RerankFieldsContext ctx) {
-        return ctx != null ? visitList(this, ctx.rerankField(), Alias.class) : new ArrayList<>();
     }
 
     @Override

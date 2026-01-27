@@ -57,6 +57,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
+    private static final TestDataset VOYAGER = new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
         "employees_incompatible",
         "mapping-default-incompatible.json",
@@ -200,6 +201,7 @@ public class CsvTestsDataLoader {
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
+        Map.entry(VOYAGER.indexName, VOYAGER),
         Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
         Map.entry(ALL_TYPES.indexName, ALL_TYPES),
         Map.entry(HOSTS.indexName, HOSTS),

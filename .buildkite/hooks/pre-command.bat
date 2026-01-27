@@ -68,28 +68,61 @@ if "%SMART_RETRIES%"=="true" (
                   set DEVELOCITY_FAILED_TEST_API_URL=!DEVELOCITY_BASE_URL!/api/tests/build/!BUILD_SCAN_ID!?testOutcomes=failed
 
                   REM Fetch test seed from build scan custom values
-                  set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!?models=gradle-attributes
-                  set TEST_SEED=
+                  REM Support both DEVELOCITY_API_KEY and DEVELOCITY_API_ACCESS_KEY
+                  set API_KEY=
+                  if defined DEVELOCITY_API_KEY (
+                    set API_KEY=%DEVELOCITY_API_KEY%
+                  ) else if defined DEVELOCITY_API_ACCESS_KEY (
+                    set API_KEY=%DEVELOCITY_API_ACCESS_KEY%
+                  )
 
-                  REM Fetch build scan data
-                  curl --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer %DEVELOCITY_API_ACCESS_KEY%" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
+                  if not defined API_KEY (
+                    echo Warning: No Develocity API key available ^(DEVELOCITY_API_KEY or DEVELOCITY_API_ACCESS_KEY^)
+                    echo Test seed retrieval will be skipped
+                    set TEST_SEED=
+                  ) else (
+                    set DEVELOCITY_BUILD_SCAN_API_URL=!DEVELOCITY_BASE_URL!/api/builds/!BUILD_SCAN_ID!?models=gradle-attributes
+                    set TEST_SEED=
 
-                  if exist .build-scan-data.json (
-                    REM Extract test seed from gradle attributes
-                    for /f "delims=" %%i in ('jq -r ".models.gradleAttributes.values[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TEST_SEED=%%i
+                    echo Fetching test seed from build scan: !BUILD_SCAN_ID!
+                    echo API URL: !DEVELOCITY_BUILD_SCAN_API_URL!
 
-                    if defined TEST_SEED (
-                      if not "!TEST_SEED!"=="null" (
-                        echo ✓ Retrieved test seed: !TEST_SEED!
+                    REM Fetch build scan data
+                    curl --silent --show-error --compressed --request GET --url "!DEVELOCITY_BUILD_SCAN_API_URL!" --max-time 30 --header "accept: application/json" --header "authorization: Bearer !API_KEY!" --header "content-type: application/json" 2>nul | jq "." > .build-scan-data.json 2>nul
+
+                    if exist .build-scan-data.json (
+                      REM Validate JSON
+                      jq empty .build-scan-data.json 2>nul
+                      if !errorlevel! equ 0 (
+                        REM Extract test seed from gradle attributes
+                        for /f "delims=" %%i in ('jq -r ".models.gradleAttributes.model.values[]? | select(.name == \"tests.seed\") | .value" .build-scan-data.json 2^>nul') do set TEST_SEED=%%i
+
+                        if defined TEST_SEED (
+                          if not "!TEST_SEED!"=="null" (
+                            echo Retrieved test seed: !TEST_SEED!
+                          ) else (
+                            echo Could not retrieve test seed from build scan
+                            echo Debug: Checking available gradle attributes...
+                            jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
+                            set TEST_SEED=
+                          )
+                        ) else (
+                          echo Could not retrieve test seed from build scan
+                          echo Debug: Checking available gradle attributes...
+                          jq -r ".models.gradleAttributes.model.values[]? | .name" .build-scan-data.json 2>nul
+                          set TEST_SEED=
+                        )
                       ) else (
-                        echo ⚠ Could not retrieve test seed from build scan
+                        echo Error: Invalid JSON response from Develocity API
+                        type .build-scan-data.json 2>nul | findstr /C:"^" | more +0 +10
                         set TEST_SEED=
                       )
-                    ) else (
-                      echo ⚠ Could not retrieve test seed from build scan
-                    )
 
-                    del .build-scan-data.json 2>nul
+                      del .build-scan-data.json 2>nul
+                    ) else (
+                      echo Error: Failed to fetch build scan data from Develocity API
+                      set TEST_SEED=
+                    )
                   )
 
                   REM Add random delay to prevent API rate limiting (0-4 seconds)

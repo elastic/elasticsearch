@@ -429,7 +429,11 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
             );
             assertThat(
                 e.getMessage(),
-                anyOf(containsString("different number of dimensions"), containsString("Base64-encoded byte vector"))
+                anyOf(
+                    containsString("different number of dimensions"),
+                    containsString("Base64-encoded byte vector"),
+                    containsString("Base64-encoded float vector")
+                )
             );
         }
     }

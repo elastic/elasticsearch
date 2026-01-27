@@ -65,7 +65,7 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() throws Exception {
         if (preserveClusterUponCompletion() == false) {
             // Cancel all running reindex tasks before deleting projects to avoid
             // errors when tasks try to access project metadata after project deletion

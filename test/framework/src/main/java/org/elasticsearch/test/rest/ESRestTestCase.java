@@ -2996,7 +2996,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    protected void cleanUpProjects() throws IOException {
+    protected void cleanUpProjects() throws Exception {
         assert multiProjectEnabled;
         final var projectIds = getProjectIds(adminClient());
         for (String projectId : projectIds) {
@@ -3017,6 +3017,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+        assertBusy(() -> {
+            final var projectIdsLeft = getProjectIds(adminClient());
+            assertThat(projectIdsLeft.size(), equalTo(1));
+            assertTrue(projectIdsLeft.contains(ProjectId.DEFAULT.id()));
+        });
     }
 
     private void deleteProject(String project) throws IOException {

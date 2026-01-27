@@ -241,7 +241,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 // Use prime numbers as the constant for the KM technique so these don't have a common gcd
                 final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
 
-                final int posInBitArray = hash & (bitSetBuffer.bitsetSizeInBits - 1);
+                final int posInBitArray = hash & (bitSetBuffer.sizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
                 final byte val = (byte) (bitSetBuffer.get(pos) | mask);
@@ -338,16 +338,16 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     bitSetInitialized = true;
                 }
 
-                assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitSetBuffer.bitsetSizeInBits
+                assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitSetBuffer.sizeInBits
                     : "Expected a bloom filter bitset size "
-                        + bitSetBuffer.bitsetSizeInBits
+                        + bitSetBuffer.sizeInBits
                         + " but got "
                         + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
-                final int bitSetSizeInBytes = bitSetBuffer.bitSetSizeInBytes;
+                final int bitSetSizeInBytes = bitSetBuffer.sizeInBytes;
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
                 int offset = 0;
-                while (offset < bitSetBuffer.bitSetSizeInBytes) {
+                while (offset < bitSetBuffer.sizeInBytes) {
                     var pageLen = Math.min(pageSizeInBytes, bitSetSizeInBytes - offset);
                     // Read one BigArrays page at a time to amortize the cost of going through
                     // the big arrays machinery. In most systems, this means that we'll read
@@ -429,7 +429,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                     if (bloomFilterDataOut != null) {
                         bloomFilterMetadata = new BloomFilterMetadata(
                             bloomFilterDataOut.getFilePointer(),
-                            bitSetBuffer == null ? 0 : bitSetBuffer.bitsetSizeInBits,
+                            bitSetBuffer == null ? 0 : bitSetBuffer.sizeInBits,
                             numHashFunctions
                         );
 
@@ -492,18 +492,18 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     }
 
     static class BitSetBuffer implements Closeable {
-        private final int bitsetSizeInBits;
-        private final int bitSetSizeInBytes;
+        private final int sizeInBits;
+        private final int sizeInBytes;
         private final ByteArray buffer;
 
-        BitSetBuffer(BigArrays bigArrays, int bitSetSizeInBytes) {
-            assert bitSetSizeInBytes > 0;
-            assert bitSetSizeInBytes <= MAX_BLOOM_FILTER_SIZE.getBytes();
-            assert isPowerOfTwo(bitSetSizeInBytes) : "Expected a power of two size but got " + bitSetSizeInBytes;
+        BitSetBuffer(BigArrays bigArrays, int sizeInBytes) {
+            assert sizeInBytes > 0;
+            assert sizeInBytes <= MAX_BLOOM_FILTER_SIZE.getBytes();
+            assert isPowerOfTwo(sizeInBytes) : "Expected a power of two size but got " + sizeInBytes;
 
-            this.bitsetSizeInBits = Math.multiplyExact(bitSetSizeInBytes, Byte.SIZE);
-            this.bitSetSizeInBytes = bitSetSizeInBytes;
-            this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
+            this.sizeInBits = Math.multiplyExact(sizeInBytes, Byte.SIZE);
+            this.sizeInBytes = sizeInBytes;
+            this.buffer = bigArrays.newByteArray(sizeInBytes);
         }
 
         byte get(int position) {
@@ -524,9 +524,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         public void writeTo(IndexOutput indexOut) throws IOException {
             if (buffer.hasArray()) {
-                indexOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
+                indexOut.writeBytes(buffer.array(), 0, sizeInBytes);
             } else {
-                BytesReference.fromByteArray(buffer, bitSetSizeInBytes)
+                BytesReference.fromByteArray(buffer, sizeInBytes)
                     .writeTo(
                         // do not close the stream as it would close indexOut
                         new IndexOutputOutputStream(indexOut)

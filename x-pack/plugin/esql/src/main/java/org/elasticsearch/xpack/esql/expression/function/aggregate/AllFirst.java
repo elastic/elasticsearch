@@ -50,7 +50,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
         preview = true,
-        returnType = { "long", "integer", "double", "keyword" },
+        returnType = { "long", "integer", "double", "keyword", "boolean", "date", "date_nanos", "ip" },
         description = "Calculates the earliest value of a field, and can operate on null values.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) },
         examples = @Example(file = "stats_all_first_all_last", tag = "all_first")
@@ -59,7 +59,7 @@ public class AllFirst extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text" },
+            type = { "long", "integer", "double", "keyword", "text", "boolean", "date", "date_nanos", "ip" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort

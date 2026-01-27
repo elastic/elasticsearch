@@ -143,7 +143,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomFloatBetween(0.0f, 100.0f, true),
                 randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
-                IndexVersion.current()
+                IndexVersion.current(),
+                randomBoolean()
             )
         );
 
@@ -250,8 +251,51 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testDocValueFormat() {
         DenseVectorFieldType fft = createFloatFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, fft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat("bogus", null));
+
         DenseVectorFieldType bft = createByteFieldType();
         assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat("bogus", null));
+
+        DenseVectorFieldType bitFt = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BIT,
+            BBQ_MIN_DIMS,
+            indexed,
+            VectorSimilarity.COSINE,
+            indexed ? randomIndexOptionsAll() : null,
+            Collections.emptyMap(),
+            false
+        );
+        assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bitFt.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bitFt.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bitFt.docValueFormat("bogus", null));
+
+        DenseVectorFieldType bfloat16Ft = new DenseVectorFieldType(
+            "f",
+            IndexVersion.current(),
+            BFLOAT16,
+            BBQ_MIN_DIMS,
+            indexed,
+            VectorSimilarity.COSINE,
+            indexed ? randomIndexOptionsAll() : null,
+            Collections.emptyMap(),
+            false
+        );
+        assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bfloat16Ft.docValueFormat("array", null));
+        assertEquals(DocValueFormat.BINARY, bfloat16Ft.docValueFormat("binary", null));
+        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("base64", null));
+        expectThrows(IllegalArgumentException.class, () -> bfloat16Ft.docValueFormat("bogus", null));
     }
 
     public void testFetchSourceValue() throws IOException {

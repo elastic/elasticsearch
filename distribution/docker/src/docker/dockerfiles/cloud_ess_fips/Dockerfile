@@ -25,7 +25,7 @@
 # Extract Elasticsearch artifact
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:cbdc142a5f87839bf25c86fe25f0904cc3333fdc8a134d38ab47cd11e18ffb1f AS builder
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:c756ffe412df1a84c87d474ba90784e98484c1dc74500051770e67fbce456251 AS builder
 
 # Install required packages to extract the Elasticsearch distribution
 RUN <%= retry.loop(package_manager, "export DEBIAN_FRONTEND=noninteractive && ${package_manager} update && ${package_manager} update && ${package_manager} add --no-cache curl") %>
@@ -104,7 +104,7 @@ WORKDIR /usr/share/elasticsearch/config
 # Add entrypoint
 ################################################################################
 
-FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:cbdc142a5f87839bf25c86fe25f0904cc3333fdc8a134d38ab47cd11e18ffb1f
+FROM docker.elastic.co/wolfi/chainguard-base-fips:latest@sha256:c756ffe412df1a84c87d474ba90784e98484c1dc74500051770e67fbce456251
 
 RUN <%= retry.loop(package_manager,
           "export DEBIAN_FRONTEND=noninteractive && \n" +
@@ -163,7 +163,7 @@ RUN printf "\\n" | jdk/bin/keytool -importkeystore \
   -deststorepass passwordcacert \
   -deststoretype BCFKS \
   -providerclass org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider \
-  -providerpath lib/bc-fips-1.0.2.6.jar \
+  -providerpath lib/bc-fips-${bc_fips_version}.jar \
   -destprovidername BCFIPS
 
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -41,6 +42,14 @@ public class FieldAttribute extends TypedAttribute {
      * Implemented as a wrapper around {@link String} to distinguish from the attribute name (which sometimes differs!) at compile time.
      */
     public record FieldName(String string) {};
+
+    private static final EsField TIMESERIES_FIELD = new EsField(
+        MetadataAttribute.TIMESERIES,
+        DataType.KEYWORD,
+        Map.of(),
+        false,
+        EsField.TimeSeriesFieldType.DIMENSION
+    );
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -91,6 +100,17 @@ public class FieldAttribute extends TypedAttribute {
         super(source, qualifier, name, field.getDataType(), nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
+    }
+
+    /**
+     * Creates a field attribute that represents the ({@link MetadataAttribute#TIMESERIES}) field
+     * that can be used to get a JSON representation of the time series in the output.
+     *
+     * @param source The source of the attribute.
+     * @return The time series field attribute.
+     */
+    public static FieldAttribute timeSeriesAttribute(Source source) {
+        return new FieldAttribute(source, null, null, MetadataAttribute.TIMESERIES, TIMESERIES_FIELD);
     }
 
     private static FieldAttribute innerReadFrom(StreamInput in) throws IOException {

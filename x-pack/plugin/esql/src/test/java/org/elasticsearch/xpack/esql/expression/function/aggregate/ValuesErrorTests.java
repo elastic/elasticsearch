@@ -38,7 +38,7 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 validPerPosition,
                 signature,
                 (v, p) -> "any type except counter types, dense_vector, "
-                    + "aggregate_metric_double, tdigest, histogram, or exponential_histogram"
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
             )
         );
     }
@@ -53,7 +53,8 @@ public class ValuesErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     List.of(DataType.EXPONENTIAL_HISTOGRAM),
                     List.of(DataType.AGGREGATE_METRIC_DOUBLE),
                     List.of(DataType.TDIGEST),
-                    List.of(DataType.HISTOGRAM)
+                    List.of(DataType.HISTOGRAM),
+                    List.of(DataType.NULL)
                 )
             )
         );

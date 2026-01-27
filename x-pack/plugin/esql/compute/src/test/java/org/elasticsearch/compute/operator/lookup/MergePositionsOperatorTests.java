@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
@@ -33,12 +32,21 @@ public class MergePositionsOperatorTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         BlockFactory blockFactory = new BlockFactory(breaker, bigArrays);
-        IntVector selected = IntVector.range(0, 7, blockFactory);
+        // Create a simple input page for the operator (7 positions)
+        BytesRefBlock inputBlock;
+        try (var builder = blockFactory.newBytesRefBlockBuilder(7)) {
+            for (int i = 0; i < 7; i++) {
+                builder.appendBytesRef(new BytesRef("input" + i));
+            }
+            inputBlock = builder.build();
+        }
+        Page inputPage = new Page(inputBlock);
         MergePositionsOperator mergeOperator = new MergePositionsOperator(
             0,
             new int[] { 1, 2 },
             new ElementType[] { ElementType.BYTES_REF, ElementType.INT },
-            selected.asBlock(),
+            BlockOptimization.RANGE,
+            inputPage,
             blockFactory
         );
         {
@@ -126,7 +134,7 @@ public class MergePositionsOperatorTests extends ESTestCase {
         assertTrue(f2.isNull(4));
         assertThat(BlockUtils.toJavaObject(f2, 5), equalTo(2023));
         assertTrue(f2.isNull(6));
-        Releasables.close(mergeOperator, selected, out::releaseBlocks);
+        Releasables.close(mergeOperator, inputPage::releaseBlocks, out::releaseBlocks);
         MockBigArrays.ensureAllArraysAreReleased();
     }
 }

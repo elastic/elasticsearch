@@ -173,6 +173,20 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         assertBinaryValues(binaryValues);
     }
 
+    public void testBlockWiseBinaryWithEmptySequences() throws Exception {
+        // Test long sequences that either have values or are all empty
+        List<String> binaryValues = new ArrayList<>();
+        int numSequences = 10;
+        for (int i = 0; i < numSequences; i++) {
+            int numInSequence = randomIntBetween(0, 3 * BLOCK_COUNT_THRESHOLD);
+            boolean emptySequence = randomBoolean();
+            for (int j = 0; j < numInSequence; j++) {
+                binaryValues.add(emptySequence ? "" : randomAlphaOfLengthBetween(0, 5));
+            }
+        }
+        assertBinaryValues(binaryValues);
+    }
+
     public void testBlockWiseBinaryLargeValues() throws Exception {
         boolean sparse = randomBoolean();
         int numBlocksBound = 5;

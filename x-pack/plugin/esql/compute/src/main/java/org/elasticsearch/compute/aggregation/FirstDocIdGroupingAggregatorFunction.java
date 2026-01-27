@@ -23,7 +23,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -241,8 +240,13 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
         }
 
         @Override
-        public Collection<? extends T> collection() {
+        public Iterable<? extends T> iterable() {
             return refs.values();
+        }
+
+        @Override
+        public int size() {
+            return refs.size();
         }
 
         @Override

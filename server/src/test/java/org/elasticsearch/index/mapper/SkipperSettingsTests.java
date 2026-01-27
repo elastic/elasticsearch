@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -41,23 +42,42 @@ public class SkipperSettingsTests extends ESTestCase {
             });
             assertTrue(indexSettings.useDocValuesSkipper());
         }
-        {
-            IndexSettings indexSettings = settings(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
-                b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
-            });
-            assertTrue(indexSettings.useDocValuesSkipper());
-        }
-        {
-            IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-                random(),
-                IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT
-            );
-            IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
-                b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
-                b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
-            });
-            assertFalse(indexSettings.useDocValuesSkipper());
+        if (Build.current().isSnapshot()) {
+            {
+                IndexSettings indexSettings = settings(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT, b -> {
+                    b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
+                    b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
+                });
+                assertTrue(indexSettings.useDocValuesSkipper());
+            }
+            {
+                IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+                    IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT
+                );
+                IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
+                    b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
+                    b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
+                });
+                assertFalse(indexSettings.useDocValuesSkipper());
+            }
+        } else {
+            {
+                IndexSettings indexSettings = settings(IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB, b -> {
+                    b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
+                    b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
+                });
+                assertTrue(indexSettings.useDocValuesSkipper());
+            }
+            {
+                IndexVersion nonSkipperVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
+                    IndexVersions.STATELESS_SKIPPERS_ENABLED_FOR_TSDB
+                );
+                IndexSettings indexSettings = settings(nonSkipperVersion, b -> {
+                    b.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName());
+                    b.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "path");
+                });
+                assertFalse(indexSettings.useDocValuesSkipper());
+            }
         }
     }
 

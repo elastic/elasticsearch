@@ -12,6 +12,7 @@ package org.elasticsearch.lucene.queries;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.IndexSearcher;
@@ -22,11 +23,13 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.MultiValueSeparateCountBinaryDocValuesReader;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.function.Predicate;
+
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 abstract class AbstractBinaryDocValuesQuery extends Query {
 
@@ -46,18 +49,19 @@ abstract class AbstractBinaryDocValuesQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+                final NumericDocValues counts = context.reader().getNumericDocValues(fieldName + COUNT_FIELD_SUFFIX);
+
                 if (values == null) {
                     return null;
                 }
 
-                final TwoPhaseIterator iterator = new TwoPhaseIterator(values) {
-
-                    final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
+                final TwoPhaseIterator iterator = new TwoPhaseIterator(counts) {
+                    final MultiValueSeparateCountBinaryDocValuesReader reader = new MultiValueSeparateCountBinaryDocValuesReader();
 
                     @Override
                     public boolean matches() throws IOException {
-                        BytesRef binaryValue = values.binaryValue();
-                        return reader.match(binaryValue, matcher);
+                        values.advance(counts.docID());
+                        return reader.match(values.binaryValue(), counts.longValue(), matcher);
                     }
 
                     @Override

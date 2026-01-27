@@ -32,7 +32,7 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
-* `dense_vector` {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* `dense_vector` {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
 * `ip`
 * `keyword` [family](/reference/elasticsearch/mapping-reference/keyword.md) including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
@@ -47,28 +47,23 @@ By default, an {{esql}} query returns up to 1,000 rows. You can increase the num
     * `geo_shape`
     * `point`
     * `shape`
-* TSDB metrics {applies_to}`stack: preview 9.2` {applies_to}`serverless: preview`
+* TSDB metrics {applies_to}`stack: preview 9.2+` {applies_to}`serverless: preview`
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
+   * `exponential_histogram` {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
 
 
 ### Unsupported types [_unsupported_types]
 
-{{esql}} does not yet support the following field types:
+{{esql}} does not support certain field types. If the limitation only applies to specific product versions, it is indicated in the following list:
 
-::::{tab-set}
-:::{tab-item} 9.0-9.1
-* `dense_vector`
-* TSDB metrics
+* {applies_to}`stack: ga 9.0-9.1` `dense_vector`
+* {applies_to}`stack: ga 9.0-9.1` TSDB metrics
    * `counter`
    * `gauge`
    * `aggregate_metric_double`
-:::
-:::{tab-item} 9.2+
-This limitation no longer exists and TSDB metrics and `dense_vector` are now supported (preview).
-:::
-::::
+
 * Date/time
 
     * `date_range`
@@ -106,6 +101,37 @@ Some [field types](/reference/elasticsearch/mapping-reference/field-data-types.m
 
 
 - In addition, when [querying multiple indexes](/reference/query-languages/esql/esql-multi-index.md), it’s possible for the same field to be mapped to multiple types. These fields cannot be directly used in queries or returned in results, unless they’re [explicitly converted to a single type](/reference/query-languages/esql/esql-multi-index.md#esql-multi-index-union-types).
+
+#### Spatial precision [esql-limitations-spatial-precision]
+
+The spatial types `geo_point`, `geo_shape`, `cartesian_point` and `cartesian_shape` are maintained at source precision in the original documents,
+but indexed at reduced precision by Lucene, for performance reasons.
+To ensure this optimization is available in the widest context, all [spatial functions](/reference/query-languages/esql/functions-operators/spatial-functions.md) will produce results
+at this reduced precision, aligned with the underlying Lucene index grid.
+For `geo_point` and `geo_shape`, this grid is smaller than 1 cm at the equator, which is still very high precision for most use cases.
+If the exact, original precision is desired, return the original field in the ES|QL query, which will maintain the original values.
+To prioritize performance over precision, simply drop that field.
+
+For example:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| KEEP location, geohex
+```
+
+This query will perform slowly, due to the need to retrieve the original `location` field from the source document.
+However, the following example will perform much faster:
+
+```esql
+FROM airports
+| EVAL geohex = ST_GEOHEX(location, 1)
+| EVAL x = ST_X(location), y = ST_Y(location)
+| KEEP x, y, geohex
+```
+
+This query will perform much faster, since the original field `location` is not retrieved, and the three spatial functions used will all return values aligned with the Lucene index grid.
+Note that if you return both the original `location` and the extracted `x` and `y` you will see very slight differences in the extracted values due to the precision loss.
 
 #### Partial support in 9.2.0
 
@@ -146,56 +172,11 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ```
 
-Note that, because of [the way {{esql}} treats `text` values](#esql-limitations-text-fields),
-any queries on `text` fields that do not explicitly use the full-text functions,
+Note that any queries on `text` fields that do not explicitly use the full-text functions,
 [`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match),
 [`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr) or
 [`KQL`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-kql),
 will behave as if the fields are actually `keyword` fields: they are case-sensitive and need to match the full string.
-
-
-## `text` fields behave like `keyword` fields [esql-limitations-text-fields]
-
-While {{esql}} supports [`text`](/reference/elasticsearch/mapping-reference/text.md) fields, {{esql}} does not treat these fields like the Search API does. {{esql}} queries do not query or aggregate the [analyzed string](docs-content://manage-data/data-store/text-analysis.md). Instead, an {{esql}} query will try to get a `text` field’s subfield of the [keyword family type](/reference/elasticsearch/mapping-reference/keyword.md) and query/aggregate that. If it’s not possible to retrieve a `keyword` subfield, {{esql}} will get the string from a document’s `_source`. If the `_source` cannot be retrieved, for example when using synthetic source, `null` is returned.
-
-Once a `text` field is retrieved, if the query touches it in any way, for example passing it into a function, the type will be converted to `keyword`. In fact, functions that operate on both `text` and `keyword` fields will perform as if the `text` field was a `keyword` field all along.
-
-For example, the following query will return a column `greatest` of type `keyword` no matter whether any or all of `field1`, `field2`, and `field3` are of type `text`:
-
-```esql
-| FROM index
-| EVAL greatest = GREATEST(field1, field2, field3)
-```
-
-Note that {{esql}}'s retrieval of `keyword` subfields may have unexpected consequences.
-Other than when explicitly using the full-text functions,
-[`MATCH`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) and
-[`QSTR`](/reference/query-languages/esql/functions-operators/search-functions.md#esql-qstr),
-any {{esql}} query on a `text` field is case-sensitive.
-
-For example, after indexing a field of type `text` with the value `Elasticsearch query language`, the following `WHERE` clause does not match because the `LIKE` operator is case-sensitive:
-
-```esql
-| WHERE field LIKE "elasticsearch query language"
-```
-
-The following `WHERE` clause does not match either, because the `LIKE` operator tries to match the whole string:
-
-```esql
-| WHERE field LIKE "Elasticsearch"
-```
-
-As a workaround, use wildcards and regular expressions. For example:
-
-```esql
-| WHERE field RLIKE "[Ee]lasticsearch.*"
-```
-
-Furthermore, a subfield may have been mapped with a [normalizer](/reference/elasticsearch/mapping-reference/normalizer.md), which can transform the original string. Or it may have been mapped with [`ignore_above`](/reference/elasticsearch/mapping-reference/ignore-above.md), which can truncate the string. None of these mapping operations are applied to an {{esql}} query, which may lead to false positives or negatives.
-
-To avoid these issues, a best practice is to be explicit about the field that you query,
-and query `keyword` sub-fields instead of `text` fields.
-Or consider using one of the [full-text search](/reference/query-languages/esql/functions-operators/search-functions.md) functions.
 
 
 ## Using {{esql}} to query multiple indices [esql-multi-index-limitations]
@@ -207,12 +188,12 @@ As discussed in more detail in [Using {{esql}} to query multiple indices](/refer
 
 ## Time series data streams [esql-tsdb]
 
-::::{tab-set}
-:::{tab-item} 9.0-9.1
-{{esql}} does not support querying time series data streams (TSDS).
+::::{applies-switch}
+:::{applies-item} stack: preview 9.2+
+Time series data streams (TSDS) are supported in technical preview.
 :::
-:::{tab-item} 9.2+
-This limitation no longer exists and time series data streams (TSDS) are now supported (preview).
+:::{applies-item} stack: ga 9.0-9.1
+{{esql}} does not support querying time series data streams (TSDS).
 :::
 ::::
 
@@ -279,15 +260,11 @@ Also, [`INLINE STATS`](/reference/query-languages/esql/commands/inlinestats-by.m
 
 ## Kibana limitations [esql-limitations-kibana]
 
-* The user interface to filter data is not enabled when Discover is in {{esql}} mode. To filter data, write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
+* The filter bar interface is not enabled when Discover is in {{esql}} mode. To filter data, use [variable controls](docs-content://explore-analyze/discover/try-esql.md#add-variable-control), filter buttons within the table and field list, or write a query that uses the [`WHERE`](/reference/query-languages/esql/commands/where.md) command instead.
 * Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Discover shows no more than 50 columns. If a query returns more than 50 columns, Discover only shows the first 50.
 * CSV export from Discover shows no more than 10,000 rows. This limit only applies to the number of rows that are retrieved by the query and displayed in Discover. Queries and aggregations run on the full data set.
 * Querying many indices at once without any filters can cause an error in kibana which looks like `[esql] > Unexpected error from Elasticsearch: The content length (536885793) is bigger than the maximum allowed string (536870888)`. The response from {{esql}} is too long. Use [`DROP`](/reference/query-languages/esql/commands/drop.md) or [`KEEP`](/reference/query-languages/esql/commands/keep.md) to limit the number of fields returned.
-
-## Cross-cluster search limitations [esql-ccs-limitations]
-
-{{esql}} does not support [Cross-Cluster Search (CCS)](docs-content://explore-analyze/cross-cluster-search.md) on [`semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md).
 
 ## Known issues [esql-known-issues]
 

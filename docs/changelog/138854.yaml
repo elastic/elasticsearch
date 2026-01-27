@@ -1,5 +1,0 @@
-pr: 138854
-summary: Upgrade ECS logging layout
-area: Infra/Logging
-type: upgrade
-issues: []

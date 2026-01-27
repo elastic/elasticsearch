@@ -87,6 +87,7 @@ public enum ReferenceDocs {
     DEPLOY_CLOUD_DIFF_FROM_STATEFUL,
     DELETE_INDEX_BLOCK,
     ARCHIVED_SETTINGS,
+    MACHINE_LEARNING_SETTINGS,
     // this comment keeps the ';' on the next line so every entry above has a trailing ',' which makes the diff for adding new links cleaner
     ;
 

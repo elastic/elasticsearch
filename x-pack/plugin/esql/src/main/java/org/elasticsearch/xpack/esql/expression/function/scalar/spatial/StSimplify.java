@@ -63,7 +63,8 @@ public class StSimplify extends SpatialDocValuesFunction {
             + "Note that the resulting geometry may be invalid, even if the original input was valid.",
         preview = true,
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
-        examples = @Example(file = "spatial-jts", tag = "st_simplify")
+        examples = @Example(file = "spatial-jts", tag = "st_simplify"),
+        depthOffset = 1  // So this appears as a subsection of geometry functions
     )
     public StSimplify(
         Source source,

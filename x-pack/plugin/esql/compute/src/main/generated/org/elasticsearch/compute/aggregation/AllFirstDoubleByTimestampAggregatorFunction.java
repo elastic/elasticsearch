@@ -13,10 +13,8 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -26,10 +24,10 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class AllFirstDoubleByTimestampAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("timestamps", ElementType.LONG),
-      new IntermediateStateDesc("values", ElementType.DOUBLE),
-      new IntermediateStateDesc("seen", ElementType.BOOLEAN),
-      new IntermediateStateDesc("hasValue", ElementType.BOOLEAN)  );
+      new IntermediateStateDesc("observed", ElementType.BOOLEAN),
+      new IntermediateStateDesc("timestampPresent", ElementType.BOOLEAN),
+      new IntermediateStateDesc("timestamp", ElementType.LONG),
+      new IntermediateStateDesc("values", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
 
@@ -70,29 +68,29 @@ public final class AllFirstDoubleByTimestampAggregatorFunction implements Aggreg
   }
 
   private void addRawInputMasked(Page page, BooleanVector mask) {
-    DoubleBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock, mask);
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    addRawBlock(valuesBlock, timestampsBlock, mask);
   }
 
   private void addRawInputNotMasked(Page page) {
-    DoubleBlock valueBlock = page.getBlock(channels.get(0));
-    LongBlock timestampBlock = page.getBlock(channels.get(1));
-    addRawBlock(valueBlock, timestampBlock);
+    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
+    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    addRawBlock(valuesBlock, timestampsBlock);
   }
 
-  private void addRawBlock(DoubleBlock valueBlock, LongBlock timestampBlock) {
-    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
-      AllFirstDoubleByTimestampAggregator.combine(state, p, valueBlock, timestampBlock);
+  private void addRawBlock(DoubleBlock valuesBlock, LongBlock timestampsBlock) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
+      AllFirstDoubleByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
     }
   }
 
-  private void addRawBlock(DoubleBlock valueBlock, LongBlock timestampBlock, BooleanVector mask) {
-    for (int p = 0; p < valueBlock.getPositionCount(); p++) {
+  private void addRawBlock(DoubleBlock valuesBlock, LongBlock timestampsBlock, BooleanVector mask) {
+    for (int p = 0; p < valuesBlock.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      AllFirstDoubleByTimestampAggregator.combine(state, p, valueBlock, timestampBlock);
+      AllFirstDoubleByTimestampAggregator.combine(state, p, valuesBlock, timestampsBlock);
     }
   }
 
@@ -100,31 +98,19 @@ public final class AllFirstDoubleByTimestampAggregatorFunction implements Aggreg
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block timestampsUncast = page.getBlock(channels.get(0));
-    if (timestampsUncast.areAllValuesNull()) {
-      return;
-    }
-    LongVector timestamps = ((LongBlock) timestampsUncast).asVector();
-    assert timestamps.getPositionCount() == 1;
-    Block valuesUncast = page.getBlock(channels.get(1));
-    if (valuesUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector values = ((DoubleBlock) valuesUncast).asVector();
+    Block observedUncast = page.getBlock(channels.get(0));
+    BooleanBlock observed = (BooleanBlock) observedUncast;
+    assert observed.getPositionCount() == 1;
+    Block timestampPresentUncast = page.getBlock(channels.get(1));
+    BooleanBlock timestampPresent = (BooleanBlock) timestampPresentUncast;
+    assert timestampPresent.getPositionCount() == 1;
+    Block timestampUncast = page.getBlock(channels.get(2));
+    LongBlock timestamp = (LongBlock) timestampUncast;
+    assert timestamp.getPositionCount() == 1;
+    Block valuesUncast = page.getBlock(channels.get(3));
+    DoubleBlock values = (DoubleBlock) valuesUncast;
     assert values.getPositionCount() == 1;
-    Block seenUncast = page.getBlock(channels.get(2));
-    if (seenUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert seen.getPositionCount() == 1;
-    Block hasValueUncast = page.getBlock(channels.get(3));
-    if (hasValueUncast.areAllValuesNull()) {
-      return;
-    }
-    BooleanVector hasValue = ((BooleanBlock) hasValueUncast).asVector();
-    assert hasValue.getPositionCount() == 1;
-    AllFirstDoubleByTimestampAggregator.combineIntermediate(state, timestamps.getLong(0), values.getDouble(0), seen.getBoolean(0), hasValue.getBoolean(0));
+    AllFirstDoubleByTimestampAggregator.combineIntermediate(state, observed.getBoolean(0), timestampPresent.getBoolean(0), timestamp.getLong(0), values);
   }
 
   @Override
@@ -134,10 +120,6 @@ public final class AllFirstDoubleByTimestampAggregatorFunction implements Aggreg
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    if (state.seen() == false) {
-      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
-      return;
-    }
     blocks[offset] = AllFirstDoubleByTimestampAggregator.evaluateFinal(state, driverContext);
   }
 

@@ -83,6 +83,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.getFirstParametersIndexForSignature;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -772,8 +773,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         for (DocsV3Support.TypeSignature entry : signatures(testClass)) {
             List<DocsV3Support.Param> types = entry.argTypes();
+            int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, entry);
             for (int i = 0; i < args.size() && i < types.size(); i++) {
-                typesFromSignature.get(i).add(types.get(i).dataType().esNameIfPossible());
+                typesFromSignature.get(initialProvidedParamIndex + i).add(types.get(i).dataType().esNameIfPossible());
             }
             if (DataType.UNDER_CONSTRUCTION.contains(entry.returnType()) == false) {
                 returnFromSignature.add(entry.returnType().esNameIfPossible());
@@ -1040,7 +1042,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
     }
 
     protected final DriverContext crankyContext() {
@@ -1048,7 +1050,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             .withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
     }
 
     @After

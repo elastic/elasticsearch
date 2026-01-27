@@ -43,7 +43,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
             serviceSettingsMap.get(GoogleVertexAiServiceFields.LOCATION).toString(),
             serviceSettingsMap.get(GoogleVertexAiServiceFields.PROJECT_ID).toString(),
             serviceSettingsMap.get(ServiceFields.MODEL_ID).toString(),
-            (Boolean) serviceSettingsMap.get(GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER),
+            (Boolean) serviceSettingsMap.get(ServiceFields.DIMENSIONS_SET_BY_USER),
             (Integer) serviceSettingsMap.get(ServiceFields.MAX_INPUT_TOKENS),
             (Integer) serviceSettingsMap.get(ServiceFields.DIMENSIONS),
             (Integer) serviceSettingsMap.get(GoogleVertexAiServiceFields.MAX_BATCH_SIZE),
@@ -135,7 +135,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     public void testFromMap_RequestConfigurationParseContextAndDimensionsSetByUserProvided_ThrowsValidationException() {
         var serviceSettingsOverrides = new HashMap<String, Object>();
-        serviceSettingsOverrides.put(GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, randomBoolean());
+        serviceSettingsOverrides.put(ServiceFields.DIMENSIONS_SET_BY_USER, randomBoolean());
 
         var serviceSettingsMap = buildServiceSettingsMapWithRandomValues(serviceSettingsOverrides);
         var exception = expectThrows(ValidationException.class, () -> {
@@ -147,7 +147,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
 
     public void testFromMap_PersistentConfigurationParseContextAndDimensionsSetByUserNotProvided_ThrowsValidationException() {
         var serviceSettingsMap = buildServiceSettingsMapWithRandomValues(Map.of());
-        serviceSettingsMap.put(GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, null);
+        serviceSettingsMap.put(ServiceFields.DIMENSIONS_SET_BY_USER, null);
         var exception = expectThrows(ValidationException.class, () -> {
             GoogleVertexAiEmbeddingsServiceSettings.fromMap(serviceSettingsMap, ConfigurationParseContext.PERSISTENT);
         });
@@ -163,7 +163,7 @@ public class GoogleVertexAiEmbeddingsServiceSettingsTests extends AbstractBWCWir
         serviceSettingsMap.putIfAbsent(GoogleVertexAiServiceFields.LOCATION, randomAlphaOfLength(8));
         serviceSettingsMap.putIfAbsent(GoogleVertexAiServiceFields.PROJECT_ID, randomAlphaOfLength(8));
         serviceSettingsMap.putIfAbsent(ServiceFields.MODEL_ID, randomAlphaOfLength(8));
-        serviceSettingsMap.putIfAbsent(GoogleVertexAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, randomBoolean());
+        serviceSettingsMap.putIfAbsent(ServiceFields.DIMENSIONS_SET_BY_USER, randomBoolean());
         serviceSettingsMap.putIfAbsent(ServiceFields.MAX_INPUT_TOKENS, randomNonNegativeIntOrNull());
         serviceSettingsMap.putIfAbsent(ServiceFields.DIMENSIONS, randomNonNegativeIntOrNull());
         serviceSettingsMap.putIfAbsent(GoogleVertexAiServiceFields.MAX_BATCH_SIZE, randomIntBetween(1, EMBEDDING_MAX_BATCH_SIZE));

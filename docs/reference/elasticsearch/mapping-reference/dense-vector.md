@@ -142,6 +142,117 @@ To retrieve vector values explicitly, you can use:
 For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
 :::
 
+### Docvalue output formats [dense-vector-docvalue-formats]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+You can return dense vector doc values using the `docvalue_fields` search option. The response format can be controlled per field:
+
+- `format: array` (default) returns the decoded vector values as a JSON array.
+- `format: binary` returns the raw vector bytes encoded as base64. This works whether the vector was originally indexed from an array or from a binary string. Numeric element types (`float`, `bfloat16`) are emitted in big-endian order; `byte` and `bit` vectors are returned exactly as stored.
+
+Example: retrieve dense vector doc values as arrays or base64-encoded bytes
+
+```console
+PUT dv-format
+{
+  "mappings": {
+    "properties": {
+      "vec_float": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 3,
+        "index": false
+      }
+    }
+  }
+}
+
+POST dv-format/_bulk?refresh
+{"index":{"_id":"1"}}
+{"vec_float":[1.5, 2.0, -3.25]}
+{"index":{"_id":"2"}}
+{"vec_float":[1.25, -2.5, 4.0]}
+
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": ["vec_float"],
+  "sort": "_id"
+}
+```
+
+Sample response (array format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            [1.5, 2.0, -3.25]
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            [1.25, -2.5, 4.0]
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+To retrieve the same vectors as base64-encoded bytes, request only the binary format:
+
+```console
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": [ { "field": "vec_float", "format": "binary" } ],
+  "sort": "_id"
+}
+```
+
+Sample response (binary format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            "P8AAAEAAAADAUAAA"
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            "P+AAAAAAAP+QEA=="
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+
 ### Storage behavior and `_source`
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
@@ -382,7 +493,7 @@ $$$dense-vector-index-options$$$
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`
@@ -521,13 +632,13 @@ stack: preview 9.3
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
-::::{tab-set}
-:::{tab-item} {{stack}} 9.1+
+::::{applies-switch}
+:::{applies-item} stack: ga 9.1+
 ```txt
 flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
 :::
-:::{tab-item} {{stack}} 9.0
+:::{applies-item} stack: ga =9.0
 ```txt
 flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 ```

@@ -11,12 +11,16 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+
 public class Clusters {
 
     static final String REMOTE_CLUSTER_NAME = "remote_cluster";
     static final String LOCAL_CLUSTER_NAME = "local_cluster";
 
-    public static ElasticsearchCluster remoteCluster() {
+    static ElasticsearchCluster remoteCluster(Map<String, String> additionalSettings) {
         Version version = distributionVersion("tests.version.remote_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(REMOTE_CLUSTER_NAME)
@@ -30,14 +34,33 @@ public class Clusters {
         if (supportRetryOnShardFailures(version) == false) {
             cluster.setting("cluster.routing.rebalance.enable", "none");
         }
+        for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
+            cluster.setting(entry.getKey(), entry.getValue());
+        }
         return cluster.build();
     }
 
+    public static ElasticsearchCluster remoteCluster() {
+        return remoteCluster(emptyMap());
+    }
+
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
-        return localCluster(remoteCluster, true);
+        return localCluster(remoteCluster, emptyMap());
+    }
+
+    public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Map<String, String> additionalSettings) {
+        return localCluster(remoteCluster, true, additionalSettings);
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
+        return localCluster(remoteCluster, skipUnavailable, null);
+    }
+
+    public static ElasticsearchCluster localCluster(
+        ElasticsearchCluster remoteCluster,
+        Boolean skipUnavailable,
+        Map<String, String> additionalSettings
+    ) {
         Version version = distributionVersion("tests.version.local_cluster");
         var cluster = ElasticsearchCluster.local()
             .name(LOCAL_CLUSTER_NAME)
@@ -56,6 +79,11 @@ public class Clusters {
         }
         if (localClusterSupportsInferenceTestService()) {
             cluster.plugin("inference-service-test");
+        }
+        if (additionalSettings != null && additionalSettings.isEmpty() == false) {
+            for (Map.Entry<String, String> entry : additionalSettings.entrySet()) {
+                cluster.setting(entry.getKey(), entry.getValue());
+            }
         }
         return cluster.build();
     }

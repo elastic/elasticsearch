@@ -202,7 +202,7 @@ public final class IndexModule {
         final BooleanSupplier allowExpensiveQueries,
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        final SlowLogFieldProvider slowLogFieldProvider,
+        final ActionLoggingFieldsProvider loggingFieldsProvider,
         final MapperMetrics mapperMetrics,
         final List<SearchOperationListener> searchOperationListeners,
         final IndexingStatsSettings indexingStatsSettings,
@@ -214,9 +214,8 @@ public final class IndexModule {
         this.engineFactory = Objects.requireNonNull(engineFactory);
         // Need to have a mutable arraylist for plugins to add listeners to it
         this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
-        SlowLogFields slowLogFields = slowLogFieldProvider.create(indexSettings);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFields));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFields));
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings, loggingFieldsProvider));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, loggingFieldsProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.expressionResolver = expressionResolver;
@@ -677,7 +676,8 @@ public final class IndexModule {
                 throw new UnsupportedOperationException("no index query shard context available");
             },
             mapperMetrics,
-            documentMapper
+            documentMapper,
+            null
         );
     }
 

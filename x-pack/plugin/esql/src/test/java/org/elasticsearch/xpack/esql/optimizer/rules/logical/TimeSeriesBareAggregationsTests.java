@@ -37,6 +37,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -64,7 +65,8 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
                 defaultLookupResolution(),
                 enrichResolution,
                 emptyInferenceResolution(),
-                TransportVersion.minimumCompatible()
+                TransportVersion.minimumCompatible(),
+                UNMAPPED_FIELDS.defaultValue()
             ),
             TEST_VERIFIER
         );
@@ -266,7 +268,13 @@ public class TimeSeriesBareAggregationsTests extends AbstractLogicalPlanOptimize
             | STATS rate(network.total_bytes_out) BY region, TBUCKET(1hour)
             """); });
 
-        assertThat(error.getMessage(), equalTo("Cannot mix time-series aggregate and grouping attributes. Found [region]."));
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "Only grouping functions are supported (e.g. tbucket) when the time series aggregation function "
+                    + "[rate(network.total_bytes_out)] is not wrapped with another aggregation function. Found [region]."
+            )
+        );
     }
 
     private TimeSeriesAggregate findTimeSeriesAggregate(LogicalPlan plan) {

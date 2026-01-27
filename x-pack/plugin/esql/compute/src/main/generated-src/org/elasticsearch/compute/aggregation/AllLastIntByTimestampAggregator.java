@@ -10,8 +10,7 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
@@ -27,24 +26,27 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
+
+import java.util.BitSet;
 // end generated imports
 
 /**
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
  */
 @Aggregator(
     {
-        @IntermediateState(name = "timestamps", type = "LONG"),
-        @IntermediateState(name = "values", type = "INT"),
-        @IntermediateState(name = "seen", type = "BOOLEAN"),
-        @IntermediateState(name = "hasValue", type = "BOOLEAN") }
+        @IntermediateState(name = "observed", type = "BOOLEAN"),
+        @IntermediateState(name = "timestampPresent", type = "BOOLEAN"),
+        @IntermediateState(name = "timestamp", type = "LONG"),
+        @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
 @GroupingAggregator(
     {
+        @IntermediateState(name = "observed", type = "BOOLEAN_BLOCK"),
+        @IntermediateState(name = "timestampsPresent", type = "BOOLEAN_BLOCK"),
         @IntermediateState(name = "timestamps", type = "LONG_BLOCK"),
-        @IntermediateState(name = "values", type = "INT_BLOCK"),
-        @IntermediateState(name = "hasValues", type = "BOOLEAN_BLOCK") }
+        @IntermediateState(name = "values", type = "INT_BLOCK") }
 )
 public class AllLastIntByTimestampAggregator {
     public static String describe() {
@@ -52,92 +54,119 @@ public class AllLastIntByTimestampAggregator {
     }
 
     public static AllLongIntState initSingle(DriverContext driverContext) {
-        return new AllLongIntState(0, 0);
+        return new AllLongIntState(driverContext.bigArrays());
     }
 
-    private static void first(AllLongIntState current, long timestamp, int value, boolean v2Seen) {
-        current.seen(true);
-        current.v1(timestamp);
-        current.v2(v2Seen ? value : 0);
-        current.v2Seen(v2Seen);
+    private static void overrideState(AllLongIntState current, boolean timestampPresent, long timestamp, IntBlock values, int position) {
+        current.observed(true);
+        current.v1(timestampPresent ? timestamp : -1L);
+        current.v1Seen(timestampPresent);
+        if (values.isNull(position)) {
+            Releasables.close(current.v2());
+            current.v2(null);
+        } else {
+            int count = values.getValueCount(position);
+            int offset = values.getFirstValueIndex(position);
+            IntArray a = null;
+            boolean success = false;
+            try {
+                a = current.bigArrays().newIntArray(count);
+                for (int i = 0; i < count; ++i) {
+                    a.set(i, values.getInt(offset + i));
+                }
+                success = true;
+                Releasables.close(current.v2());
+                current.v2(a);
+            } finally {
+                if (success == false) {
+                    Releasables.close(a);
+                }
+            }
+        }
     }
 
-    public static void combine(AllLongIntState current, @Position int position, IntBlock value, LongBlock timestamp) {
-        if (current.seen() == false) {
-            // We never observed a value before so we'll take this right in, no questions asked.
-            first(current, timestamp.getLong(position), value.getInt(position), value.isNull(position) == false);
+    private static long dominantTimestampAtPosition(int position, LongBlock timestamps) {
+        assert timestamps.isNull(position) == false : "The timestamp is null at this position";
+        int lo = timestamps.getFirstValueIndex(position);
+        int hi = lo + timestamps.getValueCount(position);
+        long result = timestamps.getLong(lo++);
+
+        for (int i = lo; i < hi; i++) {
+            result = Math.max(result, timestamps.getLong(i));
+        }
+
+        return result;
+    }
+
+    public static void combine(AllLongIntState current, @Position int position, IntBlock values, LongBlock timestamps) {
+        long timestamp = timestamps.isNull(position) ? -1 : dominantTimestampAtPosition(position, timestamps);
+        boolean timestampPresent = timestamps.isNull(position) == false;
+
+        if (current.observed() == false) {
+            // We never saw a timestamp before, regardless of nullability.
+            overrideState(current, timestampPresent, timestamp, values, position);
+        } else if (timestampPresent && (current.v1Seen() == false || timestamp > current.v1())) {
+            // The incoming timestamp wins against the current one because the latter was either null or older/newer.
+            overrideState(current, true, timestamp, values, position);
+        }
+    }
+
+    public static void combineIntermediate(
+        AllLongIntState current,
+        boolean observed,
+        boolean timestampPresent,
+        long timestamp,
+        IntBlock values
+    ) {
+        if (observed == false) {
+            // The incoming state hasn't observed anything. No work is needed.
             return;
         }
 
-        long ts = timestamp.getLong(position);
-        if (ts > current.v1()) {
-            // timestamp and seen flag are updated in all cases
-            current.v1(ts);
-            current.seen(true);
-            if (value.isNull(position) == false) {
-                // non-null value
-                current.v2(value.getInt(position));
-                current.v2Seen(true);
-            } else {
-                // null value
-                current.v2Seen(false);
+        if (current.observed()) {
+            // Both the incoming shard and the current shard observed a value, so we must compare timestamps.
+            if (current.v1Seen() == false && timestampPresent == false) {
+                // Both observations have null timestamps. No work is needed.
+                return;
             }
-        }
-    }
-
-    public static void combineIntermediate(AllLongIntState current, long timestamp, int value, boolean seen, boolean v2Seen) {
-        if (seen) {
-            if (current.seen()) {
-                if (timestamp > current.v1()) {
-                    // A newer timestamp has been observed in the reporting shard so we must update internal state
-                    current.v1(timestamp);
-                    current.v2(value);
-                    current.v2Seen(v2Seen);
-                }
-            } else {
-                current.v1(timestamp);
-                current.v2(value);
-                current.seen(true);
-                current.v2Seen(v2Seen);
+            if ((current.v1Seen() == false && timestampPresent) || timestamp > current.v1()) {
+                overrideState(current, timestampPresent, timestamp, values, 0);
             }
+        } else {
+            // The incoming state has observed a value, but we didn't. So we must update.
+            overrideState(current, timestampPresent, timestamp, values, 0);
         }
     }
 
     public static Block evaluateFinal(AllLongIntState current, DriverContext ctx) {
-        if (current.v2Seen()) {
-            return ctx.blockFactory().newConstantIntBlockWith(current.v2(), 1);
-        } else {
-            return ctx.blockFactory().newConstantNullBlock(1);
-        }
+        return current.intermediateValuesBlockBuilder(ctx);
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
         return new GroupingState(driverContext.bigArrays());
     }
 
-    public static void combine(GroupingState current, int groupId, @Position int position, IntBlock value, LongBlock timestamp) {
-        boolean hasValue = value.isNull(position) == false;
-        current.collectValue(groupId, timestamp.getLong(position), value.getInt(position), hasValue);
+    public static void combine(GroupingState current, int group, @Position int position, IntBlock values, LongBlock timestamps) {
+        long timestamp = timestamps.isNull(position) ? 0L : dominantTimestampAtPosition(position, timestamps);
+        current.collectValue(group, timestamps.isNull(position) == false, timestamp, position, values);
     }
 
     public static void combineIntermediate(
         GroupingState current,
-        int groupId,
+        int group,
+        BooleanBlock observed,
+        BooleanBlock timestampPresent,
         LongBlock timestamps,
         IntBlock values,
-        BooleanBlock hasValues,
         int otherPosition
     ) {
-        // TODO seen should probably be part of the intermediate representation
-        int valueCount = values.getValueCount(otherPosition);
-        if (valueCount > 0) {
-            long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
-            int firstIndex = values.getFirstValueIndex(otherPosition);
-            boolean hasValueFlag = hasValues.getBoolean(otherPosition);
-            for (int i = 0; i < valueCount; i++) {
-                current.collectValue(groupId, timestamp, values.getInt(firstIndex + i), hasValueFlag);
-            }
+        if (group < observed.getPositionCount() && observed.getBoolean(observed.getFirstValueIndex(otherPosition)) == false) {
+            // The incoming state hasn't observed anything for this particular group. No work is needed.
+            return;
         }
+        long timestamp = timestamps.isNull(otherPosition) ? -1 : timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
+        boolean hasTimestamp = timestampPresent.getBoolean(timestampPresent.getFirstValueIndex(otherPosition));
+        current.collectValue(group, hasTimestamp, timestamp, otherPosition, values);
     }
 
     public static Block evaluateFinal(GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
@@ -146,102 +175,186 @@ public class AllLastIntByTimestampAggregator {
 
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
+
+        /**
+         * The group-indexed observed flags
+         */
+        private ByteArray observed;
+
+        /**
+         * The group-indexed timestamps seen flags
+         */
+        private ByteArray hasTimestamp;
+
+        /**
+         * The group-indexed timestamps
+         */
         private LongArray timestamps;
-        private IntArray values;
-        private ByteArray hasValues;
+
+        /**
+         * The group-indexed values
+         */
+        private ObjectArray<IntArray> values;
+
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
+            ByteArray observed = null;
+            ByteArray hasTimestamp = null;
             LongArray timestamps = null;
-            ByteArray hasValues = null;
             try {
-                timestamps = bigArrays.newLongArray(1, false);
-                this.timestamps = timestamps;
-                this.values = bigArrays.newIntArray(1, false);
-                hasValues = bigArrays.newByteArray(1, false);
-                this.hasValues = hasValues;
+                // Initialize observed
+                observed = bigArrays.newByteArray(1, false);
+                observed.set(0, (byte) -1);
+                this.observed = observed;
 
-                /*
-                 * Enable group id tracking because we use has hasValue in the
-                 * collection itself to detect the when a value first arrives.
-                 */
+                // Initialize hasTimestamp
+                hasTimestamp = bigArrays.newByteArray(1, false);
+                hasTimestamp.set(0, (byte) -1);
+                this.hasTimestamp = hasTimestamp;
+
+                // Initialize timestamps
+                timestamps = bigArrays.newLongArray(1, false);
+                timestamps.set(0, -1L);
+                this.timestamps = timestamps;
+
+                // Initialize values
+                this.values = bigArrays.newObjectArray(1);
+                this.values.set(0, null);
+
+                // Enable group id tracking because we use has hasValue in the
+                // collection itself to detect when a value first arrives.
                 enableGroupIdTracking(new SeenGroupIds.Empty());
                 success = true;
             } finally {
                 if (success == false) {
-                    Releasables.close(timestamps, values, hasValues, super::close);
+                    if (values != null) {
+                        for (long i = 0; i < values.size(); i++) {
+                            Releasables.close(values.get(i));
+                        }
+                    }
+                    Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
                 }
             }
         }
 
-        void collectValue(int groupId, long timestamp, int value, boolean hasVal) {
+        void collectValue(int group, boolean timestampPresent, long timestamp, int position, IntBlock valuesBlock) {
             boolean updated = false;
-            if (groupId < timestamps.size()) {
-                // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
-                    timestamps.set(groupId, timestamp);
+            if (withinBounds(group)) {
+                if (hasValue(group) == false
+                    || (hasTimestamp.get(group) == 0 && timestampPresent)
+                    || (timestampPresent && timestamp > timestamps.get(group))) {
+                    // We never saw this group before, even if it's within bounds.
+                    // Or, the incoming non-null timestamp wins against the null one in the state.
+                    // Or, we found a better timestamp for this group.
                     updated = true;
                 }
             } else {
-                timestamps = bigArrays.grow(timestamps, groupId + 1);
-                timestamps.set(groupId, timestamp);
+                // We must grow all arrays to accommodate this group id
+                observed = bigArrays.grow(observed, group + 1);
+                hasTimestamp = bigArrays.grow(hasTimestamp, group + 1);
+                timestamps = bigArrays.grow(timestamps, group + 1);
+                values = bigArrays.grow(values, group + 1);
                 updated = true;
             }
             if (updated) {
-                values = bigArrays.grow(values, groupId + 1);
-                values.set(groupId, value);
-                hasValues = bigArrays.grow(hasValues, groupId + 1);
-                hasValues.set(groupId, (byte) (hasVal ? 1 : 0));
+                observed.set(group, (byte) 1);
+                hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
+                timestamps.set(group, timestamp);
+                boolean success = false;
+                IntArray groupValues = null;
+                try {
+                    if (valuesBlock.isNull(position) == false) {
+                        int count = valuesBlock.getValueCount(position);
+                        int offset = valuesBlock.getFirstValueIndex(position);
+                        groupValues = bigArrays.newIntArray(count);
+                        for (int i = 0; i < count; ++i) {
+                            groupValues.set(i, valuesBlock.getInt(i + offset));
+                        }
+                    }
+                    success = true;
+                    Releasables.close(values.get(group));
+                    values.set(group, groupValues);
+                } finally {
+                    if (success == false) {
+                        Releasables.close(groupValues);
+                    }
+                }
             }
-            maxGroupId = Math.max(maxGroupId, groupId);
-            trackGroupId(groupId);
+            maxGroupId = Math.max(maxGroupId, group);
+            trackGroupId(group);
         }
 
         @Override
         public void close() {
-            Releasables.close(timestamps, values, hasValues, super::close);
+            for (long i = 0; i < values.size(); i++) {
+                Releasables.close(values.get(i));
+            }
+            Releasables.close(observed, hasTimestamp, timestamps, values, super::close);
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            // Creates 3 intermediate state blocks (timestamps, values, hasValue)
             try (
-                var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
-                var hasValuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
+                var observedBlockBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+                var hasTimestampBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+                var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
-                    if (group < timestamps.size() && hasValues.get(group) == 1) {
+                    if (withinBounds(group)) {
+                        // We must have seen this group before and saved its state
+                        observedBlockBuilder.appendBoolean(observed.get(group) == 1);
+                        hasTimestampBuilder.appendBoolean(hasTimestamp.get(group) == 1);
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        valuesBuilder.appendInt(values.get(group));
-                        hasValuesBuilder.appendBoolean(true);
                     } else {
+                        // Unknown group so we append nulls everywhere
+                        observedBlockBuilder.appendBoolean(false);
+                        hasTimestampBuilder.appendBoolean(false);
                         timestampsBuilder.appendNull();
-                        valuesBuilder.appendNull();
-                        hasValuesBuilder.appendBoolean(false);
                     }
                 }
-                blocks[offset] = timestampsBuilder.build();
-                blocks[offset + 1] = valuesBuilder.build();
-                blocks[offset + 2] = hasValuesBuilder.build();
+
+                // Create all intermediate state blocks
+                blocks[offset + 0] = observedBlockBuilder.build();
+                blocks[offset + 1] = hasTimestampBuilder.build();
+                blocks[offset + 2] = timestampsBuilder.build();
+                blocks[offset + 3] = intermediateValuesBlockBuilder(selected, driverContext.blockFactory());
             }
         }
 
-        Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().newIntBlockBuilder(selected.getPositionCount())) {
-                for (int p = 0; p < selected.getPositionCount(); p++) {
-                    int group = selected.getInt(p);
-                    if (group < timestamps.size() && hasValues.get(group) == 1) {
-                        builder.appendInt(values.get(group));
-                    } else {
-                        builder.appendNull();
+        Block evaluateFinal(IntVector groups, GroupingAggregatorEvaluationContext evalContext) {
+            return intermediateValuesBlockBuilder(groups, evalContext.blockFactory());
+        }
+
+        private boolean withinBounds(int group) {
+            return group < Math.min(Math.min(timestamps.size(), values.size()), Math.min(observed.size(), hasTimestamp.size()));
+        }
+
+        private Block intermediateValuesBlockBuilder(IntVector groups, BlockFactory blockFactory) {
+            try (var valuesBuilder = blockFactory.newIntBlockBuilder(groups.getPositionCount())) {
+                for (int p = 0; p < groups.getPositionCount(); p++) {
+                    int group = groups.getInt(p);
+                    int count = 0;
+                    if (withinBounds(group) && observed.get(group) == 1 && values.get(group) != null) {
+                        count = (int) values.get(group).size();
+                    }
+                    switch (count) {
+                        case 0 -> valuesBuilder.appendNull();
+                        case 1 -> valuesBuilder.appendInt(values.get(group).get(0));
+                        default -> {
+                            valuesBuilder.beginPositionEntry();
+                            for (int i = 0; i < count; ++i) {
+                                valuesBuilder.appendInt(values.get(group).get(i));
+                            }
+                            valuesBuilder.endPositionEntry();
+                        }
                     }
                 }
-                return builder.build();
+                return valuesBuilder.build();
             }
         }
     }

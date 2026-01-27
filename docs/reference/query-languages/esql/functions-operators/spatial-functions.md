@@ -9,11 +9,14 @@ mapped_pages:
 
 # {{esql}} spatial functions [esql-spatial-functions]
 
-{{esql}} supports these spatial functions:
+{{esql}} supports several spatial functions, all of which are
+[aligned with the underlying spatial index grid](/reference/query-languages/esql/limitations.md#esql-limitations-spatial-precision)
+used in Lucene:
 
 :::{include} ../_snippets/lists/spatial-functions.md
 :::
 
+## Geospatial predicates
 
 :::{include} ../_snippets/functions/layout/st_distance.md
 :::
@@ -30,10 +33,18 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_within.md
 :::
 
+## Geometry functions
+
 :::{include} ../_snippets/functions/layout/st_x.md
 :::
 
 :::{include} ../_snippets/functions/layout/st_y.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_npoints.md
+:::
+
+:::{include} ../_snippets/functions/layout/st_simplify.md
 :::
 
 :::{include} ../_snippets/functions/layout/st_envelope.md
@@ -51,6 +62,8 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/st_ymin.md
 :::
 
+## Grid encoding functions
+
 :::{include} ../_snippets/functions/layout/st_geotile.md
 :::
 
@@ -58,7 +71,4 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/st_geohash.md
-:::
-
-:::{include} ../_snippets/functions/layout/st_simplify.md
 :::

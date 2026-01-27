@@ -434,6 +434,15 @@ public class BlockFactory {
         return b;
     }
 
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
@@ -546,6 +555,28 @@ public class BlockFactory {
         DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
         IntBlock count = newIntArrayVector(countValues, positions).asBlock();
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**

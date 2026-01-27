@@ -71,7 +71,7 @@ public class AllocationDecidersTests extends ESAllocationTestCase {
         var allDecisions = generateDecisions(Decision.NOT_PREFERRED, () -> randomFrom(Decision.YES, Decision.THROTTLE));
         var debugMode = randomFrom(RoutingAllocation.DebugMode.values());
         var expectedDecision = switch (debugMode) {
-            case OFF -> Decision.NOT_PREFERRED;
+            case OFF -> allDecisions.contains(Decision.THROTTLE) ? Decision.THROTTLE : Decision.NOT_PREFERRED;
             case EXCLUDE_YES_DECISIONS -> filterAndCollectToMultiDecision(allDecisions, d -> d.type() != Decision.Type.YES);
             case ON -> collectToMultiDecision(allDecisions);
         };

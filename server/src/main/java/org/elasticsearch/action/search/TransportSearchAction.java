@@ -87,6 +87,7 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -545,7 +546,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                     (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(
                                         clusterAlias,
                                         rewritten.allowPartialSearchResults()
-                                    )
+                                    ),
+                                    crossProjectModeDecider.crossProjectEnabled()
+                                        ? ProjectRoutingResolver.ORIGIN
+                                        : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                                 );
                                 if (replacedIndices.getLocalIndices() == null) {
                                     // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local
@@ -585,7 +589,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         resolvedIndices.getLocalIndices(),
                         resolvedIndices.getRemoteClusterIndices(),
                         false,
-                        (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(clusterAlias, rewritten.allowPartialSearchResults())
+                        (clusterAlias) -> remoteClusterService.shouldSkipOnFailure(clusterAlias, rewritten.allowPartialSearchResults()),
+                        crossProjectModeDecider.crossProjectEnabled()
+                            ? ProjectRoutingResolver.ORIGIN
+                            : SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION
                     );
 
                     // TODO: pass parentTaskId
@@ -1715,7 +1722,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             final Index[] indices = resolvedIndices.getConcreteLocalIndices();
             concreteLocalIndices = Arrays.stream(indices).map(Index::getName).toArray(String[]::new);
-            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(
+            final Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressionsIgnoringRemotes(
                 projectState.metadata(),
                 searchRequest.indices()
             );
@@ -2025,7 +2032,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchResponseMetrics,
-                        searchRequestAttributes
+                        searchRequestAttributes,
+                        searchService.isPitRelocationEnabled()
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -2047,6 +2055,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client,
                         searchService.batchQueryPhase(),
+                        searchService.isPitRelocationEnabled(),
                         searchResponseMetrics,
                         searchRequestAttributes
                     );
@@ -2303,11 +2312,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         ShardSearchContextId shardSearchContextId = perNode.getSearchContextId();
                         if (shardSearchContextId.isRetryable()) {
                             for (ShardRouting shard : shards) {
-                                if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                if (shard.isSearchable() && shard.currentNodeId().equals(perNode.getNode()) == false) {
                                     targetNodes.add(shard.currentNodeId());
                                 }
                             }
                         }
+                        logger.trace("PIT retryable - adding shard copy on nodes [{}]", targetNodes);
                     } catch (IndexNotFoundException | ShardNotFoundException e) {
                         // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
                         // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards

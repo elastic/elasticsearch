@@ -32,6 +32,7 @@ public class MvFunctionWritables {
             MvSlice.ENTRY,
             MvSort.ENTRY,
             MvSum.ENTRY,
+            MvUnion.ENTRY,
             MvZip.ENTRY
         );
     }

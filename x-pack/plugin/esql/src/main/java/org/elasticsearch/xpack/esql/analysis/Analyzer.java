@@ -1005,8 +1005,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit projection to align the outputs.
+                // If the branch already has a Project on top, and the output of the branch is empty,
+                // don't add another Project with only NO_FIELDS on top of it,
+                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
+                // forkColumns do not contain NO_FIELD because Fork.outputUnion removes it.
                 if (logicalPlan instanceof Project == false
-                    || (subPlanColumns.equals(forkColumns) == false && forkColumns.isEmpty() == false)) {
+                    || (subPlanColumns.equals(forkColumns) == false
+                        && (fork instanceof UnionAll && forkColumns.isEmpty() && logicalPlan.output().equals(NO_FIELDS)) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {

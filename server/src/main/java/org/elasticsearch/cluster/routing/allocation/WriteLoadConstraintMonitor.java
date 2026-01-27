@@ -148,11 +148,7 @@ public class WriteLoadConstraintMonitor {
         }
 
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        Set<NodeIdName> lastHotspotNodes = recordHotspotDurations(
-            state,
-            writeNodesExceedingQueueLatencyThreshold,
-            currentTimeMillis
-        );
+        Set<NodeIdName> lastHotspotNodes = recordHotspotDurations(state, writeNodesExceedingQueueLatencyThreshold, currentTimeMillis);
 
         if (writeNodesExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");

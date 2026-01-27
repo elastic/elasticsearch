@@ -43,15 +43,9 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         TimeSeriesAggregate::new
     );
     private static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP = TransportVersion.fromName("time_series_aggregate_timestamp");
-    public static final TransportVersion TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE = TransportVersion.fromName(
-        "time_series_aggregate_timestamp_value_range"
-    );
 
     private final Bucket timeBucket;
     private final Expression timestamp;
-
-    // During local planning, we extract the minimum and maximum timestamps from the data to allow for optimized rounding
-    private final TimeRange timestampRange;
 
     public TimeSeriesAggregate(
         Source source,
@@ -59,13 +53,11 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
-        Expression timestamp,
-        TimeRange timestampRange
+        Expression timestamp
     ) {
         super(source, child, groupings, aggregates);
         this.timeBucket = timeBucket;
         this.timestamp = timestamp;
-        this.timestampRange = timestampRange;
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {
@@ -78,16 +70,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             // Using null (when deserialized from an old node) in this case should be okay.
             this.timestamp = null;
         }
-        if (in.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
-            if (in.readBoolean()) {
-                this.timestampRange = new TimeRange(in.readLong(), in.readLong());
-            } else {
-                this.timestampRange = null;
-            }
-        } else {
-            // Timestamp values are only used for optimized rounding and may not be available for older nodes
-            this.timestampRange = null;
-        }
     }
 
     @Override
@@ -96,15 +78,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         out.writeOptionalWriteable(timeBucket);
         if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP)) {
             out.writeOptionalNamedWriteable(timestamp);
-        }
-        if (out.getTransportVersion().supports(TIME_SERIES_AGGREGATE_TIMESTAMP_VALUE_RANGE)) {
-            if (timestampRange != null) {
-                out.writeBoolean(true);
-                out.writeLong(timestampRange.min);
-                out.writeLong(timestampRange.max);
-            } else {
-                out.writeBoolean(false);
-            }
         }
     }
 
@@ -115,40 +88,24 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     protected NodeInfo<Aggregate> info() {
-        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp, timestampRange);
+        return NodeInfo.create(this, TimeSeriesAggregate::new, child(), groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp, timestampRange);
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, timestamp);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp, timestampRange);
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, timestamp);
     }
 
-    public TimeSeriesAggregate withTimestamp(Expression newTimestamp) {
+    public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp, timestampRange);
-    }
-
-    public TimeSeriesAggregate withTimestampRange(long minTimestampValue, long maxTimestampValue) {
-        return new TimeSeriesAggregate(
-            source(),
-            child(),
-            groupings,
-            aggregates,
-            timeBucket,
-            timestamp,
-            new TimeRange(minTimestampValue, maxTimestampValue)
-        );
-    }
-
-    public TimeRange timestampRange() {
-        return timestampRange;
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, newTimestamp);
     }
 
     @Override
@@ -168,7 +125,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public int hashCode() {
-        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp, timestampRange);
+        return Objects.hash(groupings, aggregates, child(), timeBucket, timestamp);
     }
 
     @Override
@@ -186,8 +143,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
             && Objects.equals(aggregates, other.aggregates)
             && Objects.equals(child(), other.child())
             && Objects.equals(timeBucket, other.timeBucket)
-            && Objects.equals(timestamp, other.timestamp)
-            && Objects.equals(timestampRange, other.timestampRange);
+            && Objects.equals(timestamp, other.timestamp);
     }
 
     @Override
@@ -323,51 +279,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
                 });
                 // }
             }
-        }
-    }
-
-    // Unfortunately we can't use a record here because this needs to be mockable in tests
-    public static class TimeRange {
-
-        /**
-         * The minimum timestamp in epoch milliseconds.
-         */
-        private final long min;
-
-        /**
-         * The maximum timestamp in epoch milliseconds.
-         */
-        private final long max;
-
-        public TimeRange(long min, long max) {
-            this.min = min;
-            this.max = max;
-        }
-
-        public long min() {
-            return min;
-        }
-
-        public long max() {
-            return max;
-        }
-
-        @Override
-        public String toString() {
-            return "TimeRange{" + "min=" + min + ", max=" + max + '}';
-        }
-
-        @Override
-        public final boolean equals(Object o) {
-            if (o instanceof TimeRange timeRange) {
-                return min == timeRange.min && max == timeRange.max;
-            }
-            return false;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(min, max);
         }
     }
 }

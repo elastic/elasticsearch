@@ -176,8 +176,7 @@ public class MapperUtils {
                 aggMode,
                 intermediateAttributes,
                 null,
-                ts.timeBucket(),
-                ts.timestampRange()
+                ts.timeBucket()
             );
         } else {
             return new AggregateExec(

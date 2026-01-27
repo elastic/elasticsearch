@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStringCasingWithInsensitiveRegexMatch;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.AddTimeRangeToTimeseriesAggregate;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.IgnoreNullMetrics;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferNonNullAggConstraint;
@@ -52,7 +51,6 @@ public class LocalLogicalPlanOptimizer extends ParameterizedRuleExecutor<Logical
             new InferIsNotNull(),
             new InferNonNullAggConstraint(),
             new ReplaceDateTruncBucketWithRoundTo(),
-            new AddTimeRangeToTimeseriesAggregate(),
             new PushExpressionsToFieldLoad()
         ),
         localOperators(),

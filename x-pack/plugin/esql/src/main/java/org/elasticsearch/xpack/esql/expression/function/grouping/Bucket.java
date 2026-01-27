@@ -301,9 +301,9 @@ public class Bucket extends GroupingFunction.EvaluatableGroupingFunction
     /**
      * Returns the date rounding from this bucket function if the target field is a date type; otherwise, returns null.
      */
-    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx, Long minTimestamp, Long maxTimestamp) {
+    public Rounding.Prepared getDateRoundingOrNull(FoldContext foldCtx) {
         if (field.dataType() == DataType.DATETIME || field.dataType() == DataType.DATE_NANOS) {
-            return getDateRounding(foldCtx, minTimestamp, maxTimestamp);
+            return getDateRounding(foldCtx);
         } else {
             return null;
         }

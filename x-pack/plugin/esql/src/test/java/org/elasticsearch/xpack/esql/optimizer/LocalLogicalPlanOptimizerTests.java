@@ -98,7 +98,6 @@ import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import org.elasticsearch.xpack.esql.session.Versioned;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -2388,42 +2387,6 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 emptyInferenceResolution()
             ),
             TEST_VERIFIER
-        );
-    }
-
-    public void testTimeRangeAddedToTimeseriesAggregation() {
-        String query = """
-            TS k8s
-            | STATS total = SUM(rate(network.total_cost))
-            """;
-
-        Instant start = Instant.parse("2023-01-01T00:00:00Z");
-        Instant end = Instant.parse("2023-01-02T00:00:00Z");
-
-        LogicalPlan plan = localPlan(plan(query, tsAnalyzer), new EsqlTestUtils.TestSearchStats() {
-            @Override
-            public Object min(FieldAttribute.FieldName field) {
-                if (field.string().equals("@timestamp")) {
-                    return start.toEpochMilli();
-                }
-                return null;
-            }
-
-            @Override
-            public Object max(FieldAttribute.FieldName field) {
-                if (field.string().equals("@timestamp")) {
-                    return end.toEpochMilli();
-                }
-                return null;
-            }
-        });
-
-        var limit = as(plan, Limit.class);
-        var aggregate = as(limit.child(), Aggregate.class);
-        var timeseriesAggregate = as(aggregate.child(), TimeSeriesAggregate.class);
-        assertThat(
-            timeseriesAggregate.timestampRange(),
-            equalTo(new TimeSeriesAggregate.TimeRange(start.toEpochMilli(), end.toEpochMilli()))
         );
     }
 

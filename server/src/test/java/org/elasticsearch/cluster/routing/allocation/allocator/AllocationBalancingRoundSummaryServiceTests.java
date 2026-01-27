@@ -361,6 +361,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var disabledSettingsUpdate = Settings.builder()
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), false)
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         var service = new AllocationBalancingRoundSummaryService(testThreadPool, clusterSettings, balancingRoundMetrics);
@@ -449,7 +450,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             /**
              * Verify that any additional summaries are not retained, since logging is disabled.
              */
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
+            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 100));
             service.verifyNumberOfSummaries(0);
 
             // Check that the service never logged anything.
@@ -465,6 +466,17 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             deterministicTaskQueue.runAllRunnableTasks();
             mockLog.awaitAllExpectationsMatched();
             service.verifyNumberOfSummaries(0);
+
+            // check that metrics continued to be collected
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L, 1L),
+                List.of(50L, 100L),
+                Map.of("node1", List.of(1L, 1L), "node2", List.of(1L, 1L)),
+                Map.of("node1", List.of(2.0, 2.0), "node2", List.of(2.0, 2.0)),
+                Map.of("node1", List.of(3.0, 3.0), "node2", List.of(3.0, 3.0)),
+                Map.of("node1", List.of(4.0, 4.0), "node2", List.of(4.0, 4.0))
+            );
         }
     }
 

@@ -278,5 +278,5 @@ public interface VectorSimilarityFunctions {
 
     MethodHandle scoreMaxInnerProductBulk();
 
-    MethodHandle scoreOthersBulk();
+    MethodHandle scoreDotProductBulk();
 }

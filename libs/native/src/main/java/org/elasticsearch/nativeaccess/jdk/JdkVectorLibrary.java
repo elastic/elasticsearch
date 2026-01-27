@@ -57,7 +57,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     static final MethodHandle scoreEuclideanBulk$mh;
     static final MethodHandle scoreMaxInnerProductBulk$mh;
-    static final MethodHandle scoreOthersBulk$mh;
+    static final MethodHandle scoreDotProductBulk$mh;
 
     public static final JdkVectorSimilarityFunctions INSTANCE;
 
@@ -148,9 +148,9 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     ADDRESS // scores
                 );
 
-                scoreEuclideanBulk$mh = bindFunction("score_euclidean_bulk", caps, score);
-                scoreMaxInnerProductBulk$mh = bindFunction("score_maximum_inner_product_bulk", caps, score);
-                scoreOthersBulk$mh = bindFunction("score_others_bulk", caps, score);
+                scoreEuclideanBulk$mh = bindFunction("bbq_score_euclidean_bulk", caps, score);
+                scoreMaxInnerProductBulk$mh = bindFunction("bbq_score_maximum_inner_product_bulk", caps, score);
+                scoreDotProductBulk$mh = bindFunction("bbq_score_dot_product_bulk", caps, score);
 
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
@@ -176,7 +176,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                 sqrf32BulkWithOffsets$mh = null;
                 scoreEuclideanBulk$mh = null;
                 scoreMaxInnerProductBulk$mh = null;
-                scoreOthersBulk$mh = null;
+                scoreDotProductBulk$mh = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -631,7 +631,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             }
         }
 
-        private static float scoreOthersBulk(
+        private static float scoreDotProductBulk(
             MemorySegment corrections,
             int bulkSize,
             int dimensions,
@@ -644,7 +644,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             MemorySegment scores
         ) {
             try {
-                return (float) scoreOthersBulk$mh.invokeExact(
+                return (float) scoreDotProductBulk$mh.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,
@@ -681,7 +681,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
         static final MethodHandle SCORE_EUCLIDEAN_HANDLE_BULK;
         static final MethodHandle SCORE_MAX_INNER_PRODUCT_HANDLE_BULK;
-        static final MethodHandle SCORE_OTHERS_HANDLE_BULK;
+        static final MethodHandle SCORE_DOT_PRODUCT_HANDLE_BULK;
 
         static {
             try {
@@ -771,7 +771,11 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     "scoreMaxInnerProductBulk",
                     scoringFunction
                 );
-                SCORE_OTHERS_HANDLE_BULK = lookup.findStatic(JdkVectorSimilarityFunctions.class, "scoreOthersBulk", scoringFunction);
+                SCORE_DOT_PRODUCT_HANDLE_BULK = lookup.findStatic(
+                    JdkVectorSimilarityFunctions.class,
+                    "scoreDotProductBulk",
+                    scoringFunction
+                );
 
             } catch (NoSuchMethodException | IllegalAccessException e) {
                 throw new AssertionError(e);
@@ -864,8 +868,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
         }
 
         @Override
-        public MethodHandle scoreOthersBulk() {
-            return SCORE_OTHERS_HANDLE_BULK;
+        public MethodHandle scoreDotProductBulk() {
+            return SCORE_DOT_PRODUCT_HANDLE_BULK;
         }
     }
 }

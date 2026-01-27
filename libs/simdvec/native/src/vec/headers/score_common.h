@@ -63,7 +63,7 @@ static inline f32_t score_maximum_inner_product_inner(
     return score + 1.0f;
 }
 
-static inline f32_t score_others_inner(
+static inline f32_t score_dot_product_inner(
     int32_t dimensions,
     f32_t queryLowerInterval,
     f32_t queryUpperInterval,

@@ -32,7 +32,7 @@ public class Similarities {
 
     static final MethodHandle SCORE_EUCLIDEAN_BULK = DISTANCE_FUNCS.scoreEuclideanBulk();
     static final MethodHandle SCORE_MAX_INNER_PRODUCT_BULK = DISTANCE_FUNCS.scoreMaxInnerProductBulk();
-    static final MethodHandle SCORE_OTHERS_BULK = DISTANCE_FUNCS.scoreOthersBulk();
+    static final MethodHandle SCORE_DOT_PRODUCT_BULK = DISTANCE_FUNCS.scoreDotProductBulk();
 
     static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
     static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.squareDistanceHandle7uBulk();
@@ -142,7 +142,7 @@ public class Similarities {
                     centroidDp,
                     scores
                 );
-                case DOT_PRODUCT, COSINE -> (float) SCORE_OTHERS_BULK.invokeExact(
+                case DOT_PRODUCT, COSINE -> (float) SCORE_DOT_PRODUCT_BULK.invokeExact(
                     corrections,
                     bulkSize,
                     dimensions,

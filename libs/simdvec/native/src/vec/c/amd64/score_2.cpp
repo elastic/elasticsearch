@@ -8,9 +8,9 @@
  */
 
 // This file contains implementations for transforming distances into scores,
-// applying additional corrections. It includes support for "1st tier" vector
-// capabilities; in the case of x64, this first tier include functions for processors
-// supporting at least AVX2.
+// applying additional corrections. It includes support for "2nd tier" vector
+// capabilities; in the case of x64, this tier include functions for processors
+// supporting at least AVX-512 with VNNI and VPOPCNT.
 
 #include <stddef.h>
 #include <stdint.h>
@@ -64,7 +64,7 @@ static inline __m512 score_inner(
     return _mm512_add_ps(_mm512_add_ps(res1, res2), _mm512_add_ps(res3, res4));
 }
 
-EXPORT f32_t score_euclidean_bulk_2(
+EXPORT f32_t bbq_score_euclidean_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -125,7 +125,7 @@ EXPORT f32_t score_euclidean_bulk_2(
     return maxScore;
 }
 
-EXPORT f32_t score_maximum_inner_product_bulk_2(
+EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -192,7 +192,7 @@ EXPORT f32_t score_maximum_inner_product_bulk_2(
     return maxScore;
 }
 
-EXPORT f32_t score_others_bulk_2(
+EXPORT f32_t bbq_score_dot_product_bulk_2(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -237,7 +237,7 @@ EXPORT f32_t score_others_bulk_2(
 
     f32_t maxScore = _mm512_reduce_max_ps(max_score);
     for (; i < bulkSize; ++i) {
-        f32_t score = score_others_inner(
+        f32_t score = score_dot_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

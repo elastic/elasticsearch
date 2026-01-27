@@ -56,7 +56,7 @@ static inline __m256 score_inner(
     return _mm256_add_ps(_mm256_add_ps(res1, res2), _mm256_add_ps(res3, res4));
 }
 
-EXPORT f32_t score_euclidean_bulk(
+EXPORT f32_t bbq_score_euclidean_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -116,7 +116,7 @@ EXPORT f32_t score_euclidean_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_maximum_inner_product_bulk(
+EXPORT f32_t bbq_score_maximum_inner_product_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -149,8 +149,7 @@ EXPORT f32_t score_maximum_inner_product_bulk(
         __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
         res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp));
 
-        // On AVX-512, use ternary logic + mask
-        //__m256 negative_scaled = _mm256_rcp_ps(_mm256_add_ps(_mm256_set1_ps(1.0f), _mm256_mul_ps(_mm256_set1_ps(-1.0f), res)));
+        // We do not have masking on AVX2 for this kind of operation, mimic it with AND + ADD
         __m256 negative_scaled = _mm256_rcp_ps(_mm256_fnmadd_ps(_mm256_set1_ps(1.0f), res, _mm256_set1_ps(1.0f)));
         __m256 positive_scaled = _mm256_add_ps(_mm256_set1_ps(1.0f), res);
 
@@ -183,7 +182,7 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_others_bulk(
+EXPORT f32_t bbq_score_dot_product_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -226,7 +225,7 @@ EXPORT f32_t score_others_bulk(
     }
 
     for (; i < bulkSize; ++i) {
-        f32_t score = score_others_inner(
+        f32_t score = score_dot_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

@@ -17,7 +17,7 @@
 
 #include "score_common.h"
 
-EXPORT f32_t score_euclidean_bulk(
+EXPORT f32_t bbq_score_euclidean_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -59,7 +59,7 @@ EXPORT f32_t score_euclidean_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_maximum_inner_product_bulk(
+EXPORT f32_t bbq_score_maximum_inner_product_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -101,7 +101,7 @@ EXPORT f32_t score_maximum_inner_product_bulk(
     return maxScore;
 }
 
-EXPORT f32_t score_others_bulk(
+EXPORT f32_t bbq_score_dot_product_bulk(
         const int8_t* corrections,
 		int32_t bulkSize,
         int32_t dimensions,
@@ -122,7 +122,7 @@ EXPORT f32_t score_others_bulk(
 
     int i = 0;
     for (; i < bulkSize; ++i) {
-        f32_t score = score_others_inner(
+        f32_t score = score_dot_product_inner(
             dimensions,
             queryLowerInterval,
             queryUpperInterval,

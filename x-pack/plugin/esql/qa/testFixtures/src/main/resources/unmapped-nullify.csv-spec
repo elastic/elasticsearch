@@ -1,6 +1,5 @@
 simpleKeep
-required_capability: optional_fields
-
+required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP foo
@@ -14,7 +13,7 @@ null
 ;
 
 keepStar
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -29,7 +28,7 @@ avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender
 
 
 keepStarSimpleKeep
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -45,7 +44,7 @@ null
 ;
 
 keepStarEval
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -61,7 +60,7 @@ avg_worked_seconds:long|birth_date:date|emp_no:integer|first_name:keyword|gender
 
 
 dropPatternSimpleKeep
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -77,7 +76,7 @@ null
 ;
 
 dropPatternEval
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -93,21 +92,25 @@ null                      | null
 ;
 
 keepWithPattern
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
+// tag::unmapped-nullify-simple-keep[]
 SET unmapped_fields="nullify"\;
 FROM employees
 | KEEP emp_*, foo
 | SORT emp_no
 | LIMIT 1
+// end::unmapped-nullify-simple-keep[]
 ;
 
+// tag::unmapped-nullify-simple-keep-result[]
 emp_no:integer|foo:null
 10001         |null
+// end::unmapped-nullify-simple-keep-result[]
 ;
 
 rowKeep
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -120,7 +123,7 @@ x:integer      |does_not_exist_field1:null|y:integer      |does_not_exist_field2
 ;
 
 rowDrop
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -132,7 +135,7 @@ x:integer
 ;
 
 rowRename
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -144,7 +147,7 @@ y:integer | bar:null
 ;
 
 fieldRename
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -161,7 +164,7 @@ emp_no:integer | bar:null | bazz:null
 ;
 
 rowRenameEval
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -174,7 +177,7 @@ whatever:integer | does_not_exist_field:null | x:integer
 ;
 
 casting
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -186,7 +189,7 @@ x:integer |foo:null |foo::LONG:long
 ;
 
 shadowing
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -198,21 +201,21 @@ foo:integer
 2
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
-required_capability: optional_fields
+statsAggs
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo)
 ;
 
-s:long
+s:double
 null
 ;
 
 statsGroups
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -223,21 +226,21 @@ foo:null
 null
 ;
 
-# https://github.com/elastic/elasticsearch/pull/139797
-statsAggs-Ignore
-required_capability: optional_fields
+statsAggs
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | STATS s = SUM(foo) BY bar
 ;
 
-s:long | bar:null
-null   | null
+s:double | bar:null
+null     | null
 ;
 
 statsExpressions
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -249,7 +252,7 @@ null   | null
 ;
 
 statsExpressionsWithAliases
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -261,7 +264,7 @@ null   | null   | 1
 ;
 
 statsFilteredAggs
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -273,7 +276,7 @@ s:long
 ;
 
 statsFilteredAggsAndGroups
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -285,7 +288,7 @@ s:long | bar:null
 ;
 
 inlinestatsSum
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS s = SUM(x) + b + c BY b = bar + baz, c = x - 1
@@ -296,7 +299,7 @@ x:integer | bar:null | baz:null | s:long | b:null | c:integer
 ;
 
 filtering
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
@@ -308,7 +311,7 @@ x:integer | foo:null
 ;
 
 filteringExpression
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 FROM employees
@@ -321,7 +324,7 @@ emp_no:integer | emp_no_foo:null
 ;
 
 sort
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = [1, 2]
@@ -335,7 +338,7 @@ x:integer | foo:null
 ;
 
 sortExpression
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 
 SET unmapped_fields="nullify"\;
 ROW x = [1, 2]
@@ -349,7 +352,7 @@ x:integer | foo:null
 ;
 
 mvExpand
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | MV_EXPAND foo
@@ -361,7 +364,7 @@ x:integer | foo:null
 
 # TODO. FROMx: this fails in parsing with just FROM even if -Ignore'd(!), in bwc tests only(!)
 subqueryNoMainIndex-Ignore
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="nullify"\;
@@ -379,7 +382,7 @@ emp_no:integer | emp_no_foo:null | emp_no_plus:long
 ;
 
 subqueryInFromWithStatsInMainQuery-Ignore
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 required_capability: subquery_in_from_command
 
 SET unmapped_fields="nullify"\;
@@ -402,7 +405,7 @@ client_ip:ip   |foo:null       |bar:keyword    |baz:null
 ;
 
 forkBranchesWithDifferentSchemas
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 required_capability: fork_v9
 
 SET unmapped_fields="nullify"\;
@@ -426,21 +429,20 @@ null           |1985           |null           |abc            |fork3
 ;
 
 inlinestatsCount
-required_capability: optional_fields
-required_capability: inline_stats
+required_capability: optional_fields_nullify_tech_preview
+required_capability: fix_inline_stats_group_by_null
 
 SET unmapped_fields="nullify"\;
 ROW x = 1
 | INLINE STATS c = COUNT(*), s = SUM(does_not_exist) BY d = does_not_exist
 ;
 
-# `c` should be just 0 : https://github.com/elastic/elasticsearch/issues/139887
 x:integer      |does_not_exist:null|c:long         |s:double       |d:null
-1              |null               |null           |null           |null
+1              |null               |1              |null           |null
 ;
 
 lookupJoin
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 required_capability: join_lookup_v12
 
 SET unmapped_fields="nullify"\;
@@ -454,7 +456,7 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 ;
 
 enrich
-required_capability: optional_fields
+required_capability: optional_fields_nullify_tech_preview
 required_capability: enrich_load
 
 SET unmapped_fields="nullify"\;

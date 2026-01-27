@@ -91,12 +91,15 @@ public class Sort {
                         i++;
                     }
                     low++;
-                } else if (vi > pivotValue || (vi == pivotValue && pi > pv)) {
-                    high--;
-                    swap(order, i, high);
                 } else {
-                    // vi < pivotValue || (vi == pivotValue && pi < pv)
-                    i++;
+                    int c = Double.compare(vi, pivotValue);
+                    if (c > 0 || (c == 0 && pi > pv)) {
+                        high--;
+                        swap(order, i, high);
+                    } else {
+                        // vi < pivotValue || (vi == pivotValue && pi < pv)
+                        i++;
+                    }
                 }
             }
             // invariant: (values[order[k]],order[k]) == (pivotValue, pv) for k in [0..low)
@@ -169,7 +172,8 @@ public class Sort {
             // values in [start, i) are ordered
             // scan backwards to find where to stick t
             for (int j = i; j >= m; j--) {
-                if (j == 0 || values.get(order.get(j - 1)) < v || (values.get(order.get(j - 1)) == v && (order.get(j - 1) <= vi))) {
+                int c = (j == 0) ? -1 : Double.compare(values.get(order.get(j - 1)), v);
+                if (c < 0 || (c == 0 && (order.get(j - 1) <= vi))) {
                     if (j < i) {
                         order.set(j + 1, order, j, i - j);
                         order.set(j, t);

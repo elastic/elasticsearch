@@ -144,6 +144,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
                 IndexVersion.current(),
+                randomBoolean(),
                 randomFrom(1, 2, 4)
             )
         );

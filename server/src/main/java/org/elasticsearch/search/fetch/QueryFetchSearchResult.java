@@ -39,7 +39,7 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
         this(new QuerySearchResult(in), new FetchSearchResult(in));
     }
 
-    private QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
+    public QueryFetchSearchResult(QuerySearchResult queryResult, FetchSearchResult fetchResult) {
         this.queryResult = queryResult;
         this.fetchResult = fetchResult;
         refCounted = LeakTracker.wrap(new SimpleRefCounted());

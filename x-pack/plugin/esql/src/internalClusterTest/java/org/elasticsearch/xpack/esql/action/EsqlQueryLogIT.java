@@ -32,12 +32,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.DEPENDENCY_RESOLUTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PARSING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PLANNING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PRE_ANALYSIS;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.ANALYSIS;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.DEPENDENCY_RESOLUTION;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PARSING;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PLANNING;
-import static org.elasticsearch.xpack.esql.action.PlanningProfile.PRE_ANALYSIS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;

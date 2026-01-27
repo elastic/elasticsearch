@@ -36,6 +36,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.BULK_SIZE;
@@ -382,6 +383,32 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    protected void inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        // no-op
+    }
+
+    @Override
+    protected void createPreconditioner(int dimension) {
+        // no-op
+    }
+
+    @Override
+    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+        // no-op
+        return vectors;
+    }
+
+    @Override
+    protected void preconditionVectors(List<float[]> vectors) {
+        // no-op
+    }
+
+    @Override
+    protected void writePreconditioner(IndexOutput out) throws IOException {
+        // no-op
+    }
+
+    @Override
     public void writeCentroids(
         FieldInfo fieldInfo,
         CentroidSupplier centroidSupplier,
@@ -426,7 +453,8 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids) {
+    public void doWriteMeta(IndexOutput ivfMeta, FieldInfo field, int numCentroids, long preconditionerOfffset, long preconditionerLength)
+        throws IOException {
         // Do Nothing Extra
     }
 

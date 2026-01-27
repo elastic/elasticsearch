@@ -48,6 +48,12 @@ public class OffsetCodecStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(LongStream.iterate(0, v -> v + increment).limit(blockSize).toArray(), blockSize);
     }
 
+    public void testSkipZeroMin() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long increment = randomLongBetween(1, 10);
+        assertStageSkipped(LongStream.iterate(0, v -> v + increment).limit(blockSize).toArray(), blockSize, StageId.OFFSET.id, OffsetCodecStage.INSTANCE);
+    }
+
     public void testRoundTripOverflow() throws IOException {
         final int blockSize = randomBlockSize();
         assertRoundTrip(new long[] { Long.MIN_VALUE, Long.MAX_VALUE }, blockSize);
@@ -56,6 +62,16 @@ public class OffsetCodecStageTests extends NumericCodecStageTestCase {
     public void testRoundTripSmallMinRelativeToMax() throws IOException {
         final int blockSize = randomBlockSize();
         assertRoundTrip(new long[] { 1, randomLongBetween(1000000, 10000000) }, blockSize);
+    }
+
+    public void testSkipSmallMinRelativeToMax() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        values[0] = 1;
+        for (int i = 1; i < blockSize; i++) {
+            values[i] = randomLongBetween(1000000, 10000000);
+        }
+        assertStageSkipped(values, blockSize, StageId.OFFSET.id, OffsetCodecStage.INSTANCE);
     }
 
     public void testRoundTripAllSamePositive() throws IOException {

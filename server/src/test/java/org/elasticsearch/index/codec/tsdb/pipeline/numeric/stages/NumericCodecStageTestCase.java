@@ -66,4 +66,12 @@ public abstract class NumericCodecStageTestCase extends CodecStageTestCase {
         context.setCurrentPosition(0);
         return context;
     }
+
+    protected void assertStageSkipped(long[] original, int blockSize, byte stageId, NumericCodecStage stage) throws IOException {
+        final long[] values = original.clone();
+        final EncodingContext encodingContext = createEncodingContext(blockSize, stageId);
+        stage.encode(values, values.length, encodingContext);
+        assertArrayEquals(original, values);
+        assertFalse(encodingContext.isStageApplied(0));
+    }
 }

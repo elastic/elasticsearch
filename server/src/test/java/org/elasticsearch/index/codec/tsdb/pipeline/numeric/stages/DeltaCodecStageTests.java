@@ -53,6 +53,15 @@ public class DeltaCodecStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(LongStream.generate(() -> randomLongBetween(-1000, 1000)).limit(blockSize).toArray(), blockSize);
     }
 
+    public void testSkipNonMonotonic() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = (i % 2 == 0) ? 0 : 1;
+        }
+        assertStageSkipped(values, blockSize, StageId.DELTA.id, DeltaCodecStage.INSTANCE);
+    }
+
     public void testRoundTripAllSame() throws IOException {
         final int blockSize = randomBlockSize();
         final long value = randomLong();

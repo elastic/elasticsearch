@@ -51,6 +51,17 @@ public class GcdCodecStageTests extends NumericCodecStageTestCase {
         assertRoundTrip(values, blockSize);
     }
 
+    public void testSkipGcdEqualsOne() throws IOException {
+        final int blockSize = randomBlockSize();
+        final long[] values = new long[blockSize];
+        values[0] = 2;
+        values[1] = 3;
+        for (int i = 2; i < blockSize; i++) {
+            values[i] = 5 + i;
+        }
+        assertStageSkipped(values, blockSize, StageId.GCD.id, GcdCodecStage.INSTANCE);
+    }
+
     public void testRoundTripAllZeros() throws IOException {
         final int blockSize = randomBlockSize();
         assertRoundTrip(new long[blockSize], blockSize);

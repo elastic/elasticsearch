@@ -16,8 +16,8 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-:::{include} _snippets/9.3.0/deprecations.md
-:::
+<!-- :::{include} _snippets/9.3.0/deprecations.md
+::: -->
 
 ## 9.2.4 [elasticsearch-9.2.4-deprecations]
 

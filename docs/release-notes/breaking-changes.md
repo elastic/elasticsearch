@@ -12,8 +12,8 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
-:::{include} _snippets/9.3.0/breaking-changes.md
-:::
+<!-- :::{include} _snippets/9.3.0/breaking-changes.md
+::: -->
 
 ## 9.2.4 [elasticsearch-9.2.4-breaking-changes]
 

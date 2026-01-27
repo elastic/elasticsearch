@@ -160,7 +160,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final SegmentWriteState state;
         private final BigArrays bigArrays;
         private BitSetBuffer bitSetBuffer;
-        private boolean closed;
 
         Writer(SegmentWriteState state, BigArrays bigArrays, int numHashFunctions, String bloomFilterFieldName) throws IOException {
             this.state = state;
@@ -173,7 +172,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             this.numHashFunctions = numHashFunctions;
             this.bloomFilterFieldName = bloomFilterFieldName;
 
-            final List<Closeable> toClose = new ArrayList<>(3);
+            final List<Closeable> toClose = new ArrayList<>(2);
             boolean success = false;
             try {
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
@@ -485,7 +484,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         private void createBitSetBuffer(int sizeInBytes) {
             if (bitSetBuffer != null) {
-                throw new IllegalStateException("BitsetWriter already exists");
+                throw new IllegalStateException("BitSetBuffer already exists");
             }
 
             this.bitSetBuffer = new BitSetBuffer(bigArrays, sizeInBytes);

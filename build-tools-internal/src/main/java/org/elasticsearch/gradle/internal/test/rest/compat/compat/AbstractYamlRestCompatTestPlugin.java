@@ -112,12 +112,42 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         }
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
+        Provider<Directory> unzippedRestResourcesDir = project.getLayout().getBuildDirectory().dir("compatRestResources");
+        Provider<Sync> unzipRestResources = project.getTasks().register("unzipCompatRestResources", Sync.class, task -> {
+            task.onlyIf(t -> isReleasedVersion);
+            task.dependsOn(bwcMinorConfig);
+            task.into(unzippedRestResourcesDir);
+            task.from(fileOperations.zipTree(bwcMinorConfig.getSingleFile()), copySpec -> {
+                copySpec.include("rest-api-spec/api/**", "rest-api-spec/test/**");
+                copySpec.eachFile(file -> {
+                    // flatten the structure so it matches what unreleased checkouts look like
+                    // rest-api-spec/api/foo.json -> api/foo.json
+                    // rest-api-spec/test/foo.yml -> test/foo.yml
+                    if (file.getRelativePath().getSegments().length >= 2
+                        && file.getRelativePath().getSegments()[0].equals("rest-api-spec")) {
+                        file.setRelativePath(
+                            new RelativePath(
+                                file.getRelativePath().isFile(),
+                                Arrays.stream(file.getRelativePath().getSegments()).skip(1).toArray(String[]::new)
+                            )
+                        );
+                    }
+                });
+            });
+        });
+
         String projectPath = project.getPath();
         ExtraPropertiesExtension extraProperties = project.getExtensions().getExtraProperties();
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestCompatApiTask", CopyRestApiTask.class, task -> {
-                task.dependsOn(bwcMinorConfig);
-                task.setConfig(bwcMinorConfig);
+                if (isReleasedVersion) {
+                    task.dependsOn(unzipRestResources);
+                    // Use the unzipped directory subfolder 'api'
+                    task.setConfig(project.files(unzippedRestResourcesDir.map(d -> d.dir("api"))));
+                } else {
+                    task.dependsOn(bwcMinorConfig);
+                    task.setConfig(bwcMinorConfig);
+                }
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getInclude().set(extension.getRestApi().getInclude());
                 task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatSpecsDir.toString()));
@@ -132,9 +162,8 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                 task.setSkipHasRestTestCheck(true);
                 task.setConfigToFileTree(config -> {
                     if (isReleasedVersion) {
-                        // Released artifact is a JAR: rest-api-spec/api/*.json
-                        return fileOperations.zipTree(config.getSingleFile())
-                            .matching(pattern -> { pattern.include("rest-api-spec/api/**/*.json"); });
+                        // Use the flattened unzipped directory
+                        return fileOperations.fileTree(config.getSingleFile()).matching(pattern -> { pattern.include("**/*.json"); });
                     } else {
                         // Unreleased checkout directory (existing behavior)
                         return fileOperations.fileTree(
@@ -162,8 +191,13 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         // copy compatible rest tests
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
             .register("copyRestCompatTestTask", CopyRestTestsTask.class, task -> {
-                task.dependsOn(bwcMinorConfig);
-                task.setCoreConfig(bwcMinorConfig);
+                if (isReleasedVersion) {
+                    task.dependsOn(unzipRestResources);
+                    task.setCoreConfig(project.files(unzippedRestResourcesDir.map(d -> d.dir("test"))));
+                } else {
+                    task.dependsOn(bwcMinorConfig);
+                    task.setCoreConfig(bwcMinorConfig);
+                }
                 task.setXpackConfig(bwcMinorConfig);
                 task.setAdditionalConfig(bwcMinorConfig);
                 task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
@@ -171,9 +205,8 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
                 task.getOutputResourceDir().set(projectLayout.getBuildDirectory().dir(compatTestsDir.resolve("original").toString()));
                 task.setCoreConfigToFileTree(config -> {
                     if (isReleasedVersion) {
-                        // Released artifact is a JAR: rest-api-spec/test/*.yml
-                        return fileOperations.zipTree(config.getSingleFile())
-                            .matching(pattern -> { pattern.include("rest-api-spec/test/**/*.yml"); });
+                        // Use the flattened unzipped directory
+                        return fileOperations.fileTree(config.getSingleFile()).matching(pattern -> { pattern.include("**/*.yml"); });
                     } else {
                         // Unreleased checkout directory (existing behavior)
                         return fileOperations.fileTree(

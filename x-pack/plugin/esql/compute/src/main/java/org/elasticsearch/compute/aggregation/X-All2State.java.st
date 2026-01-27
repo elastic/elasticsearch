@@ -48,10 +48,11 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
      */
 $if(v2_boolean)$
     private ByteArray v2;
+
 $else$
     private $v2_Array$ v2;
-$endif$
 
+$endif$
     public All$v1_Type$$v2_Type$State(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
     }

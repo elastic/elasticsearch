@@ -269,11 +269,11 @@ $endif$
                 this.timestamps = timestamps;
 
                 // Initialize values
-                $if(BytesRef)$
+$if(BytesRef)$
                 this.values = bigArrays.newObjectArray(1);
-                $else$
+$else$
                 this.values = bigArrays.newObjectArray(1);
-                $endif$
+$endif$
                 this.values.set(0, null);
 
                 // Enable group id tracking because we use has hasValue in the
@@ -316,7 +316,7 @@ $endif$
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
                 boolean success = false;
-                $if(BytesRef)$
+$if(BytesRef)$
                 BytesRefArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
@@ -336,27 +336,27 @@ $endif$
                         Releasables.close(groupValues);
                     }
                 }
-                $else$
-$if(boolean)
-                $ByteArray groupValues = null;
 $else$
+    $if(boolean)$
+                ByteArray groupValues = null;
+    $else$
                 $Array$ groupValues = null;
-$endif$
+    $endif$
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);
                         int offset = valuesBlock.getFirstValueIndex(position);
-                        $if(boolean)$
+    $if(boolean)$
                         groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
                         for (int i = 0; i < count; ++i) {
                             groupValues.set(i, (byte) (valuesBlock.get$Type$(i + offset) ? 1 : 0));
                         }
-                        $else$
+    $else$
                         groupValues = bigArrays.new$Type$Array(count);
                         for (int i = 0; i < count; ++i) {
                             groupValues.set(i, valuesBlock.get$Type$(i + offset));
                         }
-                        $endif$
+    $endif$
                     }
                     success = true;
                     Releasables.close(values.get(group));
@@ -366,7 +366,7 @@ $endif$
                         Releasables.close(groupValues);
                     }
                 }
-                $endif$
+$endif$
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -428,33 +428,33 @@ $endif$
                     }
                     switch (count) {
                         case 0 -> valuesBuilder.appendNull();
-                        $if(BytesRef)$
+$if(BytesRef)$
                         case 1 -> {
                             BytesRef bytesScratch = new BytesRef();
                             values.get(group).get(0, bytesScratch);
                             valuesBuilder.appendBytesRef(bytesScratch);
                         }
-                        $else$
-                        $if(boolean)$
+$else$
+    $if(boolean)$
                         case 1 -> valuesBuilder.append$Type$(values.get(group).get(0) == 1);
-                        $else$
+    $else$
                         case 1 -> valuesBuilder.append$Type$(values.get(group).get(0));
-                        $endif$
-                        $endif$
+    $endif$
+$endif$
                         default -> {
                             valuesBuilder.beginPositionEntry();
                             for (int i = 0; i < count; ++i) {
-                                $if(BytesRef)$
+$if(BytesRef)$
                                 BytesRef bytesScratch = new BytesRef();
                                 values.get(group).get(i, bytesScratch);
                                 valuesBuilder.appendBytesRef(bytesScratch);
-                                $else$
-                                $if(boolean)$
+$else$
+    $if(boolean)$
                                 valuesBuilder.append$Type$(values.get(group).get(i) == 1);
-                                $else$
+    $else$
                                 valuesBuilder.append$Type$(values.get(group).get(i));
-                                $endif$
-                                $endif$
+    $endif$
+$endif$
                             }
                             valuesBuilder.endPositionEntry();
                         }

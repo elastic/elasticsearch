@@ -29,11 +29,11 @@ import java.util.Objects;
  *
  * <p> Pages are immutable and can be passed between threads.
  */
-public final class Page implements Writeable, Releasable {
+public class Page implements Writeable, Releasable {
 
-    private final Block[] blocks;
+    protected final Block[] blocks;
 
-    private final int positionCount;
+    protected final int positionCount;
 
     /**
      * True if we've called {@link #releaseBlocks()} which causes us to remove the
@@ -65,7 +65,7 @@ public final class Page implements Writeable, Releasable {
         this(true, positionCount, blocks);
     }
 
-    private Page(boolean copyBlocks, int positionCount, Block[] blocks) {
+    protected Page(boolean copyBlocks, int positionCount, Block[] blocks) {
         Objects.requireNonNull(blocks, "blocks is null");
         // assert assertPositionCount(blocks);
         this.positionCount = positionCount;
@@ -79,9 +79,21 @@ public final class Page implements Writeable, Releasable {
     }
 
     /**
+     * Protected copy constructor for subclasses
+     */
+    protected Page(Page page) {
+        this.positionCount = page.positionCount;
+        this.blocks = page.blocks.clone();
+        // Increment ref count for blocks since we're sharing them
+        for (Block block : blocks) {
+            block.incRef();
+        }
+    }
+
+    /**
      * Appending ctor, see {@link #appendBlocks}.
      */
-    private Page(Page prev, Block[] toAdd) {
+    protected Page(Page prev, Block[] toAdd) {
         for (Block block : toAdd) {
             if (prev.positionCount != block.getPositionCount()) {
                 throw new IllegalStateException(

@@ -99,6 +99,11 @@ public class ChangePointOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
+    }
+
+    @Override
     public Page getOutput() {
         if (finished == false || outputPages.isEmpty()) {
             return null;

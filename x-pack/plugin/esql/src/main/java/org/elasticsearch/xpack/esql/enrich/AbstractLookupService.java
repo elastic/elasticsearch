@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -475,10 +476,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         );
     }
 
-    /**
-     * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
-     * For Alias, recursively extracts the field name from the child expression.
-     */
+    public CircuitBreaker getBreaker() {
+        return blockFactory.breaker();
+    }
+
+    public Executor getExecutor() {
+        return executor;
+    }
+
     public static String extractFieldName(NamedExpression extractField) {
         return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
             : extractField instanceof Alias a ? extractFieldName((NamedExpression) a.child())

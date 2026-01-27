@@ -26,91 +26,58 @@ public class Warnings {
     /**
      * Create a new warnings object based on the given mode
      * @param warningsMode The warnings collection strategy to use
-     * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
-     * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
-     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
-     * @param sourceText The source text that caused the warning. Same as `source.text()`
+     * @param source The source location information for warnings
      * @return A warnings collector object
      */
-    // TODO: rename to createWarningsTreatedAsNull
-    public static Warnings createWarnings(
-        DriverContext.WarningsMode warningsMode,
-        int lineNumber,
-        int columnNumber,
-        String viewName,
-        String sourceText
-    ) {
-        return createWarnings(
-            warningsMode,
-            lineNumber,
-            columnNumber,
-            viewName,
-            sourceText,
-            "evaluation of [{}] failed, treating result as null"
-        );
+    public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, WarningSourceLocation source) {
+        return createWarnings(warningsMode, source, "evaluation of [{}] failed, treating result as null");
     }
 
-    // TODO: remove once all callers have been updated to use the viewName overload
+    /**
+     * Create a new warnings object based on the given mode.
+     * Prefer the overload that takes a {@link WarningSourceLocation} when possible.
+     * @param warningsMode The warnings collection strategy to use
+     * @param lineNumber The line number of the source text
+     * @param columnNumber The column number of the source text
+     * @param sourceText The source text that caused the warning
+     * @return A warnings collector object
+     */
     public static Warnings createWarnings(DriverContext.WarningsMode warningsMode, int lineNumber, int columnNumber, String sourceText) {
-        return createWarnings(
-            warningsMode,
-            lineNumber,
-            columnNumber,
-            null,
-            sourceText,
-            "evaluation of [{}] failed, treating result as null"
-        );
+        return createWarnings(warningsMode, lineNumber, columnNumber, null, sourceText, "evaluation of [{}] failed, treating result as null");
     }
 
     /**
      * Create a new warnings object based on the given mode which warns that
      * it treats the result as {@code false}.
      * @param warningsMode The warnings collection strategy to use
-     * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
-     * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
-     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
-     * @param sourceText The source text that caused the warning. Same as `source.text()`
+     * @param source The source location information for warnings
      * @return A warnings collector object
      */
-    public static Warnings createWarningsTreatedAsFalse(
-        DriverContext.WarningsMode warningsMode,
-        int lineNumber,
-        int columnNumber,
-        String viewName,
-        String sourceText
-    ) {
-        return createWarnings(
-            warningsMode,
-            lineNumber,
-            columnNumber,
-            viewName,
-            sourceText,
-            "evaluation of [{}] failed, treating result as false"
-        );
+    public static Warnings createWarningsTreatedAsFalse(DriverContext.WarningsMode warningsMode, WarningSourceLocation source) {
+        return createWarnings(warningsMode, source, "evaluation of [{}] failed, treating result as false");
     }
 
     /**
      * Create a new warnings object based on the given mode which warns that
      * evaluation resulted in warnings.
      * @param warningsMode The warnings collection strategy to use
-     * @param lineNumber The line number of the source text. Same as `source.getLineNumber()`
-     * @param columnNumber The column number of the source text. Same as `source.getColumnNumber()`
-     * @param viewName The name of the view this source came from, or null if from the original query. Same as `source.viewName()`
-     * @param sourceText The source text that caused the warning. Same as `source.text()`
+     * @param source The source location information for warnings
      * @return A warnings collector object
      */
-    // TODO: rename to createWarnings
-    public static Warnings createOnlyWarnings(
-        DriverContext.WarningsMode warningsMode,
-        int lineNumber,
-        int columnNumber,
-        String viewName,
-        String sourceText
-    ) {
-        return createWarnings(warningsMode, lineNumber, columnNumber, viewName, sourceText, "warnings during evaluation of [{}]");
+    public static Warnings createOnlyWarnings(DriverContext.WarningsMode warningsMode, WarningSourceLocation source) {
+        return createWarnings(warningsMode, source, "warnings during evaluation of [{}]");
     }
 
-    // TODO: remove once all callers have been updated to use the viewName overload
+    /**
+     * Create a new warnings object based on the given mode which warns that
+     * evaluation resulted in warnings.
+     * Prefer the overload that takes a {@link WarningSourceLocation} when possible.
+     * @param warningsMode The warnings collection strategy to use
+     * @param lineNumber The line number of the source text
+     * @param columnNumber The column number of the source text
+     * @param sourceText The source text that caused the warning
+     * @return A warnings collector object
+     */
     public static Warnings createOnlyWarnings(
         DriverContext.WarningsMode warningsMode,
         int lineNumber,
@@ -118,6 +85,18 @@ public class Warnings {
         String sourceText
     ) {
         return createWarnings(warningsMode, lineNumber, columnNumber, null, sourceText, "warnings during evaluation of [{}]");
+    }
+
+    private static Warnings createWarnings(DriverContext.WarningsMode warningsMode, WarningSourceLocation source, String first) {
+        switch (warningsMode) {
+            case COLLECT -> {
+                return new Warnings(source.lineNumber(), source.columnNumber(), source.viewName(), source.text(), first);
+            }
+            case IGNORE -> {
+                return NOOP_WARNINGS;
+            }
+        }
+        throw new IllegalStateException("Unreachable");
     }
 
     private static Warnings createWarnings(

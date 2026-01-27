@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.tree;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -18,7 +19,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.Objects;
 
-public final class Source implements Writeable {
+public final class Source implements Writeable, WarningSourceLocation {
 
     public static final Source EMPTY = new Source(Location.EMPTY, "", null);
 
@@ -106,6 +107,7 @@ public final class Source implements Writeable {
         return location;
     }
 
+    @Override
     public String text() {
         return text;
     }
@@ -113,8 +115,19 @@ public final class Source implements Writeable {
     /**
      * Returns the name of the view this source came from, or null if it came from the original query.
      */
+    @Override
     public String viewName() {
         return viewName;
+    }
+
+    @Override
+    public int lineNumber() {
+        return location.getLineNumber();
+    }
+
+    @Override
+    public int columnNumber() {
+        return location.getColumnNumber();
     }
 
     @Override

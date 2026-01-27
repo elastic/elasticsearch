@@ -45,7 +45,7 @@ public final class AllFirstBytesRefByTimestampAggregatorFunction implements Aggr
 
   public static AllFirstBytesRefByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstBytesRefByTimestampAggregatorFunction(driverContext, channels, AllFirstBytesRefByTimestampAggregator.initSingle());
+    return new AllFirstBytesRefByTimestampAggregatorFunction(driverContext, channels, AllFirstBytesRefByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

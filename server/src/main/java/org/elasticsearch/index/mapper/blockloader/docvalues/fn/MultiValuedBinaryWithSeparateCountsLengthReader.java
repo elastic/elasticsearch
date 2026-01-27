@@ -35,9 +35,9 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
 
     public abstract String toString();
 
-
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered) throws IOException {
+    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+        throws IOException {
         int count = docs.count() - offset;
         if (count == 1) {
             return blockForSingleDoc(factory, docs.get(offset));
@@ -61,7 +61,6 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
     public int docId() {
         return counts.docID();
     }
-
 
     private void appendLength(int docId, BlockLoader.IntBuilder builder) throws IOException {
         if (counts.advanceExact(docId) == false) {

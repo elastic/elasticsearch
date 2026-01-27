@@ -117,7 +117,7 @@ public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesRe
         }
     }
 
-    private static class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader{
+    private static class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
 
         MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
             super(warnings, counts, values);

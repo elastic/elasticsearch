@@ -97,7 +97,7 @@ public class BinaryByteLengthTests extends ESTestCase {
 
                 if (multiValues) {
                     assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
-                }  else {
+                } else {
                     assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.SingleValued"));
                 }
 

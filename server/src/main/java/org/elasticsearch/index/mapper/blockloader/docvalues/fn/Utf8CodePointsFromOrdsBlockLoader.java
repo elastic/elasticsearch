@@ -537,7 +537,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
     }
 
     private static class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
-        MultiValuedBinaryWithSeparateCounts (Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
             super(warnings, counts, values);
         }
 

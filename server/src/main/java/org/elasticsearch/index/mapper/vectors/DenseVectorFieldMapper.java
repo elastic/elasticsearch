@@ -2840,7 +2840,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             switch (element.elementType()) {
                 case BYTE, BIT -> {
                     byte[] hexBytes = null;
-                    if (base64Bytes == null || (dims != null && base64Bytes.length != element.getNumBytes(dims))) {
+                    boolean needsHexFallback = base64Bytes == null || (dims != null && base64Bytes.length != element.getNumBytes(dims));
+                    if (needsHexFallback) {
                         try {
                             hexBytes = HexFormat.of().parseHex(encoded);
                         } catch (IllegalArgumentException e) {
@@ -2854,6 +2855,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         return VectorData.fromBytes(hexBytes);
                     }
                     if (base64Bytes != null) {
+                        if (dims != null && base64Bytes.length != element.getNumBytes(dims)) {
+                            throw invalidBase64Length(
+                                base64Bytes.length,
+                                "[query_vector] must contain a valid Base64-encoded byte vector"
+                            );
+                        }
                         return VectorData.fromBytes(base64Bytes);
                     }
                     throw invalidEncodedVector(base64Exception);
@@ -2943,7 +2950,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private static IllegalArgumentException invalidBase64Length(int length, String prefix) {
             return new IllegalArgumentException(
-                prefix + ", but the decoded bytes length [" + length + "] is not compatible with the expected vector length"
+                "failed to parse field [query_vector]: "
+                    + prefix
+                    + ", but the decoded bytes length ["
+                    + length
+                    + "] is not compatible with the expected vector length"
             );
         }
 

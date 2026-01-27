@@ -49,7 +49,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         FetchPhaseResponseStream stream = new FetchPhaseResponseStream(SHARD_INDEX, 0, new NoopCircuitBreaker("test"));
         try {
             FetchSearchResult result = buildFinalResult(stream);
-            assertThat(result.hits().getHits().length, equalTo(0));
+            try {
+                assertThat(result.hits().getHits().length, equalTo(0));
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -63,9 +67,13 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(1));
-            assertThat(getIdFromSource(hits[0]), equalTo(0));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(1));
+                assertThat(getIdFromSource(hits[0]), equalTo(0));
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -82,11 +90,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(15));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(15));
 
-            for (int i = 0; i < 15; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                for (int i = 0; i < 15; i++) {
+                    assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -118,11 +130,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(totalHits));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(totalHits));
 
-            for (int i = 0; i < totalHits; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                for (int i = 0; i < totalHits; i++) {
+                    assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -141,11 +157,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(5));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(5));
 
-            for (int i = 0; i < 5; i++) {
-                assertThat(getIdFromSource(hits[i]), equalTo(i));
+                for (int i = 0; i < 5; i++) {
+                    assertThat(getIdFromSource(hits[i]), equalTo(i));
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -169,11 +189,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(10));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(10));
 
-            for (int i = 0; i < 10; i++) {
-                assertThat(getIdFromSource(hits[i]), equalTo(i));
+                for (int i = 0; i < 10; i++) {
+                    assertThat(getIdFromSource(hits[i]), equalTo(i));
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -192,16 +216,20 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(6));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(6));
 
-            // source ids: 0, 1, 4, 5, 2, 3
-            assertThat(getIdFromSource(hits[0]), equalTo(0)); // seq 0
-            assertThat(getIdFromSource(hits[1]), equalTo(1)); // seq 1
-            assertThat(getIdFromSource(hits[2]), equalTo(4)); // seq 5
-            assertThat(getIdFromSource(hits[3]), equalTo(5)); // seq 6
-            assertThat(getIdFromSource(hits[4]), equalTo(2)); // seq 10
-            assertThat(getIdFromSource(hits[5]), equalTo(3)); // seq 11
+                // source ids: 0, 1, 4, 5, 2, 3
+                assertThat(getIdFromSource(hits[0]), equalTo(0)); // seq 0
+                assertThat(getIdFromSource(hits[1]), equalTo(1)); // seq 1
+                assertThat(getIdFromSource(hits[2]), equalTo(4)); // seq 5
+                assertThat(getIdFromSource(hits[3]), equalTo(5)); // seq 6
+                assertThat(getIdFromSource(hits[4]), equalTo(2)); // seq 10
+                assertThat(getIdFromSource(hits[5]), equalTo(3)); // seq 11
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -249,7 +277,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
         long bytesBeforeClose = breaker.getUsed();
         assertThat("Should have bytes tracked", bytesBeforeClose, equalTo(expectedBytes));
 
-        // Close the stream (decRef triggers closeInternal)
         stream.decRef();
 
         long bytesAfterClose = breaker.getUsed();
@@ -321,9 +348,13 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            // Hits should still have references after writeChunk
-            for (SearchHit hit : result.hits().getHits()) {
-                assertTrue("Hit should have references", hit.hasReferences());
+            try {
+                // Hits should still have references after writeChunk
+                for (SearchHit hit : result.hits().getHits()) {
+                    assertTrue("Hit should have references", hit.hasReferences());
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -343,7 +374,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            assertThat(result.hits().getMaxScore(), equalTo(4.8f));
+            try {
+                assertThat(result.hits().getMaxScore(), equalTo(4.8f));
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -364,7 +399,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
                 null
             );
 
-            assertTrue(Float.isNaN(result.hits().getMaxScore()));
+            try {
+                assertTrue(Float.isNaN(result.hits().getMaxScore()));
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -381,7 +420,11 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            assertThat(result.hits().getMaxScore(), equalTo(2.5f));
+            try {
+                assertThat(result.hits().getMaxScore(), equalTo(2.5f));
+            } finally {
+                result.decRef();
+            }
         } finally {
             stream.decRef();
         }
@@ -428,11 +471,15 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
 
             FetchSearchResult result = buildFinalResult(stream);
 
-            SearchHit[] hits = result.hits().getHits();
-            assertThat(hits.length, equalTo(totalHits));
+            try {
+                SearchHit[] hits = result.hits().getHits();
+                assertThat(hits.length, equalTo(totalHits));
 
-            for (int i = 0; i < totalHits; i++) {
-                assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                for (int i = 0; i < totalHits; i++) {
+                    assertThat("Hit at position " + i + " should have correct id in source", getIdFromSource(hits[i]), equalTo(i));
+                }
+            } finally {
+                result.decRef();
             }
         } finally {
             stream.decRef();
@@ -471,7 +518,6 @@ public class FetchPhaseResponseStreamTests extends ESTestCase {
                 () -> { stream.writeChunk(createChunkWithSourceSize(0, 5, 0, 10000), releasable); }
             );
 
-            // Releasable should NOT be closed on failure (per implementation's finally block logic)
             assertFalse("Releasable should not be closed on failure", releasableClosed.get());
         } finally {
             stream.decRef();

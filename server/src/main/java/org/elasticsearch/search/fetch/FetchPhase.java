@@ -385,7 +385,6 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     for (SearchHit hit : result.hits) {
                         if (hit != null) {
-                            // release all hits that would otherwise become owned and eventually released by SearchHits below
                             hit.decRef();
                         }
                     }
@@ -396,7 +395,7 @@ public final class FetchPhase {
                 resultToReturn = new SearchHits(result.hits, totalHits, context.getMaxScore());
                 listener.onResponse(new SearchHitsWithSizeBytes(resultToReturn, docsIterator.getRequestBreakerBytes()));
 
-                resultToReturn = null; // Ownership transferred
+                resultToReturn = null;
             } catch (Exception e) {
                 caughtException = e;
                 if (resultToReturn != null) {
@@ -413,20 +412,6 @@ public final class FetchPhase {
 
                 if (caughtException != null) {
                     listener.onFailure(caughtException);
-                }
-
-                // Release breaker bytes
-                long bytes = docsIterator.getRequestBreakerBytes();
-                if (bytes > 0L) {
-                    context.circuitBreaker().addWithoutBreaking(-bytes);
-                    if (LOGGER.isDebugEnabled()) {
-                        LOGGER.debug(
-                            "[f] Released [{}] breaker bytes for shard [{}], used breaker bytes [{}]",
-                            bytes,
-                            context.getSearchExecutionContext().getShardId(),
-                            context.circuitBreaker().getUsed()
-                        );
-                    }
                 }
             }
         } else {  // Streaming mode

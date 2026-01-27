@@ -50,6 +50,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodec;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.CustomBinaryDocValuesReader;
@@ -76,6 +77,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockShift;
     private final int numericBlockSize;
     private final int numericBlockMask;
+    private final NumericCodec numericCodec;
+    private final NumericBlockDecoder decoder;
 
     ES94TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
         throws IOException {
@@ -120,6 +123,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         this.numericBlockShift = blockShift;
         this.numericBlockSize = 1 << blockShift;
         this.numericBlockMask = numericBlockSize - 1;
+        this.numericCodec = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize);
+        this.decoder = numericCodec.newDecoder();
 
         String dataName = IndexFileNames.segmentFileName(state.segmentInfo.name, state.segmentSuffix, dataExtension);
         this.data = state.directory.openInput(dataName, state.context);
@@ -147,7 +152,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             this.version = version;
         } finally {
             if (success == false) {
-                IOUtils.closeWhileHandlingException(this.data);
+                IOUtils.closeWhileHandlingException(this.data, numericCodec);
             }
         }
     }
@@ -180,6 +185,8 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         this.numericBlockShift = numericBlockShift;
         this.numericBlockSize = 1 << numericBlockShift;
         this.numericBlockMask = numericBlockSize - 1;
+        this.numericCodec = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize);
+        this.decoder = numericCodec.newDecoder();
     }
 
     @Override
@@ -1546,7 +1553,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
 
     @Override
     public void close() throws IOException {
-        data.close();
+        IOUtils.close(data, numericCodec);
     }
 
     /**
@@ -1871,7 +1878,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         if (entry.docsWithFieldOffset == -1) {
             // dense
             return new BaseDenseNumericValues(maxDoc) {
-                private final NumericBlockDecoder decoder = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize).newDecoder();
+                private final NumericBlockDecoder decoder = ES94TSDBDocValuesProducer.this.decoder;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
                 // lookahead block
@@ -2001,7 +2008,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 entry.numValues
             );
             return new BaseSparseNumericValues(disi) {
-                private final NumericBlockDecoder decoder = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize).newDecoder();
+                private final NumericBlockDecoder decoder = ES94TSDBDocValuesProducer.this.decoder;
                 private IndexedDISI lookAheadDISI;
                 private long currentBlockIndex = -1;
                 private final long[] currentBlock = new long[numericBlockSize];
@@ -2172,7 +2179,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
 
         final long[] currentBlockIndex = { -1 };
         final long[] currentBlock = new long[numericBlockSize];
-        final NumericBlockDecoder decoder = ES94TSDBDocValuesFormat.createNumericCodec(numericBlockSize).newDecoder();
+        final NumericBlockDecoder decoder = this.decoder;
         return index -> {
             final long blockIndex = index >>> numericBlockShift;
             final int blockInIndex = (int) (index & numericBlockMask);

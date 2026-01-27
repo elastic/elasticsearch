@@ -163,8 +163,9 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             boolean success = false;
             final PackedValuesBlockHash packed = new PackedValuesBlockHash(specs, blockFactory, emitBatchSize);
             final BytesRefHashTable packedHash = packed.bytesRefHash;
-            final int intPosition = reverseOutput ? 1 : Long.BYTES;
-            final int longPosition = reverseOutput ? Integer.BYTES : 1;
+            // byte 0 is reserved for the null bits in the packed values hash
+            final int intPosition = 1 + (reverseOutput ? 0 : Long.BYTES);
+            final int longPosition = 1 + (reverseOutput ? Integer.BYTES : 0);
             try {
                 BytesRef packedKey = new BytesRef(new byte[1 + Long.BYTES + Integer.BYTES]);
                 for (int i = 0; i < entries; i++) {

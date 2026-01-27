@@ -78,7 +78,7 @@ pivot:
     "ES|QL": ":Search Relevance/ES|QL, :StorageEngine/ES|QL, :ml/ES|QL, :Analytics/ES|QL"
     EQL: ":Query Languages/EQL, :Analytics/EQL"
     Experiences: ":SearchOrg/Experiences"
-    "Extract&Transform": ":SearchOrg/Extract&Transform"
+    "Extract and transform": ":SearchOrg/Extract&Transform"
     # Features: TBD
     FIPS: ":Security/FIPS"
     Geo: ":Analytics/Geo"
@@ -95,7 +95,7 @@ pivot:
     # "Infra/Entitlements": ":Core/Infra/Entitlements"
     "Infra/Logging": ":Core/Infra/Logging"
     "Infra/Metrics": ":Core/Infra/Metrics"
-    "Infra/Node Lifecycle": ":Core/Infra/Node Lifecycle"
+    "Infra/Node lifecycle": ":Core/Infra/Node Lifecycle"
     "Infra/Plugins": ":Core/Infra/Plugins"
     "Infra/REST API": ":Core/Infra/REST API"
     "Infra/Resiliency": ":Core/Infra/Resiliency"
@@ -103,20 +103,20 @@ pivot:
     "Infra/Settings": ":Core/Infra/Settings"
     "Infra/Transport API": ":Core/Infra/Transport API"
     # Ingest: TBD
-    "Ingest Node": ":Distributed/Ingest Node"
+    "Ingest node": ":Distributed/Ingest Node"
     "Java High Level REST Client": ":Clients/Java High Level REST Client"
     "Java Low Level REST Client": ":Clients/Java Low Level REST Client"
     License: ":Security/License"
     # Logging: TBD
     Logs: ":StorageEngine/Logs, StorageEngine/Logs"
-    "Machine Learning": ":ml"
+    "Machine learning": ":ml"
     Mapping: ":StorageEngine/Mapping, :Search Foundations/Mapping"
     Monitoring: ":Core/Infra/Monitoring"
     Network: ":Distributed Coordination/Network"
     Packaging: ":Delivery/Packaging"
     Percolator: ":Search Relevance/Percolator"
     Performance: ":Performance"
-    "Query Languages": ":Query Languages/EQL, :Query Languages/SQL"
+    "Query languages": ":Query Languages/EQL, :Query Languages/SQL"
     Ranking: ":Search Relevance/Ranking"
     Recovery: ":Distributed Indexing/Recovery"
     Reindex: ":Distributed Indexing/Reindex"
@@ -126,12 +126,12 @@ pivot:
     "Searchable snapshots": ":Distributed Indexing/Searchable Snapshots"
     Security: ":Security/Security"
     SLM: ":Distributed/SLM, :Data Management/ILM+SLM"
-    "Snapshot/Restore": ":Distributed Coordination/Snapshot/Restore"
+    "Snapshot and restore": ":Distributed Coordination/Snapshot/Restore"
     SQL: ":Query Languages/SQL, :Analytics/SQL"
     Stats: ":Data Management/Stats"
     Store: ":Distributed Indexing/Store"
     Suggesters: ":Search Relevance/Suggesters"
-    "Task Management": ":Distributed Coordination/Task Management"
+    "Task management": ":Distributed Coordination/Task Management"
     TLS: ":Security/TLS"
     Transform: ":ml/Transform"
     TSDB: ":StorageEngine/TSDB"
@@ -216,7 +216,7 @@ block:
           - Autoscaling
           - CCR
           - CCS
-          - "Cluster Coordination"
+          - "Cluster coordination"
           - Codec
           - "Discovery-Plugins"
           - Engine
@@ -227,15 +227,15 @@ block:
           - "Infra/CLI"
           - "Infra/Logging"
           - "Infra/Metrics"
-          - "Infra/Node Lifecycle"
+          - "Infra/Node lifecycle"
           - "Infra/Plugins"
           - "Infra/Transport API"
           - License
           - Monitoring
           - Packaging
-          - "Searchable Snapshots"
+          - "Searchable snapshots"
           - SLM
-          - "Snapshot/Restore"
+          - "Snapshot and restore"
           - Stats
           - Watcher
         types:

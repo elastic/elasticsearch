@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.security.AccessControlException;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -56,24 +57,27 @@ public final class InstrumenterImpl implements Instrumenter {
     private final String classNameSuffix;
     private final Map<MethodKey, CheckMethod> checkMethods;
 
+    private final Class<?> notEntitledExceptionClass;
+
     InstrumenterImpl(
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods
+        Map<MethodKey, CheckMethod> checkMethods,
+        Class<?> notEntitledExceptionClass
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.checkMethods = checkMethods;
+        this.notEntitledExceptionClass = notEntitledExceptionClass;
     }
 
     public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
-
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, AccessControlException.class);
     }
 
     static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
@@ -344,7 +348,7 @@ public final class InstrumenterImpl implements Instrumenter {
             Label tryEnd = new Label();
             Label catchStart = new Label();
             Label catchEnd = new Label();
-            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/security/AccessControlException");
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, Type.getType(notEntitledExceptionClass).getInternalName());
             mv.visitLabel(tryStart);
             invokeInstrumentationMethod();
             mv.visitLabel(tryEnd);
@@ -370,6 +374,12 @@ public final class InstrumenterImpl implements Instrumenter {
             mv.visitLdcInsn("not entitled: ");
             mv.visitInsn(Opcodes.SWAP);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Exception", "getMessage", "()Ljava/lang/String;", false);
+            mv.visitInsn(Opcodes.DUP);
+            Label endIf = new Label();
+            mv.visitJumpInsn(Opcodes.IFNONNULL, endIf);
+            mv.visitInsn(Opcodes.POP);
+            mv.visitLdcInsn("[no information available]");
+            mv.visitLabel(endIf);
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/String", "concat", "(Ljava/lang/String;)Ljava/lang/String;", false);
             mv.visitInsn(Opcodes.SWAP);
             mv.visitMethodInsn(

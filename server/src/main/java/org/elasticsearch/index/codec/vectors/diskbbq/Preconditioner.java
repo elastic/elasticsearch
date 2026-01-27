@@ -191,9 +191,9 @@ public class Preconditioner {
     }
 
     // TODO: cache these preconditioners based on vectorDimension and blockDimension
-    //   need something thread safe and a way to clear the cache when done indexing (after flush or merge ... but that defeats the point)
-    //   maybe not possible or we limit it to a fixed number of cached preconditioners
-    //   maybe use setExpireAfterAccess in CacheBuilder; to be fair this code is not a hot path though
+    // need something thread safe and a way to clear the cache when done indexing (after flush or merge ... but that defeats the point)
+    // maybe not possible or we limit it to a fixed number of cached preconditioners
+    // maybe use setExpireAfterAccess in CacheBuilder; to be fair this code is not a hot path though
     public static Preconditioner createPreconditioner(int vectorDimension, int blockDimension) {
         if (blockDimension <= 0) {
             throw new IllegalArgumentException("block dimension must be positive but was [" + blockDimension + "]");

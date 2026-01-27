@@ -20,7 +20,6 @@ import reactor.core.scheduler.Schedulers;
 import reactor.netty.resources.ConnectionProvider;
 import reactor.netty.resources.LoopResources;
 
-import com.azure.core.http.HttpClient;
 import com.azure.core.http.HttpMethod;
 import com.azure.core.http.HttpPipelineCallContext;
 import com.azure.core.http.HttpPipelineNextPolicy;
@@ -184,11 +183,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
             .runOn(nioLoopResources)
             .option(ChannelOption.ALLOCATOR, byteBufAllocator);
 
-        final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true).proxy(proxyOptions).build();
+        final NettyAsyncHttpClientBuilder httpClientBuilder = new NettyAsyncHttpClientBuilder(nettyHttpClient).disableBufferCopy(true)
+            .proxy(proxyOptions);
+        if (settings.getReadTimeout().equals(TimeValue.MINUS_ONE) == false) {
+            httpClientBuilder.readTimeout(Duration.ofMillis(settings.getReadTimeout().millis()));
+        }
 
         final String connectionString = settings.getConnectString();
         BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString)
-            .httpClient(httpClient)
+            .httpClient(httpClientBuilder.build())
             .retryOptions(retryOptions);
 
         if (settings.hasCredentials() == false) {

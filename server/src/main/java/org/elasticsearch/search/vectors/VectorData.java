@@ -29,7 +29,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.Strings.format;
 
-public record VectorData(float[] floatVector, byte[] byteVector, String base64Vector) implements Writeable, ToXContentFragment {
+public record VectorData(float[] floatVector, byte[] byteVector, String stringVector) implements Writeable, ToXContentFragment {
 
     private static final TransportVersion QUERY_VECTOR_BASE64 = TransportVersion.fromName("knn_query_vector_base64");
 
@@ -41,16 +41,16 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         this(null, byteVector, null);
     }
 
-    public VectorData(String base64Vector) {
-        this(null, null, base64Vector);
+    public VectorData(String stringVector) {
+        this(null, null, stringVector);
     }
 
     public VectorData(StreamInput in) throws IOException {
-        this(in.readOptionalFloatArray(), in.readOptionalByteArray(), readOptionalBase64Vector(in));
+        this(in.readOptionalFloatArray(), in.readOptionalByteArray(), readOptionalStringVector(in));
     }
 
     public VectorData {
-        int count = (floatVector != null ? 1 : 0) + (byteVector != null ? 1 : 0) + (base64Vector != null ? 1 : 0);
+        int count = (floatVector != null ? 1 : 0) + (byteVector != null ? 1 : 0) + (stringVector != null ? 1 : 0);
         if (count != 1) {
             throw new IllegalArgumentException("please supply exactly one of a float vector, byte vector, or base64 vector");
         }
@@ -60,16 +60,16 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         return floatVector != null;
     }
 
-    public boolean isBase64() {
-        return base64Vector != null;
+    public boolean isStringVector() {
+        return stringVector != null;
     }
 
-    public String base64Vector() {
-        return base64Vector;
+    public String stringVector() {
+        return stringVector;
     }
 
     public byte[] asByteVector() {
-        if (base64Vector != null) {
+        if (stringVector != null) {
             throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
         }
         if (byteVector != null) {
@@ -84,7 +84,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
     }
 
     public float[] asFloatVector() {
-        if (base64Vector != null) {
+        if (stringVector != null) {
             throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
         }
         if (floatVector != null) {
@@ -98,7 +98,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
     }
 
     public void addToBuffer(DenseVectorFieldMapper.Element element, ByteBuffer byteBuffer) {
-        if (base64Vector != null) {
+        if (stringVector != null) {
             throw new IllegalStateException("base64 query vector must be resolved against the field type before use");
         }
         if (floatVector != null) {
@@ -110,7 +110,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (base64Vector != null && out.getTransportVersion().supports(QUERY_VECTOR_BASE64) == false) {
+        if (stringVector != null && out.getTransportVersion().supports(QUERY_VECTOR_BASE64) == false) {
             throw new IllegalArgumentException(
                 "query_vector contains base64 but transport version ["
                     + out.getTransportVersion()
@@ -120,7 +120,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         out.writeOptionalFloatArray(floatVector);
         out.writeOptionalByteArray(byteVector);
         if (out.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
-            out.writeOptionalString(base64Vector);
+            out.writeOptionalString(stringVector);
         }
     }
 
@@ -132,8 +132,8 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
                 builder.value(v);
             }
             builder.endArray();
-        } else if (base64Vector != null) {
-            builder.value(base64Vector);
+        } else if (stringVector != null) {
+            builder.value(stringVector);
         } else {
             builder.value(HexFormat.of().formatHex(byteVector));
         }
@@ -148,7 +148,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         if (byteVector != null) {
             return Arrays.toString(byteVector);
         }
-        return base64Vector;
+        return stringVector;
     }
 
     @Override
@@ -160,14 +160,42 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
             return false;
         }
         VectorData other = (VectorData) obj;
-        return Arrays.equals(floatVector, other.floatVector)
-            && Arrays.equals(byteVector, other.byteVector)
-            && Objects.equals(base64Vector, other.base64Vector);
+        if (Arrays.equals(floatVector, other.floatVector) == false) {
+            return false;
+        }
+        byte[] thisBytes = bytesOrNull();
+        byte[] otherBytes = other.bytesOrNull();
+        if (thisBytes != null || otherBytes != null) {
+            return Arrays.equals(thisBytes, otherBytes);
+        }
+        return Objects.equals(stringVector, other.stringVector);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(byteVector), base64Vector);
+        byte[] bytes = bytesOrNull();
+        if (bytes != null) {
+            return Objects.hash(Arrays.hashCode(floatVector), Arrays.hashCode(bytes));
+        }
+        return Objects.hash(Arrays.hashCode(floatVector), stringVector);
+    }
+
+    private static byte[] tryParseHex(String encoded) {
+        try {
+            return HexFormat.of().parseHex(encoded);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    private byte[] bytesOrNull() {
+        if (byteVector != null) {
+            return byteVector;
+        }
+        if (stringVector != null) {
+            return tryParseHex(stringVector);
+        }
+        return null;
     }
 
     public static VectorData parseXContent(XContentParser parser) throws IOException {
@@ -198,7 +226,7 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
     }
 
     private static VectorData parseStringVector(XContentParser parser) throws IOException {
-        return VectorData.fromBase64(parser.text());
+        return VectorData.fromStringVector(parser.text());
     }
 
     private static VectorData parseNumberVector(XContentParser parser) throws IOException {
@@ -213,11 +241,11 @@ public record VectorData(float[] floatVector, byte[] byteVector, String base64Ve
         return vec == null ? null : new VectorData(vec);
     }
 
-    public static VectorData fromBase64(String base64) {
-        return base64 == null ? null : new VectorData(null, null, base64);
+    public static VectorData fromStringVector(String encoded) {
+        return encoded == null ? null : new VectorData(null, null, encoded);
     }
 
-    private static String readOptionalBase64Vector(StreamInput in) throws IOException {
+    private static String readOptionalStringVector(StreamInput in) throws IOException {
         if (in.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
             return in.readOptionalString();
         }

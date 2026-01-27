@@ -74,6 +74,13 @@ setup:
 
 ---
 "Knn query with hex string for float field" :
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: 'string query_vector requires base64 query vector support in mixed clusters'
   # [64, 10, -30] - is encoded as '400ae2'
   # this will be properly decoded but only because:
   # (i) the provided input is compatible as the values are within [Byte.MIN_VALUE, Byte.MAX_VALUE] range
@@ -96,6 +103,13 @@ setup:
 
 ---
 "Knn query with hex string for byte field" :
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: 'string query_vector requires base64 query vector support in mixed clusters'
   # [64, 10, -30] - is encoded as '400ae2'
   - do:
       search:
@@ -115,6 +129,13 @@ setup:
 
 ---
 "Knn query with hex string for byte field - dimensions mismatch" :
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: 'string query_vector requires base64 query vector support in mixed clusters'
   # [64, 10, -30, 10] - is encoded as '400ae20a'
   # the error message has been adjusted in later versions
   - do:
@@ -131,6 +152,13 @@ setup:
 
 ---
 "Knn query with hex string for byte field - cannot decode string" :
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ knn_query_vector_base64 ]
+      test_runner_features: [ capabilities ]
+      reason: 'string query_vector requires base64 query vector support in mixed clusters'
   # '40af20a' is garbage :)
   - do:
       catch: /failed to parse field \[query_vector\]/

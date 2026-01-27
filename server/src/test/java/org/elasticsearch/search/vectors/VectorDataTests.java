@@ -137,7 +137,7 @@ public class VectorDataTests extends ESTestCase {
         ) {
             parser.nextToken();
             VectorData parsed = VectorData.parseXContent(parser);
-            assertTrue(parsed.isBase64());
+            assertTrue(parsed.isStringVector());
             DenseVectorFieldType fieldType = new DenseVectorFieldType(
                 "f",
                 IndexVersion.current(),

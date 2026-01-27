@@ -2700,10 +2700,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         public VectorData resolveQueryVector(VectorData queryVector) {
-            if (queryVector == null || queryVector.isBase64() == false) {
+            if (queryVector == null || queryVector.isStringVector() == false) {
                 return queryVector;
             }
-            VectorData decoded = decodeQueryVector(queryVector.base64Vector());
+            VectorData decoded = decodeQueryVector(queryVector.stringVector());
             int queryDims = decoded.isFloat() ? decoded.asFloatVector().length : decoded.asByteVector().length;
             element.checkDimensions(dims, queryDims);
             if (decoded.isFloat()) {

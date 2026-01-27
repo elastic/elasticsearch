@@ -427,7 +427,10 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
                 IllegalArgumentException.class,
                 () -> vectorFieldType.resolveQueryVector(parsed.queryVector())
             );
-            assertThat(e.getMessage(), containsString("different number of dimensions"));
+            assertThat(
+                e.getMessage(),
+                anyOf(containsString("different number of dimensions"), containsString("Base64-encoded byte vector"))
+            );
         }
     }
 

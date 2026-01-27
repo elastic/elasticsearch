@@ -841,6 +841,18 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
             }
             return NumericUtils.sortableLongToDouble(valueSums.longValue());
         }
+
+        @Override
+        public double minValue() throws IOException {
+            if (currentDocId == -1) {
+                throw new IllegalStateException("No histogram present for current document");
+            }
+            if (valueMinima == null || valueMinima.advanceExact(currentDocId) == false) {
+                // empty histogram
+                return Double.POSITIVE_INFINITY;
+            }
+            return NumericUtils.sortableLongToDouble(valueMinima.longValue());
+        }
     }
 
     private class ExponentialHistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

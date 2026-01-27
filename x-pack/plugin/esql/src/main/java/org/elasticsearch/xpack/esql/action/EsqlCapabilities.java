@@ -1369,32 +1369,32 @@ public class EsqlCapabilities {
         /**
          * Support timezones in DATE_TRUNC and dependent functions.
          */
-        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_TRUNC_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_DIFF.
          */
-        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_DIFF_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in KQL and QSTR.
          */
-        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        KQL_QSTR_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in the conversion utils and functions, like TO_STRING.
          */
-        TYPE_CONVERSION_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        TYPE_CONVERSION_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
-        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in + and - operators.
          */
-        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT,
 
         /**
          * (Re)Added EXPLAIN command

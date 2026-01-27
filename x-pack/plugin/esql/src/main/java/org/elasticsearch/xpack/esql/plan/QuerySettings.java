@@ -55,7 +55,7 @@ public class QuerySettings {
         name = "time_zone",
         type = { "keyword" },
         since = "9.4+",
-        description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter.\n"
+        description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
             + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones)."
     )
     @Example(file = "tbucket", tag = "set-timezone-example")

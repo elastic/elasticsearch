@@ -1163,23 +1163,21 @@ public abstract class DocsV3Support {
             builder.append(SETTINGS_WARNING);
 
             var settingName = param != null ? param.name() : mapParam.name();
-            builder.append(Strings.format("## `%s` [esql-%s]\n", settingName, settingName));
+            builder.append(Strings.format("`%s` [esql-%s]", settingName, settingName));
 
-            builder.append("```{applies_to}\n");
-            builder.append("serverless: ");
-            builder.append(setting.preview() ? "preview" : "ga");
-            builder.append("\n");
+            builder.append(" {applies_to}`serverless: ");
+            builder.append(setting.preview() ? "preview`" : "ga`");
             if (setting.serverlessOnly() == false) {
-                builder.append("stack: ");
+                builder.append(" {applies_to}`stack: ");
                 builder.append(setting.preview() ? "preview" : "ga");
                 String since = param != null ? param.since() : mapParam.since();
                 if (since.length() > 0) {
                     builder.append(" ");
                     builder.append(since);
                 }
-                builder.append("\n");
+                builder.append("`");
             }
-            builder.append("```\n\n");
+            builder.append("\n");
 
             builder.append(":   ");
             builder.append(param != null ? param.description() : mapParam.description());

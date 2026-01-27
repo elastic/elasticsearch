@@ -85,7 +85,7 @@ public class VectorScorerFloatBenchmarkTests extends ESTestCase {
                         continue;
                     }
 
-                    assertEquals(impl.toString(), expected, bench.scoreQuery(), delta);
+                    assertEquals(impl.toString(), expected, result, delta);
                 } finally {
                     bench.teardown();
                 }

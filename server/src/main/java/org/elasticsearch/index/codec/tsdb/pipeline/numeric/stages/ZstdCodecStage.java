@@ -65,8 +65,7 @@ public final class ZstdCodecStage implements PayloadCodecStage {
 
     @Override
     public void encode(final long[] values, int valueCount, final DataOutput out, final EncodingContext context) throws IOException {
-        final int uncompressedSize = valueCount * Long.BYTES;
-        if (uncompressedSize == 0) {
+        if (valueCount == 0) {
             out.writeVInt(0);
             return;
         }
@@ -75,6 +74,12 @@ public final class ZstdCodecStage implements PayloadCodecStage {
             throw new IllegalArgumentException("valueCount " + valueCount + " exceeds block size " + blockSize);
         }
 
+        if (valueCount < blockSize) {
+            Arrays.fill(values, valueCount, blockSize, 0L);
+            valueCount = blockSize;
+        }
+
+        final int uncompressedSize = valueCount * Long.BYTES;
         srcBuffer.buffer().clear();
         destBuffer.buffer().clear();
 

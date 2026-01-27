@@ -54,6 +54,31 @@ public class ZstdCodecStageTests extends PayloadCodecStageTestCase {
         assertRoundTrip(LongStream.generate(ZstdCodecStageTests::randomLong).limit(blockSize).toArray(), blockSize);
     }
 
+    public void testPartialBlockRoundTrip() throws IOException {
+        final int blockSize = randomBlockSize();
+        final int valueCount = randomIntBetween(1, blockSize - 1);
+        final long[] original = new long[blockSize];
+        for (int i = 0; i < valueCount; i++) {
+            original[i] = randomLong();
+        }
+
+        final long[] values = original.clone();
+        final EncodingContext encodingContext = createEncodingContext(blockSize);
+
+        try (ZstdCodecStage zstdStage = new ZstdCodecStage(blockSize, ZstdCodecStage.DEFAULT_COMPRESSION_LEVEL)) {
+            final byte[] dataBuffer = new byte[blockSize * Long.BYTES * 2];
+            final ByteArrayDataOutput dataOutput = new ByteArrayDataOutput(dataBuffer);
+            zstdStage.encode(values, valueCount, dataOutput, encodingContext);
+
+            final DecodingContext decodingContext = createDecodingContext(blockSize);
+            final ByteArrayDataInput dataInput = new ByteArrayDataInput(dataBuffer, 0, dataOutput.getPosition());
+            final long[] decoded = new long[blockSize];
+
+            assertEquals(blockSize, zstdStage.decode(decoded, dataInput, decodingContext));
+            assertArrayEquals(original, decoded);
+        }
+    }
+
     public void testCompressionLevel() throws IOException {
         final int blockSize = randomBlockSize();
         final long value = randomLong();

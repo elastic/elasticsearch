@@ -744,6 +744,18 @@ The broken snapshots usually lead to exception being thrown when accessed by API
 Since v8.16.0, there is also [VerifyRepositoryIntegrity API][] that can be used to actively scan the repository
 and identify any corrupted snapshots.
 
+The state of a repository must always transition through fully valid states in that there are no dangling references
+to non-existent blobs. This is an important property that guarantees the repository integrity as long as there is
+no external interference. We add new blobs before they become reachable from the root, then update the root blob,
+and only if the root-blob update succeeds do we delete any now-unreachable blobs. See also
+[Creation of a Snapshot](#creation-of-a-snapshot) and [Deletion of a Snapshot](#deletion-of-a-snapshot) for more details.
+
+It is worth note that repository's compatibility guarantee is more permissive than Elasticsearch's general version
+compatibility policy. A repository may contain snapshots from a version as old as 5.0.0 and, if it does, the repository
+layout must remain compatible (for reads and writes) with the oldest version in the repository so that these snapshots
+remain restorable in the corresponding versions. With older snapshots deleted, the repository will start using
+new format when possible (see also the static `IndexVersion` constants in `SnapshotsService`).
+
 [Repository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/Repository.java#L53
 [BlobStoreRepository]: https://github.com/elastic/elasticsearch/blob/2d4687af9bf21321573eb64eade0b0365213a303/server/src/main/java/org/elasticsearch/repositories/blobstore/BlobStoreRepository.java#L200
 [blobstore Java package documentation]: https://github.com/elastic/elasticsearch/blob/24fad8fac774983bb231da34321108abef102745/server/src/main/java/org/elasticsearch/repositories/blobstore/package-info.java#L11

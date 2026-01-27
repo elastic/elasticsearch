@@ -123,7 +123,7 @@ public class WriteLoadConstraintMonitor {
         logger.trace("processing new cluster info");
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
-        final Set<NodeIdName> writeNodeIdNamesExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Set<NodeIdName> writeNodesExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
         var haveWriteNodesBelowQueueLatencyThreshold = false;
         var totalIngestNodes = 0;
         for (var entry : clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
@@ -141,27 +141,27 @@ public class WriteLoadConstraintMonitor {
                 .get(ThreadPool.Names.WRITE);
             assert writeThreadPoolStats != null : "Write thread pool is not publishing usage stats for node [" + nodeId + "]";
             if (writeThreadPoolStats.maxThreadPoolQueueLatencyMillis() >= writeLoadConstraintSettings.getQueueLatencyThreshold().millis()) {
-                writeNodeIdNamesExceedingQueueLatencyThreshold.add(NodeIdName.nodeIdName(node));
+                writeNodesExceedingQueueLatencyThreshold.add(NodeIdName.nodeIdName(node));
             } else {
                 haveWriteNodesBelowQueueLatencyThreshold = true;
             }
         }
 
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
-        Set<NodeIdName> lastHotspotNodeIdNames = recordHotspotDurations(
+        Set<NodeIdName> lastHotspotNodes = recordHotspotDurations(
             state,
-            writeNodeIdNamesExceedingQueueLatencyThreshold,
+            writeNodesExceedingQueueLatencyThreshold,
             currentTimeMillis
         );
 
-        if (writeNodeIdNamesExceedingQueueLatencyThreshold.isEmpty()) {
+        if (writeNodesExceedingQueueLatencyThreshold.isEmpty()) {
             logger.trace("No hot-spotting write nodes detected");
             return;
         }
         if (haveWriteNodesBelowQueueLatencyThreshold == false) {
             logger.debug("""
                 Nodes [{}] are above the queue latency threshold, but there are no write nodes below the threshold. \
-                Cannot rebalance shards.""", nodeSummary(writeNodeIdNamesExceedingQueueLatencyThreshold));
+                Cannot rebalance shards.""", nodeSummary(writeNodesExceedingQueueLatencyThreshold));
             return;
         }
 
@@ -171,20 +171,20 @@ public class WriteLoadConstraintMonitor {
 
         // We know that there is at least one hot-spotting node if we've reached this code. Now check whether there are any new hot-spots
         // or hot-spots that are persisting and need further balancing work.
-        Set<NodeIdName> newHotspotNodeIdNames = Sets.difference(writeNodeIdNamesExceedingQueueLatencyThreshold, lastHotspotNodeIdNames);
-        if (haveCalledRerouteRecently == false || newHotspotNodeIdNames.isEmpty() == false) {
+        Set<NodeIdName> newHotspotNodes = Sets.difference(writeNodesExceedingQueueLatencyThreshold, lastHotspotNodes);
+        if (haveCalledRerouteRecently == false || newHotspotNodes.isEmpty() == false) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
                     """
                         Nodes [{}] are hot-spotting, of {} total ingest nodes. Reroute for hot-spotting {}. \
                         Previously hot-spotting nodes are [{}]. The write thread pool queue latency threshold is [{}]. Triggering reroute.
                         """,
-                    nodeSummary(writeNodeIdNamesExceedingQueueLatencyThreshold),
+                    nodeSummary(writeNodesExceedingQueueLatencyThreshold),
                     totalIngestNodes,
                     lastRerouteTimeMillis == 0
                         ? "has never previously been called"
                         : "was last called [" + TimeValue.timeValueMillis(timeSinceLastRerouteMillis) + "] ago",
-                    nodeSummary(lastHotspotNodeIdNames),
+                    nodeSummary(lastHotspotNodes),
                     writeLoadConstraintSettings.getQueueLatencyThreshold()
                 );
             }
@@ -199,7 +199,7 @@ public class WriteLoadConstraintMonitor {
             );
             lastRerouteTimeMillis = currentTimeMillisSupplier.getAsLong();
 
-            recordHotspotStartTimes(state, newHotspotNodeIdNames, currentTimeMillis);
+            recordHotspotStartTimes(state, newHotspotNodes, currentTimeMillis);
         } else {
             logger.debug(
                 "Not calling reroute because we called reroute [{}] ago and there are no new hot spots",
@@ -208,10 +208,10 @@ public class WriteLoadConstraintMonitor {
         }
     }
 
-    private void recordHotspotStartTimes(ClusterState state, Set<NodeIdName> newHotspotNodeIdNames, long startTimestamp) {
-        if (newHotspotNodeIdNames.size() > 0) {
+    private void recordHotspotStartTimes(ClusterState state, Set<NodeIdName> newHotspotNodes, long startTimestamp) {
+        if (newHotspotNodes.size() > 0) {
             Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
-            for (NodeIdName nodeIdName : newHotspotNodeIdNames) {
+            for (NodeIdName nodeIdName : newHotspotNodes) {
                 hotspotNodeStartTimesUpdate.put(nodeIdName, startTimestamp);
             }
             hotspotNodeStartTimes = new ImmutableOpenMap.Builder<NodeIdName, Long>().putAllFromMap(hotspotNodeStartTimesUpdate).build();
@@ -219,18 +219,18 @@ public class WriteLoadConstraintMonitor {
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
     }
 
-    private Set<NodeIdName> recordHotspotDurations(ClusterState state, Set<NodeIdName> currentHotspotNodeIdNames, long hotspotEndTime) {
+    private Set<NodeIdName> recordHotspotDurations(ClusterState state, Set<NodeIdName> currentHotspotNodes, long hotspotEndTime) {
         // reset hotspotNodeStartTimes if the term has changed
         if (state.term() != hotspotNodeStartTimesLastTerm || state.nodes().isLocalNodeElectedMaster() == false) {
             hotspotNodeStartTimesLastTerm = state.term();
             hotspotNodeStartTimes = Map.of();
         }
 
-        Set<NodeIdName> lastHotspotNodeIdNames = hotspotNodeStartTimes.keySet();
-        Set<NodeIdName> staleHotspotNodeIdNames = Sets.difference(lastHotspotNodeIdNames, currentHotspotNodeIdNames);
-        if (staleHotspotNodeIdNames.size() > 0) {
+        Set<NodeIdName> lastHotspotNodes = hotspotNodeStartTimes.keySet();
+        Set<NodeIdName> staleHotspotNodes = Sets.difference(lastHotspotNodes, currentHotspotNodes);
+        if (staleHotspotNodes.size() > 0) {
             Map<NodeIdName, Long> hotspotNodeStartTimesUpdate = new HashMap<>(hotspotNodeStartTimes);
-            for (NodeIdName nodeIdName : staleHotspotNodeIdNames) {
+            for (NodeIdName nodeIdName : staleHotspotNodes) {
                 assert hotspotNodeStartTimesUpdate.containsKey(nodeIdName) : "Map should contain key from its own subset";
                 long hotspotStartTime = hotspotNodeStartTimesUpdate.remove(nodeIdName);
                 long hotspotDuration = hotspotEndTime - hotspotStartTime;
@@ -245,7 +245,7 @@ public class WriteLoadConstraintMonitor {
 
         hotspotNodesCount.set(hotspotNodeStartTimes.size());
 
-        return lastHotspotNodeIdNames;
+        return lastHotspotNodes;
     }
 
     private List<LongWithAttributes> getHotspotNodesCount() {

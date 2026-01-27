@@ -35,7 +35,6 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreMode;
@@ -64,6 +63,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1281,7 +1281,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static ValuesSourceType fieldToVST(MappedFieldType fieldType) {
-        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test")).build(null, null).getValuesSourceType();
+        return fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test")).build(null, null).getValuesSourceType();
     }
 
     /**
@@ -1712,7 +1712,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         public AggTestConfig(AggregationBuilder builder, MappedFieldType... fieldTypes) {
             this(
-                new MatchAllDocsQuery(),
+                Queries.ALL_DOCS_INSTANCE,
                 builder,
                 DEFAULT_MAX_BUCKETS,
                 randomBoolean(),

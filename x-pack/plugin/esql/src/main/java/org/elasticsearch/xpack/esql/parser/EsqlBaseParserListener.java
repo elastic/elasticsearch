@@ -132,26 +132,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitField(EsqlBaseParser.FieldContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#rerankFields}.
-   * @param ctx the parse tree
-   */
-  void enterRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#rerankFields}.
-   * @param ctx the parse tree
-   */
-  void exitRerankFields(EsqlBaseParser.RerankFieldsContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#rerankField}.
-   * @param ctx the parse tree
-   */
-  void enterRerankField(EsqlBaseParser.RerankFieldContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#rerankField}.
-   * @param ctx the parse tree
-   */
-  void exitRerankField(EsqlBaseParser.RerankFieldContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#fromCommand}.
    * @param ctx the parse tree
    */
@@ -766,6 +746,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFuseConfiguration(EsqlBaseParser.FuseConfigurationContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   */
+  void enterFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#fuseKeyByFields}.
+   * @param ctx the parse tree
+   */
+  void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    */
@@ -805,6 +795,50 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitSetField(EsqlBaseParser.SetFieldContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorParameter}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorParameter}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorParameter(EsqlBaseParser.MmrQueryVectorParameterContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code mmrQueryVectorExpression}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void enterMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code mmrQueryVectorExpression}
+   * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
+   * @param ctx the parse tree
+   */
+  void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * @param ctx the parse tree
+   */
+  void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

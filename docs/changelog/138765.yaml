@@ -1,0 +1,5 @@
+pr: 138765
+summary: Feature/count by trunc with filter
+area: ES|QL
+type: feature
+issues: []

@@ -10,11 +10,13 @@
 | cartesian_shape | cartesian_shape | cartesian_shape |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
+| exponential_histogram | exponential_histogram | exponential_histogram |
 | geo_point | geo_point | geo_point |
 | geo_shape | geo_shape | geo_shape |
 | geohash | geohash | geohash |
 | geohex | geohex | geohex |
 | geotile | geotile | geotile |
+| histogram | histogram | histogram |
 | integer | integer | integer |
 | integer | | integer |
 | ip | ip | ip |
@@ -22,6 +24,7 @@
 | keyword | | keyword |
 | long | long | long |
 | long | | long |
+| tdigest | tdigest | tdigest |
 | text | text | keyword |
 | text | | keyword |
 | version | version | version |

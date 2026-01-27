@@ -18,7 +18,6 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -65,31 +64,11 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
      */
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
         List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType,
         PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
         return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                withNoRowsExpectingNull(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers))),
-                positionalErrorMessageSupplier
-            )
+            errorsForCasesWithoutExamples(withNoRowsExpectingNull(randomizeBytesRefsOffset(suppliers)), positionalErrorMessageSupplier)
         );
-    }
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        List<TestCaseSupplier> suppliers,
-        boolean entirelyNullPreservesType
-    ) {
-        return parameterSuppliersFromTypedData(anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)));
     }
 
     protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(List<TestCaseSupplier> suppliers) {
@@ -399,7 +378,7 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
         var blocksArraySize = randomIntBetween(1, 10);
         var resultBlockIndex = randomIntBetween(0, blocksArraySize - 1);
         var blocks = new Block[blocksArraySize];
-        try (var groups = IntVector.range(0, groupCount, driverContext().blockFactory())) {
+        try (var groups = driverContext().blockFactory().newIntRangeVector(0, groupCount)) {
             aggregator.evaluate(blocks, resultBlockIndex, groups, new GroupingAggregatorEvaluationContext(driverContext()));
 
             var block = blocks[resultBlockIndex];
@@ -561,8 +540,10 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
             case IP -> "Ip";
             case DATETIME, DATE_NANOS, LONG, COUNTER_LONG, UNSIGNED_LONG, GEOHASH, GEOTILE, GEOHEX -> "Long";
             case AGGREGATE_METRIC_DOUBLE -> "AggregateMetricDouble";
+            case DATE_RANGE -> "LongRange";
             case EXPONENTIAL_HISTOGRAM -> "ExponentialHistogram";
             case NULL -> "Null";
+            case TDIGEST -> "TDigest";
             default -> throw new UnsupportedOperationException("name for [" + type + "]");
         };
         return prefix + typeName;

@@ -315,7 +315,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;

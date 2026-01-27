@@ -30,9 +30,10 @@ import java.util.List;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
-    );
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG"); // So we log a profile
+        Clusters.addAdditionalLoggingSettings(spec);
+    });
 
     @Override
     protected String getTestRestCluster() {
@@ -58,16 +59,13 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected boolean supportsExponentialHistograms() {
         return RestEsqlTestCase.hasCapabilities(
             client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_PRE_TECH_PREVIEW_V8.capabilityName())
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
         );
     }
 
     @Override
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.TDIGEST_FIELD_TYPE_BASIC_FUNCTIONALITY.capabilityName())
-        );
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
     }
 
     @Before

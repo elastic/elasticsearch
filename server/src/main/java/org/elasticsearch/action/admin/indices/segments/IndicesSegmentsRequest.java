@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,9 +30,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
 
     public IndicesSegmentsRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            this.includeVectorFormatsInfo = in.readBoolean();
-        }
+        this.includeVectorFormatsInfo = in.readBoolean();
     }
 
     public IndicesSegmentsRequest(String... indices) {
@@ -53,9 +50,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBoolean(includeVectorFormatsInfo);
-        }
+        out.writeBoolean(includeVectorFormatsInfo);
     }
 
     @Override

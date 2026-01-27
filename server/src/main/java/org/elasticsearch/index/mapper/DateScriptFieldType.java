@@ -314,7 +314,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         return DateFieldType.handleNow(context, now -> {
             Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());

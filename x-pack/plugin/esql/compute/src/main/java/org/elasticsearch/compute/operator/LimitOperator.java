@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,6 +72,8 @@ public class LimitOperator implements Operator {
     @Override
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
+        rowsReceived += page.getPositionCount();
+
         final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
         if (acceptedRows == 0) {
             page.releaseBlocks();
@@ -82,7 +83,6 @@ public class LimitOperator implements Operator {
         } else {
             lastInput = page;
         }
-        rowsReceived += acceptedRows;
     }
 
     @Override
@@ -280,7 +280,7 @@ public class LimitOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

@@ -174,6 +174,29 @@ public class DataStreamAliasTests extends AbstractXContentSerializingTestCase<Da
         alias = new DataStreamAlias("my-alias", List.of("ds-1"), null, null);
         result = alias.removeDataStream("ds-2");
         assertThat(result, sameInstance(alias));
+        // Remove a filtered data stream
+        alias = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, Map.of("ds-2", Map.of("term", Map.of("field", "value"))));
+        result = alias.removeDataStream("ds-2");
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1"));
+        assertThat(result.getFilter("ds-2"), nullValue());
+    }
+
+    public void testRemovalOfOrphanedFilters() {
+        DataStreamAlias alias = new DataStreamAlias(
+            "my-alias",
+            List.of("ds-1", "ds-2"),
+            null,
+            Map.of("unknown", Map.of("term", Map.of("field", "value")))
+        );
+        DataStreamAlias result = alias.removeDataStream("unknown");
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
+        assertThat(result.getFilter("unknown"), nullValue());
+        result = alias.update("unknown", false, null);
+        assertThat(result, not(sameInstance(alias)));
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "unknown"));
+        assertThat(result.getFilter("unknown"), nullValue());
     }
 
     public void testIntersect() {

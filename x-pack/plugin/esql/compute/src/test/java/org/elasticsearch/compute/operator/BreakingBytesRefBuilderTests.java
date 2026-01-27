@@ -14,11 +14,15 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.io.stream.BytesRefStreamOutput;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutputHelper;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -164,14 +168,17 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
 
         @Override
         public void applyToBuilder(BreakingBytesRefBuilder builder) {
-            applyToStream(builder.stream());
+            applyToStream(new StreamWrapper(builder));
         }
 
         @Override
         public void applyToOracle(BytesRefBuilder oracle) {
-            BytesRefStreamOutput out = new BytesRefStreamOutput();
-            applyToStream(out);
-            oracle.append(out.get());
+            try (var out = Streams.flushOnCloseStream(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE))) {
+                applyToStream(out);
+                oracle.append(out.bytes().toBytesRef());
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
         private void applyToStream(StreamOutput out) {
@@ -183,6 +190,55 @@ public class BreakingBytesRefBuilderTests extends ESTestCase {
                 throw new UncheckedIOException(e);
             }
         }
+    }
+
+    private static class StreamWrapper extends StreamOutput {
+
+        private final BreakingBytesRefBuilder delegate;
+
+        private StreamWrapper(BreakingBytesRefBuilder delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public long position() {
+            return delegate.length();
+        }
+
+        @Override
+        public void writeByte(byte b) {
+            delegate.append(b);
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) {
+            delegate.append(b, offset, length);
+        }
+
+        @Override
+        public void writeString(String str) throws IOException {
+            StreamOutputHelper.writeString(str, this);
+        }
+
+        @Override
+        public void writeOptionalString(@Nullable String str) throws IOException {
+            StreamOutputHelper.writeOptionalString(str, this);
+        }
+
+        @Override
+        public void writeGenericString(String value) throws IOException {
+            StreamOutputHelper.writeGenericString(value, this);
+        }
+
+        @Override
+        public void flush() {}
+
+        /**
+         * Closes this stream to further operations. NOOP because we don't want to
+         * close the builder when we close.
+         */
+        @Override
+        public void close() {}
     }
 
     interface TestIteration {

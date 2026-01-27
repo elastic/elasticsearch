@@ -13,7 +13,7 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Hash$;
+import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -63,7 +63,7 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-    final $Hash$ hash;
+    final $Hash$Table hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -77,7 +77,7 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new $Hash$(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
 
     @Override
@@ -315,7 +315,7 @@ $endif$
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
     }
 
     @Override

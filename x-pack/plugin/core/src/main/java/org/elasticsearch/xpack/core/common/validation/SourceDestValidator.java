@@ -486,7 +486,7 @@ public final class SourceDestValidator {
             }
             Map<String, TransportVersion> oldRemoteClusterVersions = remoteClusterVersions.entrySet()
                 .stream()
-                .filter(entry -> entry.getValue().before(minExpectedVersion))
+                .filter(entry -> entry.getValue().supports(minExpectedVersion) == false)
                 .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (oldRemoteClusterVersions.isEmpty() == false) {
                 context.addValidationError(

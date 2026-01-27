@@ -55,6 +55,7 @@ interface ResultBuilder extends Releasable {
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
+            case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
             case EXPONENTIAL_HISTOGRAM -> new ResultBuilderForExponentialHistogram(blockFactory, positions);
             case TDIGEST -> new ResultBuilderForTDigest(blockFactory, positions);
             default -> {

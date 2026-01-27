@@ -16,3 +16,5 @@
               signal_reason: none
             - signal_reason: agent_stop
               limit: 3
+            - exit_status: "1"
+              limit: 1

@@ -225,9 +225,10 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
-            case TDIGEST -> ((TDigestBlockBuilder) builder).append((TDigestHolder) val);
             case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
             case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
+            case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
+            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
             case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
@@ -259,6 +260,7 @@ public final class BlockUtils {
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
             case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -320,8 +322,21 @@ public final class BlockUtils {
             }
             case TDIGEST -> {
                 TDigestBlock tDigestBlock = (TDigestBlock) block;
-                yield tDigestBlock.getTDigestHolder(offset);
-
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
+                yield new TDigestHolder(
+                    BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
+                    blockBacked.getMin(),
+                    blockBacked.getMax(),
+                    blockBacked.getSum(),
+                    blockBacked.getValueCount()
+                );
+            }
+            case LONG_RANGE -> {
+                LongRangeBlock b = (LongRangeBlock) block;
+                LongBlock fromBlock = b.getFromBlock();
+                LongBlock toBlock = b.getToBlock();
+                yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

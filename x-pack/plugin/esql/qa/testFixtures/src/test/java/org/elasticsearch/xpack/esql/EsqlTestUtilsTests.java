@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 
 import java.util.Set;
 
@@ -17,7 +16,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class EsqlTestUtilsTests extends ESTestCase {
 
     public void testPromQL() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL index=foo,bar step=1m (avg(foo_bar))", Set.of(), false),
             equalTo("PROMQL index=*:foo,foo,*:bar,bar step=1m (avg(foo_bar))")
@@ -41,7 +39,6 @@ public class EsqlTestUtilsTests extends ESTestCase {
     }
 
     public void testPromQLDefaultIndex() {
-        assumeTrue("requires snapshot build with promql feature enabled", PromqlFeatures.isEnabled());
         assertThat(
             EsqlTestUtils.addRemoteIndices("PROMQL step=1m (avg(baz))", Set.of(), false),
             equalTo("PROMQL index=*:*,* step=1m (avg(baz))")
@@ -53,6 +50,20 @@ public class EsqlTestUtilsTests extends ESTestCase {
             EsqlTestUtils.addRemoteIndices("SET a=b; FROM foo | SORT bar", Set.of(), false),
             equalTo("SET a=b; FROM *:foo,foo | SORT bar")
         );
+    }
+
+    public void testSetMultiline() {
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            SET a=b;
+            SET c=d;
+            FROM foo
+            | SORT bar
+            """, Set.of(), false), equalTo("""
+            SET a=b;
+            SET c=d;
+            FROM *:foo,foo
+            | SORT bar
+            """));
     }
 
     public void testMetadata() {
@@ -96,6 +107,22 @@ public class EsqlTestUtilsTests extends ESTestCase {
             | WHERE emp_no >= 10091 AND emp_no < 10094
             | SORT _index, emp_no
             | KEEP _index,  emp_no, languages, language_name"""));
+    }
+
+    public void testSubqueryWithSet() {
+        assertThat(EsqlTestUtils.addRemoteIndices("""
+            SET a = b;
+            SET x = y; FROM employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            """, Set.of(), false), equalTo("""
+            SET a = b;
+            SET x = y; FROM *:employees,employees, (FROM employees_incompatible
+                             | ENRICH languages_policy on languages with language_name )
+                       metadata _index
+            | EVAL emp_no = emp_no::long
+            """));
     }
 
     public void testTripleQuotes() {

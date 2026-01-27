@@ -12,9 +12,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIAccount;
-
-import java.net.URI;
 
 import static org.hamcrest.Matchers.is;
 
@@ -23,10 +20,7 @@ public class JinaAIRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader() {
         var request = new HttpPost("http://www.abc.com");
 
-        JinaAIRequest.decorateWithAuthHeader(
-            request,
-            new JinaAIAccount(URI.create("http://www.abc.com"), new SecureString(new char[] { 'a', 'b', 'c' }))
-        );
+        JinaAIRequest.decorateWithAuthHeader(request, new SecureString(new char[] { 'a', 'b', 'c' }));
 
         assertThat(request.getFirstHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(request.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer abc"));

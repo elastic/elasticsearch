@@ -1,0 +1,5 @@
+pr: 139409
+summary: Use new bulk scoring dot product for max inner product
+area: Vector Search
+type: enhancement
+issues: []

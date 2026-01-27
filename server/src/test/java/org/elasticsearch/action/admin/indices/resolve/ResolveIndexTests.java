@@ -330,6 +330,7 @@ public class ResolveIndexTests extends ESTestCase {
             project,
             IndicesOptions.LENIENT_EXPAND_OPEN,
             true,
+            false,
             requestedIndex
         );
         assertThat(resolvedIndices.size(), is(1));

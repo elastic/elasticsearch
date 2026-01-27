@@ -142,6 +142,117 @@ To retrieve vector values explicitly, you can use:
 For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
 :::
 
+### Docvalue output formats [dense-vector-docvalue-formats]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+You can return dense vector doc values using the `docvalue_fields` search option. The response format can be controlled per field:
+
+- `format: array` (default) returns the decoded vector values as a JSON array.
+- `format: binary` returns the raw vector bytes encoded as base64. This works whether the vector was originally indexed from an array or from a binary string. Numeric element types (`float`, `bfloat16`) are emitted in big-endian order; `byte` and `bit` vectors are returned exactly as stored.
+
+Example: retrieve dense vector doc values as arrays or base64-encoded bytes
+
+```console
+PUT dv-format
+{
+  "mappings": {
+    "properties": {
+      "vec_float": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 3,
+        "index": false
+      }
+    }
+  }
+}
+
+POST dv-format/_bulk?refresh
+{"index":{"_id":"1"}}
+{"vec_float":[1.5, 2.0, -3.25]}
+{"index":{"_id":"2"}}
+{"vec_float":[1.25, -2.5, 4.0]}
+
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": ["vec_float"],
+  "sort": "_id"
+}
+```
+
+Sample response (array format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            [1.5, 2.0, -3.25]
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            [1.25, -2.5, 4.0]
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+To retrieve the same vectors as base64-encoded bytes, request only the binary format:
+
+```console
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": [ { "field": "vec_float", "format": "binary" } ],
+  "sort": "_id"
+}
+```
+
+Sample response (binary format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            "P8AAAEAAAADAUAAA"
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            "P+AAAAAAAP+QEA=="
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+
 ### Storage behavior and `_source`
 
 By default, `dense_vector` fields are **not stored in `_source`** on disk. This is also controlled by the index setting `index.mapping.exclude_source_vectors`.
@@ -192,7 +303,7 @@ The `dense_vector` type supports quantization to reduce the memory footprint req
 
 * `int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
 * `int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
-* `bbq` - Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
+* `bbq` - [Better binary quantization](/reference/elasticsearch/mapping-reference/bbq.md) which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
 
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See [oversampling and rescoring](docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for more information.
 
@@ -365,7 +476,7 @@ $$$dense-vector-index-options$$$
     * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatic scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
     * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatic half-byte scalar quantization. Only supports `element_type` of `float` or `bfloat16`.
     * `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatic binary quantization. Only supports `element_type` of `float` or `bfloat16`.
-    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces rather than an entire graph structure as in with HNSW. Only supports `element_type` of `float` or `bfloat16`.  This combines the benefits of BBQ quantization with partitioning to further reduces the required memory overhead when compared with HNSW and can effectively be run at the smallest possible RAM and heap sizes when HNSW would otherwise cause swapping and grind to a halt.  DiskBBQ largely scales linearly with the total RAM.  And search performance is enhanced at scale as a subset of the total vector space is loaded. This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
+    * {applies_to}`stack: ga 9.2` `bbq_disk` - This utilizes a variant of [k-means clustering algorithm](https://en.wikipedia.org/wiki/K-means_clustering) in addition to automatic binary quantization to partition vectors and search subspaces that may be more memory friendly in comparison to HNSW. Only supports `element_type` of `float` or `bfloat16`.  To learn more, refer to [bbq_disk](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk). This requires an [Enterprise subscription](https://www.elastic.co/subscriptions).
 
 `m`
 :   (Optional, integer) The number of neighbors each node will be connected to in the HNSW graph. Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
@@ -382,7 +493,7 @@ $$$dense-vector-index-options$$$
 `cluster_size` {applies_to}`stack: ga 9.2`
 :   (Optional, integer) Only applicable to `bbq_disk`.  The number of vectors per cluster.  Smaller cluster sizes increases accuracy at the cost of performance. Defaults to `384`. Must be a value between `64` and `65536`.
 
-`rescore_vector` {applies_to}`stack: preview 9.0, ga 9.1`
+`rescore_vector` {applies_to}`stack: preview =9.0, ga 9.1+`
 :   (Optional, object) An optional section that configures automatic vector rescoring on knn queries for the given field. Only applicable to quantized index types.
 :::::{dropdown} Properties of rescore_vector
 `oversample`
@@ -509,17 +620,25 @@ POST /my-bit-vectors/_search?filter_path=hits.hits
 ```
 
 
+## GPU vector indexing
+```{applies_to}
+stack: preview 9.3
+```
+
+{{es}} can leverage  [GPU acceleration](gpu-vector-indexing.md)  to speed up the indexing of dense vectors.
+
+
 ## Updatable field type [_updatable_field_type]
 
 To better accommodate scaling and performance needs, updating the `type` setting in `index_options` is possible with the [Update Mapping API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-mapping), according to the following graph (jumps allowed):
 
-::::{tab-set}
-:::{tab-item} {{stack}} 9.1+
+::::{applies-switch}
+:::{applies-item} stack: ga 9.1+
 ```txt
 flat --> int8_flat --> int4_flat --> bbq_flat --> hnsw --> int8_hnsw --> int4_hnsw --> bbq_hnsw
 ```
 :::
-:::{tab-item} {{stack}} 9.0
+:::{applies-item} stack: ga =9.0
 ```txt
 flat --> int8_flat --> int4_flat --> hnsw --> int8_hnsw --> int4_hnsw
 ```

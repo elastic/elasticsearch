@@ -90,7 +90,7 @@ public class TestPlannerOptimizer {
             new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, esqlFlags, config, FoldContext.small(), searchStats),
             true
         );
-        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer);
+        var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer, null);
 
         // handle local reduction alignment
         l = PhysicalPlanOptimizerTests.localRelationshipAlignment(l);

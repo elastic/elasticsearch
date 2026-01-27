@@ -14,10 +14,9 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -35,11 +34,6 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalyticsPlugin());
-    }
-
-    @Before
-    public void setup() {
-        assumeTrue("Only when exponential_histogram feature flag is enabled", TDigestFieldMapper.TDIGEST_FIELD_MAPPER.isEnabled());
     }
 
     private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {
@@ -61,7 +55,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
                 if (ESTestCase.randomBoolean()) {
                     map.put("ignore_malformed", ESTestCase.randomBoolean());
                     map.put("compression", randomDoubleBetween(1.0, 1000.0, true));
-                    map.put("digest_type", randomFrom(TDigestState.Type.values()));
+                    map.put("digest_type", randomFrom(TDigestExecutionHint.values()));
                 }
                 return map;
             });
@@ -107,18 +101,12 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
             }
         }
 
-        long finalTotalCount = totalCount;
-        return Map.of(
-            "min",
-            valueAsMap.get("min"),
-            "max",
-            valueAsMap.get("max"),
-            "sum",
-            valueAsMap.get("sum"),
-            "value_count",
-            finalTotalCount,
-            "encoded_digest",
-            streamOutput.bytes().toBytesRef()
-        );
+        Map<String, Object> toReturn = new HashMap<>();
+        toReturn.put("encoded_digest", streamOutput.bytes().toBytesRef());
+        toReturn.put("min", valueAsMap.get("min"));
+        toReturn.put("max", valueAsMap.get("max"));
+        toReturn.put("sum", valueAsMap.get("sum"));
+        toReturn.put("value_count", totalCount);
+        return toReturn;
     }
 }

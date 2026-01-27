@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -15,7 +16,7 @@ import org.junit.rules.TestRule;
 
 public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
-    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture();
+    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(S3ConsistencyModel.AWS_DEFAULT);
 
     public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 
@@ -25,5 +26,10 @@ public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRest
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    @Override
+    S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.AWS_DEFAULT;
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -348,11 +347,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
             indexCreationDate = in.readOptionalLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                previousStepInfo = in.readOptionalBytesReference();
-            } else {
-                previousStepInfo = null;
-            }
+            previousStepInfo = in.readOptionalBytesReference();
             if (in.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 skip = in.readBoolean();
             } else {
@@ -406,9 +401,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
             out.writeOptionalLong(indexCreationDate);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalBytesReference(previousStepInfo);
-            }
+            out.writeOptionalBytesReference(previousStepInfo);
             if (out.getTransportVersion().supports(ILM_ADD_SKIP_SETTING)) {
                 out.writeBoolean(skip);
             }

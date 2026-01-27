@@ -26,7 +26,7 @@ public enum ZeroTermsQueryOption implements Writeable {
     },
     ALL(1) {
         public Query asQuery() {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     },
     // this is used internally to make sure that query_string and simple_query_string

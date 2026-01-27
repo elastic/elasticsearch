@@ -72,7 +72,6 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
         boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
         if (crossProjectEnabled) {
             submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
-            submit.getSearchRequest().setProjectRouting(request.param("project_routing"));
         }
 
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);

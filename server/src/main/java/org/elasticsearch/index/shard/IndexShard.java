@@ -356,7 +356,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
-        this.codecService = new CodecService(mapperService, bigArrays);
+        this.codecService = new CodecService(
+            mapperService,
+            bigArrays,
+            // Using this as a proxy on if the merge execution executor service exists
+            threadPoolMergeExecutorService == null ? null : threadPool
+        );
         this.warmer = warmer;
         this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
@@ -1751,7 +1756,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         lastSearcherAccess.lazySet(threadPool.relativeTimeInMillis());
     }
 
-    private Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
+    public Engine.Searcher wrapSearcher(Engine.Searcher searcher) {
         assert ElasticsearchDirectoryReader.unwrap(searcher.getDirectoryReader()) != null
             : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;

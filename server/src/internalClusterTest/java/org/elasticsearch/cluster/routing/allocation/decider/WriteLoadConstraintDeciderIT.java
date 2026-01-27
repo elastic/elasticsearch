@@ -10,8 +10,10 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceRequest;
 import org.elasticsearch.action.admin.cluster.allocation.DesiredBalanceResponse;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.allocation.TransportGetDesiredBalanceAction;
 import org.elasticsearch.action.admin.cluster.node.usage.NodeUsageStatsForThreadPoolsAction;
 import org.elasticsearch.action.admin.cluster.node.usage.TransportNodeUsageStatsForThreadPoolsAction;
@@ -27,11 +29,14 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
@@ -268,9 +273,51 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         reason = "track when reconciliation has completed",
         value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:DEBUG"
     )
-    public void testCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred() {
+    public void testAllocationExplainMoveShardNotPreferred() {
         TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
 
+        // Running the {@link #runCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred} logic should set up a cluster where
+        // shards are all allocated to a {@link AllocationDeciders#canRemain} {@link Decision#NOT_PREFERRED} node, while the other nodes
+        // return {@link AllocationDeciders#canAllocate} {@link Decision#NOT_PREFERRED} responses. This should exercise NOT_PREFERRED in
+        // the allocation/explain paths for remaining on a node AND assignment to other nodes.
+        runCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred(harness);
+        int numDataNodes = internalCluster().numDataNodes();
+        assertThat(
+            "test requires at least two nodes, one node for canRemain explanation, one for canAllocation explanation",
+            numDataNodes,
+            greaterThanOrEqualTo(2)
+        );
+
+        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(
+            harness.indexName
+        ).setShard(0).setPrimary(true);
+        var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
+        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+
+        var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
+        assertThat("Rebalancing should be disabled", decision.canRebalanceCluster(), equalTo(false));
+        assertThat(decision.getCanRemainDecision().type(), equalTo(Decision.NOT_PREFERRED.type()));
+        assertNull(decision.getTargetNode());
+        assertThat(decision.getAllocationDecision(), equalTo(AllocationDecision.NOT_PREFERRED));
+
+        var canAllocateDecisions = allocationExplainResponse.getExplanation()
+            .getShardAllocationDecision()
+            .getMoveDecision()
+            .getNodeDecisions();
+        assertThat(canAllocateDecisions.size(), equalTo(/* number of nodes to which the shard can be relocated = */ numDataNodes - 1));
+        canAllocateDecisions.forEach(nodeDecision -> assertThat(nodeDecision.getNodeDecision(), equalTo(AllocationDecision.NOT_PREFERRED)));
+    }
+
+    @TestLogging(
+        reason = "track when reconciliation has completed",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator:DEBUG"
+    )
+    public void testCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred() {
+        TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
+        runCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred(harness);
+    }
+
+    private void runCanRemainNotPreferredIsIgnoredWhenAllOtherNodesReturnNotPreferred(TestHarness harness) {
         /**
          * Override the {@link TransportNodeUsageStatsForThreadPoolsAction} action on the data nodes to supply artificial thread pool write
          * load stats. The stats will show all the nodes above the high utilization threshold, so they do not accept new shards, while the
@@ -453,6 +500,80 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             dumpClusterState();
             throw error;
         }
+    }
+
+    public void testAllocationExplainRebalancingNotPreferred() {
+        var harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
+
+        // Set up all data nodes to report write thread pool usage above the utilization threshold, to stop canAllocate, but no write thread
+        // pool queuing to force a shard relocation. This will leave all the data nodes unable to accept new shards when rebalancing
+        // attempts to redistribute shards more evenly than all shards on a single node.
+
+        final NodeUsageStatsForThreadPools firstNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
+            harness.firstDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools secondNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
+            harness.secondDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
+            0
+        );
+        final NodeUsageStatsForThreadPools thirdNodeAboveUtilizationThresholdNodeStats = createNodeUsageStatsForThreadPools(
+            harness.thirdDiscoveryNode,
+            harness.randomNumberOfWritePoolThreads,
+            randomIntBetween(harness.randomUtilizationThresholdPercent, 100) / 100f,
+            0
+        );
+        setUpMockTransportNodeUsageStatsResponse(harness.firstDiscoveryNode, firstNodeAboveUtilizationThresholdNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.secondDiscoveryNode, secondNodeAboveUtilizationThresholdNodeStats);
+        setUpMockTransportNodeUsageStatsResponse(harness.thirdDiscoveryNode, thirdNodeAboveUtilizationThresholdNodeStats);
+
+        // Override the {@link TransportIndicesStatsAction} action on the data nodes to supply artificial shard write load stats. The stats
+        // will show that all shards have non-empty write load stats (so that the WriteLoadDecider will evaluate assigning them to a node).
+        final ClusterState originalClusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
+        final IndexMetadata indexMetadata = originalClusterState.getMetadata().getProject().index(harness.indexName);
+        setUpMockTransportIndicesStatsResponse(
+            harness.firstDiscoveryNode,
+            indexMetadata.getNumberOfShards(),
+            createShardStatsResponseForIndex(indexMetadata, harness.maxShardWriteLoad, harness.firstDataNodeId)
+        );
+        setUpMockTransportIndicesStatsResponse(harness.secondDiscoveryNode, 0, List.of());
+        setUpMockTransportIndicesStatsResponse(harness.thirdDiscoveryNode, 0, List.of());
+
+        logger.info("---> Refreshing the cluster info to pull in the dummy thread pool stats from the data nodes");
+        refreshClusterInfo();
+
+        // Allow rebalancing and clear the exclusion setting that holds the shards on a single node.
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.ALL)
+                .putNull("cluster.routing.allocation.exclude._name")
+        );
+
+        logger.info("---> Rebalancing is now allowed");
+
+        ClusterAllocationExplainRequest allocationExplainRequest = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(
+            harness.indexName
+        ).setShard(0).setPrimary(true);
+        var allocationExplainResponse = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, allocationExplainRequest));
+        logger.info("---> Allocation explain response: " + Strings.toString(allocationExplainResponse.getExplanation(), true, true));
+
+        var decision = allocationExplainResponse.getExplanation().getShardAllocationDecision().getMoveDecision();
+        assertThat("Rebalancing should be enabled", decision.canRebalanceCluster(), equalTo(true));
+        assertThat(decision.getCanRemainDecision().type(), equalTo(Decision.YES.type()));
+        assertNull(decision.getTargetNode());
+        assertThat(decision.getAllocationDecision(), equalTo(AllocationDecision.NOT_PREFERRED));
+        assertThat(decision.getExplanation(), equalTo(Explanations.Rebalance.NOT_PREFERRED));
+
+        var canAllocateDecisions = allocationExplainResponse.getExplanation()
+            .getShardAllocationDecision()
+            .getMoveDecision()
+            .getNodeDecisions();
+        assertThat(canAllocateDecisions.size(), equalTo(2));
+        canAllocateDecisions.forEach(nodeDecision -> assertThat(nodeDecision.getNodeDecision(), equalTo(AllocationDecision.NOT_PREFERRED)));
     }
 
     /**

@@ -59,6 +59,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             rankWindowSize,
             size,
             queryVector,
+            null,
             lambda
         );
     }
@@ -92,11 +93,7 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
 
     private VectorData getRandomQueryVector() {
         if (randomBoolean()) {
-            float[] queryVector = new float[randomIntBetween(5, 256)];
-            for (int i = 0; i < queryVector.length; i++) {
-                queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
-            }
-            return new VectorData(queryVector);
+            return new VectorData(getRandomFloatQueryVector());
         }
 
         byte[] queryVector = new byte[randomIntBetween(5, 256)];
@@ -104,5 +101,13 @@ public class DiversifyRetrieverBuilderParsingTests extends AbstractXContentTestC
             queryVector[i] = randomByte();
         }
         return new VectorData(queryVector);
+    }
+
+    private float[] getRandomFloatQueryVector() {
+        float[] queryVector = new float[randomIntBetween(5, 256)];
+        for (int i = 0; i < queryVector.length; i++) {
+            queryVector[i] = randomFloatBetween(0.0f, 1.0f, true);
+        }
+        return queryVector;
     }
 }

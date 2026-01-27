@@ -76,7 +76,9 @@ public enum ElementType {
         BlockFactory::newExponentialHistogramBlockBuilder,
         ExponentialHistogramArrayBlock::readFrom
     ),
-    TDIGEST(12, "TDigest", BlockFactory::newTDigestBlockBuilder, TDigestArrayBlock::readFrom);
+    TDIGEST(12, "TDigest", BlockFactory::newTDigestBlockBuilder, TDigestArrayBlock::readFrom),
+
+    LONG_RANGE(13, "LongRange", BlockFactory::newLongRangeBlockBuilder, LongRangeArrayBlock::readFrom);
 
     private static final TransportVersion ESQL_SERIALIZE_BLOCK_TYPE_CODE = TransportVersion.fromName("esql_serialize_block_type_code");
 
@@ -129,6 +131,8 @@ public enum ElementType {
             elementType = EXPONENTIAL_HISTOGRAM;
         } else if (type != null && TDigestHolder.class.isAssignableFrom(type)) {
             elementType = TDIGEST;
+        } else if (type == LongRangeBlockBuilder.LongRange.class) {
+            elementType = LONG_RANGE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

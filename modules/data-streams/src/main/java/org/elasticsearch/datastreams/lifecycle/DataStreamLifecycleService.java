@@ -71,6 +71,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleIndexExecutor;
 import org.elasticsearch.datastreams.lifecycle.downsampling.DeleteSourceAndAddDownsampleToDS;
 import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthInfoPublisher;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -168,6 +171,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     final ResultDeduplicator<Tuple<ProjectId, String>, Void> clusterStateChangesDeduplicator;
     private final DataStreamLifecycleHealthInfoPublisher dslHealthInfoPublisher;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final List<DlmAction> actions;
     private LongSupplier nowSupplier;
     private final Clock clock;
     private final DataStreamLifecycleErrorStore errorStore;
@@ -216,7 +220,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         DataStreamLifecycleErrorStore errorStore,
         AllocationService allocationService,
         DataStreamLifecycleHealthInfoPublisher dataStreamLifecycleHealthInfoPublisher,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        List<DlmAction> actions
     ) {
         this.settings = settings;
         this.client = client;
@@ -246,6 +251,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
+        this.actions = actions;
     }
 
     /**
@@ -349,7 +355,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             try {
                 run(state.projectState(projectId));
             } catch (Exception e) {
-                logger.error(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
+                logger.warn(Strings.format("Data stream lifecycle failed to run on project [%s]", projectId), e);
             }
         }
     }
@@ -400,7 +406,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             } catch (Exception e) {
                 // individual index errors would be reported via the API action listener for every delete call
                 // we could potentially record errors at a data stream level and expose it via the _data_stream API?
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute retention for data stream [%s]",
@@ -415,7 +421,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     maybeExecuteForceMerge(project, getTargetIndices(dataStream, indicesToExcludeForRemainingRun, project::index, true))
                 );
             } catch (Exception e) {
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute force merge for data stream [%s]",
@@ -434,10 +440,23 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     )
                 );
             } catch (Exception e) {
-                logger.error(
+                logger.warn(
                     () -> String.format(
                         Locale.ROOT,
                         "Data stream lifecycle failed to execute downsampling for data stream [%s]",
+                        dataStream.getName()
+                    ),
+                    e
+                );
+            }
+
+            try {
+                indicesToExcludeForRemainingRun.addAll(maybeProcessDlmActions(projectState, dataStream, indicesToExcludeForRemainingRun));
+            } catch (Exception e) {
+                logger.warn(
+                    () -> String.format(
+                        Locale.ROOT,
+                        "Data stream lifecycle failed to execute actions for data stream [%s]",
                         dataStream.getName()
                     ),
                     e
@@ -455,6 +474,140 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             affectedDataStreams,
             project.id()
         );
+    }
+
+    /**
+     * Processes Data Lifecycle Management (DLM) actions for the given data stream.
+     * <p>
+     * For each configured {@link DlmAction}, this method:
+     *   * Determines if the action is scheduled for the data stream.
+     *   * Finds indices eligible for the action, excluding those in {@code indicesToExclude}.
+     *   * For each eligible index, iterates through the action's steps in reverse order until finding a step that is complete or
+     *     reaching the start of the list
+     *     * Iterate one step forward through the list to find the first incomplete step.
+     *     * Execute the step handling and logging any exceptions.
+     *     * Adds the index to {@code indicesToExclude} after a step is executed to avoid reprocessing in this run.
+     * <p>
+     * Any errors encountered during step completion checks or execution are logged, but do not prevent processing of
+     * other actions or indices.
+     *
+     * @param projectState      the current project state
+     * @param dataStream        the data stream to process
+     * @return The set of indices processed that should be ignored by later actions / included in stats
+     */
+    // Visible for testing
+    Set<Index> maybeProcessDlmActions(ProjectState projectState, DataStream dataStream, Set<Index> indicesToExclude) {
+        HashSet<Index> indicesProcessed = new HashSet<>();
+        for (DlmAction action : actions) {
+            TimeValue actionSchedule = action.applyAfterTime().apply(dataStream.getDataLifecycle());
+
+            if (actionSchedule == null) {
+                logger.trace(
+                    "Data stream lifecycle action [{}] is not scheduled for data stream [{}]",
+                    action.name(),
+                    dataStream.getName()
+                );
+                continue;
+            }
+
+            List<Index> indicesEligibleForAction = dataStream.getIndicesPastRetention(
+                indexName -> projectState.metadata().index(indexName),
+                nowSupplier,
+                actionSchedule,
+                false
+            );
+
+            indicesEligibleForAction.removeAll(indicesToExclude);
+            indicesEligibleForAction.removeAll(indicesProcessed);
+
+            logger.trace(
+                "Data stream lifecycle action [{}] found [{}] eligible indices for data stream [{}]",
+                action.name(),
+                indicesEligibleForAction.size(),
+                dataStream.getName()
+            );
+
+            for (Index index : indicesEligibleForAction) {
+                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+
+                if (stepToExecute != null) {
+                    try {
+                        logger.trace(
+                            "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
+                            stepToExecute.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            action.name()
+                        );
+                        stepToExecute.execute(
+                            new DlmStepContext(
+                                index,
+                                projectState,
+                                transportActionsDeduplicator,
+                                errorStore,
+                                signallingErrorRetryInterval,
+                                client
+                            )
+                        );
+                    } catch (Exception ex) {
+                        logger.warn(
+                            logger.getMessageFactory()
+                                .newMessage(
+                                    "Unable to execute step [{}] for action [{}] on datastream [{}] index [{}]",
+                                    stepToExecute.stepName(),
+                                    action.name(),
+                                    dataStream.getName(),
+                                    index.getName()
+                                ),
+                            ex
+                        );
+                        continue;
+                    }
+                    indicesProcessed.add(index);
+                }
+            }
+        }
+        return indicesProcessed;
+    }
+
+    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        DlmStep stepToExecute = null;
+        for (DlmStep step : action.steps().reversed()) {
+            try {
+                if (step.stepCompleted(index, projectState) == false) {
+                    stepToExecute = step;
+                    logger.trace(
+                        "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete",
+                        step.stepName(),
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName()
+                    );
+                } else {
+                    logger.trace(
+                        "Step [{}] for action [{}] on datastream [{}] index [{}] is already complete",
+                        step.stepName(),
+                        action.name(),
+                        dataStream.getName(),
+                        index.getName()
+                    );
+                    break;
+                }
+            } catch (Exception ex) {
+                logger.warn(
+                    logger.getMessageFactory()
+                        .newMessage(
+                            "Unable to execute check for step complete [{}] for action [{}] on datastream [{}] index [{}]",
+                            step.stepName(),
+                            action.name(),
+                            dataStream.getName(),
+                            index.getName()
+                        ),
+                    ex
+                );
+            }
+        }
+        return stepToExecute;
     }
 
     // visible for testing
@@ -899,7 +1052,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 );
             }
         } catch (Exception e) {
-            logger.error(
+            logger.warn(
                 () -> String.format(
                     Locale.ROOT,
                     "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
@@ -1478,11 +1631,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         ErrorEntry previousError = errorStore.recordError(projectId, targetIndex, e);
         ErrorEntry currentError = errorStore.getError(projectId, targetIndex);
         if (previousError == null || (currentError != null && previousError.error().equals(currentError.error()) == false)) {
-            logger.error(logMessage, e);
+            logger.warn(logMessage, e);
         } else {
             if (currentError != null) {
                 if (currentError.retryCount() % signallingErrorRetryThreshold == 0) {
-                    logger.error(
+                    logger.warn(
                         String.format(
                             Locale.ROOT,
                             "%s\nFailing since [%d], operation retried [%d] times",

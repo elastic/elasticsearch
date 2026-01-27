@@ -43,29 +43,25 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.getKey(), 2)
             .build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettingsTests.newIndexMeta("test", s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.routing_partition_size]"));
     }
 
     public void testSortField() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "a").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettingsTests.newIndexMeta("test", s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.field]"));
     }
 
     public void testSortMode() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey(), "_last").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettingsTests.newIndexMeta("test", s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.missing]"));
     }
 
     public void testSortOrder() {
         Settings s = Settings.builder().put(getSettings()).put(IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(), "desc").build();
-        IndexMetadata metadata = IndexSettingsTests.newIndexMeta("test", s);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new IndexSettings(metadata, Settings.EMPTY));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> IndexSettingsTests.newIndexMeta("test", s));
         assertThat(e.getMessage(), equalTo("[index.mode=time_series] is incompatible with [index.sort.order]"));
     }
 

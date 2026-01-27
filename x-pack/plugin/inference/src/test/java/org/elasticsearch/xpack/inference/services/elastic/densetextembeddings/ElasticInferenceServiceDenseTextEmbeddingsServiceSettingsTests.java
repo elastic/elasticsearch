@@ -147,8 +147,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettingsTests exte
             xContentResult,
             is(
                 Strings.format(
-                    """
-                        {"model_id":"%s","similarity":"%s","dimensions":%d,"max_input_tokens":%d,"rate_limit":{"requests_per_minute":%d}}""",
+                    "{\"model_id\":\"%s\",\"similarity\":\"%s\",\"dimensions\":%d,\"max_input_tokens\":%d,"
+                        + "\"rate_limit\":{\"requests_per_minute\":%d}}",
                     modelId,
                     serviceSettings.similarity(),
                     serviceSettings.dimensions(),

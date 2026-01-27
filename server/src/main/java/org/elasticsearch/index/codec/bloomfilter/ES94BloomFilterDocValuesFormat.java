@@ -503,7 +503,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
             this.bitsetSizeInBits = Math.multiplyExact(bitSetSizeInBytes, Byte.SIZE);
             this.bitSetSizeInBytes = bitSetSizeInBytes;
-            this.buffer = bigArrays.newByteArray(bitsetSizeInBits);
+            this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
         }
 
         byte get(int position) {

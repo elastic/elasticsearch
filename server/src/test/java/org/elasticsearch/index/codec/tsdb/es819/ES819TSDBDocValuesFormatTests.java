@@ -895,6 +895,132 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testDirectLengthReadReaderDense() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFieldMaxLength = randomIntBetween(1, 20);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFieldMaxLength)));
+                binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, binaryFieldMaxLength))));
+                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    var binaryFixedDV = getDenseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getDenseBinaryValues(leaf.reader(), binaryVariableField);
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc; i++) {
+                        {
+                            assertTrue(binaryFixedDV.advanceExact(i));
+                            var actual = binaryFixedDV.getLength();
+                            var expected = binaryFixedValues.removeLast().length;
+                            assertEquals(expected, actual);
+                        }
+                        {
+                            assertTrue(binaryVariableDV.advanceExact(i));
+                            var actual = binaryVariableDV.getLength();
+                            var expected = binaryVariableValues.removeLast().length;
+                            assertEquals(expected, actual);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void testDirectLengthReadReaderSparse() throws Exception {
+        final String timestampField = "@timestamp";
+        final String binaryFixedField = "binary_variable";
+        final String binaryVariableField = "binary_fixed";
+        final int binaryFieldMaxLength = randomIntBetween(1, 20);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            List<BytesRef> binaryFixedValues = new ArrayList<>();
+            List<BytesRef> binaryVariableValues = new ArrayList<>();
+            int numDocs = 256 + random().nextInt(8096);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                long timestamp = currentTimestamp;
+                // Index sorting doesn't work with NumericDocValuesField:
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
+
+                if (randomBoolean()) {
+                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFieldMaxLength)));
+                    binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, binaryFieldMaxLength))));
+                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
+                } else {
+                    binaryFixedValues.add(null);
+                    binaryVariableValues.add(null);
+                }
+
+                iw.addDocument(d);
+                if (i % 100 == 0) {
+                    iw.commit();
+                }
+                if (i < numDocs - 1) {
+                    currentTimestamp += 1000L;
+                }
+            }
+            iw.commit();
+            try (var reader = DirectoryReader.open(iw)) {
+                for (var leaf : reader.leaves()) {
+                    var binaryFixedDV = getSparseBinaryValues(leaf.reader(), binaryFixedField);
+                    var binaryVariableDV = getSparseBinaryValues(leaf.reader(), binaryVariableField);
+                    int maxDoc = leaf.reader().maxDoc();
+                    for (int i = 0; i < maxDoc; i++) {
+                        var expectedFixed = binaryFixedValues.removeLast();
+                        if (expectedFixed == null) {
+                            assertFalse(binaryFixedDV.advanceExact(i));
+                        } else {
+                            assertTrue(binaryFixedDV.advanceExact(i));
+                            var actual = binaryFixedDV.getLength();
+                            var expected = expectedFixed.length;
+                            assertEquals(expected, actual);
+                        }
+
+                        var expectedVariable = binaryVariableValues.removeLast();
+                        if (expectedVariable == null) {
+                            assertFalse(binaryVariableDV.advanceExact(i));
+                        } else {
+                            assertTrue(binaryVariableDV.advanceExact(i));
+                            var actual = binaryVariableDV.getLength();
+                            var expected = expectedVariable.length;
+                            assertEquals(expected, actual);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testOptionalColumnAtATimeReader() throws Exception {
         final String counterField = "counter";
         final String counterFieldAsString = "counter_as_string";

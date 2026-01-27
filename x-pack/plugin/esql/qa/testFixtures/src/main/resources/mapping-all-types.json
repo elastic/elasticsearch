@@ -10,7 +10,7 @@
         "byte" : {
             "type" : "byte"
         },
-        "constant_keyword": {
+        "constant_keyword-foo": {
             "type": "constant_keyword",
             "value": "foo"
         },

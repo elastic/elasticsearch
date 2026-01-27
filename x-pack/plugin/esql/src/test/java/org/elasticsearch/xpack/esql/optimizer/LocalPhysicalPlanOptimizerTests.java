@@ -787,7 +787,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
      * Expects e.g.
      * LimitExec[1000[INTEGER]]
      * \_ExchangeExec[[],false]
-     *   \_ProjectExec[[!alias_integer, boolean{f}#190, byte{f}#191, constant_keyword{f}#192, date{f}#193, double{f}#194, ...]]
+     *   \_ProjectExec[[!alias_integer, boolean{f}#190, byte{f}#191, constant_keyword-foo{f}#192, date{f}#193, double{f}#194, ...]]
      *     \_FieldExtractExec[!alias_integer, boolean{f}#190, byte{f}#191, consta..][]
      *       \_EsQueryExec[test], query[{"esql_single_value":{"field":"byte","next":{"match_all":{"boost":1.0}},...}}]
      */
@@ -2066,10 +2066,10 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword{f}#417, date{f}#418, date_nanos{f}#419,
+     * \_ExchangeExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
      *   double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
      *   !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432], false]
-     *   \_ProjectExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword{f}#417, date{f}#418, date_nanos{f}#419,
+     *   \_ProjectExec[[!alias_integer, boolean{f}#415, byte{f}#416, constant_keyword-foo{f}#417, date{f}#418, date_nanos{f}#419,
      *     double{f}#420, float{f}#421, half_float{f}#422, integer{f}#424, ip{f}#425, keyword{f}#426, long{f}#427, scaled_float{f}#423,
      *     !semantic_text, short{f}#429, text{f}#430, unsigned_long{f}#428, version{f}#431, wildcard{f}#432]]
      *     \_FieldExtractExec[!alias_integer, boolean{f}#415, byte{f}#416, consta..]
@@ -2078,7 +2078,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     public void testConstantKeywordWithMatchingFilter() {
         String queryText = """
             from test
-            | where `constant_keyword` == "foo"
+            | where `constant_keyword-foo` == "foo"
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
@@ -2094,17 +2094,17 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     * \_ExchangeExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
      *    float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
      *    short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], false]
-     *   \_LocalSourceExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
+     *   \_LocalSourceExec[[!alias_integer, boolean{f}#4, byte{f}#5, constant_keyword-foo{f}#6, date{f}#7, date_nanos{f}#8, double{f}#9,
      *     float{f}#10, half_float{f}#11, integer{f}#13, ip{f}#14, keyword{f}#15, long{f}#16, scaled_float{f}#12, !semantic_text,
      *     short{f}#18, text{f}#19, unsigned_long{f}#17, version{f}#20, wildcard{f}#21], EMPTY]
      */
     public void testConstantKeywordWithNonMatchingFilter() {
         String queryText = """
             from test
-            | where `constant_keyword` == "non-matching"
+            | where `constant_keyword-foo` == "non-matching"
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
@@ -2116,20 +2116,20 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     /**
      * LimitExec[1000[INTEGER]]
-     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
-     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     * \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
+     *   \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{r}#25, date{f}#9, date_nanos{f}#10, double{f}#1...
      *     \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, date{f}#9,
      *       \_LimitExec[1000[INTEGER]]
-     *         \_FilterExec[constant_keyword{r}#25 == [66 6f 6f][KEYWORD]]
-     *           \_MvExpandExec[constant_keyword{f}#8,constant_keyword{r}#25]
-     *             \_FieldExtractExec[constant_keyword{f}#8]
+     *         \_FilterExec[constant_keyword-foo{r}#25 == [66 6f 6f][KEYWORD]]
+     *           \_MvExpandExec[constant_keyword-foo{f}#8,constant_keyword-foo{r}#25]
+     *             \_FieldExtractExec[constant_keyword-foo{f}#8]
      *               \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[412]
      */
     public void testConstantKeywordExpandFilter() {
         String queryText = """
             from test
-            | mv_expand `constant_keyword`
-            | where `constant_keyword` == "foo"
+            | mv_expand `constant_keyword-foo`
+            | where `constant_keyword-foo` == "foo"
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);
@@ -2146,18 +2146,18 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     /**
-     * DissectExec[constant_keyword{f}#8,Parser[pattern=%{bar}, appendSeparator=, ...
+     * DissectExec[constant_keyword-foo{f}#8,Parser[pattern=%{bar}, appendSeparator=, ...
      * \_LimitExec[1000[INTEGER]]
-     *   \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
-     *     \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *   \_ExchangeExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
+     *     \_ProjectExec[[!alias_integer, boolean{f}#6, byte{f}#7, constant_keyword-foo{f}#8, date{f}#9, date_nanos{f}#10, double{f}#11...
      *       \_FieldExtractExec[!alias_integer, boolean{f}#6, byte{f}#7, constant_k..]
      *         \_EsQueryExec[test], indexMode[standard], query[][_doc{f}#25], limit[1000], sort[] estimatedRowSize[462]
      */
     public void testConstantKeywordDissectFilter() {
         String queryText = """
             from test
-            | dissect `constant_keyword` "%{bar}"
-            | where `constant_keyword` == "foo"
+            | dissect `constant_keyword-foo` "%{bar}"
+            | where `constant_keyword-foo` == "foo"
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
         var plan = plannerOptimizer.plan(queryText, CONSTANT_K_STATS, analyzer);

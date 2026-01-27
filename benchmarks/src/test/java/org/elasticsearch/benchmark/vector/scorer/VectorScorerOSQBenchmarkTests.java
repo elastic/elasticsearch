@@ -11,6 +11,7 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -111,7 +112,9 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 for (var bit : bits) {
                     var b = Integer.parseInt(bit);
                     for (var directoryType : VectorScorerOSQBenchmark.DirectoryType.values()) {
-                        combinations.add(new Object[] { d, b, directoryType });
+                        for (var similarityFunction : VectorSimilarityFunction.values()) {
+                            combinations.add(new Object[]{d, b, directoryType, similarityFunction});
+                        }
                     }
                 }
             }

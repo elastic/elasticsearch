@@ -516,7 +516,7 @@ the client but not written into a durable Lucene commit. At that point the shard
 
 In snapshot recovery, the data source is a snapshot of the index shard stored on a remote repository. Snapshot recovery,
 also managed in `StoreRecovery` but invoked through the `recoverFromRepository` method, downloads and unpacks the snapshot
-from the local repository into the local shard directory and then invokes the same logic as `EXISTING_STORE` to bring
+from the remote repository into the local shard directory and then invokes the same logic as `EXISTING_STORE` to bring
 the shard on line, with some small differences. The key one is that the snapshot is taken from a Lucene commit, and
 so it does not need to store the shard translog when the snapshot is taken, or restore it during recovery. Instead
 it creates a new empty translog before bringing the shard on line.

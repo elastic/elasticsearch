@@ -8,10 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SparklineLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SparklineAggregatorFunction;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -176,13 +179,18 @@ public class Sparkline extends AggregateFunction implements ToAggregator, Aggreg
         AggregatorFunctionSupplier supplier = null;
         if (field() instanceof ToAggregator toAggregator) {
             supplier = toAggregator.supplier();
+        } else {
+            throw new ElasticsearchStatusException(
+                Strings.format("Cannot create aggregator for [{}] of type [{}]", getWriteableName(), field().dataType()),
+                RestStatus.INTERNAL_SERVER_ERROR
+            );
         }
 
         var bucketExpr = new Bucket(source(), key, buckets, from, to, ConfigurationAware.CONFIGURATION_MARKER);
         var rounding = bucketExpr.getDateRounding(FoldContext.small(), null, null);
         var minDate = foldToLong(FoldContext.small(), bucketExpr.from());
         var maxDate = foldToLong(FoldContext.small(), bucketExpr.to());
-        return new SparklineLongAggregatorFunctionSupplier(rounding, minDate, maxDate, supplier);
+        return new SparklineAggregatorFunction.SparklineAggregatorFunctionSupplier(rounding, minDate, maxDate, supplier);
     }
 
     private long foldToLong(FoldContext ctx, Expression e) {

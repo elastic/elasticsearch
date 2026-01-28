@@ -14,8 +14,10 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.sort.LongLongBucketedSort;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -106,7 +108,7 @@ class SparklineLongAggregator {
             if (dateTrendPairs.containsKey(groupId)) {
                 dateTrendPairs.get(groupId).add(new DateTrendPair(date, trend));
             } else {
-                var list = new ArrayList<DateTrendPair>();
+                List<DateTrendPair> list = new ArrayList<>();
                 list.add(new DateTrendPair(date, trend));
                 dateTrendPairs.put(groupId, list);
             }
@@ -124,7 +126,7 @@ class SparklineLongAggregator {
         }
 
         Block toBlock(DriverContext driverContext, BlockFactory blockFactory, IntVector selected) {
-            var sort = new LongLongBucketedSort(driverContext.blockFactory().bigArrays(), SortOrder.ASC, LIMIT);
+            LongLongBucketedSort sort = new LongLongBucketedSort(driverContext.blockFactory().bigArrays(), SortOrder.ASC, LIMIT);
 
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int groupId = selected.getInt(i);
@@ -132,8 +134,8 @@ class SparklineLongAggregator {
                     // TODO: Improve error handling here.
                     throw new ElasticsearchStatusException("Missing data for group id " + groupId, RestStatus.INTERNAL_SERVER_ERROR);
                 }
-                var dateBucketedTrendValues = generateBucketData(dateTrendPairs.get(groupId));
-                var dateBucketedTrendValuesWithZeroBuckets = generateEmptyBuckets(dateBucketedTrendValues);
+                Map<Long, List<Long>> dateBucketedTrendValues = generateBucketData(dateTrendPairs.get(groupId));
+                Map<Long, List<Long>> dateBucketedTrendValuesWithZeroBuckets = generateEmptyBuckets(dateBucketedTrendValues);
                 addDateBucketedValuesToSort(sort, groupId, driverContext, blockFactory, dateBucketedTrendValuesWithZeroBuckets);
             }
 
@@ -144,13 +146,13 @@ class SparklineLongAggregator {
         }
 
         private Map<Long, List<Long>> generateBucketData(List<DateTrendPair> dateTrendPairs) {
-            var result = new HashMap<Long, List<Long>>();
+            Map<Long, List<Long>> result = new HashMap<>();
             for (DateTrendPair dateTrendPair : dateTrendPairs) {
-                var dateBucket = dateBucketRounding.round(dateTrendPair.date());
+                long dateBucket = dateBucketRounding.round(dateTrendPair.date());
                 if (result.containsKey(dateBucket)) {
                     result.get(dateBucket).add(dateTrendPair.trend());
                 } else {
-                    var list = new ArrayList<Long>();
+                    List<Long> list = new ArrayList<>();
                     list.add(dateTrendPair.trend());
                     result.put(dateBucket, list);
                 }
@@ -160,10 +162,10 @@ class SparklineLongAggregator {
         }
 
         private Map<Long, List<Long>> generateEmptyBuckets(Map<Long, List<Long>> dateToTrendMap) {
-            var currentBucket = dateBucketRounding.round(minDate);
+            long currentBucket = dateBucketRounding.round(minDate);
             while (currentBucket <= dateBucketRounding.round(maxDate)) {
                 if (dateToTrendMap.containsKey(currentBucket) == false) {
-                    var zeroValueList = new ArrayList<Long>();
+                    List<Long> zeroValueList = new ArrayList<>();
                     dateToTrendMap.put(currentBucket, zeroValueList);
                 }
                 currentBucket = dateBucketRounding.nextRoundingValue(currentBucket);
@@ -180,10 +182,10 @@ class SparklineLongAggregator {
             Map<Long, List<Long>> dateToTrendMap
         ) {
             // TODO: What should booleanVector actually be set to?
-            var booleanVector = blockFactory.newBooleanVectorBuilder(1).appendBoolean(true).build();
+            BooleanVector booleanVector = blockFactory.newBooleanVectorBuilder(1).appendBoolean(true).build();
             for (Map.Entry<Long, List<Long>> entry : dateToTrendMap.entrySet()) {
                 // TODO: How many channels are actually needed?
-                var agg = supplier.aggregator(driverContext, List.of(0, 1));
+                AggregatorFunction agg = supplier.aggregator(driverContext, List.of(0, 1));
                 for (Long trendValue : entry.getValue()) {
                     // TODO: Is this the best way to pass values to the underlying aggregater?
                     agg.addRawInput(
@@ -191,10 +193,10 @@ class SparklineLongAggregator {
                         booleanVector
                     );
                 }
-                var blocks = new Block[agg.intermediateBlockCount()];
+                Block[] blocks = new Block[agg.intermediateBlockCount()];
                 agg.evaluateFinal(blocks, 0, driverContext);
-                var resultBlock = blocks[0];
-                var resultVector = ((LongBlock) resultBlock).asVector();
+                Block resultBlock = blocks[0];
+                LongVector resultVector = ((LongBlock) resultBlock).asVector();
                 if (resultVector == null) {
                     sort.collect(entry.getKey(), 0L, groupId);
                 } else {
@@ -225,13 +227,13 @@ class SparklineLongAggregator {
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            try (var intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
+            try (IntVector intValues = driverContext.blockFactory().newConstantIntVector(0, 1)) {
                 internalState.toIntermediate(blocks, offset, intValues, driverContext);
             }
         }
 
         Block toBlock(DriverContext driverContext, BlockFactory blockFactory) {
-            try (var intValues = blockFactory.newConstantIntVector(0, 1)) {
+            try (IntVector intValues = blockFactory.newConstantIntVector(0, 1)) {
                 return internalState.toBlock(driverContext, blockFactory, intValues);
             }
         }

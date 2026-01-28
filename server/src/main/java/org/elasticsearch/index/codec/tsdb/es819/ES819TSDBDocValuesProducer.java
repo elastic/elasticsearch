@@ -231,11 +231,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
-                    public int getLength() {
-                        return length;
-                    }
-
-                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) doc * length, bytes.bytes, 0, length);
                         return bytes;
@@ -285,6 +280,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             }
                         }
                     }
+
+                    @Override
+                    int getLength() {
+                        return length;
+                    }
                 };
             } else {
                 // variable length
@@ -292,12 +292,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 final LongValues addresses = DirectMonotonicReader.getInstance(entry.addressesMeta, addressesData, merging);
                 return new DenseBinaryDocValues(maxDoc) {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
-
-                    @Override
-                    public int getLength() throws IOException {
-                        long startOffset = addresses.get(doc);
-                        return (int) (addresses.get(doc + 1L) - startOffset);
-                    }
 
                     @Override
                     public BytesRef binaryValue() throws IOException {
@@ -365,6 +359,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                             }
                         }
                     }
+
+                    @Override
+                    int getLength() {
+                        long startOffset = addresses.get(doc);
+                        return (int) (addresses.get(doc + 1L) - startOffset);
+                    }
                 };
             }
         } else {
@@ -384,14 +384,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[length], 0, length);
 
                     @Override
-                    public int getLength() throws IOException {
-                        return length;
-                    }
-
-                    @Override
                     public BytesRef binaryValue() throws IOException {
                         bytesSlice.readBytes((long) disi.index() * length, bytes.bytes, 0, length);
                         return bytes;
+                    }
+
+                    @Override
+                    int getLength() {
+                        return length;
                     }
                 };
             } else {
@@ -402,19 +402,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     final BytesRef bytes = new BytesRef(new byte[entry.maxLength], 0, entry.maxLength);
 
                     @Override
-                    public int getLength() throws IOException {
-                        final int index = disi.index();
-                        long startOffset = addresses.get(index);
-                        return (int) (addresses.get(index + 1L) - startOffset);
-                    }
-
-                    @Override
                     public BytesRef binaryValue() throws IOException {
                         final int index = disi.index();
                         long startOffset = addresses.get(index);
                         bytes.length = (int) (addresses.get(index + 1L) - startOffset);
                         bytesSlice.readBytes(startOffset, bytes.bytes, 0, bytes.length);
                         return bytes;
+                    }
+
+                    @Override
+                    int getLength() {
+                        final int index = disi.index();
+                        return (int) (addresses.get(index + 1L) - addresses.get(index));
                     }
                 };
             }
@@ -438,11 +437,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock
                 );
-
-                @Override
-                public int getLength() throws IOException {
-                    return decoder.decodeLength(doc, entry.numCompressedBlocks);
-                }
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -487,6 +481,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         }
                     }
                 }
+
+                @Override
+                int getLength() throws IOException {
+                    return decoder.decodeLength(doc, entry.numCompressedBlocks);
+                }
             };
         } else {
             // sparse
@@ -514,17 +513,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 );
 
                 @Override
-                public int getLength() throws IOException {
-                    return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
-                }
-
-                @Override
                 public BytesRef binaryValue() throws IOException {
                     return decoder.decode(disi.index(), entry.numCompressedBlocks);
                 }
+
+                @Override
+                int getLength() throws IOException {
+                    return decoder.decodeLength(disi.index(), entry.numCompressedBlocks);
+                }
             };
         }
-
     }
 
     // Decompresses blocks of binary values to retrieve content
@@ -650,6 +648,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return uncompressedBytesRef;
         }
 
+        /**
+         * A BinaryDecoder should only call decode, decodeBulk, or decodeLength.
+         * The same decoder should never be used to called multiple of these methods
+         */
         int decodeLength(int docNumber, int numBlocks) throws IOException {
             // docNumber, rather than docId, because these are dense and could be indices from a DISI
             long blockId = findAndUpdateBlock(docNumber, numBlocks);
@@ -750,7 +752,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     abstract static class DenseBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            DirectLengthReader {
+            BlockLoader.OptionalLengthReader {
 
         final int maxDoc;
         int doc = -1;
@@ -806,12 +808,36 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         ) throws IOException {
             return null;
         }
+
+        abstract int getLength() throws IOException;
+
+        @Override
+        @Nullable
+        public BlockLoader.Block tryReadLength(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered
+        ) throws IOException {
+            int count = docs.count() - offset;
+            try (var builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (advanceExact(doc)) {
+                        builder.appendInt(getLength());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
+        }
     }
 
     abstract static class SparseBinaryDocValues extends BinaryDocValues
         implements
             BlockLoader.OptionalColumnAtATimeReader,
-            DirectLengthReader {
+            BlockLoader.OptionalLengthReader {
 
         final IndexedDISI disi;
 
@@ -861,6 +887,30 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             boolean binaryMultiValuedFormat
         ) throws IOException {
             return null;
+        }
+
+        abstract int getLength() throws IOException;
+
+        @Override
+        @Nullable
+        public BlockLoader.Block tryReadLength(
+            BlockLoader.BlockFactory factory,
+            BlockLoader.Docs docs,
+            int offset,
+            boolean nullsFiltered
+        ) throws IOException {
+            int count = docs.count() - offset;
+            try (var builder = factory.ints(count)) {
+                for (int i = offset; i < docs.count(); i++) {
+                    int doc = docs.get(i);
+                    if (advanceExact(doc)) {
+                        builder.appendInt(getLength());
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
+            }
         }
     }
 

@@ -47,7 +47,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 for (String line : rulesList) {
                     sb.append(line).append(System.lineSeparator());
                 }
-                return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings");
+                return new ReaderWithOrigin(new StringReader(sb.toString()), "'" + factory.name() + "' analyzer settings", INLINE);
             }
         },
         INDEX("synonyms_set") {
@@ -68,12 +68,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     reader = new ReaderWithOrigin(
                         new StringReader(""),
                         "fake empty [" + synonymsSet + "] synonyms_set in .synonyms index",
+                        INDEX,
                         synonymsSet
                     );
                 } else {
                     reader = new ReaderWithOrigin(
                         Analysis.getReaderFromIndex(synonymsSet, factory.synonymsManagementAPIService, factory.lenient),
                         "[" + synonymsSet + "] synonyms_set in .synonyms index",
+                        INDEX,
                         synonymsSet
                     );
                 }
@@ -88,7 +90,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 return new ReaderWithOrigin(
                     // Pass the inline setting name because "_path" is appended by getReaderFromFile
                     Analysis.getReaderFromFile(factory.environment, synonymsPath, SynonymsSource.INLINE.getSettingName()),
-                    synonymsPath
+                    synonymsPath,
+                    LOCAL_FILE
                 );
             }
         };
@@ -242,9 +245,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
     }
 
-    record ReaderWithOrigin(Reader reader, String origin, String resource) {
-        ReaderWithOrigin(Reader reader, String origin) {
-            this(reader, origin, null);
+    record ReaderWithOrigin(Reader reader, String origin, SynonymsSource synonymsSource, String resource) {
+        ReaderWithOrigin(Reader reader, String origin, SynonymsSource synonymsSource) {
+            this(reader, origin, synonymsSource, null);
         }
     }
 }

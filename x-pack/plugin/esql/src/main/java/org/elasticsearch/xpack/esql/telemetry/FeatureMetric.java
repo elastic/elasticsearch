@@ -81,7 +81,7 @@ public enum FeatureMetric {
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
     MMR(MMR.class::isInstance),
-    PROMQL(PromqlCommand.class::isInstance);
+    PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance);
 
     /**

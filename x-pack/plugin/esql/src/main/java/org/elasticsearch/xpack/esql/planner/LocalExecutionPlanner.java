@@ -1183,7 +1183,13 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description, warningsMode);
+            var driverContext = new DriverContext(
+                bigArrays,
+                blockFactory.newChildFactory(localBreaker),
+                localBreakerSettings,
+                description,
+                warningsMode
+            );
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

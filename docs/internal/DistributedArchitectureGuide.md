@@ -476,7 +476,7 @@ works in parallel with the storage engine.)
 
 # Recovery
 
-When a shard is first created on a node, it starts out empty. *Recovery* is the process of loading the shard's data from
+When a shard is created on a node, it starts out empty. *Recovery* is the process of loading the shard's data from
 some data source into the newly created `IndexShard` in order to make it available for index or search requests.
 When the shard allocation process has chosen a node for a shard, it records its choice by writing an updated [ShardRouting][]
 record into the cluster state's [IndexRoutingTable][]. The [ShardRouting][] entry includes [RecoverySource][] metadata that
@@ -552,11 +552,11 @@ load on the source shard.
 The next step is to transfer any operations from the source translog. Since the source shard is active,
 it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
 new operations, the source shard adds the target to the shard's replication group (see the [replication][#Replication] docs)
-by adding the target shard to the shard's recovery group *before* completing the operation transfer phase. Because of this
-ordering, any operations accepted on the shard between the time it reads and sends the latest operation in the translog and the
-time the replica completes recovery are sent through the request replication process and will not be lost. Once the target
-has been added to the recovery group, the source reads the latest sequence number from its transaction log knowing that
-any updates past that will be handled by recovery, and replays the translog to the target up to that point.
+*before* completing the operation transfer phase. Because of this ordering, any operations accepted on the shard between the
+time it reads and sends the latest operation in the translog and the time the replica completes recovery are sent through the
+request replication process and will not be lost. Once the target has been added to the recovery group, the source reads the
+latest sequence number from its transaction log knowing that any updates past that will be handled by recovery, and replays
+the translog to the target up to that point.
 
 At this point the target is ready to be started as an in sync replica. However, peer recovery is also used to perform
 primary relocation. If the target shard is being recovered in order to take over as primary, then the finalization

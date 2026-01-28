@@ -337,6 +337,11 @@ allprojects {
     if (project.path == ':') {
       resolveJavaToolChain = true
     }
+    project.pluginManager.withPlugin('elasticsearch.mrjar') {
+      // ensure we implicitly resolve all jdks needed from the java toolchain resolution
+      println "Configuring resolveAllDependencies to depend on JavaCompile tasks for project ${project.path} because it applies the mrjar plugin"
+      dependsOn project.getTasks().withType(JavaCompile.class)
+    }
     // we run the packer script for all active branches. so we should be able to skip bwc here
     if(project.path.startsWith(":distribution:bwc:")) {
       enabled = false

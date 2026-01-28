@@ -69,6 +69,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
@@ -88,10 +89,10 @@ public class ElasticInferenceService extends SenderService {
     public static final String NAME = "elastic";
     public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
     public static final Integer DENSE_TEXT_EMBEDDINGS_DIMENSIONS = 1024;
-    // The maximum batch size for sparse text embeddings is set to 16.
+    // The default maximum batch size for sparse text embeddings is set to 16.
     // This value was reduced from 512 due to memory constraints; batch sizes above 32 can cause GPU out-of-memory errors.
     // A batch size of 16 provides optimal throughput and stability, especially on lower-tier instance types.
-    public static final Integer SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
+    public static final Integer DEFAULT_SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE = 16;
 
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(
         TaskType.SPARSE_EMBEDDING,
@@ -102,9 +103,9 @@ public class ElasticInferenceService extends SenderService {
     private static final String SERVICE_NAME = "Elastic";
 
     // TODO: revisit this value once EIS supports dense models
-    // The maximum batch size for dense text embeddings is proactively set to 16.
+    // The default maximum batch size for dense text embeddings is proactively set to 16.
     // This mirrors the memory constraints observed with sparse embeddings
-    private static final Integer DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
+    private static final Integer DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE = 16;
 
     // rainbow-sprinkles
     static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
@@ -184,7 +185,7 @@ public class ElasticInferenceService extends SenderService {
                     DEFAULT_ELSER_ENDPOINT_ID_V2,
                     TaskType.SPARSE_EMBEDDING,
                     NAME,
-                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null),
+                    new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null, null),
                     EmptyTaskSettings.INSTANCE,
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents,
@@ -356,42 +357,38 @@ public class ElasticInferenceService extends SenderService {
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseTextEmbeddingsModel) {
-            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
-
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                inputs,
-                DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
-                denseTextEmbeddingsModel.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
-
-            for (var request : batchedRequests) {
-                var action = denseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
-            }
-
+        EmbeddingRequestChunker<?> embeddingRequestChunker = createEmbeddingRequestChunker(model, inputs);
+        if (model instanceof ElasticInferenceServiceExecutableActionModel == false || embeddingRequestChunker == null) {
+            // Model cannot perform chunked inference
+            listener.onFailure(createInvalidModelException(model));
             return;
         }
 
-        if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseTextEmbeddingsModel) {
-            var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
-
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-                inputs,
-                SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE,
-                model.getConfigurations().getChunkingSettings()
-            ).batchRequestsWithListeners(listener);
-
-            for (var request : batchedRequests) {
-                var action = sparseTextEmbeddingsModel.accept(actionCreator, taskSettings);
-                action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
-            }
-
-            return;
+        ElasticInferenceServiceExecutableActionModel eisModel = (ElasticInferenceServiceExecutableActionModel) model;
+        var batchedRequests = embeddingRequestChunker.batchRequestsWithListeners(listener);
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), getCurrentTraceInfo());
+        for (var request : batchedRequests) {
+            var action = eisModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
+    }
 
-        // Model cannot perform chunked inference
-        listener.onFailure(createInvalidModelException(model));
+    EmbeddingRequestChunker<?> createEmbeddingRequestChunker(Model model, List<ChunkInferenceInput> inputs) {
+        if (model instanceof ElasticInferenceServiceDenseTextEmbeddingsModel denseModel) {
+            return new EmbeddingRequestChunker<>(
+                inputs,
+                DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                denseModel.getConfigurations().getChunkingSettings()
+            );
+        }
+        if (model instanceof ElasticInferenceServiceSparseEmbeddingsModel sparseModel) {
+            return new EmbeddingRequestChunker<>(
+                inputs,
+                Optional.ofNullable(sparseModel.getServiceSettings().maxBatchSize()).orElse(DEFAULT_SPARSE_TEXT_EMBEDDING_MAX_BATCH_SIZE),
+                sparseModel.getConfigurations().getChunkingSettings()
+            );
+        }
+        return null;
     }
 
     @Override
@@ -663,6 +660,19 @@ public class ElasticInferenceService extends SenderService {
                         .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.put(
+                    ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.SPARSE_EMBEDDING)).setDescription(
+                        "Allows you to specify the maximum number of chunks per batch."
+                    )
+                        .setLabel("Maximum Batch Size")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(true)
                         .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );

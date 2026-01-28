@@ -1161,6 +1161,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
@@ -1794,7 +1799,7 @@ public class EsqlCapabilities {
         CHUNK_FUNCTION_V2(),
 
         /**
-         * Support for vector similarity functtions pushdown
+         * Support for vector similarity functions pushdown
          */
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
@@ -1986,6 +1991,11 @@ public class EsqlCapabilities {
          * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
          */
         RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATION(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -21,7 +21,6 @@ public final class ReplaceLimitAndSortAsTopN extends OptimizerRules.OptimizerRul
     protected LogicalPlan rule(Limit limit) {
         LogicalPlan p = limit;
 
-        // TODO Is this correct for a constant? Would we have to introduce a new column with that constant name?
         if (limit.child() instanceof OrderBy o) {
             if (limit.groupings().stream().allMatch(Expression::foldable)) {
                 p = new TopN(o.source(), o.child(), o.order(), limit.limit(), List.of(), false);

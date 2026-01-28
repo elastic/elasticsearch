@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.plan.logical.TopN.ESQL_TOPN_GROUPINGS;
+
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -49,7 +51,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
      */
     private final Integer estimatedRowSize;
 
-    private final List<Expression> groupings;
+    private List<Expression> groupings;
 
     public TopNExec(
         Source source,
@@ -85,9 +87,15 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readNamedWriteable(PhysicalPlan.class),
             in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
+            List.of(),
             in.readOptionalVInt()
         );
+
+        if (in.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
         // docValueAttributes are only used on the data node and never serialized.
     }
 
@@ -97,7 +105,13 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
-        out.writeNamedWriteableCollection(groupings());
+
+        if (out.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+            out.writeNamedWriteableCollection(groupings());
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
+
         out.writeOptionalVInt(estimatedRowSize());
         // docValueAttributes are only used on the data node and never serialized.
     }

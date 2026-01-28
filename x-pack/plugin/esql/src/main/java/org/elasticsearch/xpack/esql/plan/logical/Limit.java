@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -21,11 +22,13 @@ import java.util.List;
 import java.util.Objects;
 
 public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
+    private static final TransportVersion ESQL_LIMIT_PER = TransportVersion.fromName("esql_limit_per");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 
     private final Expression limit;
 
-    private final List<Expression> groupings;
+    private List<Expression> groupings;
     /**
      * Important for optimizations. This should be {@code false} in most cases, which allows this instance to be duplicated past a child
      * plan node that increases the number of rows, like for LOOKUP JOIN and MV_EXPAND.
@@ -48,7 +51,7 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     }
 
     /**
-     * Default way to create a new instance. Do not use this to copy an existing instance, as this sets {@link Limit#duplicated}
+     * Create a new instance with groupings, which are the expressions used in LIMIT PER. This sets {@link Limit#duplicated}
      * and {@link Limit#local} to {@code false}.
      */
     public Limit(Source source, Expression limit, List<Expression> groupings, LogicalPlan child) {
@@ -79,6 +82,12 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
             false,
             false
         );
+
+        if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
     }
 
     /**
@@ -90,7 +99,11 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(limit());
-        out.writeNamedWriteableCollection(groupings());
+        if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
+            out.writeNamedWriteableCollection(groupings());
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
         out.writeNamedWriteable(child());
     }
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,11 +23,13 @@ import java.util.List;
 import java.util.Objects;
 
 public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
+    public static final TransportVersion ESQL_TOPN_GROUPINGS = TransportVersion.fromName("esql_topn_groupings");
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
     private final Expression limit;
-    private final List<Expression> groupings;
+    private List<Expression> groupings;
 
     /**
      * Local topn is not a pipeline breaker, and is applied only to the local node's data.
@@ -48,9 +51,15 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
             in.readNamedWriteable(LogicalPlan.class),
             in.readCollectionAsList(Order::new),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class),
+            List.of(),
             false
         );
+
+        if (in.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+            this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
     }
 
     @Override
@@ -59,7 +68,11 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
         out.writeNamedWriteable(child());
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
-        out.writeNamedWriteableCollection(groupings);
+        if (out.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+            out.writeNamedWriteableCollection(groupings);
+        } else {
+            throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
+        }
     }
 
     @Override

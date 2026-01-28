@@ -244,6 +244,6 @@ public class WriteLoadConstraintMonitor {
     private static String nodeShortDescription(String nodeId, DiscoveryNodes nodes) {
         final var discoveryNode = nodes.get(nodeId);
         // It's possible a node might have left the cluster since the ClusterInfo was published
-        return discoveryNode != null ? nodeId + "/" + discoveryNode.getName() : nodeId;
+        return discoveryNode != null ? discoveryNode.getShortNodeDescription() : nodeId;
     }
 }

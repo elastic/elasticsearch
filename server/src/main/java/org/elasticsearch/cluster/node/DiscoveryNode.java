@@ -403,6 +403,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
+     * @return "{nodeId}/{nodeName}" if available, or just "{nodeId}" otherwise
+     */
+    public String getShortNodeDescription() {
+        return nodeId + "/" + nodeName;
+    }
+
+    /**
      * The node attributes.
      */
     public Map<String, String> getAttributes() {

@@ -22,7 +22,6 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -89,41 +88,25 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) length * numVectors);
-                final ES92Int7VectorsScorer defaultInt7Scorer;
-                final ES92Int7VectorsScorer panamaInt7Scorer;
-                final ESNextOSQVectorsScorer defaultScorer;
-                final ESNextOSQVectorsScorer panamaScorer;
-                if (indexBits == 7) {
-                    defaultInt7Scorer = defaultProvider().newES92Int7VectorsScorer(slice, dimensions, ESNextOSQVectorsScorer.BULK_SIZE);
-                    panamaInt7Scorer = maybePanamaProvider().newES92Int7VectorsScorer(in, dimensions, ESNextOSQVectorsScorer.BULK_SIZE);
-                    defaultScorer = null;
-                    panamaScorer = null;
-                } else {
-                    defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
-                        slice,
-                        queryBits,
-                        indexBits,
-                        dimensions,
-                        length,
-                        ESNextOSQVectorsScorer.BULK_SIZE
-                    );
-                    panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
-                        in,
-                        queryBits,
-                        indexBits,
-                        dimensions,
-                        length,
-                        ESNextOSQVectorsScorer.BULK_SIZE
-                    );
-                    defaultInt7Scorer = null;
-                    panamaInt7Scorer = null;
-                }
+                byte effectiveQueryBits = indexBits == 7 ? (byte) 7 : queryBits;
+                final ESNextOSQVectorsScorer defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
+                    slice,
+                    effectiveQueryBits,
+                    indexBits,
+                    dimensions,
+                    length,
+                    ESNextOSQVectorsScorer.BULK_SIZE
+                );
+                final ESNextOSQVectorsScorer panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                    in,
+                    effectiveQueryBits,
+                    indexBits,
+                    dimensions,
+                    length,
+                    ESNextOSQVectorsScorer.BULK_SIZE
+                );
                 for (int i = 0; i < numVectors; i++) {
-                    if (indexBits == 7) {
-                        assertEquals(defaultInt7Scorer.int7DotProduct(query), panamaInt7Scorer.int7DotProduct(query));
-                    } else {
-                        assertEquals(defaultScorer.quantizeScore(query), panamaScorer.quantizeScore(query));
-                    }
+                    assertEquals(defaultScorer.quantizeScore(query), panamaScorer.quantizeScore(query));
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
                 }
                 assertEquals((long) length * numVectors, slice.getFilePointer());
@@ -221,14 +204,20 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 final IndexInput slice = in.slice("test", in.getFilePointer(), (long) (length + correctionBytes) * numVectors);
                 for (int i = 0; i < numVectors; i++) {
                     if (indexBits == 7) {
-                        final var defaultScorer = defaultProvider().newES92Int7VectorsScorer(
-                            in,
+                        final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
+                            slice,
+                            (byte) 7,
+                            indexBits,
                             dimensions,
+                            length,
                             ESNextOSQVectorsScorer.BULK_SIZE
                         );
-                        final var panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(
-                            slice,
+                        final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                            in,
+                            (byte) 7,
+                            indexBits,
                             dimensions,
+                            length,
                             ESNextOSQVectorsScorer.BULK_SIZE
                         );
                         float defaultScore = defaultScorer.score(
@@ -392,17 +381,23 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         (long) (length + correctionBytes) * ESNextOSQVectorsScorer.BULK_SIZE
                     );
                     if (indexBits == 7) {
-                        final var defaultScorer = defaultProvider().newES92Int7VectorsScorer(
-                            in,
-                            dimensions,
-                            ESNextOSQVectorsScorer.BULK_SIZE
-                        );
-                        final var panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(
+                        final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                             slice,
+                            (byte) 7,
+                            indexBits,
                             dimensions,
+                            length,
                             ESNextOSQVectorsScorer.BULK_SIZE
                         );
-                        defaultScorer.scoreBulk(
+                        final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
+                            in,
+                            (byte) 7,
+                            indexBits,
+                            dimensions,
+                            length,
+                            ESNextOSQVectorsScorer.BULK_SIZE
+                        );
+                        float defaultMaxScore = defaultScorer.scoreBulk(
                             quantizeQuery,
                             queryCorrections.lowerInterval(),
                             queryCorrections.upperInterval(),
@@ -413,7 +408,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                             scoresDefault,
                             ESNextOSQVectorsScorer.BULK_SIZE
                         );
-                        panamaScorer.scoreBulk(
+                        float panamaMaxScore = panamaScorer.scoreBulk(
                             quantizeQuery,
                             queryCorrections.lowerInterval(),
                             queryCorrections.upperInterval(),
@@ -424,6 +419,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                             scoresPanama,
                             ESNextOSQVectorsScorer.BULK_SIZE
                         );
+                        assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
                     } else {
                         final var defaultScorer = defaultProvider().newESNextOSQVectorsScorer(
                             slice,

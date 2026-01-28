@@ -19,7 +19,6 @@ import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -91,7 +90,6 @@ public class VectorScorerOSQBenchmark {
 
     byte[] scratch;
     ESNextOSQVectorsScorer scorer;
-    ES92Int7VectorsScorer int7Scorer;
     ScorerAdapter scorerAdapter;
 
     Directory directory;
@@ -177,15 +175,11 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        if (bits == 7) {
-            int7Scorer = ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dims, bulkSize);
-        } else {
-            scorer = switch (implementation) {
-                case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
-                case VECTORIZED -> ESVectorizationProvider.getInstance()
-                    .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
-            };
-        }
+        scorer = switch (implementation) {
+            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+            case VECTORIZED -> ESVectorizationProvider.getInstance()
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
+        };
         scorerAdapter = bits == 7 ? new Int7ScorerAdapter() : new OsqScorerAdapter();
         scratchScores = new float[bulkSize];
         corrections = new float[3];
@@ -266,7 +260,7 @@ public class VectorScorerOSQBenchmark {
     private class Int7ScorerAdapter implements ScorerAdapter {
         @Override
         public float score(byte[] query) throws IOException {
-            return int7Scorer.score(
+            return scorer.score(
                 query,
                 result.lowerInterval(),
                 result.upperInterval(),
@@ -279,7 +273,7 @@ public class VectorScorerOSQBenchmark {
 
         @Override
         public void scoreBulk(byte[] query, float[] scores) throws IOException {
-            int7Scorer.scoreBulk(
+            scorer.scoreBulk(
                 query,
                 result.lowerInterval(),
                 result.upperInterval(),

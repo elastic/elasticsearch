@@ -604,7 +604,6 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         final FieldInfo fieldInfo;
         final Bits acceptDocs;
         private final ESNextOSQVectorsScorer osqVectorsScorer;
-        private final ES92Int7VectorsScorer int7VectorsScorer;
         private final boolean usesOsqScorer;
         private final int componentSumBytes;
         final float[] scores = new float[BULK_SIZE];
@@ -644,22 +643,14 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
             componentSumBytes = quantEncoding.usesIntComponentSum() ? Integer.BYTES : Short.BYTES;
             quantizedByteLength = quantizedVectorByteSize + (Float.BYTES * 3) + componentSumBytes;
             usesOsqScorer = quantEncoding.bits() <= 4;
-            if (usesOsqScorer) {
-                osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
-                    indexInput,
-                    quantEncoding.queryBits(),
-                    quantEncoding.bits(),
-                    fieldInfo.getVectorDimension(),
-                    (int) quantizedVectorByteSize,
-                    BULK_SIZE
-                );
-                int7VectorsScorer = null;
-            } else if (quantEncoding.bits() == 7) {
-                osqVectorsScorer = null;
-                int7VectorsScorer = ESVectorUtil.getES92Int7VectorsScorer(indexInput, fieldInfo.getVectorDimension(), BULK_SIZE);
-            } else {
-                throw new IllegalArgumentException("Unsupported bit size: " + quantEncoding.bits());
-            }
+            osqVectorsScorer = ESVectorUtil.getESNextOSQVectorsScorer(
+                indexInput,
+                quantEncoding.queryBits(),
+                quantEncoding.bits(),
+                fieldInfo.getVectorDimension(),
+                (int) quantizedVectorByteSize,
+                BULK_SIZE
+            );
         }
 
         @Override
@@ -870,7 +861,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         private float scoreSingleLargeBit() throws IOException {
-            return int7VectorsScorer.score(
+            return osqVectorsScorer.score(
                 queryQuantizer.getQuantizedTarget(),
                 queryQuantizer.getQueryCorrections().lowerInterval(),
                 queryQuantizer.getQueryCorrections().upperInterval(),
@@ -882,7 +873,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader {
         }
 
         private void scoreBulkLargeBits(int count) throws IOException {
-            int7VectorsScorer.scoreBulk(
+            osqVectorsScorer.scoreBulk(
                 queryQuantizer.getQuantizedTarget(),
                 queryQuantizer.getQueryCorrections().lowerInterval(),
                 queryQuantizer.getQueryCorrections().upperInterval(),

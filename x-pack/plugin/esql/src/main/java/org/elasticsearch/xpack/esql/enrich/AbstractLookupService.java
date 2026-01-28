@@ -218,11 +218,11 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
     /**
      * Helper to create a LookupResponse from pages and send it to the listener.
-     * The response will be released by the transport layer after sending.
+     * The response is released after sending via {@link ActionListener#respondAndRelease}.
      */
     protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
         try {
-            listener.onResponse(createLookupResponse(pages, blockFactory));
+            ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
         } catch (IOException e) {
             listener.onFailure(e);
         }

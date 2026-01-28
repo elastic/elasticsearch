@@ -1,0 +1,337 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.compute.operator;
+
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.diversification.mmr.MMRResultDiversification;
+import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
+import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.vectors.VectorData;
+
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * ES|QL Operator for performing MMR result diversification
+ */
+public class MMROperator extends CompleteInputCollectorOperator {
+
+    // TODO -- add Status
+
+    /**
+     * Factor creation for the MMR Operator
+     * @param docIdChannel the channel that holds the doc IDs
+     * @param diversificationField the name of the diversification field
+     * @param diversificationFieldChannel the channel of the diversification field
+     * @param limit the total number of results to emit
+     * @param queryVector the (optional) query vector data for comparison
+     * @param lambda the (optional) lambda value for the MMR diversification
+     * @param scoreChannel the (optional) channel that holds the document scores
+     */
+    public record Factory(
+        int docIdChannel,
+        String diversificationField,
+        int diversificationFieldChannel,
+        int limit,
+        @Nullable VectorData queryVector,
+        @Nullable Float lambda,
+        @Nullable Integer scoreChannel
+    ) implements OperatorFactory {
+
+        @Override
+        public Operator get(DriverContext driverContext) {
+            return new MMROperator(
+                docIdChannel,
+                diversificationField,
+                diversificationFieldChannel,
+                limit,
+                queryVector,
+                lambda,
+                scoreChannel
+            );
+        }
+
+        @Override
+        public String describe() {
+            return "MMROperator[diversificationField="
+                + "(docIDChannel="
+                + docIdChannel
+                + "), diversificationField="
+                + diversificationField
+                + " (channel="
+                + diversificationFieldChannel
+                + "), limit="
+                + limit
+                + ", queryVector="
+                + (queryVector != null ? queryVector.toString() : "null")
+                + ", lambda="
+                + (lambda != null ? lambda.toString() : "null")
+                + "]";
+        }
+    }
+
+    public static Float DEFAULT_LAMBDA = 0.5f;
+
+    private final int docIdChannel;
+    private final String diversifyField;
+    private final int diversifyFieldChannel;
+    private final Integer scoreChannel;
+    private final int limit;
+    private final VectorData queryVector;
+    private final Float lambda;
+
+    private final Deque<Page> outputPages = new ArrayDeque<>();
+    private boolean outputPagesCreated = false;
+
+    /**
+     * Count of rows this operator has emitted.
+     */
+    private long rowsEmitted = 0L;
+
+    MMROperator(
+        int docIdChannel,
+        String diversifyField,
+        int diversifyFieldChannel,
+        int limit,
+        @Nullable VectorData queryVector,
+        @Nullable Float lambda,
+        Integer scoreChannel
+    ) {
+        super();
+        this.docIdChannel = docIdChannel;
+        this.diversifyField = diversifyField;
+        this.diversifyFieldChannel = diversifyFieldChannel;
+        this.limit = limit;
+        this.queryVector = queryVector;
+        this.lambda = lambda;
+        this.scoreChannel = scoreChannel;
+    }
+
+    @Override
+    protected void onFinished() {
+        // no additional implementation needed
+    }
+
+    @Override
+    protected boolean isOperatorFinished() {
+        return outputPagesCreated && outputPages.isEmpty();
+    }
+
+    @Override
+    protected Page onGetOutput() {
+        // now we can perform our work
+        // gather our input rows
+        // TODO - ensure docs and vectors have the same number positions!
+        if (outputPagesCreated == false) {
+            createOutputPages();
+        }
+
+        Page page = outputPages.removeFirst();
+        rowsEmitted += page.getPositionCount();
+
+        return page;
+    }
+
+    public record PagePositionDocVector(int page, int position, RankDoc doc, VectorData vector) {}
+
+    private void createOutputPages() {
+        // gather our documents and their vectors
+        List<PagePositionDocVector> docsAndVectors = gatherAllDocsAndVectors();
+
+        // set our doc ranks and final mappings for diversification
+        docsAndVectors.sort(Comparator.comparing(PagePositionDocVector::doc));
+
+        // keep this mapping so we know where the docs came from
+        Map<Integer, Tuple<Integer, Integer>> mapRankToPageAndPosition = new HashMap<>();
+        List<RankDoc> docs = new ArrayList<>();
+        Map<Integer, VectorData> vectors = new HashMap<>();
+
+        int docRank = 1;
+        for (PagePositionDocVector docValues : docsAndVectors) {
+            docValues.doc.rank = docRank;
+            docs.add(docValues.doc);
+            vectors.put(docRank, docValues.vector);
+            mapRankToPageAndPosition.put(docValues.doc.rank, new Tuple<>(docValues.page, docValues.position));
+            docRank++;
+        }
+
+        var diversificationContext = new MMRResultDiversificationContext(
+            diversifyField,
+            lambda == null ? DEFAULT_LAMBDA : lambda,
+            limit,
+            () -> queryVector
+        );
+        diversificationContext.setFieldVectors(vectors);
+
+        var diversification = new MMRResultDiversification(diversificationContext);
+        RankDoc[] results = null;
+        try {
+            results = diversification.diversify(docs.toArray(new RankDoc[0]));
+        } catch (IOException ioEx) {
+            // TODO - better exception here
+            throw new RuntimeException(ioEx);
+        }
+
+        createOutputPagesFromResults(results, mapRankToPageAndPosition);
+
+        outputPagesCreated = true;
+    }
+
+    private List<PagePositionDocVector> gatherAllDocsAndVectors() {
+        List<PagePositionDocVector> docsAndVectors = new ArrayList<>();
+        int pageIndex = 0;
+        for (Page page : inputPages) {
+            Block pageDocIdBlock = page.getBlock(docIdChannel);
+            Block diversificationFieldBlock = page.getBlock(diversifyFieldChannel);
+            Block scoreBlock = scoreChannel == null ? null : page.getBlock(scoreChannel);
+            // TODO - type checking
+            var interleaved = new InterleaveBlocks(
+                (DocBlock) pageDocIdBlock,
+                (FloatBlock) diversificationFieldBlock,
+                (DoubleBlock) scoreBlock
+            );
+            int positionIndex = 0;
+            for (Tuple<RankDoc, VectorData> docValues : interleaved) {
+                docsAndVectors.add(new PagePositionDocVector(pageIndex, positionIndex, docValues.v1(), docValues.v2()));
+                positionIndex++;
+            }
+            pageIndex++;
+        }
+        return docsAndVectors;
+    }
+
+    private void createOutputPagesFromResults(RankDoc[] results, Map<Integer, Tuple<Integer, Integer>> mapRankToPageAndPosition) {
+        // create our output filter set
+        Map<Integer, List<Integer>> filtersByPagePosition = new HashMap<>();
+        for (int i = 0; i < results.length; i++) {
+            int rank = results[i].rank;
+            var pageAndRow = mapRankToPageAndPosition.get(rank);
+            var filter = filtersByPagePosition.getOrDefault(pageAndRow.v1(), new ArrayList<>());
+            filter.add(pageAndRow.v2());
+            filtersByPagePosition.put(pageAndRow.v1(), filter);
+        }
+
+        // create our output pages filtered, in page order
+        int pageCounter = 0;
+        for (Page inputPage : inputPages) {
+            var pagePositionsToKeep = filtersByPagePosition.getOrDefault(pageCounter, null);
+            if (pagePositionsToKeep == null || pagePositionsToKeep.isEmpty()) {
+                continue;
+            }
+
+            var pageFilter = pagePositionsToKeep.stream().mapToInt(i -> i).toArray();
+            var outputBlocks = new Block[inputPage.getBlockCount()];
+            boolean wasAdded = false;
+            try {
+                for (int b = 0; b < outputBlocks.length; b++) {
+                    outputBlocks[b] = inputPage.getBlock(b).filter(pageFilter);
+                }
+                outputPages.addLast(new Page(outputBlocks));
+                wasAdded = true;
+            } finally {
+                if (wasAdded == false) {
+                    Releasables.closeExpectNoException(inputPage::releaseBlocks, Releasables.wrap(outputBlocks));
+                }
+            }
+        }
+    }
+
+    @Override
+    protected void onClose() {
+        // no additional cleanup needed
+    }
+
+    public static class InterleaveBlocks implements Iterable<Tuple<RankDoc, VectorData>> {
+
+        private final IntVector docIds;
+        private final IntVector shardIds;
+        private final FloatBlock floatBlock;
+        private final DoubleBlock scoreBlock;
+        private final int numPositions;
+
+        public InterleaveBlocks(DocBlock docBlock, FloatBlock floatBlock, DoubleBlock scoreBlock) {
+            DocVector docsVector = docBlock.asVector();
+            this.docIds = docsVector.docs();
+            this.shardIds = docsVector.shards();
+            this.floatBlock = floatBlock;
+            this.scoreBlock = scoreBlock;
+            this.numPositions = floatBlock.getPositionCount();
+        }
+
+        @Override
+        public Iterator<Tuple<RankDoc, VectorData>> iterator() {
+            return new InterleaveBlocksIter(numPositions, docIds, shardIds, floatBlock, scoreBlock);
+        }
+    }
+
+    public static class InterleaveBlocksIter implements Iterator<Tuple<RankDoc, VectorData>> {
+
+        private final IntVector docIds;
+        private final IntVector shardIds;
+        private final FloatBlock floatBlock;
+        private final DoubleBlock scoreBlock;
+        private final int numPositions;
+        private int currentPosition = 0;
+
+        public InterleaveBlocksIter(
+            int numPositions,
+            IntVector docIds,
+            IntVector shardIds,
+            FloatBlock floatBlock,
+            @Nullable DoubleBlock scoreBlock
+        ) {
+            this.docIds = docIds;
+            this.shardIds = shardIds;
+            this.floatBlock = floatBlock;
+            this.scoreBlock = scoreBlock;
+            this.numPositions = numPositions;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return currentPosition < numPositions;
+        }
+
+        @Override
+        public Tuple<RankDoc, VectorData> next() {
+            if (currentPosition >= numPositions) {
+                return null;
+            }
+
+            int docId = docIds.getInt(currentPosition);
+            int shardId = shardIds.getInt(currentPosition);
+            float docScore = this.scoreBlock == null ? 1.0f : (float) scoreBlock.getDouble(currentPosition);
+
+            var valueIndex = floatBlock.getFirstValueIndex(currentPosition);
+            var valueCount = floatBlock.getValueCount(currentPosition);
+            float[] vectorValues = new float[valueCount];
+            for (int position = 0; position < valueCount; position++) {
+                vectorValues[position] = floatBlock.getFloat(valueIndex + position);
+            }
+
+            currentPosition++;
+            return new Tuple<>(new RankDoc(docId, docScore, shardId), new VectorData(vectorValues));
+        }
+    }
+}

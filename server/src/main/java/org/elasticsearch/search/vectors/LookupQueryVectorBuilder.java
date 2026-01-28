@@ -24,6 +24,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.search.fetch.StoredFieldsContext._NONE_;
+
 /*
 * A QueryVectorBuilder that looks up a vector from a document stored in an index
 */
@@ -77,6 +79,22 @@ public class LookupQueryVectorBuilder implements QueryVectorBuilder {
         this.routing = in.readOptionalString();
     }
 
+    public String getId() {
+        return id;
+    }
+
+    public String getIndex() {
+        return index;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public String getRouting() {
+        return routing;
+    }
+
     @Override
     public void buildVector(Client client, ActionListener<float[]> listener) {
         client.prepareSearch(index)
@@ -84,7 +102,7 @@ public class LookupQueryVectorBuilder implements QueryVectorBuilder {
             .setRouting(routing)
             .setPreference("_local")
             .setFetchSource(false)
-            .storedFields("_none_")
+            .storedFields(_NONE_)
             .addDocValueField(path)
             .setSize(1)
             .execute(ActionListener.wrap(searchResponse -> {

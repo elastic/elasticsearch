@@ -45,6 +45,11 @@ public class EsqlCapabilities {
         ST_X_Y,
 
         /**
+         * Quantize results of {@code ST_X} and {@code ST_Y} and related functions
+         */
+        ST_X_Y_QUANTIZED,
+
+        /**
          * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
          */
         SPATIAL_POINTS_FROM_SOURCE,
@@ -349,6 +354,11 @@ public class EsqlCapabilities {
          * {@code CASE} properly handling multivalue conditions.
          */
         CASE_MV,
+
+        /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
 
         /**
          * Support for loading values over enrich. This is supported by all versions of ESQL but not
@@ -1359,32 +1369,32 @@ public class EsqlCapabilities {
         /**
          * Support timezones in DATE_TRUNC and dependent functions.
          */
-        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_TRUNC_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_DIFF.
          */
-        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_DIFF_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in KQL and QSTR.
          */
-        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        KQL_QSTR_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in the conversion utils and functions, like TO_STRING.
          */
-        TYPE_CONVERSION_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        TYPE_CONVERSION_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
-        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in + and - operators.
          */
-        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT,
 
         /**
          * (Re)Added EXPLAIN command
@@ -1671,6 +1681,12 @@ public class EsqlCapabilities {
         TDIGEST_TECH_PREVIEW,
 
         /**
+         * Adds the ability for the {@link org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case}
+         * to return values of type TDIGEST, type HISTOGRAM, and type AGGREGATE_METRIC_DOUBLE.
+         */
+        CASE_SUPPORT_FOR_SUMMARY_FIELDS,
+
+        /**
          * Histogram field integration
          */
         HISTOGRAM_RELEASE_VERSION,
@@ -1789,9 +1805,9 @@ public class EsqlCapabilities {
         /**
          * Support for the temporary work to eventually allow FIRST to work with null and multi-value fields, among other things.
          */
-        ALL_FIRST(Build.current().isSnapshot()),
+        ALL_FIRST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
-        ALL_LAST(Build.current().isSnapshot()),
+        ALL_LAST_WITH_IP_BOOLEAN_SUPPORT(Build.current().isSnapshot()),
 
         /**
          * Allow ST_EXTENT_AGG to gracefully handle missing spatial shapes
@@ -1816,7 +1832,18 @@ public class EsqlCapabilities {
         /**
          * Bundle flag for PromQL math functions.
          */
-        PROMQL_MATH_V0(PROMQL_COMMAND_V0.isEnabled()),
+        PROMQL_MATH_V0(),
+
+        /**
+         * Initial support for simple binary comparisons in PromQL.
+         * Only top-level comparisons are supported where the right-hand side is a scalar.
+         */
+        PROMQL_BINARY_COMPARISON_V0(),
+
+        /**
+         * Support for PromQL time() function.
+         */
+        PROMQL_TIME(PROMQL_COMMAND_V0.isEnabled()),
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1840,6 +1867,12 @@ public class EsqlCapabilities {
          * Returns the top snippets for given text content and associated query.
          */
         TOP_SNIPPETS_FUNCTION,
+
+        /**
+         * A fix allowing the {@code TOP_SNIPPETS} function to process string config
+         * parameters like the other functions.
+         */
+        TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.

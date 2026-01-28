@@ -393,7 +393,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             fullPath(),
             new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternTextCompositeValues.from(leafReader, fieldType())
+                leafReader -> PatternTextFallbackDocValues.from(leafReader, fieldType())
             )
         );
     }

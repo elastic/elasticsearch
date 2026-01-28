@@ -150,21 +150,9 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test090SecurityCliPackaging
-  issue: https://github.com/elastic/elasticsearch/issues/131107
 - class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
   method: testSerializationOfSimple {TestCase=<boolean>}
   issue: https://github.com/elastic/elasticsearch/issues/131334
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test071BindMountCustomPathWithDifferentUID
-  issue: https://github.com/elastic/elasticsearch/issues/120917
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test171AdditionalCliOptionsAreForwarded
-  issue: https://github.com/elastic/elasticsearch/issues/120925
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test050BasicApiTests
-  issue: https://github.com/elastic/elasticsearch/issues/120911
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
@@ -291,9 +279,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackLookupJoinIT
   method: testLookupExplosionBigString
   issue: https://github.com/elastic/elasticsearch/issues/138510
-- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
-  method: testWaitForSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/138669
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=index/100_field_name_length_limit/Test field name length limit}
   issue: https://github.com/elastic/elasticsearch/issues/138768
@@ -303,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.CrossClusterEsqlRCS1EnrichUnavailableRemotesIT
   method: testEsqlEnrichWithSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/138793
-- class: org.elasticsearch.xpack.ilm.actions.DownsampleActionIT
-  method: testILMWaitsForTimeSeriesEndTimeToLapse
-  issue: https://github.com/elastic/elasticsearch/issues/138843
 - class: org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitorTests
   method: testRerouteIsNotCalledWhenNoNodesAreHotSpotting
   issue: https://github.com/elastic/elasticsearch/issues/138924
@@ -381,15 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
   method: testLocalDateMathExpression
   issue: https://github.com/elastic/elasticsearch/issues/140106
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test070BindMountCustomPathConfAndJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/131366
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test140CgroupOsStatsAreAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/131372
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test010Install
-  issue: https://github.com/elastic/elasticsearch/issues/140109
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesEisChatCompletionEndpoint
   issue: https://github.com/elastic/elasticsearch/issues/140849
@@ -399,6 +372,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.external.http.sender.RequestExecutorServiceTests
   method: testExecute_Throws_WhenRateLimitedQueueIsFull
   issue: https://github.com/elastic/elasticsearch/issues/141231
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
+  method: testQuantizedXY
+  issue: https://github.com/elastic/elasticsearch/issues/141234
 
 # Examples:
 #

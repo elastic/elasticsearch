@@ -171,7 +171,7 @@ public class RemoteClusterSecurityRCS2FailureStoreRestIT extends AbstractRemoteC
                 () -> performRequestWithRemoteSearchUser(failureIndexSearchRequest)
             );
             final String action = ccsMinimizeRoundtrips ? "indices:data/read/search" : "indices:admin/search/search_shards";
-            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "view_index_metadata,manage,read_cross_cluster,all";
+            final String privileges = ccsMinimizeRoundtrips ? "read,all" : "read_cross_cluster,view_index_metadata,manage,read,all";
             assertActionUnauthorized(exception, action, backingFailureIndexName, privileges);
         }
     }

@@ -108,7 +108,7 @@ public class ShutdownPrepareService {
         if (terminationHandler != null) {
             try {
                 terminationHandler.blockTermination();
-            } catch (RuntimeException | Error e) {
+            } catch (RuntimeException e) {
                 logger.warn("termination handler failed; proceeding with shutdown", e);
             }
         }

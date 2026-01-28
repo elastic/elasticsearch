@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -81,15 +83,27 @@ public class ElasticInferenceServiceCompletionModel extends ElasticInferenceServ
         SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
+        this(inferenceEntityId, taskType, service, serviceSettings, taskSettings, secretSettings, elasticInferenceServiceComponents, null);
+    }
+
+    public ElasticInferenceServiceCompletionModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticInferenceServiceCompletionServiceSettings serviceSettings,
+        TaskSettings taskSettings,
+        SecretSettings secretSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, null, endpointMetadata),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents
         );
 
         this.uri = createUri();
-
     }
 
     @Override

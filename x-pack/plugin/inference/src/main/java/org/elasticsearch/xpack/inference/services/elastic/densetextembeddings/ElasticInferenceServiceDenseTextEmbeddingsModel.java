@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.EndpointMetadata;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
@@ -63,8 +64,40 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
+        this(
+            inferenceEntityId,
+            taskType,
+            service,
+            serviceSettings,
+            taskSettings,
+            secretSettings,
+            elasticInferenceServiceComponents,
+            chunkingSettings,
+            null
+        );
+    }
+
+    public ElasticInferenceServiceDenseTextEmbeddingsModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings,
+        @Nullable TaskSettings taskSettings,
+        @Nullable SecretSettings secretSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                service,
+                serviceSettings,
+                taskSettings,
+                chunkingSettings,
+                endpointMetadata
+            ),
             new ModelSecrets(secretSettings),
             serviceSettings,
             elasticInferenceServiceComponents

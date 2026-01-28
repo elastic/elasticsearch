@@ -378,6 +378,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.integration.AuthorizationTaskExecutorIT
   method: testCreatesChatCompletion_AndThenCreatesTextEmbedding
   issue: https://github.com/elastic/elasticsearch/issues/138012
+- class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
+  method: testRace {repeats = 15}
+  issue: https://github.com/elastic/elasticsearch/issues/141471
 
 # Examples:
 #

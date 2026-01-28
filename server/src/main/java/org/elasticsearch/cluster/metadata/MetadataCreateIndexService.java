@@ -144,6 +144,7 @@ public class MetadataCreateIndexService {
     );
 
     // High default value so that is disabled by default.
+    private static final int MAX_INDICES_PER_PROJECT_DISABLED = Integer.MAX_VALUE;
     public static final Setting<Integer> SETTING_CLUSTER_MAX_INDICES_PER_PROJECT = Setting.intSetting(
         "cluster.max_indices_per_project",
         Integer.MAX_VALUE,
@@ -228,13 +229,15 @@ public class MetadataCreateIndexService {
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
+        if (maxIndicesPerProject == MAX_INDICES_PER_PROJECT_DISABLED) {
+            return;
+        }
+
         Predicate<String> isSystem = index -> systemIndices.isSystemIndex(index) || systemIndices.isSystemIndexBackingDataStream(index);
         if (isSystem.test(request.index())) {
             return;
         }
 
-        // Due to asynchronous cluster state publication, there can be a delay before the indexMetadata.isSystem flag is set.
-        // As a result, the isSystem predicate is used instead.
         var totalUserIndices = projectMetadata.stream()
             .filter(indexMetadata -> isSystem.test(indexMetadata.getIndex().getName()) == false)
             .count();

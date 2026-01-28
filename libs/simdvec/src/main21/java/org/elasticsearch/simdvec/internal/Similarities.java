@@ -11,6 +11,9 @@ package org.elasticsearch.simdvec.internal;
 
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Function;
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.Operation;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
@@ -21,23 +24,47 @@ public class Similarities {
         .getVectorSimilarityFunctions()
         .orElseThrow(AssertionError::new);
 
-    static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.dotProductHandle7u();
-    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.dotProductHandle7uBulk();
-    static final MethodHandle DOT_PRODUCT_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandle7uBulkWithOffsets();
+    static final MethodHandle DOT_PRODUCT_7U = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT7, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_7U_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.INT7, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        DataType.INT7,
+        Operation.BULK_OFFSETS
+    );
+    static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.INT7, Operation.SINGLE);
+    static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.INT7, Operation.BULK);
+    static final MethodHandle SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.SQUARE_DISTANCE,
+        DataType.INT7,
+        Operation.BULK_OFFSETS
+    );
 
-    static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.dotProductHandleI1I4();
-    static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.dotProductHandleI1I4Bulk();
-    static final MethodHandle DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandleI1I4BulkWithOffsets();
+    static final MethodHandle DOT_PRODUCT_I1I4 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I1I4, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_I1I4_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.I1I4, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_I1I4_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        DataType.I1I4,
+        Operation.BULK_OFFSETS
+    );
 
-    static final MethodHandle SQUARE_DISTANCE_7U = DISTANCE_FUNCS.squareDistanceHandle7u();
-    static final MethodHandle SQUARE_DISTANCE_7U_BULK = DISTANCE_FUNCS.squareDistanceHandle7uBulk();
-    static final MethodHandle SQUARE_DISTANCE_7U_BULK_WITH_OFFSETS = DISTANCE_FUNCS.squareDistanceHandle7uBulkWithOffsets();
-    static final MethodHandle DOT_PRODUCT_F32 = DISTANCE_FUNCS.dotProductHandleFloat32();
-    static final MethodHandle DOT_PRODUCT_F32_BULK = DISTANCE_FUNCS.dotProductHandleFloat32Bulk();
-    static final MethodHandle DOT_PRODUCT_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.dotProductHandleFloat32BulkWithOffsets();
-    static final MethodHandle SQUARE_DISTANCE_F32 = DISTANCE_FUNCS.squareDistanceHandleFloat32();
-    static final MethodHandle SQUARE_DISTANCE_F32_BULK = DISTANCE_FUNCS.squareDistanceHandleFloat32Bulk();
-    static final MethodHandle SQUARE_DISTANCE_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.squareDistanceHandleFloat32BulkWithOffsets();
+    static final MethodHandle DOT_PRODUCT_F32 = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.SINGLE);
+    static final MethodHandle DOT_PRODUCT_F32_BULK = DISTANCE_FUNCS.getHandle(Function.DOT_PRODUCT, DataType.FLOAT32, Operation.BULK);
+    static final MethodHandle DOT_PRODUCT_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.DOT_PRODUCT,
+        DataType.FLOAT32,
+        Operation.BULK_OFFSETS
+    );
+    static final MethodHandle SQUARE_DISTANCE_F32 = DISTANCE_FUNCS.getHandle(Function.SQUARE_DISTANCE, DataType.FLOAT32, Operation.SINGLE);
+    static final MethodHandle SQUARE_DISTANCE_F32_BULK = DISTANCE_FUNCS.getHandle(
+        Function.SQUARE_DISTANCE,
+        DataType.FLOAT32,
+        Operation.BULK
+    );
+    static final MethodHandle SQUARE_DISTANCE_F32_BULK_WITH_OFFSETS = DISTANCE_FUNCS.getHandle(
+        Function.SQUARE_DISTANCE,
+        DataType.FLOAT32,
+        Operation.BULK_OFFSETS
+    );
 
     private static RuntimeException rethrow(Throwable t) {
         if (t instanceof Error err) {

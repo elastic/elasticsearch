@@ -510,7 +510,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
-            testState.clusterSettings,
+            new WriteLoadConstraintSettings(testState.clusterSettings),
             currentTimeMillis::get,
             () -> clusterStateRef.get(),
             testState.mockRerouteService,

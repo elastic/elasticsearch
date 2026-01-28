@@ -136,16 +136,6 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
-    public void testValidate_TimeZone_nonSnapshot() {
-        var setting = QuerySettings.TIME_ZONE;
-        assertInvalid(
-            setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("UTC"),
-            "Setting [" + setting.name() + "] is only available in snapshot builds"
-        );
-    }
-
     public void testValidate_Approximation() {
         var def = QuerySettings.APPROXIMATION;
         assertDefault(def, is(nullValue()));

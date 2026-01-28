@@ -7,12 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.response;
 
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -22,14 +23,10 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class MixedbreadRerankResponseEntity {
-    private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Mixedbread rerank response";
 
     /**
      * Parses the Mixedbread rerank response.
@@ -90,55 +87,81 @@ public class MixedbreadRerankResponseEntity {
      * @throws IOException if there is an error parsing the response
      */
     public static InferenceServiceResults fromResponse(HttpResult response) throws IOException {
-        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-        try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
-            moveToFirstToken(jsonParser);
-            moveToFirstToken(jsonParser);
-            return new RankedDocsResults(doParse(jsonParser));
+        try (var p = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, response.body())) {
+            return Response.PARSER.apply(p, null).toRankedDocsResults();
         }
     }
 
-    private static List<RankedDocsResults.RankedDoc> doParse(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
-
-        positionParserAtTokenAfterField(parser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
-
-        token = parser.currentToken();
-        if (token == XContentParser.Token.START_ARRAY) {
-            return parseList(parser, (listParser, index) -> {
-                var parsedRankedDoc = RankedDocEntry.parse(parser);
-                return new RankedDocsResults.RankedDoc(parsedRankedDoc.index, parsedRankedDoc.score, parsedRankedDoc.text);
-            });
-        } else {
-            throwUnknownToken(token, parser);
-        }
-
-        // This should never be reached. The above code should either return successfully or hit the throwUnknownToken
-        // or throw a parsing exception
-        throw new IllegalStateException("Reached an invalid state while parsing the Mixedbread response");
-    }
-
-    private record RankedDocEntry(Integer index, Float score, @Nullable String text) {
-
-        private static final ParseField TEXT = new ParseField("input");
-        private static final ParseField SCORE = new ParseField("score");
-        private static final ParseField INDEX = new ParseField("index");
-        private static final ConstructingObjectParser<RankedDocEntry, Void> PARSER = new ConstructingObjectParser<>(
-            "mixedbread_rerank_response",
+    private record Response(List<ResultItem> results) {
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
+            Response.class.getSimpleName(),
             true,
-            args -> new RankedDocEntry((int) args[0], (float) args[1], (String) args[2])
+            args -> new Response((List<ResultItem>) args[0])
         );
 
         static {
-            PARSER.declareInt(ConstructingObjectParser.constructorArg(), INDEX);
-            PARSER.declareFloat(ConstructingObjectParser.constructorArg(), SCORE);
-            PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEXT);
+            PARSER.declareObjectArray(constructorArg(), ResultItem.PARSER::apply, new ParseField("data"));
         }
 
-        public static RankedDocEntry parse(XContentParser parser) {
-            return PARSER.apply(parser, null);
+        public RankedDocsResults toRankedDocsResults() {
+            List<RankedDocsResults.RankedDoc> rankedDocs = results.stream()
+                .map(
+                    item -> new RankedDocsResults.RankedDoc(
+                        item.index(),
+                        item.relevanceScore(),
+                        item.document() != null ? item.document().text() : null
+                    )
+                )
+                .toList();
+            return new RankedDocsResults(rankedDocs);
+        }
+    }
+
+    private record ResultItem(int index, float relevanceScore, @Nullable Document document) {
+        public static final ConstructingObjectParser<ResultItem, Void> PARSER = new ConstructingObjectParser<>(
+            ResultItem.class.getSimpleName(),
+            true,
+            args -> new ResultItem((Integer) args[0], (Float) args[1], (Document) args[2])
+        );
+
+        static {
+            PARSER.declareInt(constructorArg(), new ParseField("index"));
+            PARSER.declareFloat(constructorArg(), new ParseField("score"));
+            PARSER.declareField(
+                optionalConstructorArg(),
+                (p, c) -> parseDocument(p),
+                new ParseField("input"),
+                ObjectParser.ValueType.VALUE
+            );
+        }
+    }
+
+    private record Document(String text) {}
+
+    private static Document parseDocument(XContentParser parser) throws IOException {
+        var token = parser.currentToken();
+        if (token == XContentParser.Token.START_OBJECT) {
+            return new Document(DocumentObject.PARSER.apply(parser, null).text());
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            return new Document(parser.text());
+        } else if (token == XContentParser.Token.VALUE_NULL) {
+            return new Document(null);
+        }
+
+        throw new XContentParseException(parser.getTokenLocation(),
+            "Expected an object, string or null for document field, but got: " + token);
+    }
+
+    private record DocumentObject(String text) {
+        public static final ConstructingObjectParser<DocumentObject, Void> PARSER = new ConstructingObjectParser<>(
+            DocumentObject.class.getSimpleName(),
+            true,
+            args -> new DocumentObject((String) args[0])
+        );
+
+        static {
+            PARSER.declareString(constructorArg(), new ParseField("text"));
         }
     }
 }

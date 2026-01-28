@@ -219,13 +219,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             blockFactoryProvider
         );
-        // Always add ViewResolver because TransportEsqlQueryAction needs it (NOOP when views disabled, real instance when enabled)
-        components = new ArrayList<>(components);
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
+            components = new ArrayList<>(components);
             components.add(new ViewResolver(services.clusterService(), services.projectResolver(), settings));
             components.add(new ViewService(services.clusterService(), settings));
-        } else {
-            components.add(ViewResolver.NOOP);
         }
         return components;
     }

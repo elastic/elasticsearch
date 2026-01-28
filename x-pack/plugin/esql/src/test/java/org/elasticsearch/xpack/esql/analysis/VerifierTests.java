@@ -3302,7 +3302,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];"
             )
         );
         assertThat(
@@ -3313,7 +3313,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
             )
         );
         assertThat(

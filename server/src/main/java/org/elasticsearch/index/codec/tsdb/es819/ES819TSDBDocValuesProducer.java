@@ -813,12 +813,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         @Nullable
-        public BlockLoader.Block tryReadLength(
-            BlockLoader.BlockFactory factory,
-            BlockLoader.Docs docs,
-            int offset,
-            boolean nullsFiltered
-        ) throws IOException {
+        public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
             int count = docs.count() - offset;
             try (var builder = factory.ints(count)) {
                 for (int i = offset; i < docs.count(); i++) {
@@ -893,12 +889,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         @Override
         @Nullable
-        public BlockLoader.Block tryReadLength(
-            BlockLoader.BlockFactory factory,
-            BlockLoader.Docs docs,
-            int offset,
-            boolean nullsFiltered
-        ) throws IOException {
+        public BlockLoader.Block tryReadLength(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+            throws IOException {
             int count = docs.count() - offset;
             try (var builder = factory.ints(count)) {
                 for (int i = offset; i < docs.count(); i++) {

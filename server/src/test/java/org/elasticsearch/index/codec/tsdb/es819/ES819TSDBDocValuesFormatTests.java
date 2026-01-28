@@ -1153,7 +1153,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    private void assertLengthSparseBlock(TestBlock block, int size, int randomOffset, BlockLoader.Docs docs, BinaryDocValues expectedBytesRefs) throws IOException {
+    private void assertLengthSparseBlock(
+        TestBlock block,
+        int size,
+        int randomOffset,
+        BlockLoader.Docs docs,
+        BinaryDocValues expectedBytesRefs
+    ) throws IOException {
         assertNotNull(block);
         assertEquals(size, block.size());
         for (int j = 0; j < block.size(); j++) {
@@ -1167,12 +1173,18 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    private void assertLengthDenseBlock(TestBlock block, int size, int randomOffset, BlockLoader.Docs docs, BinaryDocValues expectedBytesRefs) throws IOException {
+    private void assertLengthDenseBlock(
+        TestBlock block,
+        int size,
+        int randomOffset,
+        BlockLoader.Docs docs,
+        BinaryDocValues expectedBytesRefs
+    ) throws IOException {
         assertNotNull(block);
         assertEquals(size, block.size());
         for (int j = 0; j < block.size(); j++) {
             var actual = block.get(j);
-            assert(expectedBytesRefs.advanceExact(docs.get(randomOffset + j)));
+            assert (expectedBytesRefs.advanceExact(docs.get(randomOffset + j)));
             var expected = expectedBytesRefs.binaryValue().length;
             assertEquals(expected, actual);
         }

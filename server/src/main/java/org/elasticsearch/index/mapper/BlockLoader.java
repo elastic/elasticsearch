@@ -239,12 +239,7 @@ public interface BlockLoader {
          *                       see {@link ColumnAtATimeReader#read(BlockFactory, Docs, int, boolean)}
          */
         @Nullable
-        BlockLoader.Block tryReadLength(
-            BlockFactory factory,
-            Docs docs,
-            int offset,
-            boolean nullsFiltered
-        ) throws IOException;
+        BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
     }
 
     interface RowStrideReader extends Reader {

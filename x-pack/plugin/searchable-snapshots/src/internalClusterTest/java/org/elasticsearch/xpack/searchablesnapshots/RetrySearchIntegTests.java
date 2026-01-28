@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -40,8 +41,10 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -127,7 +130,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int docCount = between(0, 100);
         int numShards = between(1, 5);
-        createTestIndex(indexName, docCount, numShards);
+        createTestIndex(indexName, docCount, numShards, 2);
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
         ).keepAlive(TimeValue.timeValueMinutes(2));
@@ -194,13 +197,14 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
     }
 
     /**
-     * Test that for searchable snapshots, we can retry PIT searches even after the PIT has been closed (simulating also expired PITs).
+     * Test that for searchable snapshots, we cannot retry PIT searches on the same node after the PIT has been closed
+     * (simulating also expired PITs).
      */
     public void testRetryRemovedPointInTime() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int docCount = between(0, 100);
         int numShards = between(1, 5);
-        createTestIndex(indexName, docCount, numShards);
+        createTestIndex(indexName, docCount, numShards, 0);
 
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indexName).indicesOptions(
             IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
@@ -220,23 +224,21 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             ).actionGet();
             assertEquals(numShards, closePointInTimeResponse.getNumFreed());
 
-            assertNoFailuresAndResponse(
+            assertFailures(
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
                     .setPreFilterShardSize(between(1, 10))
                     .setAllowPartialSearchResults(true)
                     .setPointInTime(new PointInTimeBuilder(pitId)),
-                resp -> {
-                    assertThat(resp.pointInTimeId(), equalBytes(pitId));
-                    assertHitCount(resp, docCount);
-                }
+                Set.of(RestStatus.NOT_FOUND),
+                containsString("org.elasticsearch.search.SearchContextMissingException: No search context found for id")
             );
         } finally {
             client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }
 
-    private void createTestIndex(String indexName, int docCount, int numShards) throws Exception {
+    private void createTestIndex(String indexName, int docCount, int numShards, int maxRelicasForSnapshot) throws Exception {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build())
@@ -262,7 +264,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
-        final int numberOfReplicas = between(0, 2);
+        final int numberOfReplicas = between(0, maxRelicasForSnapshot);
         final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
         internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
 

@@ -1293,7 +1293,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return findReaderContext(contextId, request);
             } catch (SearchContextMissingException e) {
                 logger.debug("failed to find active reader context [id: {}]", contextId);
-                if (contextId.isRetryable() == false) {
+                // don't retry if the context is not retryable or on the same session. The later means we closed the context already
+                if (contextId.isRetryable() == false || sessionId.equals(contextId.getSessionId())) {
                     throw e;
                 }
                 // We retry creating a ReaderContext on this node if we can get a searcher with same searcher id as in the original
@@ -1307,8 +1308,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     throw e;
                 }
                 ReaderContext readerContext = null;
-                // don't handle contexts originating from the current SearchService session, they get added as normal temporary contexts
-                if (pitRelocationEnabled && sessionId.equals(contextId.getSessionId()) == false) {
+                if (pitRelocationEnabled) {
                     readerContext = createAndPutRelocatedPitContext(
                         contextId,
                         indexService,
@@ -1316,9 +1316,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         searcherSupplier,
                         getDefaultKeepAliveInMillis()
                     );
-                    logger.debug("Recreated reader context [{}]", readerContext.id());
+                    logger.info("recreated reader context [{}]", readerContext.id());
                 } else {
                     readerContext = createAndPutReaderContext(request, indexService, shard, searcherSupplier, defaultKeepAlive);
+                    logger.info("recreated temporary reader context [{}]", readerContext.id());
                 }
                 return readerContext;
             }

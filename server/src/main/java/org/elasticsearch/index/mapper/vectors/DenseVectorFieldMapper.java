@@ -2938,15 +2938,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private VectorData decodeBase64BFloat16Vector(byte[] base64Bytes) {
             // When dims is known, prefer bfloat16 if it matches exactly, otherwise float
             if (dims != null) {
-                return base64Bytes.length == dims * BFloat16.BYTES
-                    ? decodeBFloat16Vector(base64Bytes)
-                    : decodeFloatVector(base64Bytes);
+                return base64Bytes.length == dims * BFloat16.BYTES ? decodeBFloat16Vector(base64Bytes) : decodeFloatVector(base64Bytes);
             }
             // When dims is unknown, prefer float encoding if compatible
             // Avoiding accidentally interpreting BFloat16 data as Float.
-            return base64Bytes.length % Float.BYTES == 0
-                ? decodeFloatVector(base64Bytes)
-                : decodeBFloat16Vector(base64Bytes);
+            return base64Bytes.length % Float.BYTES == 0 ? decodeFloatVector(base64Bytes) : decodeBFloat16Vector(base64Bytes);
         }
 
         private static IllegalArgumentException invalidEncodedVector() {

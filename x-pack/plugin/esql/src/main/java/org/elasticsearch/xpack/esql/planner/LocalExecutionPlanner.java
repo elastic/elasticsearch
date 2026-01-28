@@ -873,7 +873,7 @@ public class LocalExecutionPlanner {
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
-        if (PlannerUtils.usesScoring(filter)) {
+        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
             // Add scorer operator to add the filter expression scores to the overall scores
             int scoreBlock = 0;
             for (Attribute attribute : filter.output()) {

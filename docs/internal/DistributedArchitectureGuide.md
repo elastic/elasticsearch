@@ -490,7 +490,7 @@ shard in state `INITIALIZING` has been assigned to its node, it creates a fresh 
 for that node, using the [RecoverySource][] in the [ShardRouting][] entry to determine the parameters of the recovery process.
 The full list of recovery types is defined in [RecoverySource.Type][]. The various modes are discussed below, roughly in
 order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying
-files from a snapshot source and then uses local store recovery. Similarly, if there is any local data, then
+files from a snapshot source and then uses `EXISTING_STORE` recovery. Similarly, if there is any local data, then
 peer recovery starts by using local store recovery to bring the local shard as close to up to date as it can, and then
 finishes synchronizing the shard through RPCs (Remote Procedure Calls) to an active source shard.
 

@@ -801,16 +801,13 @@ public class IndexMetadataTests extends ESTestCase {
     public void testVerificationOfSyntheticIdSettingValid() {
         IndexMode mode = IndexMode.TIME_SERIES;
         String codec = randomBoolean() ? CodecService.DEFAULT_CODEC : null;
-        try {
-            Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), mode)
-                .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
-                .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
-                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")
-                .build();
-            IndexMetadata.builder("test").settings(settings).build();
-        } catch (IllegalArgumentException e) {
-            fail(e, "Building IndexMetadata should not have thrown when all requirements are fulfilled");
-        }
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), mode)
+            .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
+            .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")
+            .build();
+        // Test that this doesn't throw
+        IndexMetadata.builder("test").settings(settings).build();
     }
 
     public void testVerificationOfSyntheticIdSettingBadCodec() {

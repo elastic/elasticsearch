@@ -32,6 +32,7 @@ public class IndexResolverIT extends AbstractEsqlIntegTestCase {
             var result = resolveFlatWorldIndices("index-1", "");
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1"));
+            assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1"));
         }
 
         // only optional index requested
@@ -39,6 +40,7 @@ public class IndexResolverIT extends AbstractEsqlIntegTestCase {
             var result = resolveFlatWorldIndices("", "index-2");
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-2"));
+            assertThat(result.get().mapping().keySet(), containsInAnyOrder("f2"));
         }
 
         // required and optional index found
@@ -46,6 +48,7 @@ public class IndexResolverIT extends AbstractEsqlIntegTestCase {
             var result = resolveFlatWorldIndices("index-1", "index-2");
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1", "index-2"));
+            assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1", "f2"));
         }
 
         // only required index found
@@ -53,6 +56,7 @@ public class IndexResolverIT extends AbstractEsqlIntegTestCase {
             var result = resolveFlatWorldIndices("index-1", "index-3");
             assertThat(result.isValid(), equalTo(true));
             assertThat(result.resolvedIndices(), containsInAnyOrder("index-1"));
+            assertThat(result.get().mapping().keySet(), containsInAnyOrder("f1"));
         }
 
         // required index is not found

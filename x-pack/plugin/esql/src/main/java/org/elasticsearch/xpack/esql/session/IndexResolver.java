@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
@@ -39,7 +40,6 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.SupportedVersion;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -53,12 +53,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BinaryOperator;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public class IndexResolver {
 
@@ -270,12 +274,28 @@ public class IndexResolver {
                     .map(EsqlResolveFieldsResponse::caps)
                     .reduce(
                         (r1, r2) -> FieldCapabilitiesResponse.builder()
+                            .withResolvedLocally(ResolvedIndexExpressions.merge(r1.getResolvedLocally(), r2.getResolvedLocally()))
+                            .withResolvedRemotely(
+                                merge(r1.getResolvedRemotely(), r2.getResolvedRemotely(), ResolvedIndexExpressions::merge)
+                            )
+                            .withFields(
+                                merge(
+                                    r1.get(),
+                                    r2.get(),
+                                    (f1, f2) -> merge(
+                                        f1,
+                                        f2,
+                                        (fc1, fc2) -> /*same field from the same concrete index. Safe to pick any*/ fc1
+                                    )
+                                )
+                            )
+                            .withIndexResponses(combine(r1.getIndexResponses(), r2.getIndexResponses()))
+                            .withFailures(combine(r1.getFailures(), r2.getFailures()))
+                            // minTransportVersion is always present with CPS
                             .withMinTransportVersion(TransportVersion.min(r1.minTransportVersion(), r2.minTransportVersion()))
-                            .withIndexResponses(CollectionUtils.combine(r1.getIndexResponses(), r2.getIndexResponses()))
-                            // TODO merge remaining fields
                             .build()
                     )
-                    .get();
+                    .get(); // at least one response should be present
 
                 var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
                 var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
@@ -294,7 +314,10 @@ public class IndexResolver {
                             indexPattern,
                             true,
                             info,
-                            (ignored, fieldCapabilitiesResponse) -> Map.of() /* TODO implement */
+                            (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
+                                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                                v -> List.copyOf(v.expression())
+                            )
                         ),
                         info.minTransportVersion()
                     )
@@ -336,6 +359,10 @@ public class IndexResolver {
                 mergeResponsesListener
             );
         }
+    }
+
+    private static <T> Map<String, T> merge(Map<String, T> m1, Map<String, T> m2, BinaryOperator<T> merger) {
+        return Stream.concat(m1.entrySet().stream(), m2.entrySet().stream()).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, merger));
     }
 
     /**

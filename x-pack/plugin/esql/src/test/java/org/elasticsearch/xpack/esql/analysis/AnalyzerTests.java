@@ -5802,6 +5802,50 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals("empty_index", subqueryIndex.indexPattern());
     }
 
+    // no_fields_index has empty mapping, however there is entry in indexNameWithModes,originalIndices and concreteIndices
+    // empty_index has empty mapping,indexNameWithModes,originalIndices and concreteIndices
+    public void testSubqueryInFromWithNoFieldsAndEmptyIndex() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Requires subquery in FROM command support",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT.isEnabled()
+        );
+
+        LogicalPlan plan = analyze("""
+            FROM
+                (FROM no_fields_index),
+                (FROM no_fields_index),
+                (FROM empty_index)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        List<Attribute> output = unionAll.output();
+        assertEquals(0, output.size());
+        assertEquals(3, unionAll.children().size());
+
+        Project subqueryProject = as(unionAll.children().get(0), Project.class);
+        List<Attribute> projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        Subquery subquery = as(subqueryProject.child(), Subquery.class);
+        EsRelation subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(1), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("no_fields_index", subqueryIndex.indexPattern());
+
+        subqueryProject = as(unionAll.children().get(2), Project.class);
+        projectOutput = subqueryProject.output();
+        assertEquals(NO_FIELDS, projectOutput);
+        subquery = as(subqueryProject.child(), Subquery.class);
+        subqueryIndex = as(subquery.child(), EsRelation.class);
+        assertEquals("empty_index", subqueryIndex.indexPattern());
+    }
+
     public void testLookupJoinOnFieldNotAnywhereElse() {
         assumeTrue(
             "requires LOOKUP JOIN ON boolean expression capability",

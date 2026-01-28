@@ -1011,7 +1011,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // forkColumns do not contain NO_FIELD because Fork.outputUnion removes it.
                 if (logicalPlan instanceof Project == false
                     || (subPlanColumns.equals(forkColumns) == false
-                        && (fork instanceof UnionAll && forkColumns.isEmpty() && logicalPlan.output().equals(NO_FIELDS)) == false)) {
+                        && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -1042,6 +1042,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
+        }
+
+        /*
+         * Returns true if a subquery references an index with empty mapping.
+         */
+        private static boolean subqueryReferencingIndexWithEmptyMapping(
+            LogicalPlan unionAll,
+            LogicalPlan subquery,
+            List<String> outputColumns
+        ) {
+            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {

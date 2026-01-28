@@ -83,7 +83,7 @@ public abstract class TranslogOperationAsserter {
                 op.seqNo(),
                 true,
                 false,
-                engineConfig.getIndexSettings().getIndexVersionCreated()
+                true
             );
         } else {
             return new LuceneChangesSnapshot(
@@ -95,7 +95,7 @@ public abstract class TranslogOperationAsserter {
                 true,
                 false,
                 false,
-                engineConfig.getIndexSettings().getIndexVersionCreated()
+                true
             );
         }
     }

@@ -3344,7 +3344,7 @@ public class InternalEngine extends Engine {
                     toSeqNo,
                     requiredFullRange,
                     accessStats,
-                    config().getIndexSettings().getIndexVersionCreated()
+                    true
                 );
             } else {
                 snapshot = new LuceneChangesSnapshot(
@@ -3356,7 +3356,7 @@ public class InternalEngine extends Engine {
                     requiredFullRange,
                     singleConsumer,
                     accessStats,
-                    config().getIndexSettings().getIndexVersionCreated()
+                    true
                 );
             }
             searcher = null;

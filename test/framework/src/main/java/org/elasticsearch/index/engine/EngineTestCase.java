@@ -12,7 +12,6 @@ package org.elasticsearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -31,7 +30,6 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -78,7 +76,6 @@ import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -88,7 +85,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -102,6 +98,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.test.DummyShardLock;
@@ -1291,47 +1288,96 @@ public abstract class EngineTestCase extends ESTestCase {
      * Gets a collection of tuples of docId, sequence number, and primary term of all live documents in the provided engine.
      */
     public static List<DocIdSeqNoAndSource> getDocIds(Engine engine, boolean refresh) throws IOException {
+        var source = "test_get_doc_ids";
         if (refresh) {
-            engine.refresh("test_get_doc_ids");
+            engine.refresh(source);
         }
-        try (Engine.Searcher searcher = engine.acquireSearcher("test_get_doc_ids", Engine.SearcherScope.INTERNAL)) {
-            List<DocIdSeqNoAndSource> docs = new ArrayList<>();
-            for (LeafReaderContext leafContext : searcher.getIndexReader().leaves()) {
-                LeafReader reader = leafContext.reader();
-                NumericDocValues seqNoDocValues = reader.getNumericDocValues(SeqNoFieldMapper.NAME);
-                NumericDocValues primaryTermDocValues = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-                NumericDocValues versionDocValues = reader.getNumericDocValues(VersionFieldMapper.NAME);
-                Bits liveDocs = reader.getLiveDocs();
-                StoredFields storedFields = reader.storedFields();
-                for (int i = 0; i < reader.maxDoc(); i++) {
-                    if (liveDocs == null || liveDocs.get(i)) {
-                        if (primaryTermDocValues.advanceExact(i) == false) {
-                            // We have to skip non-root docs because its _id field is not stored (indexed only).
-                            continue;
-                        }
-                        final long primaryTerm = primaryTermDocValues.longValue();
-                        Document doc = storedFields.document(i, Set.of(IdFieldMapper.NAME, SourceFieldMapper.NAME));
-                        BytesRef binaryID = doc.getBinaryValue(IdFieldMapper.NAME);
-                        String id = Uid.decodeId(Arrays.copyOfRange(binaryID.bytes, binaryID.offset, binaryID.offset + binaryID.length));
-                        final BytesRef source = doc.getBinaryValue(SourceFieldMapper.NAME);
-                        if (seqNoDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("seqNoDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long seqNo = seqNoDocValues.longValue();
-                        if (versionDocValues.advanceExact(i) == false) {
-                            throw new AssertionError("versionDocValues not found for doc[" + i + "] id[" + id + "]");
-                        }
-                        final long version = versionDocValues.longValue();
-                        docs.add(new DocIdSeqNoAndSource(id, source, seqNo, primaryTerm, version));
+        final var engineConfig = engine.getEngineConfig();
+        Engine.Searcher searcher = engine.acquireSearcher(source, Engine.SearcherScope.INTERNAL);
+        try {
+            Translog.Snapshot snapshot = null;
+            try {
+                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
+                        engineConfig.getMapperService(),
+                        searcher,
+                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                        RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
+                        0L,
+                        Long.MAX_VALUE,
+                        false,
+                        true,
+                        false
+                    );
+                } else {
+                    var mapperService = engineConfig.getMapperService();
+                    if (mapperService == null) {
+                        assert engineConfig.getIndexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE;
+                        mapperService = createMapperService(engineConfig.getIndexSettings().getSettings(), "{}");
                     }
+                    snapshot = new LuceneChangesSnapshot(
+                        mapperService,
+                        searcher,
+                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                        0L,
+                        Long.MAX_VALUE,
+                        false,
+                        true,
+                        true,
+                        false
+                    );
+                }
+                if (snapshot.totalOperations() == 0) {
+                    return List.of();
+                }
+
+                final var docs = new ArrayList<DocIdSeqNoAndSource>(snapshot.totalOperations());
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    DocIdSeqNoAndSource doc;
+                    switch (operation.opType()) {
+                        case CREATE:
+                        case INDEX:
+                            final var indexOp = ESTestCase.asInstanceOf(Translog.Index.class, operation);
+                            doc = new DocIdSeqNoAndSource(
+                                Uid.decodeId(indexOp.uid()),
+                                indexOp.source().toBytesRef(),
+                                indexOp.seqNo(),
+                                indexOp.primaryTerm(),
+                                indexOp.version()
+                            );
+                            break;
+                        case DELETE:
+                            final var deleteOp = ESTestCase.asInstanceOf(Translog.Delete.class, operation);
+                            doc = new DocIdSeqNoAndSource(
+                                Uid.decodeId(deleteOp.uid()),
+                                null,
+                                deleteOp.seqNo(),
+                                deleteOp.primaryTerm(),
+                                deleteOp.version()
+                            );
+                            break;
+                        case NO_OP:
+                            continue;
+                        default:
+                            throw new AssertionError("Unsupported operation type " + operation.opType());
+                    }
+                    docs.add(doc);
+                }
+                docs.sort(
+                    Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                        .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                        .thenComparing((DocIdSeqNoAndSource::id))
+                );
+                return docs;
+            } finally {
+                if (snapshot != null) {
+                    IOUtils.close(snapshot);
+                    searcher = null;
                 }
             }
-            docs.sort(
-                Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
-                    .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
-                    .thenComparing((DocIdSeqNoAndSource::id))
-            );
-            return docs;
+        } finally {
+            IOUtils.close(searcher);
         }
     }
 

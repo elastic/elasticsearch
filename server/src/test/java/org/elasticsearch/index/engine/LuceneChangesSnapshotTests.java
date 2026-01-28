@@ -40,7 +40,7 @@ public class LuceneChangesSnapshotTests extends SearchBasedChangesSnapshotTests 
             requiredFullRange,
             singleConsumer,
             accessStats,
-            indexVersionCreated
+            true
         );
     }
 

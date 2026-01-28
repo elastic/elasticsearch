@@ -35,11 +35,12 @@
               "type": "enum",
               "description": "The task type",
               "options": [
-                "sparse_embedding",
-                "text_embedding",
-                "rerank",
+                "chat_completion",
                 "completion",
-                "chat_completion"
+                "embedding",
+                "rerank",
+                "sparse_embedding",
+                "text_embedding"
               ]
             },
             "inference_id": {

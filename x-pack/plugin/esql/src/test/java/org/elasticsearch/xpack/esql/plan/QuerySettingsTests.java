@@ -25,6 +25,7 @@ import org.junit.AfterClass;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -94,6 +95,11 @@ public class QuerySettingsTests extends ESTestCase {
         );
     }
 
+    public void testValidate_TimeZone_techPreview() {
+        var setting = QuerySettings.TIME_ZONE;
+        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+    }
+
     public void testValidate_UnmappedFields_techPreview() {
         assumeFalse("Requires no snapshot", Build.current().isSnapshot());
 
@@ -127,16 +133,6 @@ public class QuerySettingsTests extends ESTestCase {
             of("UNKNOWN"),
             "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
                 + Arrays.toString(values)
-        );
-    }
-
-    public void testValidate_TimeZone_nonSnapshot() {
-        var setting = QuerySettings.TIME_ZONE;
-        assertInvalid(
-            setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            of("UTC"),
-            "Setting [" + setting.name() + "] is only available in snapshot builds"
         );
     }
 
@@ -243,7 +239,16 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        for (QuerySettings.QuerySettingDef<?> def : QuerySettings.SETTINGS_BY_NAME.values()) {
+        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
+            .stream()
+            // TODO this is non-snapshot, but we don't want to expose it yet
+            .filter(def -> def != QuerySettings.PROJECT_ROUTING)
+            // TODO: This filter wil be removed in the next PR adding all the docs for time_zone
+            .filter(def -> def != QuerySettings.TIME_ZONE)
+            .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
+            .toList();
+
+        for (QuerySettings.QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,
@@ -251,5 +256,12 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
+            settings,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
+        toc.renderDocs();
     }
 }

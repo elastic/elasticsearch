@@ -404,7 +404,7 @@ public final class TextStructureUtils {
     private static Map<String, Object> flattenRecord(Object record, TimeoutChecker timeoutChecker, int maxDepth) {
         Map<String, Object> flattened = new LinkedHashMap<>();
         List<String> keyParts = new ArrayList<>();
-        flattenRecordRecursive(keyParts, record, flattened, timeoutChecker, 1, maxDepth);
+        flattenRecordRecursive(keyParts, record, flattened, timeoutChecker, maxDepth);
         return flattened;
     }
 
@@ -413,18 +413,17 @@ public final class TextStructureUtils {
         Object record,
         Map<String, Object> flattenedResult,
         TimeoutChecker timeoutChecker,
-        int currentDepth,
-        int maxDepth
+        int remainingDepth
     ) {
         timeoutChecker.check("record flattening");
         if (record instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, ?> nestedMap = (Map<String, ?>) record;
-            flattenMap(keyParts, nestedMap, flattenedResult, timeoutChecker, currentDepth, maxDepth);
+            flattenMap(keyParts, nestedMap, flattenedResult, timeoutChecker, remainingDepth);
         } else if (record instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) record;
-            flattenList(keyParts, list, flattenedResult, timeoutChecker, currentDepth, maxDepth);
+            flattenList(keyParts, list, flattenedResult, timeoutChecker, remainingDepth);
         } else { // concrete value
             addConcreteRecordToResultMap(keyParts, record, flattenedResult);
         }
@@ -461,15 +460,14 @@ public final class TextStructureUtils {
 
     private static void flattenMap(
         List<String> keyParts,
-           Map<String, ?> record,
-           Map<String, Object> flattenedResult,
-           TimeoutChecker timeoutChecker,
-           int currentDepth,
-           int maxDepth
+        Map<String, ?> record,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int remainingDepth
     ) {
         timeoutChecker.check("map flattening");
 
-        if (record.isEmpty() || currentDepth > maxDepth) {
+        if (record.isEmpty() || remainingDepth <= 0) {
             // Empty nested objects or max depth reached - will be mapped as "object" type
             String key = String.join(DOT_DELIMITER, keyParts);
             flattenedResult.put(key, Collections.emptyMap());
@@ -479,7 +477,7 @@ public final class TextStructureUtils {
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             keyParts.add(entry.getKey());
             var recordValue = (Object) entry.getValue();
-            flattenRecordRecursive(keyParts, recordValue, flattenedResult, timeoutChecker, currentDepth + 1, maxDepth);
+            flattenRecordRecursive(keyParts, recordValue, flattenedResult, timeoutChecker, remainingDepth - 1);
             keyParts.removeLast();
         }
     }
@@ -489,14 +487,13 @@ public final class TextStructureUtils {
         List<Object> list,
         Map<String, Object> flattenedResult,
         TimeoutChecker timeoutChecker,
-        int currentDepth,
-        int maxDepth
+        int remainingDepth
     ) {
         timeoutChecker.check("list flattening");
 
-        // Notice the +1 here compared to the map flattening.
-        // This is to keep the behavior inline with before recursive flattening was introduced.
-        if (list.isEmpty() || currentDepth > maxDepth + 1) {
+        // Lists get one extra level of depth compared to maps
+        // to keep behavior inline with before recursive flattening was introduced.
+        if (list.isEmpty() || remainingDepth + 1 <= 0) {
             // Empty list or max depth reached - will be ignored
             return;
         }
@@ -523,7 +520,7 @@ public final class TextStructureUtils {
         }
 
         for (Object record : list) {
-            flattenRecordRecursive(keyParts, record, flattenedResult, timeoutChecker, currentDepth + 1, maxDepth);
+            flattenRecordRecursive(keyParts, record, flattenedResult, timeoutChecker, remainingDepth - 1);
         }
     }
 

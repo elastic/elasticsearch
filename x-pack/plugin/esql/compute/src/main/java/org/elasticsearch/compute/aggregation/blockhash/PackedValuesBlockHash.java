@@ -62,7 +62,7 @@ final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
     private final int emitBatchSize;
-    private final BytesRefHashTable bytesRefHash;
+    final BytesRefHashTable bytesRefHash;
     private final int nullTrackingBytes;
     private final BreakingBytesRefBuilder bytes;
     private final List<GroupSpec> specs;

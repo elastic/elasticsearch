@@ -476,11 +476,50 @@ works in parallel with the storage engine.)
 
 # Recovery
 
-(All shards go through a 'recovery' process. Describe high level. createShard goes through this code.)
+When a shard is first created on a node, it starts out empty. *Recovery* is the process of loading the shard's data from
+some data source into the newly created `IndexShard` in order to make it available for index or search requests.
+When the shard allocation process has chosen a node for a shard, it records its choice by writing an updated [ShardRouting][]
+record into the cluster state's [IndexRoutingTable][]. The [ShardRouting][] entry includes [RecoverySource][] metadata that
+describes where the shard's data can be found based on the shard's previous allocation. For example, a shard for a newly created
+index will have its `recoverySource` set to `EMPTY_STORE` to indicate that recovery should bring up the shard without loading
+any existing data, while a `recoverySource` of `EXISTING_STORE` would tell recovery to load the shard from files already
+present on disk, likely because the node was restarted and had hosted the shard until it shut down.
+
+The `IndicesClusterStateService` on each node listens for updates to the `IndexRoutingTable` and when it finds that a
+shard has been assigned to its node, it creates a fresh `IndexShard` for the assigned shard and kicks off a recovery process
+for that node, using the [RecoverySource][] in the [ShardRouting][] entry to determine the parameters of the recovery process.
+The full list of recovery types is defined in [RecoverySource.Type][]. The various modes are discussed below, roughly in
+order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying
+files from a snapshot source and then uses local store recovery. Similarly, if there is any local data, then
+peer recovery starts by using local store recovery to bring the local shard as close to up to date as it can, and then
+finishes synchronizing the shard through RPCs to an active source shard.
 
 (How is the translog involved in recovery?)
 
-### Create a Shard
+### Create a New Shard
+
+The simplest form of recovery is `EMPTY_STORE`, which is just what it sounds like. This recovery type causes the recovery
+process to invoke [StoreRecovery] for the recovery. `StoreRecovery` will create an empty shard directory on disk (deleting
+any existing files that may be present) and bootstrap an empty translog and then tell the Engine to use that directory.
+That's pretty much the whole process.
+
+### Restore from an Existing Directory
+
+Only slightly more complex is `EXISTING_STORE` recovery, which is used when the node is expected to have an up-to-date
+copy of the shard's data already present on disk. Once again `StoreRecovery` manages the recovery process, but in this
+case it expects to find Lucene files and a translog already present. It validates the Lucene files, potentially dropping
+any incomplete commits that may not have been fsynced to disk before shutdown, tells the engine to open the directory
+as its backing store, and then replays the transaction log to replay any operations that may have been acknowledged to
+the client but not written into a durable Lucene commit. At that point the shard is ready to serve requests.
+
+### Snapshot Recovery
+
+In snapshot recovery, the data source is a snapshot of the index shard stored on a remote repository. Snapshot recovery,
+also managed in `StoreRecovery` but invoked through the `recoverFromRepository` method, downloads and unpacks the snapshot
+from the local repository into the local shard directory and then invokes the same logic as `EXISTING_STORE` to bring
+the shard on line, with some small differences. The key one is that the snapshot is taken from a Lucene commit, and
+so it does not need to store the shard translog when the snapshot is taken, or restore it during recovery. Instead
+it creates a new empty translog before bringing the shard on line.
 
 ### Local Shards Recovery
 Local shards recovery is a type of recovery that reuses existing data from other shard(s) allocated on the current node (hence local shards). It is used exclusively to implement index [Shrink/Split/Clone APIs](#shrinksplitclone-index-apis).
@@ -489,13 +528,31 @@ This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data
 
 ### Peer Recovery
 
-### Snapshot Recovery
+The most complex recovery type is peer recovery, which is used both to bring up a new replica and for shard relocation.
+Unlike `StoreRecovery`, peer recovery is managed through a separate service on the node recovering the shard, the
+[PeerRecoveryTargetService][]. When the IndexShard sees that its recovery source is of type `PEER`, it hands over the
+recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` method. This service begins by creating
+a record of the recovery process to track its progress, and then runs local store recovery, but only up to the latest known
+global checkpoint for the shard (see [Translog][#Translog] for details). Once the local shard has been brought
+close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
+to complete synchronization.
 
-### Recovery Across Server Restart
+Synchronization begins by discovering any differences between the source and target shards and transmitting any missing files
+to the target shard. The next step is to transfer any operations from the source translog. Since the source shard is active,
+it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
+new operations, the source shard adds the target to the shard's recovery group (see the [replication][#Replication] docs)
+by adding the target shard to the shard's recovery group before completing the operation transfer phase. Once the target
+has been added to the recovery group, the source reads the latest sequence number from its transaction log knowing that
+any updates past that will be handled by recovery, and replays the translog to the target up to that point. After this
+point the target is in sync and can be started.
 
-(partial shard recoveries survive server restart? `reestablishRecovery`? How does that work.)
-
-### How a Recovery Method is Chosen
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/1d4a20ae194ce71fd5819786ba6dfb154ceb123f/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/473c4da497681c889728c05cebb27030ae97fc13/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+[RecoverySource]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java
+[RecoverySource.Type]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/cluster/routing/RecoverySource.java#L79
+[IndicesClusterStateService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java
+[StoreRecovery]:https://github.com/elastic/elasticsearch/blob/d70878f488dfa2e2ba4d02e335c15be7cd4d5af2/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java
+[PeerRecoveryTargetService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java
 
 # Data Tiers
 

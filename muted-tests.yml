@@ -282,9 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140809
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testReadBlobWithPrematureConnectionClose
-  issue: https://github.com/elastic/elasticsearch/issues/140954
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
@@ -300,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/141170
-- class: org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/141187
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
@@ -348,6 +342,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
+  issue: https://github.com/elastic/elasticsearch/issues/141425
 
 # Examples:
 #

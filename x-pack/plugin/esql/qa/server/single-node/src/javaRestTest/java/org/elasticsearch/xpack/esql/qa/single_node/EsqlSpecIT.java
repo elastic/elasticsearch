@@ -35,13 +35,13 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         Clusters.addAdditionalLoggingSettings(spec);
     });
 
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
+    }
+
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override

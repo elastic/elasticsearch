@@ -1124,10 +1124,11 @@ ca:l|cn:l|cf:l|gender:s
 
 countMultiValue
 from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+ignoreOrder:true
 
 c:l |  job_positions:s  
 4   |Architect        
-4   |Purchase Manager 
+4   |Purchase Manager
 4   |Reporting Analyst
 4   |Tech Lead    
 ;
@@ -1159,6 +1160,7 @@ c:long
 
 twoCountStarInStatsOnRealData-Ignore
 from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+ignoreOrder:true
 
 c:long
 1

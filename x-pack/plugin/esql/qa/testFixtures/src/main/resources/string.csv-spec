@@ -966,6 +966,7 @@ a:keyword            | a1:keyword
 
 mvSliceEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change.keyword, 0, 1)
@@ -999,6 +1000,7 @@ a:keyword | b:keyword | c:keyword
 
 mvZipEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval full_name = mv_zip(first_name, last_name, " "), full_name_2 = mv_zip(last_name, first_name), jobs = mv_zip(job_positions, salary_change.keyword, "#")

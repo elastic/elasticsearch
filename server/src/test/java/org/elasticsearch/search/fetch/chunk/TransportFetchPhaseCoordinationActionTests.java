@@ -9,6 +9,8 @@
 
 package org.elasticsearch.search.fetch.chunk;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -267,29 +269,27 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         Exception caughtException = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(caughtException.getMessage(), equalTo("Test failure"));
     }
-
+    
     public void testDoExecuteProcessesLastChunkInResponse() {
         transportService.registerRequestHandler(
             FETCH_ID_ACTION_NAME,
             threadPool.executor(ThreadPool.Names.GENERIC),
             ShardFetchSearchRequest::new,
             (req, channel, task) -> {
-                FetchSearchResult result = null;
+                FetchSearchResult result =createFetchSearchResult();
                 try {
-                    result = createFetchSearchResult();
 
                     BytesStreamOutput out = new BytesStreamOutput();
                     SearchHit hit = createHit(0);
                     hit.writeTo(out);
+                    hit.decRef();
 
                     result.setLastChunkBytes(out.bytes(), 1);
                     result.setLastChunkSequenceStart(0L);
 
                     channel.sendResponse(result);
                 } finally {
-                    if (result != null) {
-                        result.decRef();
-                    }
+                    result.decRef();
                 }
             }
         );

@@ -117,8 +117,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             .addAggregation(
                 termsAggregationBuilder.subAggregation(
                     new ScriptedMetricAggregationBuilder("sub_agg").initScript(
-                            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
-                        )
+                        new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.INIT_SCRIPT_NAME, Collections.emptyMap())
+                    )
                         .mapScript(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.MAP_SCRIPT_NAME, Collections.emptyMap()))
                         .combineScript(
                             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.COMBINE_SCRIPT_NAME, Collections.emptyMap())
@@ -331,10 +331,8 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
             } finally {
                 shardTaskLatch.countDown(); // unblock the shardTasks, allowing the test to conclude.
                 searchThread.join();
-                plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {
-                }));
-                searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnPreQueryPhase((SearchContext c) -> {
-                }));
+                plugins.forEach(plugin -> plugin.setBeforeExecution(() -> {}));
+                searchShardBlockingPlugins.forEach(plugin -> plugin.setRunOnPreQueryPhase((SearchContext c) -> {}));
             }
         } finally {
             if (useBatched == false) {

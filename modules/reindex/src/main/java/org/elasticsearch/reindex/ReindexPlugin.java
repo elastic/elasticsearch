@@ -52,7 +52,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     // register it via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
     // (The enrich plugin depends on this module, and registering features leads to either duplicate feature or JAR hell errors.)
     // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
-    public static final NodeFeature RELOCATE_ON_SHUTDOWN = new NodeFeature("reindex_relocate_on_shutdown");
+    public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
 
     /**
      * Whether the feature flag to guard the work to make reindex more resilient while it is under development.

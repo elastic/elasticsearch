@@ -88,13 +88,15 @@ public class HashAggregationOperator implements Operator {
     private boolean finished;
     private Page output;
 
-    protected BlockHash blockHash;
-    protected final List<GroupingAggregator> aggregators;
 
     protected final Supplier<BlockHash> blockHashSupplier;
     protected final List<GroupingAggregator.Factory> aggregatorFactories;
 
     protected final DriverContext driverContext;
+
+    // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
+    protected BlockHash blockHash;
+    protected final List<GroupingAggregator> aggregators;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.

@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.plan.logical.TopN.ESQL_TOPN_GROUPINGS;
+import static org.elasticsearch.xpack.esql.plan.logical.Limit.ESQL_LIMIT_PER;
 
 public class TopNExec extends UnaryExec implements EstimatesRowSize {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -91,7 +91,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readOptionalVInt()
         );
 
-        if (in.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+        if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
         } else {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
@@ -105,14 +105,14 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeCollection(order());
         out.writeNamedWriteable(limit());
+        out.writeOptionalVInt(estimatedRowSize());
 
-        if (out.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+        if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             out.writeNamedWriteableCollection(groupings());
         } else {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
         }
 
-        out.writeOptionalVInt(estimatedRowSize());
         // docValueAttributes are only used on the data node and never serialized.
     }
 

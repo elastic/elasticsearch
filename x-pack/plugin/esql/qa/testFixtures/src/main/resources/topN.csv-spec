@@ -189,16 +189,42 @@ network.bytes_in:long | @timestamp:datetime      | cluster:keyword | pod:keyword
 sortPerLimit
 required_capability: sort_per_limit
 
- FROM employees
+FROM employees
 | SORT salary DESC
 | LIMIT 5 PER_🐔 languages
 | KEEP first_name, last_name, salary, languages
+| SORT languages DESC nulls last, salary DESC
 ;
 
 first_name:keyword | last_name:keyword | salary:integer | languages:integer
-Otmar              | Herbst            | 74999          | null
-Moss               | Shanbhogue        | 74970          | 3
-Tzvetan            | Zielinski         | 74572          | 4
-Divier             | Reistad           | 73851          | null
-Lillian            | Haddadi           | 73717          | 1
+Arumugam           |Ossenbruggen       |66817           |5
+Bezalel            |Simmel             |56371           |5
+Hironoby           |Sidou              |54518           |5
+Premal             |Baek               |52833           |5
+Gao                |Dolinsky           |51956           |5
+Tzvetan            |Zielinski          |74572           |4
+Hironobu           |Haraldson          |68431           |4
+Mayumi             |Schueller          |65367           |4
+Parto              |Bamford            |61805           |4
+null               |Portugali          |60781           |4
+Moss               |Shanbhogue         |74970           |3
+Remzi              |Waschkowski        |71165           |3
+null               |Demeyer            |67492           |3
+Anoosh             |Peyn               |65030           |3
+Erez               |Ritzmann           |62405           |3
+Valter             |Sullins            |73578           |2
+Danel              |Mondadori          |69904           |2
+Kazuhito           |Cappelletti        |61358           |2
+Cristinel          |Bouloucos          |58715           |2
+Georgi             |Facello            |57305           |2
+Lillian            |Haddadi            |73717           |1
+null               |Merlo              |70011           |1
+Somnath            |Foote              |68547           |1
+Sumant             |Peac               |66174           |1
+Kyoichi            |Maliniak           |63528           |1
+Otmar              |Herbst             |74999           |null
+Divier             |Reistad            |73851           |null
+Suzette            |Pettey             |64675           |null
+Ramzi              |Erde               |60408           |null
+Shahaf             |Famili             |48233           |null
 ;

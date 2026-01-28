@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,9 +21,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
-    public static final TransportVersion ESQL_TOPN_GROUPINGS = TransportVersion.fromName("esql_topn_groupings");
+import static org.elasticsearch.xpack.esql.plan.logical.Limit.ESQL_LIMIT_PER;
 
+public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "TopN", TopN::new);
 
     private final List<Order> order;
@@ -55,7 +54,7 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
             false
         );
 
-        if (in.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+        if (in.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             this.groupings = in.readNamedWriteableCollectionAsList(Expression.class);
         } else {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");
@@ -68,7 +67,7 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
         out.writeNamedWriteable(child());
         out.writeCollection(order);
         out.writeNamedWriteable(limit);
-        if (out.getTransportVersion().supports(ESQL_TOPN_GROUPINGS)) {
+        if (out.getTransportVersion().supports(ESQL_LIMIT_PER)) {
             out.writeNamedWriteableCollection(groupings);
         } else {
             throw new IllegalArgumentException("LIMIT PER is not supported by all nodes in the cluster");

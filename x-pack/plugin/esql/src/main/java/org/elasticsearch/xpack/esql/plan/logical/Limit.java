@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Objects;
 
 public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker, ExecutesOn {
-    private static final TransportVersion ESQL_LIMIT_PER = TransportVersion.fromName("esql_limit_per");
+    public static final TransportVersion ESQL_LIMIT_PER = TransportVersion.fromName("esql_limit_per");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Limit", Limit::new);
 

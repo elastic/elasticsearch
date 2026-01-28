@@ -110,15 +110,20 @@ public class WriteLoadConstraintMonitor {
 
         final int numberOfNodes = clusterInfo.getNodeUsageStatsForThreadPools().size();
         final Set<String> writeNodeIdsExceedingQueueLatencyThreshold = Sets.newHashSetWithExpectedSize(numberOfNodes);
+        final Map<String, NodeUsageStatsForThreadPools> nodeUsageStats = clusterInfo.getNodeUsageStatsForThreadPools();
         var haveWriteNodesBelowQueueLatencyThreshold = false;
         var totalIngestNodes = 0;
-        for (var entry : clusterInfo.getNodeUsageStatsForThreadPools().entrySet()) {
-            final var nodeId = entry.getKey();
-            final var usageStats = entry.getValue();
-            final var nodeRoles = state.getNodes().get(nodeId).getRoles();
+        for (var node : state.nodes()) {
+            final var nodeRoles = node.getRoles();
             if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
                 // Search & ML nodes are not expected to have write load hot-spots and are not considered for shard relocation.
                 // TODO (ES-13314): consider stateful data tiers
+                continue;
+            }
+            final var nodeId = node.getId();
+            final var usageStats = nodeUsageStats.get(nodeId);
+            if (usageStats == null) {
+                // cluster info and cluster state may not match perfectly when a node drops out
                 continue;
             }
             totalIngestNodes++;

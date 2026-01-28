@@ -177,6 +177,11 @@ public class EsqlCapabilities {
         OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW,
 
         /**
+         * Don't nullify aliases for Aggregate groupings.
+         */
+        OPTIONAL_FIELDS_NULLIFY_SKIP_GROUP_ALIASES,
+
+        /**
          * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
          * supported.
          */

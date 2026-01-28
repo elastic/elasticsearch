@@ -98,15 +98,6 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
         return order;
     }
 
-    /**
-     * What this aggregation is grouped by. Generally, this corresponds to the {@code BY} clause, even though this command will not output
-     * those values unless they are also part of the {@link Aggregate#aggregates()}. This enables grouping without outputting the grouping
-     * keys, and makes it so that an {@link Aggregate}s also acts as a projection.
-     * <p>
-     * The actual grouping keys will be extracted from multivalues, so that if the grouping is on {@code mv_field}, and the document has
-     * {@code mv_field: [1, 2, 2]}, then the document will be part of the groups for both {@code mv_field=1} and {@code mv_field=2} (and
-     * counted only once in each group).
-     */
     public List<Expression> groupings() {
         return groupings;
     }

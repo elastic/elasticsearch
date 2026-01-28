@@ -139,7 +139,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     @Override
     public boolean expressionsResolved() {
-        // TODO Maybe we do not need the condition groupings == null here
         return limit.resolved() && Resolvables.resolved(groupings);
     }
 

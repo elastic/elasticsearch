@@ -126,7 +126,7 @@ public class TopNBenchmark {
             elementTypes,
             encoders,
             IntStream.range(0, count).mapToObj(c -> new TopNOperator.SortOrder(c, false, false)).toList(),
-            groupKeys,
+            List.of(),
             16 * 1024
         );
     }

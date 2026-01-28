@@ -48,11 +48,11 @@ required_capability: approximation
 
 SET approximation={"rows":10000}\;
 FROM many_numbers
-    | STATS count=COUNT(), sum=SUM(value)
+    | STATS count=COUNT(), count2=COUNT(*), count3=COUNT("*"), countValue=COUNT(value)
 ;
 
-count:long | sum:long               | CONFIDENCE_INTERVAL(sum):long                   | CERTIFIED(sum):boolean
-200100     | 1700000000..3600000000 | [1700000000..3600000000,1700000000..3600000000] | {any}
+count:long | count2:long | count3:long | countValue:long  | CONFIDENCE_INTERVAL(countValue):long | CERTIFIED(countValue):boolean
+200100     | 200100      | 200100      | 1300000..2700000 | [1300000..2700000,1300000..2700000]  | {any}
 ;
 
 

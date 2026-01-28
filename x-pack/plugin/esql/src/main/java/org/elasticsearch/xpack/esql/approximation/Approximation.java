@@ -470,8 +470,7 @@ public class Approximation {
         // The approximation plan appends the confidence interval and certified fields
         // at the end, so do the same here.
         LogicalPlan logicalPlanWithConfidenceIntervals = new Eval(Source.EMPTY, logicalPlan, confidenceIntervalsAndCertified);
-        logicalPlanWithConfidenceIntervals.setPreOptimized();
-        logicalPlanWithConfidenceIntervals = logicalPlanOptimizer.optimize(logicalPlanWithConfidenceIntervals);
+        logicalPlanWithConfidenceIntervals.setOptimized();
         return logicalPlanWithConfidenceIntervals;
     }
 
@@ -861,8 +860,9 @@ public class Approximation {
             // If the query is preserving all rows, and the aggregation function is
             // counting all rows, we know the exact result without sampling.
             // TODO: COUNT("foobar"), which counts all rows, should also be detected.
-            // Note that this inserts a constant as an aggreaation function. This
+            // Note that this inserts a constant as an aggregation function. This
             // works fine (empirically) even though it isn't an aggregation function.
+            // TODO: refactor into EVAL+PROJECT, instead of a constant aggregation.
             if (aggFn.equals(COUNT_ALL_ROWS)
                 && aggregate.groupings().isEmpty()
                 && queryProperties.canDecreaseRowCount == false
@@ -901,7 +901,7 @@ public class Approximation {
                                 Literal.integer(Source.EMPTY, bucketId)
                             )
                         );
-                        if (aggFn instanceof Count) {
+                        if (aggFn.equals(COUNT_ALL_ROWS)) {
                             // For COUNT, no data should result in NULL, like in other aggregations.
                             // Otherwise, the confidence interval computation breaks.
                             bucket = new Case(
@@ -1105,6 +1105,11 @@ public class Approximation {
                 // Collect a multivalued expression with all bucket values, and pass that to the
                 // confidence interval computation. Whenever the bucket value is null, replace it
                 // by NaN, because multivalued fields cannot have nulls.
+                // This is a bit of a back, because ES|QL generally does not support NaN values,
+                // but these values stay inside here and the confidence interval computation, and
+                // never reach the user.
+                // TODO: don't use NaNs, perhaps when nulls in multivalued are supported, see:
+                // https://github.com/elastic/elasticsearch/issues/141383
                 Expression bucketsMv = null;
                 for (int i = 0; i < TRIAL_COUNT * BUCKET_COUNT; i++) {
                     Expression bucket = buckets.get(i).toAttribute();

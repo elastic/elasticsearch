@@ -275,11 +275,18 @@ public class ConfidenceInterval extends EsqlScalarFunction {
         }
 
         // When a bucket is empty (indicated by a NaN value), it's not clear how to use it to
-        // compute the confidence interval. To compute a mean, empty buckets are best ignored.
-        // However, to compute a count or sum, it's best to treat them as zero. For a mixed
-        // quantity like sum+avg, it's not clear what to do at all.
-        // We try both strategies (ignoring and replacing by zero), and pick the one that gives
-        // an estimate closest to the best estimate.
+        // compute the confidence interval. For example:
+        // - for a mean/percentile, empty buckets are best ignored;
+        // - for a count/sum, it's best to treat them as zero;
+        // - for a derived expression (like count()+10), you need a non-zero value;
+        // - for a mixed quantity (like sum+count), it's not clear what to do at all.
+        //
+        // We try two strategies (ignoring and replacing by zero), and pick the one that gives
+        // an estimate closest to the best estimate. While not perfect, this heuristic works
+        // well in practice for many common cases (means, percentiles, counts, sums).
+        //
+        // If there are NaNs present in any trial, the interval is marked as unreliable. If the
+        // interval is not consistent with the best estimate, it's dropped (null is returned).
         Mean meansIgnoreNaN = new Mean();
         Mean meansZeroNaN = new Mean();
         for (int trial = 0; trial < trialCount; trial++) {

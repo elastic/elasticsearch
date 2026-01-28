@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
@@ -81,6 +82,11 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         assumeFalse(
             "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",
             testCase.requiredCapabilities.contains(METRICS_GROUP_BY_ALL.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            testCase.requiredCapabilities.contains(APPROXIMATION.capabilityName())
         );
 
         assumeFalse(

@@ -207,7 +207,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             .addListener(masterListener);
     }
 
-    private static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {
+    protected static void validateResolvedTaskType(Model existingParsedModel, TaskType resolvedTaskType) {
         if (existingParsedModel.getTaskType().equals(resolvedTaskType) == false) {
             throw new ElasticsearchStatusException("Task type must match the task type of the existing endpoint", RestStatus.BAD_REQUEST);
         }
@@ -220,7 +220,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param serviceName the name of the service
      * @return a new object representing the updated model configurations
      */
-    private ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
+    protected ModelConfigurations combineExistingModelConfigurationsWithNewSettings(
         Model existingParsedModel,
         UpdateInferenceModelAction.Settings newSettings,
         String serviceName
@@ -255,7 +255,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      * @param newSettingsMap new secrets to update
      * @return a new object representing the updated model secrets
      */
-    private ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
+    protected ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
         SecretSettings mergedSecretSettings = existingSecretSettings;
 

@@ -1,0 +1,5 @@
+pr: 139920
+summary: "Search/query logging support for _search, ES|QL, EQL, SQL"
+area: Search
+type: enhancement
+issues: []

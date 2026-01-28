@@ -1486,6 +1486,10 @@ public class IndexNameExpressionResolver {
         return systemIndices::isNetNewSystemIndex;
     }
 
+    public Predicate<String> getSystemNamePredicate() {
+        return systemIndices::isSystemName;
+    }
+
     /**
      * This returns `true` if the given {@param name} is of a resource that exists.
      * Otherwise, it returns `false` if the `ignore_unvailable` option is `true`, or, if `false`, it throws a "not found" type of

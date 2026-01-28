@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -67,6 +68,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.action.ActionLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -675,6 +677,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SamplingService.TTL_POLL_INTERVAL_SETTING,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
-        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
+        ActionLogger.ACTION_LOGGER_ENABLED,
+        ActionLogger.ACTION_LOGGER_THRESHOLD,
+        ActionLogger.ACTION_LOGGER_LEVEL,
+        ActionLogger.ACTION_LOGGER_INCLUDE_USER,
+        SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM
     );
 }

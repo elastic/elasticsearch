@@ -171,7 +171,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = roleDescriptor.getIndicesPrivileges();
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : indicesPrivileges) {
             final String[] privileges = indexPrivilege.getPrivileges();
-            final String[] legacyIndicesPrivileges = { "read", "view_index_metadata" };
+            final String[] legacyIndicesPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
             // find the "search" privilege, no need to check for DLS if set of index privileges are not the set used pre 8.14
             if (Arrays.equals(privileges, legacyIndicesPrivileges)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {

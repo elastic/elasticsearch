@@ -9,33 +9,25 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.action.ActionLoggerContextBuilder;
 import org.elasticsearch.tasks.Task;
 
 public class SearchLogContextBuilder extends ActionLoggerContextBuilder<SearchLogContext, SearchRequest, SearchResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final ProjectState projectState;
 
-    public SearchLogContextBuilder(
-        Task task,
-        NamedWriteableRegistry namedWriteableRegistry,
-        ProjectState projectState,
-        SearchRequest request
-    ) {
+    public SearchLogContextBuilder(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request) {
         super(task, request);
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.projectState = projectState;
     }
 
     @Override
     public SearchLogContext build(SearchResponse response) {
-        return new SearchLogContext(task, namedWriteableRegistry, projectState, request, response);
+        return new SearchLogContext(task, namedWriteableRegistry, request, response);
     }
 
     @Override
     public SearchLogContext build(Exception e) {
-        return new SearchLogContext(task, namedWriteableRegistry, projectState, request, elapsed(), e);
+        return new SearchLogContext(task, namedWriteableRegistry, request, elapsed(), e);
     }
 }

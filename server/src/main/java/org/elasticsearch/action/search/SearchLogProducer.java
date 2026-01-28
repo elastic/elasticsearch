@@ -17,6 +17,7 @@ import org.elasticsearch.index.ActionLoggingFields;
 import org.elasticsearch.logging.Level;
 
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.action.ActionLogger.ACTION_LOGGER_SETTINGS_PREFIX;
 
@@ -26,6 +27,7 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
 
     private boolean logSystemSearches = false;
+    private final Predicate<String> systemChecker;
 
     public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
         ACTION_LOGGER_SETTINGS_PREFIX + "search.log_system",
@@ -35,7 +37,8 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
     );
 
     @SuppressWarnings("this-escape")
-    public SearchLogProducer(ClusterSettings settings) {
+    public SearchLogProducer(ClusterSettings settings, Predicate<String> systemChecker) {
+        this.systemChecker = systemChecker;
         settings.initializeAndWatch(SEARCH_LOGGER_LOG_SYSTEM, this::setLogSystemSearches);
     }
 
@@ -52,7 +55,7 @@ public class SearchLogProducer implements ActionLoggerProducer<SearchLogContext>
             return Level.OFF;
         }
         // Exclude system searches, based on option
-        if (logSystemSearches == false && context.isSystemSearch()) {
+        if (logSystemSearches == false && context.isSystemSearch(systemChecker)) {
             return Level.OFF;
         }
         return defaultLevel;

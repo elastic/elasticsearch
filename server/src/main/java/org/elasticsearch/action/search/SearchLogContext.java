@@ -11,15 +11,13 @@ package org.elasticsearch.action.search;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.action.ActionLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 public class SearchLogContext extends ActionLoggerContext {
     private static final String TYPE = "search";
@@ -27,35 +25,27 @@ public class SearchLogContext extends ActionLoggerContext {
     private final @Nullable SearchResponse response;
     private String[] indexNames = null;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final ProjectState projectState;
 
-    public SearchLogContext(
+    private SearchLogContext(
         Task task,
         NamedWriteableRegistry namedWriteableRegistry,
-        ProjectState projectState,
         SearchRequest request,
-        SearchResponse response
-    ) {
-        super(task, TYPE, response.getTook().nanos());
-        this.request = request;
-        this.response = response;
-        this.namedWriteableRegistry = namedWriteableRegistry;
-        this.projectState = projectState;
-    }
-
-    SearchLogContext(
-        Task task,
-        NamedWriteableRegistry namedWriteableRegistry,
-        ProjectState projectState,
-        SearchRequest request,
+        @Nullable SearchResponse response,
         long tookInNanos,
         Exception error
     ) {
         super(task, TYPE, tookInNanos, error);
         this.request = request;
-        this.response = null;
+        this.response = response;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.projectState = projectState;
+    }
+
+    public SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, SearchResponse response) {
+        this(task, namedWriteableRegistry, request, response, response.getTook().nanos(), null);
+    }
+
+    SearchLogContext(Task task, NamedWriteableRegistry namedWriteableRegistry, SearchRequest request, long tookInNanos, Exception error) {
+        this(task, namedWriteableRegistry, request, null, tookInNanos, error);
     }
 
     String getQuery() {
@@ -86,35 +76,10 @@ public class SearchLogContext extends ActionLoggerContext {
         return indexNames;
     }
 
-    boolean isSystemIndex(String index) {
-        ProjectMetadata metadata = projectState.metadata();
-
-        if (metadata.hasAlias(index) && metadata.aliasedIndices(index).stream().allMatch(i -> metadata.index(i).isSystem())) {
-            return true;
-        }
-
-        if (metadata.hasIndex(index) && metadata.index(index).isSystem()) {
-            return true;
-        }
-
-        if (metadata.indexIsADataStream(index)) {
-            DataStream ds = metadata.dataStreams().get(index);
-            return ds != null && ds.isSystem();
-        }
-
-        return false;
-    }
-
-    boolean isSystemSearch() {
-        String opaqueId = getOpaqueId();
-        // Kibana task manager queries
-        // TODO: refine the check
-        if (opaqueId != null && (opaqueId.startsWith("kibana:") || opaqueId.contains(";kibana:"))) {
-            return true;
-        }
+    boolean isSystemSearch(Predicate<String> systemChecker) {
         String[] indices = getIndexNames();
         // Request that only asks for system indices is system search
-        if (indices.length > 0 && Arrays.stream(indices).allMatch(this::isSystemIndex)) {
+        if (indices.length > 0 && Arrays.stream(indices).allMatch(systemChecker)) {
             return true;
         }
         return false;

@@ -27,9 +27,9 @@ import org.elasticsearch.common.logging.ECSJsonLayout;
 
 @Plugin(name = "ActionLoggerAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public final class ActionLoggerAppender extends AbstractAppender {
-    private final RollingFileAppender delegate;
+    private final AbstractAppender delegate;
 
-    private ActionLoggerAppender(String name, RollingFileAppender delegate) {
+    private ActionLoggerAppender(String name, AbstractAppender delegate) {
         super(name, null, null, true, null);
         this.delegate = delegate;
     }
@@ -37,18 +37,6 @@ public final class ActionLoggerAppender extends AbstractAppender {
     @Override
     public void append(LogEvent event) {
         delegate.append(event);
-    }
-
-    @Override
-    public void start() {
-        delegate.start();
-        super.start();
-    }
-
-    @Override
-    public void stop() {
-        super.stop();
-        delegate.stop();
     }
 
     @PluginFactory
@@ -72,6 +60,7 @@ public final class ActionLoggerAppender extends AbstractAppender {
             .withStrategy(strategy)
             .setConfiguration(config)
             .build();
+        config.addAppender(roller);
         return new ActionLoggerAppender(name, roller);
     }
 }

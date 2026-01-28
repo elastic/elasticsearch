@@ -54,7 +54,7 @@ ROW n=1
 | --- |
 | 0 |
 
-To count the number of times *many* expression return `TRUE` use a WHERE inside the STATS.
+To count the number of times *multiple* expressions return `TRUE` use a WHERE inside the STATS.
 
 ```esql
 FROM employees
@@ -80,9 +80,9 @@ ROW mv = [1, 2], n = NULL, t = TRUE, f = FALSE
 | 2 | 0 | 1 | 1 |
 
 You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
-`COUNT() WHERE <expression>` supported before the `WHERE` inside `STATS`. This relies on `COUNT(NULL)`
-to return `0` and builds on the three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)):
-`TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`.
+`COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
+three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)): `TRUE OR NULL` is `TRUE`, but
+`FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.
 
 ```esql
 ROW n=1

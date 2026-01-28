@@ -67,9 +67,9 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 `COUNT`ing `true` returns 1. `COUNT`ing `false` returns 1.""", file = "stats", tag = "count-mv"),
             @Example(description = """
                 You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
-                `COUNT() WHERE <expression>` supported before the `WHERE` inside `STATS`. This relies on `COUNT(NULL)`
-                to return `0` and builds on the three-valued logic ({wikipedia}/Three-valued_logic[3VL]):
-                `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`.""", file = "stats", tag = "count-or-null") }
+                `COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
+                three-valued logic ({wikipedia}/Three-valued_logic[3VL]): `TRUE OR NULL` is `TRUE`, but
+                `FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.""", file = "stats", tag = "count-or-null") }
     )
     public Count(
         Source source,

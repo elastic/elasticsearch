@@ -13,8 +13,6 @@ import org.elasticsearch.exponentialhistogram.TDigestToExponentialHistogramConve
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
-
 public class ParsedHistogramConverter {
 
     /**

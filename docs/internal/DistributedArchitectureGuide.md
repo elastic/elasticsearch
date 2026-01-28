@@ -486,7 +486,7 @@ any existing data, while a `recoverySource` of `EXISTING_STORE` would tell recov
 present on disk, likely because the node was restarted and had hosted the shard until it shut down.
 
 The `IndicesClusterStateService` on each node listens for updates to the `IndexRoutingTable` and when it finds that a
-shard has been assigned to its node, it creates a fresh `IndexShard` for the assigned shard and kicks off a recovery process
+shard in state `INITIALIZING` has been assigned to its node, it creates a fresh `IndexShard` for the assigned shard and kicks off a recovery process
 for that node, using the [RecoverySource][] in the [ShardRouting][] entry to determine the parameters of the recovery process.
 The full list of recovery types is defined in [RecoverySource.Type][]. The various modes are discussed below, roughly in
 order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying

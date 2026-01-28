@@ -116,7 +116,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
-            Map.of()
+            Map.of(),
+            false
         ) {
 
             @Override
@@ -225,7 +226,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
-                Map.of()
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -343,7 +345,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
-                Map.of()
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -475,7 +478,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
-                Map.of()
+                Map.of(),
+                false
             ) {
                 @Override
                 protected void executePhaseOnShard(
@@ -585,7 +589,8 @@ public class SearchAsyncActionTests extends ESTestCase {
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY,
                 mock(SearchResponseMetrics.class),
-                Map.of()
+                Map.of(),
+                false
             ) {
 
                 @Override
@@ -686,7 +691,8 @@ public class SearchAsyncActionTests extends ESTestCase {
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY,
             mock(SearchResponseMetrics.class),
-            Map.of()
+            Map.of(),
+            false
         ) {
 
             @Override

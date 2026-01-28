@@ -41,10 +41,35 @@ import static org.elasticsearch.xpack.esql.view.ViewService.MAX_VIEW_DEPTH_SETTI
 
 public class ViewResolver {
 
+    /**
+     * A no-op view resolver that returns plans unchanged.
+     * Used when views feature is disabled.
+     */
+    public static final ViewResolver NOOP = new ViewResolver() {
+        @Override
+        public ViewResolutionResult replaceViews(LogicalPlan plan, BiFunction<String, String, LogicalPlan> parser) {
+            return new ViewResolutionResult(plan, Map.of());
+        }
+
+        @Override
+        protected boolean viewsFeatureEnabled() {
+            return false;
+        }
+    };
+
     protected Logger log = LogManager.getLogger(getClass());
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private volatile int maxViewDepth;
+
+    /**
+     * Private constructor for NOOP instance.
+     */
+    private ViewResolver() {
+        this.clusterService = null;
+        this.projectResolver = null;
+        this.maxViewDepth = 0;
+    }
 
     public ViewResolver(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
         this.clusterService = clusterService;

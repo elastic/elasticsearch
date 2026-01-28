@@ -172,6 +172,7 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 import org.elasticsearch.xpack.inference.services.llama.LlamaService;
 import org.elasticsearch.xpack.inference.services.mistral.MistralService;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.openshiftai.OpenShiftAiService;
@@ -561,6 +562,7 @@ public class InferencePlugin extends Plugin
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleVertexAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new MistralService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new MixedbreadService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AnthropicService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AmazonBedrockService(httpFactory.get(), amazonBedrockFactory.get(), serviceComponents.get(), context),
             context -> new AlibabaCloudSearchService(httpFactory.get(), serviceComponents.get(), context),

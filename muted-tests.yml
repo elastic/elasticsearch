@@ -282,9 +282,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:string.Url_encode_component tests with table reads}
   issue: https://github.com/elastic/elasticsearch/issues/140809
-- class: org.elasticsearch.repositories.azure.AzureBlobContainerRetriesTests
-  method: testReadBlobWithPrematureConnectionClose
-  issue: https://github.com/elastic/elasticsearch/issues/140954
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
@@ -300,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.PushQueriesIT
   method: testEqualityAndOther {SEMANTIC_TEXT_WITH_KEYWORD}
   issue: https://github.com/elastic/elasticsearch/issues/141170
-- class: org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapperTests
-  method: testSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/141187
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
@@ -318,12 +312,27 @@ tests:
 - class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
   method: testQuantizedXY
   issue: https://github.com/elastic/elasticsearch/issues/141234
-- class: org.elasticsearch.xpack.logsdb.StandardToLogsDbIndexModeRollingUpgradeIT
-  method: testIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/141235
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141270
+- class: org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQBFloat16VectorsFormatTests
+  method: testSparseVectors
+  issue: https://github.com/elastic/elasticsearch/issues/141271
 - class: org.elasticsearch.snapshots.SnapshotStatusApisIT
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
+  issue: https://github.com/elastic/elasticsearch/issues/141425
+- class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
+  method: testRateGroupBySubset
+  issue: https://github.com/elastic/elasticsearch/issues/141455
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/141469
+- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
+  method: testAttachAndGetToken
+  issue: https://github.com/elastic/elasticsearch/issues/141470
 
 # Examples:
 #

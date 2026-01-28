@@ -272,7 +272,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Function<String[], Long> estimateSize = a -> {
             long estimatedSize = 0;
             for (String s : a) {
-                estimatedSize += s.trim().getBytes(StandardCharsets.UTF_8).length;;
+                estimatedSize += s.trim().getBytes(StandardCharsets.UTF_8).length;
             }
 
             return estimatedSize;

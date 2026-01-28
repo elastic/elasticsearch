@@ -563,7 +563,11 @@ public class SynonymsAnalysisTests extends ESTestCase {
             foo, bar, baz
             # foo, bar, baz
             """;
-        SynonymTokenFilterFactory.ReaderWithOrigin readerWithOrigin = new SynonymTokenFilterFactory.ReaderWithOrigin(new StringReader(synonyms), "test", SynonymTokenFilterFactory.SynonymsSource.LOCAL_FILE);
+        SynonymTokenFilterFactory.ReaderWithOrigin readerWithOrigin = new SynonymTokenFilterFactory.ReaderWithOrigin(
+            new StringReader(synonyms),
+            "test",
+            SynonymTokenFilterFactory.SynonymsSource.LOCAL_FILE
+        );
         assertEquals(18, SynonymTokenFilterFactory.estimateSynonymsMapSize(readerWithOrigin));
     }
 

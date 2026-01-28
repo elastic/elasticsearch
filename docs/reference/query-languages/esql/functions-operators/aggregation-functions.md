@@ -72,3 +72,9 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE
 
 :::{include} ../_snippets/functions/layout/weighted_avg.md
 :::
+
+:::{include} ../_snippets/functions/layout/first.md
+:::
+
+:::{include} ../_snippets/functions/layout/last.md
+:::

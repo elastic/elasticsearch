@@ -614,16 +614,19 @@ public class GroupingAggregatorImplementer {
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
 
         // NOTE:
-        // In ALL_FIRST & ALL_LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
+        // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
         // aggregator's "combineIntermediate" method, and let it handle null blocks however it wants. This will be removed once
         // BlockArgument can have two variants: One that wants to handle nulls itself like in this case, and one that wants
         // them filtered out like in the case for geo functions.
         String aggregatorName = this.declarationType.getSimpleName().toString();
-        boolean isAllFirstAllLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
+
+        // First/Last aggregators still retain the "All" prefix, in order to not conflict with the aggregators for the old First/Last that
+        // are still used by some functions.
+        boolean isFirstLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
 
         int count = 0;
         for (var interState : intermediateState) {
-            interState.assignToVariable(builder, count, isAllFirstAllLast);
+            interState.assignToVariable(builder, count, isFirstLast);
             count++;
         }
         final String first = intermediateState.get(0).name();

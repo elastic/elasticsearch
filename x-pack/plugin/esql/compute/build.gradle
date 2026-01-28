@@ -497,12 +497,12 @@ tasks.named('stringTemplates').configure {
    * Generates pairwise states. We generate the ones that we need at the moment,
    * but add more if you need more.
    */
-  def generateTwoStateFiles = { inputFile, prefix = "" ->
+  def generateTwoStateFiles = { inputFile, includeBoolean, prefix = "" ->
     def v1Props = [longProperties]
     def v2Props = [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties]
 
-    if (prefix != "") {
-      // Add the boolean type for ALL_FIRST/ALL_LAST, but not for FIRST/LAST.
+    if (includeBoolean) {
+      // Generate the two-state class for the boolean type
       v2Props << booleanProperties
     }
 
@@ -520,8 +520,8 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"))
-  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), "All")
+  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-2State.java.st"), false)
+  generateTwoStateFiles(file("src/main/java/org/elasticsearch/compute/aggregation/X-All2State.java.st"), true, "All")
 
   File irateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-IrateAggregator.java.st")
   template {
@@ -974,7 +974,7 @@ tasks.named('stringTemplates').configure {
   }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
-  def generateTimestampAggregatorClasses = { inputFilename, prefix = "" ->
+  def generateTimestampAggregatorClasses = { inputFilename, includeBoolean, prefix = "" ->
     def inputFile = file(inputFilename)
     ["First", "Last"].forEach { Occurrence ->
       {
@@ -1003,8 +1003,8 @@ tasks.named('stringTemplates').configure {
           it.inputFile = inputFile
           it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}BytesRefByTimestampAggregator.java"
         }
-        if (prefix != "") {
-          // Add the boolean type for ALL_FIRST/ALL_LAST, but not for FIRST/LAST.
+        if (includeBoolean) {
+          // Generate an aggregator for the boolean type
           template {
             it.properties = addOccurrence(booleanProperties, Occurrence) + [Prefix: prefix]
             it.inputFile = inputFile
@@ -1015,8 +1015,8 @@ tasks.named('stringTemplates').configure {
     }
   }
 
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st", "")
-  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", "All")
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-ValueByTimestampAggregator.java.st", false)
+  generateTimestampAggregatorClasses("src/main/java/org/elasticsearch/compute/aggregation/X-AllValueByTimestampAggregator.java.st", true, "All")
 
   File rateAggregatorInputFile = file("src/main/java/org/elasticsearch/compute/aggregation/X-RateGroupingAggregatorFunction.java.st")
   template {

@@ -70,7 +70,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -95,7 +94,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
-import org.elasticsearch.xpack.esql.inference.XContentRowEncoder;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -634,28 +632,12 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        EvalOperator.ExpressionEvaluator.Factory rowEncoderFactory;
-        if (rerank.rerankFields().size() > 1) {
-            // If there is more than one field used for reranking we are encoded the input in a YAML doc, using field names as key.
-            // The input value will looks like
-            // text_field: foo bar
-            // multivalue_text_field:
-            // - value 1
-            // - value 2
-            // integer_field: 132
-            Map<ColumnInfoImpl, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = Maps
-                .newLinkedHashMapWithExpectedSize(rerank.rerankFields().size());
+        List<EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluators = rerank.rerankFields()
+            .stream()
+            .map(rerankField -> EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout))
+            .toList();
 
-            for (var rerankField : rerank.rerankFields()) {
-                rerankFieldsEvaluatorSuppliers.put(
-                    new ColumnInfoImpl(rerankField.name(), rerankField.dataType(), null),
-                    EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
-                );
-            }
-            rowEncoderFactory = XContentRowEncoder.yamlRowEncoderFactory(rerankFieldsEvaluatorSuppliers);
-        } else {
-            rowEncoderFactory = EvalMapper.toEvaluator(context.foldCtx(), rerank.rerankFields().get(0).child(), source.layout);
-        }
+        assert rerankFieldsEvaluators.size() > 0 : "rerank expression evaluators must not be empty";
 
         String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
         String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
@@ -672,7 +654,7 @@ public class LocalExecutionPlanner {
                 inferenceService,
                 inferenceId,
                 queryText,
-                rowEncoderFactory,
+                rerankFieldsEvaluators,
                 scoreChannel,
                 RerankOperator.DEFAULT_BATCH_SIZE
             ),
@@ -863,6 +845,10 @@ public class LocalExecutionPlanner {
 
     private PhysicalOperation planProject(ProjectExec project, LocalExecutionPlannerContext context) {
         var source = plan(project.child(), context);
+        return planProject(project, source);
+    }
+
+    public static PhysicalOperation planProject(ProjectExec project, PhysicalOperation source) {
         List<? extends NamedExpression> projections = project.projections();
         List<Integer> projectionList = new ArrayList<>(projections.size());
 
@@ -957,28 +943,28 @@ public class LocalExecutionPlanner {
         /**
          * Creates a new physical operation with the given source and layout.
          */
-        static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
+        public static PhysicalOperation fromSource(SourceOperatorFactory sourceOperatorFactory, Layout layout) {
             return new PhysicalOperation(sourceOperatorFactory, layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given layout.
          */
-        PhysicalOperation with(Layout layout) {
+        public PhysicalOperation with(Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given intermediate operator and layout.
          */
-        PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
+        public PhysicalOperation with(OperatorFactory operatorFactory, Layout layout) {
             return new PhysicalOperation(this, Optional.of(operatorFactory), Optional.empty(), layout);
         }
 
         /**
          * Creates a new physical operation from this operation with the given sink and layout.
          */
-        PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
+        public PhysicalOperation withSink(SinkOperatorFactory sink, Layout layout) {
             return new PhysicalOperation(this, Optional.empty(), Optional.of(sink), layout);
         }
 
@@ -1013,6 +999,10 @@ public class LocalExecutionPlanner {
 
         public SinkOperator sink(DriverContext driverContext) {
             return sinkOperatorFactory.get(driverContext);
+        }
+
+        public Layout layout() {
+            return layout;
         }
 
         public Supplier<String> longDescription() {
@@ -1133,7 +1123,7 @@ public class LocalExecutionPlanner {
                 localBreakerSettings.overReservedBytes(),
                 localBreakerSettings.maxOverReservedBytes()
             );
-            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), description);
+            var driverContext = new DriverContext(bigArrays, blockFactory.newChildFactory(localBreaker), localBreakerSettings, description);
             try {
                 source = physicalOperation.source(driverContext);
                 physicalOperation.operators(operators, driverContext);

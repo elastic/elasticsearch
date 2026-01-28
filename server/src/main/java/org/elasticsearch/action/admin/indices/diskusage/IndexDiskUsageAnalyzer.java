@@ -207,7 +207,12 @@ final class IndexDiskUsageAnalyzer {
         }
 
         @Override
-        public Status needsField(FieldInfo fieldInfo) throws IOException {
+        public Status needsField(FieldInfo fieldInfo) {
+            if (SyntheticIdField.hasSyntheticIdAttributes(fieldInfo.attributes())) {
+                // Synthetic _id field doesn't have stored values on disk but it pretends to have them, so we explicitly filter it out.
+                assert SyntheticIdField.NAME.equals(fieldInfo.getName()) : fieldInfo.getName();
+                return Status.NO;
+            }
             return Status.YES;
         }
     }

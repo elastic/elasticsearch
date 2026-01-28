@@ -83,6 +83,6 @@ public class ES92GpuHnswVectorsFormatTests extends BaseKnnVectorsFormatTestCase 
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 }

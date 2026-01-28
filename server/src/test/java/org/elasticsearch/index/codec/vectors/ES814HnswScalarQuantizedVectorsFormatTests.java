@@ -51,7 +51,7 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES814HnswScalarQuantizedRWVectorsFormat());

@@ -66,7 +66,7 @@ public abstract class BaseBFloat16KnnVectorsFormatTestCase extends BaseKnnVector
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     @Override

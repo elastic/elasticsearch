@@ -83,7 +83,7 @@ public class ES93BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     private KnnVectorsFormat format;

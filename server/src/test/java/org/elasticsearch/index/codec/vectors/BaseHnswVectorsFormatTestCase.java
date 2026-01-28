@@ -52,7 +52,7 @@ public abstract class BaseHnswVectorsFormatTestCase extends BaseKnnVectorsFormat
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     protected abstract KnnVectorsFormat createFormat();

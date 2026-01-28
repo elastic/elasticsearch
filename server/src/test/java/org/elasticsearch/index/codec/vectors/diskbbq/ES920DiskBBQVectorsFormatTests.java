@@ -63,7 +63,7 @@ public class ES920DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     private KnnVectorsFormat format;

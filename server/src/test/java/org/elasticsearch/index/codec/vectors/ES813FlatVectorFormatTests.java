@@ -37,7 +37,7 @@ public class ES813FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES813FlatRWVectorFormat());

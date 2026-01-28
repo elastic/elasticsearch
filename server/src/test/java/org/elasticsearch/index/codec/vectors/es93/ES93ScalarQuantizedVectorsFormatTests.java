@@ -43,7 +43,7 @@ public class ES93ScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFormatT
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     @Override

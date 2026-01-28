@@ -41,7 +41,7 @@ public class ES93FlatVectorFormatTests extends BaseKnnVectorsFormatTestCase {
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     @Override

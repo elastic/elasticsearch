@@ -77,7 +77,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
 
     @Override
     protected boolean supportsFloatVectorFallback() {
-        return true;
+        return false;
     }
 
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES816BinaryQuantizedRWVectorsFormat());

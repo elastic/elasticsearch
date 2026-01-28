@@ -49,8 +49,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public static final ActionType<ListTasksResponse> RETHROTTLE_ACTION = new ActionType<>("cluster:admin/reindex/rethrottle");
 
     // N.B. We declare this in the reindex module, so that we can check whether the feature is available on the cluster here - but we
-    // register it via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here. (This
-    // means this feature will never be considered available unless that other module is also present, which is fine.)
+    // register it via a FeatureSpecification in the reindex-management module, to work around build problems caused by doing it here.
+    // (The enrich plugin depends on this module, and registering features leads to either duplicate feature or JAR hell errors.)
+    // (This approach means that the functionality requires both reindex and reindex-management modules to be present and enabled.)
     public static final NodeFeature RELOCATE_ON_SHUTDOWN = new NodeFeature("reindex_relocate_on_shutdown");
 
     /**

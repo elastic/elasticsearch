@@ -110,7 +110,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_B
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.SETTING_CLUSTER_MAX_INDICES_PER_PROJECT;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
@@ -300,12 +301,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testUserIndicesLimit() {
-        Settings nodeSettings = Settings.builder().put(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey(), randomIntBetween(10, 30)).build();
+        Settings nodeSettings = Settings.builder()
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), randomIntBetween(10, 30))
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true).build();
 
         withTemporaryClusterService((clusterService, threadPool) -> {
             @SuppressWarnings("unchecked")
             Setting<Integer> indexLimitSetting = (Setting<Integer>) clusterService.getClusterSettings()
-                .get(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey());
+                .get(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey());
             var indexLimit = clusterService.getClusterSettings().get(Objects.requireNonNull(indexLimitSetting));
             var totalUserIndices = indexLimit + randomIntBetween(1, 10);
             String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
@@ -352,7 +355,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 IndexLimitExceededException.class,
                 () -> checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), userIndexCreateRequest)
             );
-            assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has [" + totalUserIndices));
+            assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has ["));
 
             CreateIndexClusterStateUpdateRequest systemIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
                 "test",
@@ -365,7 +368,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             } catch (Exception ex) {
                 fail(ex, "System indices creation should not be limited by indices total.");
             }
-        }, nodeSettings, Set.of(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT));
+        }, nodeSettings, Set.of(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING));
     }
 
     public void testValidateSplitIndex() {

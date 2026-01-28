@@ -143,9 +143,15 @@ public class MetadataCreateIndexService {
         Setting.Property.Dynamic
     );
 
+    public static final Setting<Boolean> CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.max_indices_per_project.enabled",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     // High default value so that is disabled by default.
-    private static final int MAX_INDICES_PER_PROJECT_DISABLED = Integer.MAX_VALUE;
-    public static final Setting<Integer> SETTING_CLUSTER_MAX_INDICES_PER_PROJECT = Setting.intSetting(
+    public static final Setting<Integer> CLUSTER_MAX_INDICES_PER_PROJECT_SETTING = Setting.intSetting(
         "cluster.max_indices_per_project",
         Integer.MAX_VALUE,
         Setting.Property.Dynamic,
@@ -184,6 +190,7 @@ public class MetadataCreateIndexService {
 
     private volatile TimeValue maxMasterNodeTimeout;
     private volatile int maxIndicesPerProject;
+    private volatile boolean maxIndicesPerProjectEnabled;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -221,25 +228,31 @@ public class MetadataCreateIndexService {
             maxMasterNodeTimeout = CREATE_INDEX_MAX_TIMEOUT_SETTING.get(clusterService.getSettings());
         }
 
-        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.getKey())) {
-            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_MAX_INDICES_PER_PROJECT, v -> maxIndicesPerProject = v);
+        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(
+                CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
         } else {
-            maxIndicesPerProject = SETTING_CLUSTER_MAX_INDICES_PER_PROJECT.get(clusterService.getSettings());
+            maxIndicesPerProjectEnabled = CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING, v -> maxIndicesPerProject = v);
+        } else {
+            maxIndicesPerProject = CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.get(clusterService.getSettings());
         }
     }
 
     public void validateIndexLimit(ProjectMetadata projectMetadata, CreateIndexClusterStateUpdateRequest request) {
-        if (maxIndicesPerProject == MAX_INDICES_PER_PROJECT_DISABLED) {
+        if (maxIndicesPerProjectEnabled == false) {
             return;
         }
 
-        Predicate<String> isSystem = index -> systemIndices.isSystemIndex(index) || systemIndices.isSystemIndexBackingDataStream(index);
-        if (isSystem.test(request.index())) {
+        if (systemIndices.isSystemIndex(request.index()) || systemIndices.isSystemIndexBackingDataStream(request.index())) {
             return;
         }
 
         var totalUserIndices = projectMetadata.stream()
-            .filter(indexMetadata -> isSystem.test(indexMetadata.getIndex().getName()) == false)
+            .filter(indexMetadata -> indexMetadata.isSystem() == false)
             .count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(

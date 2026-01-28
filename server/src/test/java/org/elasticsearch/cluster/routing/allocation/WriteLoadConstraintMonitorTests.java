@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -499,6 +500,37 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations);
     }
 
+    public void testClusterInfoClusterStateMismatch() {
+        final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5, true);
+
+        final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
+        final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(testState.clusterState());
+
+        final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        final WriteLoadConstraintMonitor writeLoadConstraintMonitor = new WriteLoadConstraintMonitor(
+            testState.clusterSettings,
+            currentTimeMillis::get,
+            () -> clusterStateRef.get(),
+            testState.mockRerouteService,
+            recordingMeterRegistry
+        );
+
+        writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
+        verify(testState.mockRerouteService).reroute(anyString(), eq(Priority.NORMAL), any());
+        reset(testState.mockRerouteService);
+
+        // remove a node from cluster info and cluster state that isn't the master
+        String removeHotspotId = randomValueOtherThan(
+            clusterStateRef.get().nodes().getMasterNodeId(),
+            () -> randomFrom(testState.hotspotNodeIds())
+        );
+
+        TestState testStateUpdated = testState.dropClusterStateNodeWithStaleClusterInfo(removeHotspotId);
+        clusterStateRef.set(testStateUpdated.clusterState());
+
+        writeLoadConstraintMonitor.onNewInfo(testStateUpdated.clusterInfo());
+    }
+
     private boolean indexingNodeBelowQueueLatencyThreshold(
         ClusterState clusterState,
         String nodeId,
@@ -771,6 +803,30 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
                 state,
                 mockRerouteService,
                 clusterInfo
+            );
+        }
+
+        /* Makes a change to cluster state by removing a node, but leave cluster info stale */
+        private TestState dropClusterStateNodeWithStaleClusterInfo(String nodeId) {
+            assert clusterState.nodes().get(nodeId) != null : "must be a known node";
+            Set<String> newHotspotNodeIds = new HashSet<>(hotspotNodeIds);
+            newHotspotNodeIds.remove(nodeId);
+
+            ClusterState oldClusterState = clusterState;
+            ClusterState newClusterState = new ClusterState.Builder(oldClusterState).nodes(
+                DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)
+            ).build();
+
+            return new TestState(
+                latencyThresholdMillis,
+                highUtilizationThresholdPercent,
+                numberOfNodes - 1,
+                newHotspotNodeIds,
+                clusterSettings,
+                currentTimeSupplier,
+                newClusterState,
+                mockRerouteService,
+                createClusterInfoWithHotSpots(oldClusterState, newHotspotNodeIds, latencyThresholdMillis, highUtilizationThresholdPercent)
             );
         }
     }

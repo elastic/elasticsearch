@@ -870,9 +870,10 @@ public class LocalExecutionPlanner {
                 .operationRouting()
                 .searchShards(projectState, new String[] { indexName }, Map.of(), "_local");
 
+            // Check ALL shard routings (primary + replicas) to ensure every node
+            // that could potentially handle the lookup supports streaming
             for (ShardIterator shardIt : shardIterators) {
-                ShardRouting shardRouting = shardIt.nextOrNull();
-                if (shardRouting != null) {
+                for (ShardRouting shardRouting : shardIt) {
                     DiscoveryNode node = clusterState.nodes().get(shardRouting.currentNodeId());
                     Transport.Connection connection = service.getTransportService().getConnection(node);
                     TransportVersion nodeVersion = connection.getTransportVersion();

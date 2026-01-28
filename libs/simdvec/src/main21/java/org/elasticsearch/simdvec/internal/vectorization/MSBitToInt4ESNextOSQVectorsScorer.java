@@ -20,7 +20,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -39,7 +38,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     // TODO: split Panama and Native implementations
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
     private static final boolean SUPPORTS_HEAP_SEGMENTS = Runtime.version().feature() >= 22;
-    private static final boolean IS_X64 = System.getProperty("os.arch").equals("amd64");
 
     MSBitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, dataLength, bulkSize, memorySegment);
@@ -602,7 +600,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
     ) throws IOException {
         long offset = in.getFilePointer();
 
-        final float maxScore = Similarities.nativeScoreBulk(
+        final float maxScore = ScoreAdjustments.nativeScoreBulk(
             similarityFunction,
             memorySegment.asSlice(offset),
             bulkSize,

@@ -17,7 +17,10 @@ static inline void prefetch(const void* ptr, int lines) {
 /* Utility functions to perform reduce operations (horizontal ops) over a vector
  * It works by narrowing in half until you're down to 1 element.
  * Schematically, this works as depicted: from a starting vector whose elements
- * are labelled as |1|2|3|4|5|6|7|8|
+ * are labelled as |1|2|3|4|5|6|7|8| we perform "op" over half vectors multiple
+ * times, returning op(op(op(1, 5), op(3, 7)), op(2, 6), op(4, 8))).
+ * "op" is the template argument mm_op_epi32, which is an intrinsic with the template
+ * argument performing the binary "op" (e.g. _mm_add_epi32 for +, _mm_max_epi32 for max, etc.)
  *
  * |1|2|3|4|5|6|7|8|
  * extract

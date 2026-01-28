@@ -485,12 +485,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         private final Map<Integer, SliceResumeInfo> slices;
 
         public ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceResumeInfo> slices) {
-            if (worker == null && (slices == null || slices.isEmpty())) {
-                throw new IllegalArgumentException("resume info requires a worker resume info or non-empty slices resume info");
-            }
-            if (worker != null && slices != null) {
-                throw new IllegalArgumentException("resume info cannot contain both a worker resume info and slices resume info");
-            }
+            validate(worker, slices);
             this.worker = worker;
             this.slices = slices != null ? Map.copyOf(slices) : null;
         }
@@ -498,6 +493,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         public ResumeInfo(StreamInput in) throws IOException {
             this.worker = in.readOptionalNamedWriteable(WorkerResumeInfo.class);
             this.slices = in.readOptionalImmutableMap(StreamInput::readVInt, SliceResumeInfo::new);
+            validate(this.worker, this.slices);
         }
 
         @Override
@@ -518,6 +514,14 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             return slices == null ? Optional.empty() : Optional.ofNullable(slices.get(sliceId));
         }
 
+        private void validate(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceResumeInfo> slices) {
+            if (worker == null && (slices == null || slices.isEmpty())) {
+                throw new IllegalArgumentException("resume info requires a worker resume info or non-empty slices resume info");
+            }
+            if (worker != null && slices != null) {
+                throw new IllegalArgumentException("resume info cannot contain both a worker resume info and slices resume info");
+            }
+        }
     }
 
     /**

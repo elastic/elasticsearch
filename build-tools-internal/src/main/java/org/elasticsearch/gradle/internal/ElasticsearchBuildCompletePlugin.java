@@ -114,8 +114,12 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
             Files.walkFileTree(projectDir.toPath(), new SimpleFileVisitor<>() {
                 @Override
                 public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (Files.isSymbolicLink(file)) {
-                        Files.delete(file);
+                    try {
+                        if (Files.isSymbolicLink(file)) {
+                            Files.delete(file);
+                        }
+                    } catch (java.nio.file.NoSuchFileException e) {
+                        System.out.println("Symlink : " + file + " already deleted.");
                     }
                     return FileVisitResult.CONTINUE;
                 }

@@ -8,32 +8,40 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
+
+import java.util.List;
 
 // FIXME(gal, NOCOMMIT) document
 final class GroupedRow implements Row {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedRow.class);
     private final UngroupedRow row;
-    // FIXME(gal, NOCOMMIT) This isn't actually needed, since we already maintain this in the hash table's key!
+    // TODO This isn't actually needed, since we already maintain this in the hash table's key. We will optimize it away when we get rid of
+    // the hash table later on.
     private final BreakingBytesRefBuilder groupKey;
 
-    GroupedRow(UngroupedRow row, int preAllocatedGroupKeySize) {
-        this.row = row;
-        // FIXME(gal, NOCOMMIT) There must be a better pattern for this...
-        long assigned = 0;
+    GroupedRow(
+        CircuitBreaker breaker,
+        List<TopNOperator.SortOrder> sortOrders,
+        int preAllocatedKeysSize,
+        int preAllocatedValueSize,
+        int preAllocatedGroupKeySize
+    ) {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "GroupedRow");
+        UngroupedRow row = null;
         boolean success = false;
         try {
-            row.breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "topn");
-            assigned += SHALLOW_SIZE;
-            this.groupKey = new BreakingBytesRefBuilder(row.breaker, "topn", preAllocatedGroupKeySize);
-            assigned += preAllocatedGroupKeySize;
+            row = new UngroupedRow(breaker, sortOrders, preAllocatedKeysSize, preAllocatedValueSize);
+            this.row = row;
+            this.groupKey = new BreakingBytesRefBuilder(breaker, "topn", preAllocatedGroupKeySize);
             success = true;
         } finally {
             if (success == false) {
-                row.close();
-                row.breaker.addWithoutBreaking(-assigned);
+                Releasables.closeExpectNoException(row);
+                breaker.addWithoutBreaking(-SHALLOW_SIZE);
             }
         }
     }
@@ -75,7 +83,6 @@ final class GroupedRow implements Row {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(() -> row.breaker.addWithoutBreaking(-SHALLOW_SIZE), groupKey);
-        row.close();
+        Releasables.closeExpectNoException(() -> row.breaker.addWithoutBreaking(-SHALLOW_SIZE), row, groupKey);
     }
 }

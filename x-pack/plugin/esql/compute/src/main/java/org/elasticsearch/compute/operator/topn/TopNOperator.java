@@ -211,7 +211,6 @@ public class TopNOperator implements Operator, Accountable {
         this.inputQueue = processor.queue(breaker, topCount);
     }
 
-    // FIXME(gal, NOCOMMIT) move to a method on Row
     static int compareRows(Row r1, Row r2) {
         // This is similar to r1.key.compareTo(r2.key) but stopping somewhere in the middle so that
         // we check the byte that mismatched

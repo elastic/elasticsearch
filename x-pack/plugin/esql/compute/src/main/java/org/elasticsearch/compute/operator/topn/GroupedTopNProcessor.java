@@ -34,7 +34,10 @@ class GroupedTopNProcessor implements TopNProcessor {
     public Row row(CircuitBreaker breaker, List<TopNOperator.SortOrder> sortOrders, RowFiller filler) {
         GroupedRowFiller groupedFiller = (GroupedRowFiller) filler;
         return new GroupedRow(
-            new UngroupedRow(breaker, sortOrders, groupedFiller.preAllocatedKeysSize(), groupedFiller.preAllocatedValueSize()),
+            breaker,
+            sortOrders,
+            groupedFiller.preAllocatedKeysSize(),
+            groupedFiller.preAllocatedValueSize(),
             groupedFiller.preAllocatedGroupKeySize()
         );
     }

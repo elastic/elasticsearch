@@ -156,7 +156,7 @@ public abstract class GenerateTransportVersionDefinitionTask extends AbstractGen
         if (idsForUpperBound == null) {
             throw new RuntimeException("Could not find base id: " + upperBound.definitionId().base());
         }
-        IdAndDefinition resetValue = idsForUpperBound.getLast();
+        IdAndDefinition resetValue = idsForUpperBound.get(idsForUpperBound.size() - 1);
         if (resetValue.definition().name().equals(ignoreDefinitionName)) {
             // there must be another definition in this base since the ignored definition is new
             assert idsForUpperBound.size() >= 2;

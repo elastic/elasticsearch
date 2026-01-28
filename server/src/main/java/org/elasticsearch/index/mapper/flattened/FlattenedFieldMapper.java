@@ -21,6 +21,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -92,6 +93,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -869,10 +871,22 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 }
             };
 
-            // TODO
-            var lookup = BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
 
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, lookup);
+        private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
+            if (hasDocValues() && ignoreAbove().valuesPotentiallyIgnored() == false) {
+                if (usesBinaryDocValues) {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getBinaryDocValues(name()), DocIdSetIterator::empty);
+                } else {
+                    return ctx -> Objects.requireNonNullElseGet(ctx.reader().getSortedSetDocValues(name()), DocIdSetIterator::empty);
+                }
+            }
+            if (hasDocValues() == false && indexType.hasTerms()) {
+                // We only write the field names field if there aren't doc values or norms
+                return BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name());
+            }
+            return BlockSourceReader.lookupMatchingAll();
         }
 
         @Override

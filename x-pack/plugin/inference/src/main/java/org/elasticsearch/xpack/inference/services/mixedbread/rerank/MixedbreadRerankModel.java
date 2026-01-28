@@ -70,7 +70,7 @@ public class MixedbreadRerankModel extends MixedbreadModel {
             new ModelConfigurations(modelId, TaskType.RERANK, MixedbreadService.NAME, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings,
+            serviceSettings.rateLimitSettings(),
             Objects.requireNonNullElse(
                 ServiceUtils.createOptionalUri(uri),
                 buildUri(MixedbreadService.SERVICE_NAME, DEFAULT_URI_BUILDER::build)

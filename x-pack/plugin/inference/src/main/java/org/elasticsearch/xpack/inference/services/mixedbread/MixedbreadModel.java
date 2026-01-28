@@ -31,14 +31,14 @@ import java.util.Objects;
  */
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
     private final SecureString apiKey;
-    private final MixedbreadRateLimitServiceSettings rateLimitServiceSettings;
+    private final RateLimitSettings rateLimitServiceSettings;
     protected URI uri;
 
     public MixedbreadModel(
         ModelConfigurations configurations,
         ModelSecrets secrets,
         @Nullable ApiKeySecrets apiKeySecrets,
-        MixedbreadRateLimitServiceSettings rateLimitServiceSettings,
+        RateLimitSettings rateLimitServiceSettings,
         URI uri
     ) {
         super(configurations, secrets);
@@ -68,7 +68,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
         return apiKey;
     }
 
-    public MixedbreadRateLimitServiceSettings rateLimitServiceSettings() {
+    public RateLimitSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;
     }
 
@@ -79,7 +79,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
     }
 
     public RateLimitSettings rateLimitSettings() {
-        return rateLimitServiceSettings.rateLimitSettings();
+        return rateLimitServiceSettings;
     }
 
     public int rateLimitGroupingHash() {
@@ -93,9 +93,5 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
         } catch (URISyntaxException e) {
             // swallow any error
         }
-    }
-
-    public URI baseUri() {
-        return uri;
     }
 }

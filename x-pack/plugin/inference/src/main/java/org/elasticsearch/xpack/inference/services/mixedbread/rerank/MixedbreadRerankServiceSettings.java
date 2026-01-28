@@ -88,14 +88,8 @@ public class MixedbreadRerankServiceSettings extends FilteredXContentObject impl
         return model;
     }
 
-    @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
-    }
-
-    @Override
-    public Integer windowSize() {
-        return windowsSize;
     }
 
     @Override

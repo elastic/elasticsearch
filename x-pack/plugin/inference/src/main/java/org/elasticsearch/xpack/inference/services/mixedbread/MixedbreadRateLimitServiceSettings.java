@@ -11,6 +11,4 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 public interface MixedbreadRateLimitServiceSettings {
     RateLimitSettings rateLimitSettings();
-
-    Integer windowSize();
 }

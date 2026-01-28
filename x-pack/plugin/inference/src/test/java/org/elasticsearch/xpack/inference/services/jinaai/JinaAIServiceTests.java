@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -37,6 +38,7 @@ import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.http.MockRequest;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -73,9 +75,11 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
@@ -1545,25 +1549,36 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new JinaAIService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
-            queueResponsesForChunkedInfer(expectMultipleResponses);
-
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             // 2 inputs
             String firstInput = "first_input";
+            float[] firstEmbedding = { 0.123f, -0.123f };
             String secondInput = "second_input";
-            List<ChunkInferenceInput> input;
-            if (nonTextInput) {
-                input = List.of(
-                    new ChunkInferenceInput(firstInput),
-                    new ChunkInferenceInput(new InferenceStringGroup(new InferenceString(IMAGE, BASE64, secondInput)), null)
-                );
-            } else {
-                input = List.of(new ChunkInferenceInput(firstInput), new ChunkInferenceInput(secondInput));
+            float[] secondEmbedding = { 0.223f, -0.223f };
+
+            List<Tuple<String, float[]>> inputsAndEmbeddings = List.of(
+                Tuple.tuple(firstInput, firstEmbedding),
+                Tuple.tuple(secondInput, secondEmbedding)
+            );
+            queueResponsesForChunkedInfer(expectMultipleResponses, inputsAndEmbeddings);
+
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            List<ChunkInferenceInput> inputs = new ArrayList<>();
+            for (int i = 0; i < inputsAndEmbeddings.size(); ++i) {
+                var anInput = new ChunkInferenceInput(inputsAndEmbeddings.get(i).v1());
+                if (nonTextInput && i % 2 == 0) {
+                    // Replace every other input with non-text if we're using non-text inputs
+                    anInput = new ChunkInferenceInput(
+                        new InferenceStringGroup(new InferenceString(IMAGE, BASE64, inputsAndEmbeddings.get(i).v1())),
+                        null
+                    );
+                }
+                inputs.add(anInput);
             }
+
             service.chunkedInfer(
                 model,
                 null,
-                input,
+                inputs,
                 new HashMap<>(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1571,27 +1586,19 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             );
 
             var results = listener.actionGet(TEST_REQUEST_TIMEOUT);
-            assertThat(results, hasSize(2));
-            {
-                assertThat(results.getFirst(), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
-                var floatResult = (ChunkedInferenceEmbedding) results.getFirst();
+            assertThat(results, hasSize(inputsAndEmbeddings.size()));
+
+            for (int i = 0; i < inputsAndEmbeddings.size(); ++i) {
+                assertThat(results.get(i), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
+                var floatResult = (ChunkedInferenceEmbedding) results.get(i);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, firstInput.length()), floatResult.chunks().getFirst().offset());
-                assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(EmbeddingFloatResults.Embedding.class));
-                assertArrayEquals(
-                    new float[] { 0.123f, -0.123f },
-                    ((EmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values(),
-                    0.0f
+                assertEquals(
+                    new ChunkedInference.TextOffset(0, inputsAndEmbeddings.get(i).v1().length()),
+                    floatResult.chunks().getFirst().offset()
                 );
-            }
-            {
-                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbedding.class));
-                var floatResult = (ChunkedInferenceEmbedding) results.get(1);
-                assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, secondInput.length()), floatResult.chunks().getFirst().offset());
                 assertThat(floatResult.chunks().getFirst().embedding(), Matchers.instanceOf(EmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
-                    new float[] { 0.223f, -0.223f },
+                    inputsAndEmbeddings.get(i).v2(),
                     ((EmbeddingFloatResults.Embedding) floatResult.chunks().getFirst().embedding()).values(),
                     0.0f
                 );
@@ -1599,52 +1606,50 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
         }
     }
 
-    private void queueResponsesForChunkedInfer(Boolean lateChunking) {
-        if (Boolean.TRUE.equals(lateChunking)) {
-            var responseJson = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        }
-                    ]
+    private void queueResponsesForChunkedInfer(Boolean expectMultipleResponses, List<Tuple<String, float[]>> inputsAndEmbeddings) {
+        if (Boolean.TRUE.equals(expectMultipleResponses)) {
+            Function<MockRequest, String> bodyGenerator = (MockRequest r) -> {
+                for (Tuple<String, float[]> inputAndEmbedding : inputsAndEmbeddings) {
+                    if (r.getBody().contains(inputAndEmbedding.v1())) {
+                        return Strings.format("""
+                            {
+                                "model": "jina-clip-v2",
+                                "object": "list",
+                                "usage": {
+                                    "total_tokens": 5,
+                                    "prompt_tokens": 5
+                                },
+                                "data": [
+                                    {
+                                        "object": "embedding",
+                                        "index": 0,
+                                        "embedding": %s
+                                    }
+                                ]
+                            }
+                            """, Arrays.toString(inputAndEmbedding.v2()));
+                    }
                 }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var responseJson2 = """
-                {
-                    "model": "jina-clip-v2",
-                    "object": "list",
-                    "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
-                    },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.223,
-                                -0.223
-                            ]
-                        }
-                    ]
-                }
-                """;
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson2));
+                throw new IllegalStateException("No matching inputs found for body generator");
+            };
+            // Queue a response for each request
+            for (int i = 0; i < inputsAndEmbeddings.size(); ++i) {
+                webServer.enqueue(new MockResponse().setResponseCode(200).setBody(bodyGenerator));
+            }
         } else {
-            var responseJson = """
+            // Queue a single response with multiple embeddings in it
+            List<String> embeddingList = new ArrayList<>();
+            int index = 0;
+            for (Tuple<String, float[]> inputAndEmbedding : inputsAndEmbeddings) {
+                embeddingList.add(Strings.format("""
+                    {
+                        "object": "embedding",
+                        "index": %d,
+                        "embedding": %s
+                    }
+                    """, index, Arrays.toString(inputAndEmbedding.v2())));
+            }
+            var responseJson = Strings.format("""
                 {
                     "model": "jina-clip-v2",
                     "object": "list",
@@ -1652,26 +1657,9 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                         "total_tokens": 5,
                         "prompt_tokens": 5
                     },
-                    "data": [
-                        {
-                            "object": "embedding",
-                            "index": 0,
-                            "embedding": [
-                                0.123,
-                                -0.123
-                            ]
-                        },
-                        {
-                            "object": "embedding",
-                            "index": 1,
-                            "embedding": [
-                                0.223,
-                                -0.223
-                            ]
-                        }
-                    ]
+                    "data": %s
                 }
-                """;
+                """, embeddingList);
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
         }
     }

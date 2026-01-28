@@ -1054,3 +1054,17 @@ book_no:keyword | title:text                                                    
 8534            | Crime and Punishment (Oxford World's Classics)                                                                                 | Fyodor Dostoevsky                                    | Oxford University Press | 4.38
 9801            | The Karamazov Brothers (Oxford World's Classics)                                                                               | Fyodor Dostoevsky                                    | Oxford University Press | 4.4
 ;
+
+subqueryWithNoResults
+
+required_capability: subquery_in_from_command
+required_capability: match_function
+
+FROM (FROM books | EVAL x = 1 | WHERE x > 100 | KEEP author),
+     (FROM employees | WHERE emp_no > 100 | KEEP emp_no)
+| WHERE author:"Faulkner"
+| SORT author DESC
+;
+
+author:text | emp_no:long
+;

@@ -46,6 +46,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
 
@@ -156,14 +157,12 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class Writer extends DocValuesConsumer {
         private final int numHashFunctions;
         private final String bloomFilterFieldName;
-        private final List<Closeable> toClose = new ArrayList<>(3);
 
-        private final IndexOutput metadataOut;
-        private final IndexOutput bloomFilterDataOut;
         private final int bitsetSizeInBits;
         private final int bitSetSizeInBytes;
-        private final ByteArray buffer;
-        private final int[] hashes;
+        private IndexOutput metadataOut;
+        private IndexOutput bloomFilterDataOut;
+        private ByteArray buffer;
         private boolean closed;
 
         Writer(
@@ -179,9 +178,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
             this.numHashFunctions = numHashFunctions;
-            this.hashes = new int[numHashFunctions];
             this.bloomFilterFieldName = bloomFilterFieldName;
 
+            final List<Closeable> toClose = new ArrayList<>(3);
             boolean success = false;
             try {
                 int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
@@ -243,37 +242,21 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         private void addToBloomFilter(BytesRef value) {
-            // TODO: consider merging the hashing with the bit array population
-            var valueHashes = hashValue(value, hashes);
-            for (int hash : valueHashes) {
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
+
                 final int posInBitArray = hash & (bitsetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
                 final byte val = (byte) (buffer.get(pos) | mask);
                 buffer.set(pos, val);
             }
-        }
-
-        private void flush() throws IOException {
-            BloomFilterMetadata bloomFilterMetadata = new BloomFilterMetadata(
-                bloomFilterDataOut.getFilePointer(),
-                bitsetSizeInBits,
-                numHashFunctions
-            );
-
-            if (buffer.hasArray()) {
-                bloomFilterDataOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
-            } else {
-                BytesReference.fromByteArray(buffer, bitSetSizeInBytes)
-                    .writeTo(
-                        // do not close the stream as it would close bloomFilterDataOut
-                        new IndexOutputOutputStream(bloomFilterDataOut)
-                    );
-            }
-            CodecUtil.writeFooter(bloomFilterDataOut);
-
-            bloomFilterMetadata.writeTo(metadataOut);
-            CodecUtil.writeFooter(metadataOut);
         }
 
         @Override
@@ -435,13 +418,44 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void close() throws IOException {
-            if (closed) {
-                return;
+            try {
+                if (Assertions.ENABLED) {
+                    boolean allNull = (buffer == null && bloomFilterDataOut == null && metadataOut == null);
+                    boolean allSet = (buffer != null && bloomFilterDataOut != null && metadataOut != null);
+                    assert allNull || allSet : buffer + " vs " + bloomFilterDataOut + " vs " + metadataOut;
+                }
+                try {
+                    BloomFilterMetadata bloomFilterMetadata = null;
+                    if (bloomFilterDataOut != null) {
+                        bloomFilterMetadata = new BloomFilterMetadata(
+                            bloomFilterDataOut.getFilePointer(),
+                            bitsetSizeInBits,
+                            numHashFunctions
+                        );
+                        if (buffer.hasArray()) {
+                            bloomFilterDataOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
+                        } else {
+                            BytesReference.fromByteArray(buffer, bitSetSizeInBytes)
+                                .writeTo(
+                                    // do not close the stream as it would close bloomFilterDataOut
+                                    new IndexOutputOutputStream(bloomFilterDataOut)
+                                );
+                        }
+                        CodecUtil.writeFooter(bloomFilterDataOut);
+                    }
+                    if (metadataOut != null) {
+                        bloomFilterMetadata.writeTo(metadataOut);
+                        CodecUtil.writeFooter(metadataOut);
+                    }
+                } catch (Throwable t) {
+                    IOUtils.closeWhileHandlingException(buffer, bloomFilterDataOut, metadataOut);
+                    throw t;
+                }
+                IOUtils.close(buffer, bloomFilterDataOut, metadataOut);
+            } finally {
+                metadataOut = bloomFilterDataOut = null;
+                buffer = null;
             }
-
-            closed = true;
-            flush();
-            IOUtils.close(toClose);
         }
 
         @Override
@@ -580,19 +594,24 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static class BloomFilterFieldReader extends BinaryDocValues implements BloomFilter {
         private final RandomAccessInput bloomFilterIn;
         private final int bloomFilterBitSetSizeInBits;
-        private final int[] hashes;
+        private final int numHashFunctions;
 
         private BloomFilterFieldReader(RandomAccessInput bloomFilterIn, int bloomFilterBitSetSizeInBits, int numHashFunctions) {
             this.bloomFilterIn = bloomFilterIn;
             this.bloomFilterBitSetSizeInBits = bloomFilterBitSetSizeInBits;
-            this.hashes = new int[numHashFunctions];
+            this.numHashFunctions = numHashFunctions;
         }
 
         public boolean mayContainValue(String field, BytesRef value) throws IOException {
-            var valueHashes = hashValue(value, hashes);
-            // TODO: consider merging the hashing with the bit array reads
+            long hash64 = hash64(value.bytes, value.offset, value.length);
+            // First use output splitting to get two hash values out of a single hash function
+            int upperHalf = (int) (hash64 >> Integer.SIZE);
+            int lowerHalf = (int) hash64;
+            // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
+            for (int i = 0; i < numHashFunctions; i++) {
+                // Use prime numbers as the constant for the KM technique so these don't have a common gcd
+                final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
 
-            for (int hash : valueHashes) {
                 final int posInBitArray = hash & (bloomFilterBitSetSizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
@@ -663,19 +682,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final int numOfHashFunctions = in.readVInt();
             return new BloomFilterMetadata(fileOffset, bloomFilterSizeInBits, numOfHashFunctions);
         }
-    }
-
-    private static int[] hashValue(BytesRef value, int[] outputs) {
-        long hash64 = hash64(value.bytes, value.offset, value.length);
-        // First use output splitting to get two hash values out of a single hash function
-        int upperHalf = (int) (hash64 >> Integer.SIZE);
-        int lowerHalf = (int) hash64;
-        // Then use the Kirsch-Mitzenmacher technique to obtain multiple hashes efficiently
-        for (int i = 0; i < outputs.length; i++) {
-            // Use prime numbers as the constant for the KM technique so these don't have a common gcd
-            outputs[i] = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
-        }
-        return outputs;
     }
 
     private static String bloomFilterMetadataFileName(SegmentInfo segmentInfo, String segmentSuffix) {

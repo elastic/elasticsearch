@@ -224,10 +224,10 @@ public interface BlockLoader {
     }
 
     /**
-     * An interface for readers that attempt to load all document values in a column-at-a-time fashion.
+     * An interface for readers that attempt to load BytesRef length values directly without loading BytesRefs.
      * <p>
-     * Unlike {@link ColumnAtATimeReader}, implementations may return {@code null} if they are unable
-     * to load the requested values, for example due to unsupported underlying data.
+     * Implementations may return {@code null} if they are unable to load the requested values,
+     * for example due to unsupported underlying data.
      * This allows callers to optimistically try optimized loading strategies first, and fall back if necessary.
      */
     interface OptionalLengthReader {

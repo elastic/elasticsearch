@@ -245,6 +245,7 @@ row a = [1.1, 2.1, 2.1] | eval da = mv_dedupe(a);
 
 mvSliceEmp
 required_capability: mv_sort
+request_stored: skip
 
 from employees
 | eval a1 = mv_slice(salary_change, 0, 1)

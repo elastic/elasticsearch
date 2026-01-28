@@ -502,7 +502,7 @@ public class IpFieldMapper extends FieldMapper {
                     default -> false;
                 };
             }
-            return true;
+            return false;
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {

@@ -348,12 +348,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: "*MvMin*"
-  issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
-  method: "*MvMax*"
-  issue: https://github.com/elastic/elasticsearch/issues/141375
 
 # Examples:
 #

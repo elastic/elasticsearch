@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -20,7 +21,7 @@ import java.util.List;
 /**
  * Runs the {@code csv-spec} tests while <strong>requesting</strong> all values to
  * be loaded from {@code stored} fields. This should mostly not change the results.
- * BUT tt changes the order of multivalued fields, so:
+ * BUT it changes the order of multivalued fields, so:
  * <ul>
  *     <li>We ignore the order of multivalued fields in the results.</li>
  *     <li>
@@ -38,25 +39,13 @@ public class EsqlSpecForceStoredLoadingIT extends EsqlSpecIT {
         // Filter or hack test cases so they'll pass.
         for (Object[] s : orig) {
             String groupName = (String) s[1];
-            String testName = (String) s[2];
             CsvTestCase testCase = (CsvTestCase) s[4];
-            if (groupName.equals("mv_expand")) {
-                /*
-                 * Multivalued field order is changed by source loading.
-                 * MV_EXPAND changes that into row order.
-                 */
-                testCase.ignoreOrder = true;
-                if (testName.contains("AfterSort")
-                    || testName.equals("DoubleLimit_expandLimitLowerThanAvailable")
-                    || testName.equals("TripleLimit_WithWhere_InBetween_MvExpand_And_Limit")
-                    || testName.equals("ExpandWithMultiSort")) {
-                    // Too reliant on sort order to pass.
+            switch (testCase.requestStored) {
+                case SKIP:
                     continue;
-                }
-            }
-            if (testName.contains("MvZip") || testName.contains("MvSlice")) {
-                // Too reliant on sort order to pass.
-                continue;
+                case IGNORE_ORDER:
+                    testCase.ignoreOrder = true;
+                    break;
             }
             specs.add(s);
         }

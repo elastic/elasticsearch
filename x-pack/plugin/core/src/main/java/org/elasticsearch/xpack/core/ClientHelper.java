@@ -62,8 +62,7 @@ public final class ClientHelper {
     public static final Set<String> SECURITY_HEADER_FILTERS = Set.of(
         AuthenticationServiceField.RUN_AS_USER_HEADER,
         AuthenticationField.AUTHENTICATION_KEY,
-        SecondaryAuthentication.THREAD_CTX_KEY,
-        "_security_serverless_request_scoped_credential"
+        SecondaryAuthentication.THREAD_CTX_KEY
     );
 
     /**

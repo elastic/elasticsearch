@@ -64,7 +64,7 @@ public class PromQLGenerator implements CommandGenerator {
     }
 
     public String generateIndices(QuerySchema schema) {
-        // TODO: uncomment things when wildcards work
+        // TODO: uncomment things when wildcards (implicit casting with AMD) work https://github.com/elastic/elasticsearch/issues/141472
         int items = 1;
         // int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();

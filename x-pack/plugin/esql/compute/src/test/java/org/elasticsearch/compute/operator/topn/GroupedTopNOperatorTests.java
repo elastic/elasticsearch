@@ -161,8 +161,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         );
     }
 
-    // FIXME(gal, NOCOMMIT) Ignored because RamUsageTester is not working properly with hashmap and we'll replace these maps anyway.
-    public void ignored() {
+    public void testEstimateRamBytesUsed() {
+        assumeFalse("Ignored because RamUsageTester is not working properly with hashmap and we'll replace these maps anyway.", true);
         RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
             @Override
             public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
@@ -307,20 +307,23 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         List<List<Object>> topNExpectedValues = computeTopN(randomBlocksResult.expectedValues, groupKeys, uniqueOrders, topCount);
 
-        Comparator<List<Object>> rowComparator = rowComparator(uniqueOrders, randomBlocksResult.expectedValues.get(0).size());
-        assertThat(actualValues.stream().sorted(rowComparator).toList(), equalTo(topNExpectedValues.stream().sorted(rowComparator).toList()));
+        // We verify the output we got from the operator is sorted, but since we're asserting the results, we also need to handle ties which
+        // the operator doesn't actually guarantee any order for.
+        Comparator<List<Object>> sortOrderComparator = comparatorFromSortOrders(uniqueOrders);
+        assertThat(isSorted(actualValues, sortOrderComparator), equalTo(true));
+
+        Comparator<List<Object>> rowComparator = sortOrderComparator.thenComparing(TIE_BREAKING_COMPARATOR);
+        assertThat(
+            actualValues.stream().sorted(rowComparator).toList(),
+            equalTo(topNExpectedValues.stream().sorted(rowComparator).toList())
+        );
     }
 
-    private static Comparator<List<Object>> rowComparator(List<SortOrder> sortOrders, int columns) {
+    private static Comparator<List<Object>> comparatorFromSortOrders(List<SortOrder> sortOrders) {
         return (row1, row2) -> {
+            assertEquals(row1.size(), row2.size());
             for (SortOrder order : sortOrders) {
-                int cmp = compareValues(row1.get(order.channel()), row2.get(order.channel()), order.asc(), order.nullsFirst());
-                if (cmp != 0) {
-                    return cmp;
-                }
-            }
-            for (int i = 0; i < columns; i++) {
-                int cmp = compareValues(row1.get(i), row2.get(i), true, true);
+                int cmp = compareValues(order).compare(row1.get(order.channel()), row2.get(order.channel()));
                 if (cmp != 0) {
                     return cmp;
                 }
@@ -329,19 +332,27 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
         };
     }
 
-    @SuppressWarnings("unchecked")
-    private static int compareValues(Object v1, Object v2, boolean asc, boolean nullsFirst) {
-        boolean firstIsNull = v1 == null;
-        boolean secondIsNull = v2 == null;
-        if (firstIsNull || secondIsNull) {
-            return Boolean.compare(firstIsNull, secondIsNull) * (nullsFirst ? -1 : 1);
+    private static final Comparator<List<Object>> TIE_BREAKING_COMPARATOR = (row1, row2) -> {
+        for (int i = 0; i < row1.size(); i++) {
+            int cmp = compareValues(new SortOrder(i, true, true)).compare(row1.get(i), row2.get(i));
+            if (cmp != 0) {
+                return cmp;
+            }
         }
-        int cmp = ((Comparable<Object>) v1).compareTo(v2);
-        if (cmp == 0) {
-            return 0;
-        }
-        return asc ? cmp : -cmp;
+        return 0;
+    };
+
+    private static boolean isSorted(List<List<Object>> values, Comparator<List<Object>> comparator) {
+        return IntStream.range(1, values.size()).allMatch(i -> comparator.compare(values.get(i - 1), values.get(i)) <= 0);
     }
+
+    private static Comparator<Object> compareValues(SortOrder order) {
+        Comparator<Object> baseComparator = order.asc() ? CASTING_COMPARATOR : CASTING_COMPARATOR.reversed();
+        return order.nullsFirst() ? Comparator.nullsFirst(baseComparator) : Comparator.nullsLast(baseComparator);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static final Comparator<Object> CASTING_COMPARATOR = (o1, o2) -> ((Comparable<Object>) o1).compareTo(o2);
 
     private static List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {
         return computeTopN(inputValues.stream().map(e -> Arrays.asList(e.v1(), e.v2())).toList(), 1, 0, limit, ascendingOrder).stream()
@@ -386,8 +397,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                     continue;
                 }
 
-                @SuppressWarnings("unchecked")
-                int cmp = ((Comparable<Object>) v1).compareTo(v2);
+                int cmp = CASTING_COMPARATOR.compare(v1, v2);
                 if (cmp != 0) {
                     return order.asc() ? cmp : -cmp;
                 }

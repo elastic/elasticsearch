@@ -914,7 +914,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // Return after a single move so that the change can be simulated before further moves are made.
                     return true;
                 } else {
-                    notPreferredLogger.debug("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
+                    logger.trace("[{}][{}] can no longer move (not-preferred)", shardRouting.index(), shardRouting.id());
                 }
             }
 

@@ -76,14 +76,6 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.fileSettingsHealthInfo = null;
         }
 
-        public Request(String nodeId, FileSettingsHealthInfo info) {
-            this.nodeId = nodeId;
-            this.diskHealthInfo = null;
-            this.repositoriesHealthInfo = null;
-            this.dslHealthInfo = null;
-            this.fileSettingsHealthInfo = info;
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
@@ -170,6 +162,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             private DiskHealthInfo diskHealthInfo;
             private RepositoriesHealthInfo repositoriesHealthInfo;
             private DataStreamLifecycleHealthInfo dslHealthInfo;
+            private FileSettingsHealthInfo fileSettingsHealthInfo;
 
             public Builder nodeId(String nodeId) {
                 this.nodeId = nodeId;
@@ -191,8 +184,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
                 return this;
             }
 
+            public Builder fileSettingsHealthInfo(FileSettingsHealthInfo fileSettingsHealthInfo) {
+                this.fileSettingsHealthInfo = fileSettingsHealthInfo;
+                return this;
+            }
+
             public Request build() {
-                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, null);
+                return new Request(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
             }
         }
     }

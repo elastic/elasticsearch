@@ -9,17 +9,15 @@
 
 package org.elasticsearch.health.node.tracker;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.node.FileSettingsHealthInfo;
-import org.elasticsearch.reservedstate.service.FileSettingsHealthIndicatorPublisher;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
+import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
 
 /**
  * Houses the current {@link FileSettingsHealthInfo} and provides a means to <i>publish</i> it to the health node.
  */
-public class FileSettingsHealthTracker {
+public class FileSettingsHealthTracker extends HealthTracker<FileSettingsHealthInfo> {
     /**
      * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
      * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
@@ -34,12 +32,10 @@ public class FileSettingsHealthTracker {
     );
 
     private final Settings settings;
-    private final FileSettingsHealthIndicatorPublisher publisher;
     private FileSettingsHealthInfo currentInfo = FileSettingsHealthInfo.INDETERMINATE;
 
-    public FileSettingsHealthTracker(Settings settings, FileSettingsHealthIndicatorPublisher publisher) {
+    public FileSettingsHealthTracker(Settings settings) {
         this.settings = settings;
-        this.publisher = publisher;
     }
 
     public FileSettingsHealthInfo getCurrentInfo() {
@@ -75,16 +71,13 @@ public class FileSettingsHealthTracker {
         }
     }
 
-    /**
-     * Sends the current health info to the health node.
-     */
-    public void publish() {
-        publisher.publish(
-            currentInfo,
-            ActionListener.wrap(
-                r -> FileSettingsService.logger.debug("Successfully published health indicator"),
-                e -> FileSettingsService.logger.warn("Failed to publish health indicator", e)
-            )
-        );
+    @Override
+    protected FileSettingsHealthInfo determineCurrentHealth() {
+        return currentInfo;
+    }
+
+    @Override
+    protected void addToRequestBuilder(UpdateHealthInfoCacheAction.Request.Builder builder, FileSettingsHealthInfo healthInfo) {
+        builder.fileSettingsHealthInfo(healthInfo);
     }
 }

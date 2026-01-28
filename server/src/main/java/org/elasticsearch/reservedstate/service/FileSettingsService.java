@@ -14,8 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.NotMasterException;
@@ -23,7 +21,6 @@ import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateExceptio
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
@@ -36,8 +33,6 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.node.FileSettingsHealthInfo;
 import org.elasticsearch.health.node.HealthInfo;
-import org.elasticsearch.health.node.UpdateHealthInfoCacheAction;
-import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -223,17 +218,12 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     protected void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
-        try {
-            if (e != null) {
-                healthIndicatorTracker.failureOccurred(e.toString());
-                completion.onFailure(e);
-            } else {
-                completion.onResponse(null);
-                healthIndicatorTracker.successOccurred();
-            }
-        } finally {
-            logger().debug("Publishing to health node");
-            healthIndicatorTracker.publish();
+        if (e != null) {
+            healthIndicatorTracker.failureOccurred(e.toString());
+            completion.onFailure(e);
+        } else {
+            completion.onResponse(null);
+            healthIndicatorTracker.successOccurred();
         }
     }
 
@@ -312,34 +302,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                     ),
                     STALE_SETTINGS_IMPACT,
                     List.of()
-                );
-            }
-        }
-    }
-
-    public static class FileSettingsHealthIndicatorPublisherImpl implements FileSettingsHealthIndicatorPublisher {
-        private final ClusterService clusterService;
-        private final Client client;
-
-        public FileSettingsHealthIndicatorPublisherImpl(ClusterService clusterService, Client client) {
-            this.clusterService = clusterService;
-            this.client = client;
-        }
-
-        public void publish(FileSettingsHealthInfo info, ActionListener<AcknowledgedResponse> actionListener) {
-            DiscoveryNode currentHealthNode = HealthNode.findHealthNode(clusterService.state());
-            if (currentHealthNode == null) {
-                logger.debug(
-                    "Unable to report file settings health because there is no health node in the cluster;"
-                        + " will retry next time file settings health changes."
-                );
-            } else {
-                logger.debug("Publishing file settings health indicators: [{}]", info);
-                String localNode = clusterService.localNode().getId();
-                client.execute(
-                    UpdateHealthInfoCacheAction.INSTANCE,
-                    new UpdateHealthInfoCacheAction.Request(localNode, info),
-                    actionListener
                 );
             }
         }

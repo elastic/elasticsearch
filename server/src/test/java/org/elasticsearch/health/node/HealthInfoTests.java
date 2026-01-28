@@ -82,7 +82,7 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
     }
 
-    private static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
+    static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {
         long changeCount = randomValueOtherThan(original.changeCount(), ESTestCase::randomNonNegativeLong);
         long failureStreak = randomLongBetween(0, changeCount);
         String mostRecentFailure;

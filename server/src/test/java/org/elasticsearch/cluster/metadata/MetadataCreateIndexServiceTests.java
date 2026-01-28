@@ -303,7 +303,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testUserIndicesLimit() {
         Settings nodeSettings = Settings.builder()
             .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), randomIntBetween(10, 30))
-            .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true).build();
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true)
+            .build();
 
         withTemporaryClusterService((clusterService, threadPool) -> {
             @SuppressWarnings("unchecked")

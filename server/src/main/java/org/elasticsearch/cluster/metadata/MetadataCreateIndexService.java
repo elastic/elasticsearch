@@ -229,8 +229,8 @@ public class MetadataCreateIndexService {
         }
 
         if (clusterService.getClusterSettings().isDynamicSetting(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey())) {
-            clusterService.getClusterSettings().initializeAndWatch(
-                CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
+            clusterService.getClusterSettings()
+                .initializeAndWatch(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING, v -> maxIndicesPerProjectEnabled = v);
         } else {
             maxIndicesPerProjectEnabled = CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.get(clusterService.getSettings());
         }
@@ -251,9 +251,7 @@ public class MetadataCreateIndexService {
             return;
         }
 
-        var totalUserIndices = projectMetadata.stream()
-            .filter(indexMetadata -> indexMetadata.isSystem() == false)
-            .count();
+        var totalUserIndices = projectMetadata.stream().filter(indexMetadata -> indexMetadata.isSystem() == false).count();
         if (totalUserIndices >= maxIndicesPerProject) {
             throw new IndexLimitExceededException(
                 "This action would add an index, but this project currently has ["

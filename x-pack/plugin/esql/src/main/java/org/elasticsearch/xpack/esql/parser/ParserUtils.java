@@ -146,9 +146,18 @@ public final class ParserUtils {
         int tokenType = token.getType();
         // Retrieve text from the token only when necessary, when the token type is known.
         return switch (tokenType) {
-            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText().substring(SINGLE_PARAM);
+            case EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM, PromqlBaseLexer.NAMED_OR_POSITIONAL_PARAM -> token.getText()
+                .substring(SINGLE_PARAM);
             case EsqlBaseLexer.NAMED_OR_POSITIONAL_DOUBLE_PARAMS -> token.getText().substring(DOUBLE_PARAM);
             default -> EMPTY;
         };
+    }
+
+    public static String unquoteIdString(String quotedString) {
+        return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
+    }
+
+    public static String quoteIdString(String unquotedString) {
+        return "`" + unquotedString.replace("`", "``") + "`";
     }
 }

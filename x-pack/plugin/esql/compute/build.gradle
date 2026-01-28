@@ -500,6 +500,12 @@ tasks.named('stringTemplates').configure {
   def generateTwoStateFiles = { inputFile, prefix = "" ->
     def v1Props = [longProperties]
     def v2Props = [intProperties, longProperties, floatProperties, doubleProperties, bytesRefProperties]
+
+    if (prefix != "") {
+      // Add the boolean type for ALL_FIRST/ALL_LAST, but not for FIRST/LAST.
+      v2Props << booleanProperties
+    }
+
     v1Props.forEach { v1 ->
       v2Props.forEach { v2 ->
         def properties = [:]
@@ -961,6 +967,11 @@ tasks.named('stringTemplates').configure {
     it.inputFile = enrichResultBuilderInput
     it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForBoolean.java"
   }
+  template {
+    it.properties = floatProperties
+    it.inputFile = enrichResultBuilderInput
+    it.outputFile = "org/elasticsearch/xpack/compute/operator/lookup/EnrichResultBuilderForFloat.java"
+  }
 
   // TODO: add {value}_over_time for other types: boolean, bytes_refs
   def generateTimestampAggregatorClasses = { inputFilename, prefix = "" ->
@@ -991,6 +1002,14 @@ tasks.named('stringTemplates').configure {
           it.properties = addOccurrence(bytesRefProperties, Occurrence) + [Prefix: prefix]
           it.inputFile = inputFile
           it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}BytesRefByTimestampAggregator.java"
+        }
+        if (prefix != "") {
+          // Add the boolean type for ALL_FIRST/ALL_LAST, but not for FIRST/LAST.
+          template {
+            it.properties = addOccurrence(booleanProperties, Occurrence) + [Prefix: prefix]
+            it.inputFile = inputFile
+            it.outputFile = "org/elasticsearch/compute/aggregation/${prefix}${Occurrence}BooleanByTimestampAggregator.java"
+          }
         }
       }
     }

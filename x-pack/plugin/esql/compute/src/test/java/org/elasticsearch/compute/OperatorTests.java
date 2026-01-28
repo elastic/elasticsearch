@@ -179,7 +179,14 @@ public class OperatorTests extends MapperServiceTestCase {
             );
             ValuesSourceReaderOperator.Factory load = new ValuesSourceReaderOperator.Factory(
                 ByteSizeValue.ofGb(1),
-                List.of(new ValuesSourceReaderOperator.FieldInfo("v", ElementType.LONG, false, f -> new LongsBlockLoader("v"))),
+                List.of(
+                    new ValuesSourceReaderOperator.FieldInfo(
+                        "v",
+                        ElementType.LONG,
+                        false,
+                        f -> ValuesSourceReaderOperator.load(new LongsBlockLoader("v"))
+                    )
+                ),
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
@@ -404,6 +411,8 @@ public class OperatorTests extends MapperServiceTestCase {
                         AggregatorMode.INTERMEDIATE,
                         List.of(CountAggregatorFunction.supplier().groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, List.of(1, 2))),
                         Integer.MAX_VALUE,
+                        Integer.MAX_VALUE,
+                        1.0,
                         null
                     );
                 DriverContext driverContext = driverContext();
@@ -469,7 +478,7 @@ public class OperatorTests extends MapperServiceTestCase {
      */
     protected final DriverContext driverContext() {
         var breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
-        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()));
+        return new DriverContext(bigArrays(), BlockFactory.getInstance(breaker, bigArrays()), null);
     }
 
     public static void assertDriverContext(DriverContext driverContext) {

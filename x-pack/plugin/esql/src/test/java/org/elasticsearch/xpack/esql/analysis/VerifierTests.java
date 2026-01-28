@@ -122,11 +122,11 @@ public class VerifierTests extends ESTestCase {
 
     public void testIncompatibleTypesInMathOperation() {
         assertEquals(
-            "1:40: second argument of [a + c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a + c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a + c")
         );
         assertEquals(
-            "1:40: second argument of [a - c] must be [date_nanos, datetime or numeric], found value [c] type [keyword]",
+            "1:40: second argument of [a - c] must be [date_nanos, datetime, numeric or dense_vector], found value [c] type [keyword]",
             error("row a = 1, b = 2, c = \"xxx\" | eval y = a - c")
         );
     }
@@ -749,6 +749,10 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:40: Unknown column [emp_no]", error("from test | rename emp_no as r1 | drop emp_no"));
     }
 
+    public void testDropUnknownPattern() {
+        assertEquals("1:18: No matches found for pattern [foobar*]", error("from test | drop foobar*"));
+    }
+
     public void testNonStringFieldsInDissect() {
         assertEquals(
             "1:21: Dissect only supports KEYWORD or TEXT values, found expression [emp_no] type [INTEGER]",
@@ -1193,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, dense_vector, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );
@@ -2944,17 +2948,17 @@ public class VerifierTests extends ESTestCase {
         assertThat(
             error("TS test | STATS count(host) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [count(last_over_time(host))] "
-                    + "generated from [count(host)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:23: argument of [implicit time-series aggregation function (LastOverTime) for host] must be "
+                    + "[numeric except unsigned_long], found value [host] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
         assertThat(
             error("TS test | STATS max(name) BY bucket(@timestamp, 1 minute)", tsdb),
             equalTo(
-                "1:11: implicit time-series aggregation function [max(last_over_time(name))] "
-                    + "generated from [max(name)] doesn't support type [keyword], only numeric types are supported; "
-                    + "use the FROM command instead of the TS command"
+                "1:21: argument of [implicit time-series aggregation function (LastOverTime) for name] must be "
+                    + "[numeric except unsigned_long], found value [name] type [keyword]; "
+                    + "to aggregate non-numeric fields, use the FROM command instead of the TS command"
             )
         );
     }
@@ -3262,27 +3266,6 @@ public class VerifierTests extends ESTestCase {
         assertThat(errorMessage, containsString("1:6: FORK after subquery is not supported"));
     }
 
-    // InlineStats after subquery is not supported
-    public void testSubqueryInFromWithInlineStatsInMainQuery() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
-        String errorMessage = error("""
-            FROM test, (FROM test_mixed_types
-                                 | WHERE languages > 0
-                                 | EVAL emp_no = emp_no::int
-                                 | KEEP emp_no)
-            | INLINE STATS cnt = count(*)
-            | SORT emp_no
-            """);
-        assertThat(
-            errorMessage,
-            containsString(
-                "1:6: INLINE STATS after subquery is not supported, "
-                    + "as INLINE STATS cannot be used after an explicit or implicit LIMIT command"
-            )
-        );
-        assertThat(errorMessage, containsString("line 5:3: INLINE STATS cannot be used after an explicit or implicit LIMIT command,"));
-    }
-
     // LookupJoin on FTF after subquery is not supported, as join is not pushed down into subquery yet
     // FTF on the join(after subquery) on condition is not visible inside subquery yet. FTF after Fork fails with a similar error.
     public void testSubqueryInFromWithLookupJoinOnFullTextFunction() {
@@ -3319,7 +3302,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];"
             )
         );
         assertThat(
@@ -3330,7 +3313,7 @@ public class VerifierTests extends ESTestCase {
             ),
             equalTo(
                 "1:27: Validation Failed: 1: [chunking_settings] Invalid value [5.0]. "
-                    + "[max_chunk_size] must be a greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
+                    + "[max_chunk_size] must be greater than or equal to [20.0];2: sentence_overlap[5] must be either 0 or 1;"
             )
         );
         assertThat(
@@ -3529,6 +3512,99 @@ public class VerifierTests extends ESTestCase {
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         query("from test | eval similarity = " + functionInvocation, fullTextAnalyzer);
+    }
+
+    public void testUnsupportedMetadata() {
+        // GroupByAll
+        assertThat(
+            error("FROM k8s METADATA unknown_field"),
+            equalTo("1:1: unresolved metadata fields: [?unknown_field]\nline 1:19: Unresolved metadata pattern [unknown_field]")
+        );
+    }
+
+    public void testMMRDiversifyFieldIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+
+        assertThat(
+            error("row dense_embedding=\"hello\" | mmr dense_embedding limit 10", defaultAnalyzer, VerificationException.class),
+            equalTo("1:31: MMR diversify field must be a dense vector field")
+        );
+    }
+
+    public void testMMRLimitIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit -5",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR limit must be an positive integer")
+        );
+    }
+
+    public void testMMRResolvedQueryVectorIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query(
+            "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr [0.5, 0.4, 0.3, 0.2]::dense_vector on dense_embedding limit 10"
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr \"not_a_dense_vector\" on dense_embedding limit 10",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR query vector must be resolved to a dense vector type")
+        );
+    }
+
+    public void testMMRLambdaValueIsValid() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        query("row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 0.5 }");
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"unknown\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with "
+                    + "{ \"lambda\": 0.5, \"unknown_extra\": true }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: Invalid option [unknown_extra] in <MMR>, expected one of [[lambda]]")
+        );
+
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": 2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
+        assertThat(
+            error(
+                "row dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector | mmr dense_embedding limit 10 with { \"lambda\": -2.5 }",
+                defaultAnalyzer,
+                VerificationException.class
+            ),
+            equalTo("1:58: MMR lambda value must be a number between 0.0 and 1.0")
+        );
     }
 
     private void query(String query) {

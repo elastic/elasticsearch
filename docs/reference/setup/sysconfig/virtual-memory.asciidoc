@@ -3,14 +3,16 @@
 
 Elasticsearch uses a <<mmapfs,`mmapfs`>> directory by
 default to store its indices. The default operating system limits on mmap
-counts is likely to be too low, which may result in out of memory exceptions.
+counts is likely to be too low, which might result in out of memory exceptions.
+
+NOTE: If the operating system's default `vm.max_map_count` value is `1048576` or higher, no configuration change is necessary. If the default value is lower than `1048576`, configure the `vm.max_map_count` parameter to `1048576`.
 
 On Linux, you can increase the limits by running the following command as
 `root`:
 
 [source,sh]
 -------------------------------------
-sysctl -w vm.max_map_count=262144
+sysctl -w vm.max_map_count=1048576
 -------------------------------------
 
 To set this value permanently, update the `vm.max_map_count` setting in

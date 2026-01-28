@@ -11,6 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,6 +49,9 @@ import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -61,9 +65,12 @@ import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticI
 import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -93,8 +100,19 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_CHAT_COMPLETION_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_ELSER_MODEL_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_MULTILINGUAL_EMBED_MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_RERANK_ENDPOINT_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DEFAULT_RERANK_MODEL_ID_V1;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -902,6 +920,79 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testBatching_GivenSparseAndMultipleChunksFittingInSingleBatch() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            10,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(1));
+            assertThatBatchContains(batches.get(0), List.of("hello", " world", " plus"));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfOne() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            1,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of("hello"));
+            assertThatBatchContains(batches.get(1), List.of(" world"));
+        }
+    }
+
+    public void testBatching_GivenSparseAndBatchSizeOfTwo() throws IOException {
+        var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "my-sparse-model-id",
+            null,
+            2,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.get(0), List.of("hello", " world"));
+            assertThatBatchContains(batches.get(1), List.of(" plus"));
+        }
+    }
+
+    private static void assertThatBatchContains(EmbeddingRequestChunker.BatchRequestAndListener batch, List<String> expectedChunks) {
+        List<String> chunks = batch.batch().inputs().get();
+        assertThat(chunks, equalTo(expectedChunks));
+    }
+
     public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorizationModel.newDisabledService())) {
             ensureAuthorizationCallFinished(service);
@@ -980,7 +1071,16 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                                "updatable": false,
                                "type": "int",
                                "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
+                           },
+                           "max_batch_size": {
+                              "description": "Allows you to specify the maximum number of chunks per batch.",
+                              "label": "Maximum Batch Size",
+                              "required": false,
+                              "sensitive": false,
+                              "updatable": true,
+                              "type": "int",
+                              "supported_task_types": ["sparse_embedding"]
+                          }
                        }
                    }
                 """);
@@ -1035,7 +1135,16 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                                "updatable": false,
                                "type": "int",
                                "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
+                           },
+                           "max_batch_size": {
+                              "description": "Allows you to specify the maximum number of chunks per batch.",
+                              "label": "Maximum Batch Size",
+                              "required": false,
+                              "sensitive": false,
+                              "updatable": true,
+                              "type": "int",
+                              "supported_task_types": ["sparse_embedding"]
+                          }
                        }
                    }
                 """);
@@ -1104,7 +1213,16 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                                "updatable": false,
                                "type": "int",
                                "supported_task_types": ["text_embedding", "sparse_embedding"]
-                           }
+                           },
+                           "max_batch_size": {
+                              "description": "Allows you to specify the maximum number of chunks per batch.",
+                              "label": "Maximum Batch Size",
+                              "required": false,
+                              "sensitive": false,
+                              "updatable": true,
+                              "type": "int",
+                              "supported_task_types": ["sparse_embedding"]
+                          }
                        }
                    }
                 """);
@@ -1312,8 +1430,8 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                             ".multilingual-embed-v1-elastic",
                             MinimalServiceSettings.textEmbedding(
                                 ElasticInferenceService.NAME,
-                                ElasticInferenceService.DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
-                                ElasticInferenceService.defaultDenseTextEmbeddingsSimilarity(),
+                                DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                                defaultDenseTextEmbeddingsSimilarity(),
                                 DenseVectorFieldMapper.ElementType.FLOAT
                             ),
                             service
@@ -1345,6 +1463,94 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
             assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".multilingual-embed-v1-elastic"));
             assertThat(models.get(2).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
             assertThat(models.get(3).getConfigurations().getInferenceEntityId(), is(".rerank-v1-elastic"));
+        }
+    }
+
+    public void testDefaultConfigs_Returns_DefaultEndpointsModels() throws Exception {
+        String responseJson = """
+            {
+                "models": [
+                    {
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": "elser-v2",
+                      "task_types": ["embed/text/sparse"]
+                    },
+                    {
+                      "model_name": "multilingual-embed-v1",
+                      "task_types": ["embed/text/dense"]
+                    },
+                  {
+                      "model_name": "rerank-v1",
+                      "task_types": ["rerank/text/text-similarity"]
+                    }
+                ]
+            }
+            """;
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
+            ensureAuthorizationCallFinished(service);
+            var listener = new TestPlainActionFuture<List<Model>>();
+
+            service.defaultConfigs(listener);
+            var models = listener.actionGet(TIMEOUT);
+
+            var elasticInferenceServiceComponents = new ElasticInferenceServiceComponents(getUrl(webServer));
+
+            assertThat(
+                models,
+                containsInAnyOrder(
+                    new ElasticInferenceServiceCompletionModel(
+                        DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1,
+                        TaskType.CHAT_COMPLETION,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceCompletionServiceSettings(DEFAULT_CHAT_COMPLETION_MODEL_ID_V1, null),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents
+                    ),
+                    new ElasticInferenceServiceSparseEmbeddingsModel(
+                        DEFAULT_ELSER_ENDPOINT_ID_V2,
+                        TaskType.SPARSE_EMBEDDING,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceSparseEmbeddingsServiceSettings(DEFAULT_ELSER_MODEL_ID_V2, null, null, null),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents,
+                        ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ),
+                    new ElasticInferenceServiceDenseTextEmbeddingsModel(
+                        DEFAULT_MULTILINGUAL_EMBED_ENDPOINT_ID,
+                        TaskType.TEXT_EMBEDDING,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+                            DEFAULT_MULTILINGUAL_EMBED_MODEL_ID,
+                            defaultDenseTextEmbeddingsSimilarity(),
+                            DENSE_TEXT_EMBEDDINGS_DIMENSIONS,
+                            null,
+                            null
+                        ),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents,
+                        ChunkingSettingsBuilder.DEFAULT_SETTINGS
+                    ),
+                    new ElasticInferenceServiceRerankModel(
+                        DEFAULT_RERANK_ENDPOINT_ID_V1,
+                        TaskType.RERANK,
+                        ElasticInferenceService.NAME,
+                        new ElasticInferenceServiceRerankServiceSettings(DEFAULT_RERANK_MODEL_ID_V1, null),
+                        EmptyTaskSettings.INSTANCE,
+                        EmptySecretSettings.INSTANCE,
+                        elasticInferenceServiceComponents
+                    )
+                )
+            );
         }
     }
 

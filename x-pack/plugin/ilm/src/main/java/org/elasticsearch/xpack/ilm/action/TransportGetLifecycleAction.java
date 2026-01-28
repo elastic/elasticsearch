@@ -24,7 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUsageCalculator;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.LifecyclePolicyResponseItem;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction.Request;
@@ -92,6 +92,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                 );
             }
 
+            var lifecyclePolicyUsageCalculator = new LifecyclePolicyUsageCalculator(indexNameExpressionResolver, state, names);
             Map<String, LifecyclePolicyResponseItem> policyResponseItemMap = new LinkedHashMap<>();
             for (String name : names) {
                 if (Regex.isSimpleMatchPattern(name)) {
@@ -107,7 +108,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                                     policyMetadata.getPolicy(),
                                     policyMetadata.getVersion(),
                                     policyMetadata.getModifiedDateString(),
-                                    LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                                    lifecyclePolicyUsageCalculator.retrieveCalculatedUsage(policyMetadata.getName())
                                 )
                             );
                         }
@@ -124,7 +125,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
                             policyMetadata.getModifiedDateString(),
-                            LifecyclePolicyUtils.calculateUsage(indexNameExpressionResolver, state, policyMetadata.getName())
+                            lifecyclePolicyUsageCalculator.retrieveCalculatedUsage(policyMetadata.getName())
                         )
                     );
                 }

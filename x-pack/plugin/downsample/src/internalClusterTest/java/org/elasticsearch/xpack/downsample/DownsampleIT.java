@@ -36,6 +36,13 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             {
               %s
               "properties": {
+                "@timestamp": {
+                  "type": "date"
+                },
+                "timestamp": {
+                  "path": "@timestamp",
+                  "type": "alias"
+                },
                 "attributes": {
                   "type": "passthrough",
                   "priority": 10,

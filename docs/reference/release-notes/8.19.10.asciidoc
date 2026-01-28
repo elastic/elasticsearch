@@ -1,0 +1,56 @@
+[[release-notes-8.19.10]]
+== {es} version 8.19.10
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.10]]
+[float]
+=== Bug fixes
+
+Data streams::
+* Bug fix: the filter of a data stream alias is not always properly removed {es-pull}139679[#139679]
+* Making sure that failure store document converter does not hang on unexpected exceptions {es-pull}139712[#139712] (issue: {es-issue}139707[#139707])
+
+ES|QL::
+* ESQL: Fix multi-value constant propagation after `STATS` {es-pull}139442[#139442] (issue: {es-issue}135926[#135926])
+* [ESQL] Refactor Greatest and Least functions to use evaluator map {es-pull}128429[#128429] (issue: {es-issue}114036[#114036])
+
+Inference::
+* [Inference API] Fix auth exception listener not called bug {es-pull}139966[#139966]
+
+Infra/Core::
+* Skip frozen nodes on disk watermark check {es-pull}140118[#140118]
+
+Machine Learning::
+* Reject updating low-priority model deployments to more than 1 allocation {es-pull}139989[#139989] (issue: {es-issue}111227[#111227])
+
+Recovery::
+* Revert "Attempt to clean up index before remote transfer" {es-pull}139569[#139569]
+
+Snapshot/Restore::
+* Register `disable_chunked_encoding` S3 repo setting {es-pull}139788[#139788]
+
+[[enhancement-8.19.10]]
+[float]
+=== Enhancements
+
+Authorization::
+* [Axonius] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system` {es-pull}140046[#140046]
+
+ES|QL::
+* Expose `_tier` in ESQL {es-pull}139894[#139894]
+
+Network::
+* Always log connection failure at WARN level for sniffed node {es-pull}140149[#140149]
+
+[[upgrade-8.19.10]]
+[float]
+=== Upgrades
+
+Infra/Core::
+* Upgrade lz4 dependency to 1.10.1 {es-pull}139221[#139221]
+
+Security::
+* Upgrade Netty to 4.1.130.Final {es-pull}139669[#139669]
+
+

@@ -941,7 +941,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 {
                        "service": "watsonxai",
                        "name": "IBM Watsonx",
-                       "task_types": ["text_embedding"],
+                       "task_types": ["text_embedding", "rerank"],
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -950,7 +950,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -959,7 +959,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "api_version": {
                                "description": "The IBM Watsonx API version ID to use.",
@@ -968,7 +968,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -986,7 +986,7 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding"]
+                               "supported_task_types": ["text_embedding", "rerank"]
                            }
                        }
                    }

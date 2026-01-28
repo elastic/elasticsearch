@@ -55,7 +55,7 @@
         "description": "Return settings in flat format (default: false)"
       },
       "settings_filter": {
-        "type": "string",
+        "type": "list",
         "description": "Filter out results, for example to filter out sensitive information. Supports wildcards or full settings keys"
       }
     }

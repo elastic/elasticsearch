@@ -220,9 +220,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.Dynamic,
         Property.NodeScope
     );
-    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = Setting.boolSetting(
+
+    public static final boolean DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS = true;
+    public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING = Setting.boolSetting(
         "search.default_allow_partial_results",
-        true,
+        DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -392,9 +394,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         minimumDocsPerSlice = MINIMUM_DOCS_PER_SLICE.get(settings);
 
-        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.get(settings);
+        defaultAllowPartialSearchResults = DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING.get(settings);
         clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS, this::setDefaultAllowPartialSearchResults);
+            .addSettingsUpdateConsumer(DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING, this::setDefaultAllowPartialSearchResults);
 
         maxOpenScrollContext = MAX_OPEN_SCROLL_CONTEXT.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_SCROLL_CONTEXT, this::setMaxOpenScrollContext);
@@ -2094,7 +2096,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, false, DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
     }
 
     /**
@@ -2104,9 +2106,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         LongSupplier nowInMillis,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean isExplain
+        final boolean isExplain,
+        final boolean allowPartialSearchResults
     ) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain);
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, isExplain, allowPartialSearchResults);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

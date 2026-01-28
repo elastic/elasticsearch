@@ -40,6 +40,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.CoreMatchers.both;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -343,11 +344,8 @@ public class ScopedSettingsTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "unknown setting [archived.index.store.type] was archived after upgrading, and must be removed."
-                    + " See [https://www.elastic.co/guide/en/elasticsearch/reference/8.19/"
-                    + "deploy-manage/upgrade/deployment-or-cluster/archived-settings] "
-                    + "for details."
+            both(containsString("unknown setting [archived.index.store.type] was archived after upgrading, and must be removed.")).and(
+                containsString("deploy-manage/upgrade/deployment-or-cluster/archived-settings")
             )
         );
 

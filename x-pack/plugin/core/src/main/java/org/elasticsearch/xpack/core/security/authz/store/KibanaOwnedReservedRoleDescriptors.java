@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*")
+                    .indices(".kibana*", ".reporting-*", ".reindexed-v8-kibana*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -516,7 +516,18 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-cyera.classification-*",
                         "logs-cyera.issue-*",
                         "logs-cyera.datastore-*",
-                        "logs-ironscales.incident-*"
+                        "logs-ironscales.incident-*",
+                        "logs-axonius.adapter-*",
+                        "logs-axonius.alert_and_incident-*",
+                        "logs-axonius.application-*",
+                        "logs-axonius.compute-*",
+                        "logs-axonius.exposure-*",
+                        "logs-axonius.gateway-*",
+                        "logs-axonius.identity-*",
+                        "logs-axonius.network-*",
+                        "logs-axonius.storage-*",
+                        "logs-axonius.ticket-*",
+                        "logs-axonius.user-*"
                     )
                     .privileges(
                         "manage",

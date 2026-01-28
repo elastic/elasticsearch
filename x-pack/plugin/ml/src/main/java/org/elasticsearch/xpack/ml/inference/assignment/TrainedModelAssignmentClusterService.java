@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentRoutingInfoAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
@@ -73,6 +74,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.Request.PRIORITY;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.NODES_CHANGED_REASON;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils.createShuttingDownRoute;
 
@@ -845,6 +847,25 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 return;
             }
         }
+        if (Priority.LOW.equals(existingAssignment.getTaskParams().getPriority())) {
+            if (numberOfAllocations != null && numberOfAllocations > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low");
+                listener.onFailure(validationException);
+                return;
+            }
+            if (adaptiveAllocationsSettings != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() != null
+                && adaptiveAllocationsSettings.getMaxNumberOfAllocations() > 1) {
+                ValidationException validationException = new ValidationException();
+                validationException.addValidationError(
+                    "[" + AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS + "] must be 1 when [" + PRIORITY + "] is low"
+                );
+                listener.onFailure(validationException);
+                return;
+            }
+        }
+
         boolean hasUpdates = hasUpdates(numberOfAllocations, adaptiveAllocationsSettingsUpdates, existingAssignment);
         if (hasUpdates == false) {
             logger.info("no updates");

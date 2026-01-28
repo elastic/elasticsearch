@@ -583,7 +583,15 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         });
 
         // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
-        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, decTrackerRunsBeforeResultListener);
+        return () -> snapshot(
+            shardId,
+            snapshot,
+            indexId,
+            snapshotStatus,
+            entryVersion,
+            entryStartTime,
+            decTrackerRunsBeforeResultListener
+        );
     }
 
     // package private for testing

@@ -1185,7 +1185,7 @@ class NodeConstruction {
             indicesService,
             pluginsService.loadSingletonServiceProvider(
                 SnapshotShardContextFactory.class,
-                () -> new LocalPrimarySnapshotShardContextFactory(indicesService)
+                () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
             )
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =

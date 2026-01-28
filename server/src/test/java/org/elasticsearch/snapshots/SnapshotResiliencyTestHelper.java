@@ -663,19 +663,46 @@ public class SnapshotResiliencyTestHelper {
                     .mapperMetrics(MapperMetrics.NOOP)
                     .mergeMetrics(MergeMetrics.NOOP)
                     .build();
-                final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
+
+                this.searchService = new SearchService(
+                    clusterService,
+                    indicesService,
+                    threadPool,
+                    scriptService,
+                    bigArrays,
+                    new FetchPhase(Collections.emptyList()),
+                    new NoneCircuitBreakerService(),
+                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
+                    Tracer.NOOP,
+                    OnlinePrewarmingService.NOOP
+                );
+
+                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+                peerRecoveryTargetService = new PeerRecoveryTargetService(
+                    client,
+                    threadPool,
+                    transportService,
+                    recoverySettings,
+                    clusterService,
+                    snapshotFilesProvider
+                );
+
+                final ActionFilters actionFilters = new ActionFilters(emptySet());
+                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+
+                // Inject initialization from subclass which may be needed by initializations after this point.
+                doInit(actions, actionFilters);
+
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
                     clusterService,
                     repositoriesService,
                     transportService,
                     indicesService,
-                    new LocalPrimarySnapshotShardContextFactory(indicesService)
+                    new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
                 );
                 shardStateAction = new ShardStateAction(clusterService, transportService, allocationService, rerouteService, threadPool);
                 nodeConnectionsService = new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService);
-                final ActionFilters actionFilters = new ActionFilters(emptySet());
-                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
                 actions.put(
                     TransportUpdateSnapshotStatusAction.TYPE,
                     new TransportUpdateSnapshotStatusAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
@@ -727,28 +754,7 @@ public class SnapshotResiliencyTestHelper {
                     client,
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
                 );
-                this.searchService = new SearchService(
-                    clusterService,
-                    indicesService,
-                    threadPool,
-                    scriptService,
-                    bigArrays,
-                    new FetchPhase(Collections.emptyList()),
-                    new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                    Tracer.NOOP,
-                    OnlinePrewarmingService.NOOP
-                );
 
-                final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-                peerRecoveryTargetService = new PeerRecoveryTargetService(
-                    client,
-                    threadPool,
-                    transportService,
-                    recoverySettings,
-                    clusterService,
-                    snapshotFilesProvider
-                );
                 indicesClusterStateService = new IndicesClusterStateService(
                     settings,
                     indicesService,
@@ -1086,8 +1092,6 @@ public class SnapshotResiliencyTestHelper {
                         projectResolver
                     )
                 );
-
-                doInit(actions, actionFilters);
 
                 client.initialize(
                     actions,

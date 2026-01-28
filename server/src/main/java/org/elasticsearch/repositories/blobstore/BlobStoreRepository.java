@@ -4184,23 +4184,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (int i = 0; i < fileInfo.numberOfParts(); i++) {
                 final long partBytes = fileInfo.partBytes(i);
 
+                // Stores the time spent reading. This is accumulated over each read in nanoseconds,
+                // but then passed to the BlobStoreSnapshotMetrics as a millisecond value. This is because converting each read
+                // to milliseconds introduces small errors made bigger when compounded over N reads, and since we don't require
+                // nanosecond precision on our charts, we're happy to take the small hit of a single, rounding error at the end.
+                AtomicLong totalTimeSpendReadingInNanos = new AtomicLong();
+
                 // Make reads abortable by mutating the snapshotStatus object
                 final InputStream inputStream = new FilterInputStream(maybeRateLimitSnapshots(fileReader.openInput(partBytes))) {
                     @Override
                     public int read() throws IOException {
                         checkAborted();
-                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
+                        final long beforeReadNanos = System.nanoTime();
                         int value = super.read();
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
+                        totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return value;
                     }
 
                     @Override
                     public int read(byte[] b, int off, int len) throws IOException {
                         checkAborted();
-                        final long beforeReadMillis = threadPool.rawRelativeTimeInMillis();
+                        final long beforeReadNanos = System.nanoTime();
                         int amountRead = super.read(b, off, len);
-                        blobStoreSnapshotMetrics.incrementUploadReadTime(threadPool.rawRelativeTimeInMillis() - beforeReadMillis);
+                        totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return amountRead;
                     }
 
@@ -4214,6 +4220,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 shardContainer.writeBlob(OperationPurpose.SNAPSHOT_DATA, partName, inputStream, partBytes, false);
                 final long uploadTimeInMillis = threadPool.rawRelativeTimeInMillis() - startMillis;
                 blobStoreSnapshotMetrics.incrementCountersForPartUpload(partBytes, uploadTimeInMillis);
+                blobStoreSnapshotMetrics.incrementUploadReadTime(TimeUnit.NANOSECONDS.toMillis(totalTimeSpendReadingInNanos.longValue()));
                 logger.trace(
                     "[{}] Writing [{}] of size [{}b] to [{}] took [{}/{}ms]",
                     metadata.name(),

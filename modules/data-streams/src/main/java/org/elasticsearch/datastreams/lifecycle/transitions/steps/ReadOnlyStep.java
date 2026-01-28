@@ -125,7 +125,7 @@ public class ReadOnlyStep implements DlmStep {
         public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
             if (addIndexBlockResponse.isAcknowledged()) {
                 logger.info(
-                    "Data stream lifecycle service successfully added block [{}] for index index [{}]",
+                    "Data stream lifecycle service successfully added block [{}] for index [{}]",
                     addIndexBlockRequest.getBlock(),
                     targetIndex
                 );

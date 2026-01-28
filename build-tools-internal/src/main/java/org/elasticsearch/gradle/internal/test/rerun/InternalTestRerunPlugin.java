@@ -24,8 +24,6 @@ import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.testing.Test;
 
-import javax.inject.Inject;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
@@ -33,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * Gradle plugin that implements smart test retries by filtering test execution based on

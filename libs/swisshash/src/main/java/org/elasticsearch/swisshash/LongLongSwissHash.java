@@ -12,6 +12,8 @@ package org.elasticsearch.swisshash;
 import jdk.incubator.vector.ByteVector;
 import jdk.incubator.vector.VectorSpecies;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.LongLongHashTable;
@@ -61,6 +63,8 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
             throw new AssertionError("key too small");
         }
     }
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongLongSwissHash.class);
 
     private static final VarHandle LONG_HANDLE = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
     private static final VarHandle INT_HANDLE = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.nativeOrder());
@@ -183,8 +187,9 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
      * <p> This uses one page from the {@link PageCacheRecycler} for the
      * {@code ids}.
      */
-    final class SmallCore extends Core {
+    final class SmallCore extends Core implements Accountable {
         static final float FILL_FACTOR = 0.6F;
+        static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(SmallCore.class);
 
         private final byte[] idPage;
 
@@ -307,9 +312,16 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
         private int id(int slot) {
             return (int) INT_HANDLE.get(idPage, idOffset(slot));
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(idPage);
+        }
     }
 
-    final class BigCore extends Core {
+    final class BigCore extends Core implements Accountable {
+        static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BigCore.class);
+
         static final float FILL_FACTOR = 0.875F;
 
         private static final byte EMPTY = (byte) 0x80; // empty slot
@@ -520,6 +532,12 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
             final int idOffset = idOffset(slot);
             return (int) INT_HANDLE.get(idPages[idOffset >> PAGE_SHIFT], idOffset & PAGE_MASK);
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(controlData) + (long) idPages.length
+                * PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+        }
     }
 
     @Override
@@ -552,5 +570,10 @@ public class LongLongSwissHash extends SwissHash implements LongLongHashTable {
 
     private int slot(final int hash) {
         return hash & mask;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + (smallCore != null ? smallCore.ramBytesUsed() : bigCore.ramBytesUsed());
     }
 }

@@ -244,6 +244,11 @@ public final class BytesRefLongBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
+    }
+
+    @Override
     public String toString() {
         return "BytesRefLongBlockHash{keys=[BytesRefKey[channel="
             + bytesChannel

@@ -49,9 +49,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         int batchSize = size * 2;
 
         final String inferenceId = randomIdentifier();
-        final BytesRefBlock inputBlock = randomInputBlock(size);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
             // Should produce exactly one request containing all items
             assertTrue(requestIterator.hasNext());
 
@@ -73,9 +73,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
     public void testIterateEmptyInput() throws Exception {
         final String inferenceId = randomIdentifier();
-        final BytesRefBlock inputBlock = randomInputBlock(0);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(0) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, 20)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, 20)) {
             // Empty page should have no iterations
             assertFalse(requestIterator.hasNext());
 
@@ -90,12 +90,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final int size = between(30, 60);
         final int batchSize = 10;
-        final BytesRefBlock inputBlock = randomInputBlockWithNulls(size);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlockWithNulls(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
             int totalPositionsProcessed = 0;
-            int totalDocumentsProcessed = 0;
-
             while (requestIterator.hasNext()) {
                 BulkInferenceRequestItem requestItem = requestIterator.next();
                 int[] positionValueCounts = requestItem.positionValueCounts();
@@ -108,7 +106,6 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 }
 
                 totalPositionsProcessed += positionsInBatch;
-                totalDocumentsProcessed += documentsInBatch;
 
                 if (requestItem.inferenceRequest() == null) {
                     // All positions were null/empty, so no documents
@@ -157,8 +154,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             }
 
             BytesRefBlock inputBlock = blockBuilder.build();
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
                 // First batch: 1 null position + 10 document positions
                 // Position value counts [0,1,1,1,1,1,1,1,1,1,1] where first 0 is the leading null
                 assertTrue(requestIterator.hasNext());
@@ -187,9 +185,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final int size = between(10, 1000);
         final int batchSize = between(5, 50);
-        final BytesRefBlock inputBlock = randomInputBlock(size);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
             assertThat(requestIterator.estimatedSize(), equalTo(size));
         }
 
@@ -200,9 +198,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         final String inferenceId = randomIdentifier();
         final int size = 25;
         final int batchSize = 10;
-        final BytesRefBlock inputBlock = randomInputBlock(size);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
             List<Integer> batchSizes = new ArrayList<>();
             List<Integer> positionValueCountsLengths = new ArrayList<>();
 
@@ -253,8 +251,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             }
 
             BytesRefBlock inputBlock = blockBuilder.build();
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
                 // First batch: 5 document positions (hits batch size) + 3 trailing null positions
                 // Position value counts [1,1,1,1,1,0,0,0] represents 5 docs and 3 nulls bundled together
                 assertTrue(requestIterator.hasNext());
@@ -309,8 +308,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             blockBuilder.appendBytesRef(new BytesRef("doc_3"));
 
             BytesRefBlock inputBlock = blockBuilder.build();
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -348,8 +348,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             blockBuilder.appendBytesRef(new BytesRef("doc_1"));
 
             BytesRefBlock inputBlock = blockBuilder.build();
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
 
@@ -385,8 +386,9 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
             }
 
             BytesRefBlock inputBlock = blockBuilder.build();
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { inputBlock };
 
-            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
                 // Should produce one batch with no documents but position value counts [0,0,0,0,0]
                 assertTrue(requestIterator.hasNext());
                 BulkInferenceRequestItem item = requestIterator.next();
@@ -407,11 +409,245 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
         allBreakersEmpty();
     }
 
+    /**
+     * Tests support for multiple input blocks where each block contributes values
+     * to the same position. Values from all blocks are combined.
+     */
+    public void testMultipleInputBlocks() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final int batchSize = 10;
+
+        // Create two input blocks with different values at each position
+        try (
+            BytesRefBlock.Builder blockBuilder1 = blockFactory().newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder blockBuilder2 = blockFactory().newBytesRefBlockBuilder(3)
+        ) {
+            // Block 1: ["a", "b", "c"]
+            blockBuilder1.appendBytesRef(new BytesRef("a"));
+            blockBuilder1.appendBytesRef(new BytesRef("b"));
+            blockBuilder1.appendBytesRef(new BytesRef("c"));
+
+            // Block 2: ["x", "y", "z"]
+            blockBuilder2.appendBytesRef(new BytesRef("x"));
+            blockBuilder2.appendBytesRef(new BytesRef("y"));
+            blockBuilder2.appendBytesRef(new BytesRef("z"));
+
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
+
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem item = requestIterator.next();
+
+                // Each position contributes 2 values (one from each block)
+                // Total: 3 positions * 2 values = 6 documents
+                assertThat(item.inferenceRequest().getInput().size(), equalTo(6));
+
+                // Position value counts should contain [2, 2, 2] - each position has 2 documents
+                assertThat(item.positionValueCounts().length, equalTo(3));
+                assertThat(item.positionValueCounts()[0], equalTo(2));
+                assertThat(item.positionValueCounts()[1], equalTo(2));
+                assertThat(item.positionValueCounts()[2], equalTo(2));
+
+                // Verify the combined inputs: [a, x, b, y, c, z]
+                List<String> inputs = item.inferenceRequest().getInput();
+                assertThat(inputs.get(0), equalTo("a"));
+                assertThat(inputs.get(1), equalTo("x"));
+                assertThat(inputs.get(2), equalTo("b"));
+                assertThat(inputs.get(3), equalTo("y"));
+                assertThat(inputs.get(4), equalTo("c"));
+                assertThat(inputs.get(5), equalTo("z"));
+
+                assertFalse(requestIterator.hasNext());
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
+    /**
+     * Tests that when one block is null at a position but another block has a value,
+     * only the non-null block's values are included in the input.
+     */
+    public void testMultipleInputBlocksWithPartialNulls() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final int batchSize = 10;
+
+        // Create two input blocks where one has nulls at some positions
+        try (
+            BytesRefBlock.Builder blockBuilder1 = blockFactory().newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder blockBuilder2 = blockFactory().newBytesRefBlockBuilder(3)
+        ) {
+            // Block 1: ["a", null, "c"]
+            blockBuilder1.appendBytesRef(new BytesRef("a"));
+            blockBuilder1.appendNull();
+            blockBuilder1.appendBytesRef(new BytesRef("c"));
+
+            // Block 2: [null, "y", "z"]
+            blockBuilder2.appendNull();
+            blockBuilder2.appendBytesRef(new BytesRef("y"));
+            blockBuilder2.appendBytesRef(new BytesRef("z"));
+
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
+
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem item = requestIterator.next();
+
+                // Position 0: only "a" (block 2 is null)
+                // Position 1: only "y" (block 1 is null)
+                // Position 2: "c" and "z"
+                // Total: 4 documents
+                assertThat(item.inferenceRequest().getInput().size(), equalTo(4));
+
+                // Position value counts should be [1, 1, 2]
+                assertThat(item.positionValueCounts().length, equalTo(3));
+                assertThat(item.positionValueCounts()[0], equalTo(1));
+                assertThat(item.positionValueCounts()[1], equalTo(1));
+                assertThat(item.positionValueCounts()[2], equalTo(2));
+
+                // Verify the inputs: [a, y, c, z]
+                List<String> inputs = item.inferenceRequest().getInput();
+                assertThat(inputs.get(0), equalTo("a"));
+                assertThat(inputs.get(1), equalTo("y"));
+                assertThat(inputs.get(2), equalTo("c"));
+                assertThat(inputs.get(3), equalTo("z"));
+
+                assertFalse(requestIterator.hasNext());
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
+    /**
+     * Tests multiple input blocks where each block contains multi-valued positions.
+     * Values from all blocks are combined, and the position value counts reflects the total values per position.
+     */
+    public void testMultipleInputBlocksWithMultiValuedFields() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final int batchSize = 20;
+
+        // Create two input blocks with multi-valued positions
+        try (
+            BytesRefBlock.Builder blockBuilder1 = blockFactory().newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder blockBuilder2 = blockFactory().newBytesRefBlockBuilder(3)
+        ) {
+            // Block 1:
+            // Position 0: single value "a"
+            blockBuilder1.appendBytesRef(new BytesRef("a"));
+            // Position 1: two values ["b1", "b2"]
+            blockBuilder1.beginPositionEntry();
+            blockBuilder1.appendBytesRef(new BytesRef("b1"));
+            blockBuilder1.appendBytesRef(new BytesRef("b2"));
+            blockBuilder1.endPositionEntry();
+            // Position 2: single value "c"
+            blockBuilder1.appendBytesRef(new BytesRef("c"));
+
+            // Block 2:
+            // Position 0: two values ["x1", "x2"]
+            blockBuilder2.beginPositionEntry();
+            blockBuilder2.appendBytesRef(new BytesRef("x1"));
+            blockBuilder2.appendBytesRef(new BytesRef("x2"));
+            blockBuilder2.endPositionEntry();
+            // Position 1: single value "y"
+            blockBuilder2.appendBytesRef(new BytesRef("y"));
+            // Position 2: three values ["z1", "z2", "z3"]
+            blockBuilder2.beginPositionEntry();
+            blockBuilder2.appendBytesRef(new BytesRef("z1"));
+            blockBuilder2.appendBytesRef(new BytesRef("z2"));
+            blockBuilder2.appendBytesRef(new BytesRef("z3"));
+            blockBuilder2.endPositionEntry();
+
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
+
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem item = requestIterator.next();
+
+                // Position 0: 1 (from block1) + 2 (from block2) = 3 values
+                // Position 1: 2 (from block1) + 1 (from block2) = 3 values
+                // Position 2: 1 (from block1) + 3 (from block2) = 4 values
+                // Total: 10 documents
+                assertThat(item.inferenceRequest().getInput().size(), equalTo(10));
+
+                // Position value counts should be [3, 3, 4]
+                assertThat(item.positionValueCounts().length, equalTo(3));
+                assertThat(item.positionValueCounts()[0], equalTo(3));
+                assertThat(item.positionValueCounts()[1], equalTo(3));
+                assertThat(item.positionValueCounts()[2], equalTo(4));
+
+                // Verify the order of inputs: values from block1 first, then block2 for each position
+                List<String> inputs = item.inferenceRequest().getInput();
+                // Position 0: a, x1, x2
+                assertThat(inputs.get(0), equalTo("a"));
+                assertThat(inputs.get(1), equalTo("x1"));
+                assertThat(inputs.get(2), equalTo("x2"));
+                // Position 1: b1, b2, y
+                assertThat(inputs.get(3), equalTo("b1"));
+                assertThat(inputs.get(4), equalTo("b2"));
+                assertThat(inputs.get(5), equalTo("y"));
+                // Position 2: c, z1, z2, z3
+                assertThat(inputs.get(6), equalTo("c"));
+                assertThat(inputs.get(7), equalTo("z1"));
+                assertThat(inputs.get(8), equalTo("z2"));
+                assertThat(inputs.get(9), equalTo("z3"));
+
+                assertFalse(requestIterator.hasNext());
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
+    public void testMultipleInputBlocksAllNullAtPosition() throws Exception {
+        final String inferenceId = randomIdentifier();
+        final int batchSize = 10;
+
+        // Create two input blocks where both are null at position 1
+        try (
+            BytesRefBlock.Builder blockBuilder1 = blockFactory().newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder blockBuilder2 = blockFactory().newBytesRefBlockBuilder(3)
+        ) {
+            // Block 1: ["a", null, "c"]
+            blockBuilder1.appendBytesRef(new BytesRef("a"));
+            blockBuilder1.appendNull();
+            blockBuilder1.appendBytesRef(new BytesRef("c"));
+
+            // Block 2: ["x", null, "z"]
+            blockBuilder2.appendBytesRef(new BytesRef("x"));
+            blockBuilder2.appendNull();
+            blockBuilder2.appendBytesRef(new BytesRef("z"));
+
+            BytesRefBlock[] inputBlocks = new BytesRefBlock[] { blockBuilder1.build(), blockBuilder2.build() };
+
+            try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
+                assertTrue(requestIterator.hasNext());
+                BulkInferenceRequestItem item = requestIterator.next();
+
+                // Position 0: "a" and "x" (2 docs)
+                // Position 1: both null (0 docs)
+                // Position 2: "c" and "z" (2 docs)
+                // Total: 4 documents
+                assertThat(item.inferenceRequest().getInput().size(), equalTo(4));
+
+                // Position value counts should be [2, 0, 2]
+                assertThat(item.positionValueCounts().length, equalTo(3));
+                assertThat(item.positionValueCounts()[0], equalTo(2));
+                assertThat(item.positionValueCounts()[1], equalTo(0)); // Both blocks null at position 1
+                assertThat(item.positionValueCounts()[2], equalTo(2));
+
+                assertFalse(requestIterator.hasNext());
+            }
+        }
+
+        allBreakersEmpty();
+    }
+
     private void assertIterate(int size, int batchSize) throws Exception {
         final String inferenceId = randomIdentifier();
-        final BytesRefBlock inputBlock = randomInputBlock(size);
+        final BytesRefBlock[] inputBlocks = new BytesRefBlock[] { randomInputBlock(size) };
 
-        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlock, batchSize)) {
+        try (RerankRequestIterator requestIterator = new RerankRequestIterator(inferenceId, QUERY_TEXT, inputBlocks, batchSize)) {
             int totalItemsProcessed = 0;
             int requestCount = 0;
 

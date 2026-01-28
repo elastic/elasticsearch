@@ -227,24 +227,12 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
   issue: https://github.com/elastic/elasticsearch/issues/122414
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test090SecurityCliPackaging
-  issue: https://github.com/elastic/elasticsearch/issues/131107
 - class: org.elasticsearch.xpack.esql.expression.function.fulltext.ScoreTests
   method: testSerializationOfSimple {TestCase=<boolean>}
   issue: https://github.com/elastic/elasticsearch/issues/131334
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testMatchInsideEval
   issue: https://github.com/elastic/elasticsearch/issues/131336
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test071BindMountCustomPathWithDifferentUID
-  issue: https://github.com/elastic/elasticsearch/issues/120917
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test171AdditionalCliOptionsAreForwarded
-  issue: https://github.com/elastic/elasticsearch/issues/120925
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test050BasicApiTests
-  issue: https://github.com/elastic/elasticsearch/issues/120911
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/131964
@@ -473,12 +461,6 @@ tests:
 - class: org.elasticsearch.readiness.ReadinessClusterIT
   method: testReadinessDuringRestartsNormalOrder
   issue: https://github.com/elastic/elasticsearch/issues/136955
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test140CgroupOsStatsAreAvailable
-  issue: https://github.com/elastic/elasticsearch/issues/131372
-- class: org.elasticsearch.packaging.test.DockerTests
-  method: test070BindMountCustomPathConfAndJvmOptions
-  issue: https://github.com/elastic/elasticsearch/issues/131366
 - class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
   method: testReindexWithShutdown
   issue: https://github.com/elastic/elasticsearch/issues/139806

@@ -46,7 +46,7 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     }
 
     public String getUrl() {
-        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return format("http://%s", webServer.getHttpAddress());
     }
 
     @Override

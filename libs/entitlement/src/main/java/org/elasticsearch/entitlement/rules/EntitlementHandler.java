@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.rules;
 
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
+import java.util.function.Function;
+
 public sealed class EntitlementHandler permits EntitlementHandler.DefaultValueEntitlementHandler,
     EntitlementHandler.ExceptionEntitlementHandler, EntitlementHandler.NotEntitledEntitlementHandler {
 
@@ -39,14 +41,14 @@ public sealed class EntitlementHandler permits EntitlementHandler.DefaultValueEn
      * An {@link EntitlementHandler} that throws a specified exception when an entitlement check fails.
      */
     public static final class ExceptionEntitlementHandler extends EntitlementHandler {
-        private final Class<? extends Exception> exceptionClass;
+        private final Function<NotEntitledException, ? extends Exception> exceptionSupplier;
 
-        public ExceptionEntitlementHandler(Class<? extends Exception> exceptionClass) {
-            this.exceptionClass = exceptionClass;
+        public ExceptionEntitlementHandler(Function<NotEntitledException, ? extends Exception> exceptionSupplier) {
+            this.exceptionSupplier = exceptionSupplier;
         }
 
-        public Class<? extends Exception> getExceptionClass() {
-            return exceptionClass;
+        public Function<NotEntitledException, ? extends Exception> getExceptionSupplier() {
+            return exceptionSupplier;
         }
     }
 }

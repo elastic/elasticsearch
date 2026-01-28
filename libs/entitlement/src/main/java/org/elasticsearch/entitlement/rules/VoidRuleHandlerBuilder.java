@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.rules;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+
+import java.util.function.Function;
 
 public class VoidRuleHandlerBuilder<T> {
     protected final Class<? extends T> clazz;
@@ -29,9 +32,9 @@ public class VoidRuleHandlerBuilder<T> {
         return new ClassMethodBuilder<>(clazz);
     }
 
-    public ClassMethodBuilder<T> elseThrow(Class<? extends Exception> exceptionClass) {
+    public ClassMethodBuilder<T> elseThrow(Function<NotEntitledException, ? extends Exception> exceptionSupplier) {
         EntitlementRules.registerRule(
-            new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.ExceptionEntitlementHandler(exceptionClass))
+            new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.ExceptionEntitlementHandler(exceptionSupplier))
         );
         return new ClassMethodBuilder<>(clazz);
     }

@@ -10,9 +10,11 @@
 package org.elasticsearch.entitlement.runtime.registry;
 
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 
 import java.util.Collections;
@@ -24,6 +26,7 @@ import java.util.UUID;
 public class InstrumentationRegistryImpl implements InternalInstrumentationRegistry {
     private final PolicyChecker policyChecker;
     private final Map<MethodKey, InstrumentationInfo> methodToImplementationInfo = new HashMap<>();
+    private final Map<String, EntitlementHandler> implementationIdToHandler = new HashMap<>();
     private final Map<String, VarargCall<CheckMethod>> implementationIdToProvider = new HashMap<>();
 
     public InstrumentationRegistryImpl(PolicyChecker policyChecker, List<EntitlementRule> rules) {
@@ -32,6 +35,7 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
         for (EntitlementRule rule : rules) {
             String id = UUID.randomUUID().toString();
             methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id));
+            implementationIdToHandler.put(id, rule.handler());
             implementationIdToProvider.put(id, rule.checkMethod());
         }
     }
@@ -39,7 +43,16 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
     @Override
     public void check$(String instrumentationId, Class<?> callingClass, Object... args) throws Exception {
         CheckMethod checkMethod = implementationIdToProvider.get(instrumentationId).call(args);
-        checkMethod.check(callingClass, policyChecker);
+        EntitlementHandler entitlementHandler = implementationIdToHandler.get(instrumentationId);
+        if (entitlementHandler instanceof EntitlementHandler.ExceptionEntitlementHandler exceptionHandler) {
+            try {
+                checkMethod.check(callingClass, policyChecker);
+            } catch (NotEntitledException e) {
+                throw exceptionHandler.getExceptionSupplier().apply(e);
+            }
+        } else {
+            checkMethod.check(callingClass, policyChecker);
+        }
     }
 
     @Override

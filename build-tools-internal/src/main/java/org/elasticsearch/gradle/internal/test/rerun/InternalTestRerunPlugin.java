@@ -17,11 +17,14 @@ import org.elasticsearch.gradle.internal.test.rerun.model.TestCase;
 import org.elasticsearch.gradle.internal.test.rerun.model.WorkUnit;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.testing.Test;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,7 +46,7 @@ import java.util.stream.Collectors;
  * If no history file exists, all tests run normally. If a test task has no failures in the
  * history, it is skipped entirely.
  */
-public class InternalTestRerunPlugin implements Plugin<Project> {
+public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
     /**
      * File name for failed test history created by Buildkite pre-command hook.
@@ -56,6 +59,9 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
      * This prevents potential DoS from malformed or malicious files.
      */
     private static final long MAX_JSON_FILE_SIZE = 10 * 1024 * 1024;
+
+    @Inject
+    protected abstract BuildFeatures getBuildFeatures();
 
     @Override
     public void apply(Project project) {
@@ -77,21 +83,11 @@ public class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
-        // Apply test seed from previous build if available
-        String testSeed = failureReport.testseed();
-        if (testSeed != null && !testSeed.isEmpty()) {
-            test.getLogger().lifecycle("Smart retry: applying test seed from previous run: {}", testSeed);
-            test.systemProperty("tests.seed", testSeed);
-        } else {
-            test.getLogger().info("Smart retry: no test seed available from previous run, using default");
-        }
-
         WorkUnit workUnit = testsBuildServiceProvider.get().getWorkUnitForTask(test.getPath());
         if (workUnit != null) {
             List<TestCase> tests = workUnit.tests();
             int totalTestCount = tests.stream().mapToInt(tc -> tc.children().size()).sum();
             test.getLogger().lifecycle("Smart retry: filtering to {} failed test classes ({} test methods)", tests.size(), totalTestCount);
-
             test.filter(testFilter -> {
                 for (TestCase testClassCase : tests) {
                     if (testClassCase.name() == null) {

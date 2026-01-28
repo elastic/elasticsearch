@@ -5419,3 +5419,42 @@ sum_avg_salary_change:d
 347.99         
 347.99              
 ;
+
+inlineStatsGroupByNull_PruneDifferentInlineStats
+required_capability: inline_stats_drop_groupings_fix
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no = null
+| INLINE STATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no = null
+| EVAL x = emp_no
+| INLINE STATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
+| KEEP x, a, emp_no
+| LIMIT 1
+;
+
+    x:null     |       a:l     |    emp_no:null
+null           |5              |null           
+;
+
+doubleInlineStatsPrunning_MVFunctionsAndDroppingGroupings
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg1 = ROUND(AVG(salary), languages) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg2 = ROUND(AVG(salary), languages) BY languages
+| DROP languages
+| SORT salary
+| LIMIT 7
+;
+
+    salary:i   |  languages1:d |      avg1:d   |  languages2:d |      avg2:d
+25324          |5.0            |41680.7619     |105.0          |41680.7619     
+25945          |5.0            |41680.7619     |105.0          |41680.7619     
+25976          |1.0            |50576.7        |15.0           |50576.7        
+26436          |3.0            |52418.882      |51.0           |52418.882      
+27215          |4.0            |47733.0        |72.0           |47733.0        
+28035          |1.0            |50576.7        |15.0           |50576.7        
+28336          |null           |null           |null           |null
+;

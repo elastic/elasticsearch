@@ -178,7 +178,6 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    // Note: only run when the Project is a descendent of an InlineJoin.
     private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = project;
 

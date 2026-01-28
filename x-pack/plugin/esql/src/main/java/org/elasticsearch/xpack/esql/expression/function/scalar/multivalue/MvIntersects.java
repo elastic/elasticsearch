@@ -60,11 +60,11 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *     <li>null, null &rArr; false (&empty; ∩ &empty; is an empty set)</li>
  * </ul>
  */
-public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper {
+public class MvIntersects extends BinaryScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "MvOverlaps",
-        MvOverlaps::new
+        "MvIntersects",
+        MvIntersects::new
     );
 
     @FunctionInfo(
@@ -72,12 +72,12 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         description = "Checks if any value yielded by the second multivalue expression is present in the values yielded by "
             + "the first multivalue expression. Returns a boolean. Null values are treated as an empty set.",
         examples = {
-            @Example(file = "mv_overlaps", tag = "mv_overlaps"),
-            @Example(file = "mv_overlaps", tag = "mv_overlaps_bothsides"),
-            @Example(file = "mv_overlaps", tag = "mv_overlaps_where"), },
+            @Example(file = "mv_intersects", tag = "mv_intersects"),
+            @Example(file = "mv_intersects", tag = "mv_intersects_bothsides"),
+            @Example(file = "mv_intersects", tag = "mv_intersects_where"), },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.3.0") }
     )
-    public MvOverlaps(
+    public MvIntersects(
         Source source,
         @Param(
             name = "field1",
@@ -129,7 +129,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         super(source, superset, subset);
     }
 
-    private MvOverlaps(StreamInput in) throws IOException {
+    private MvIntersects(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -165,13 +165,13 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
     }
 
     @Override
-    protected MvOverlaps replaceChildren(Expression newLeft, Expression newRight) {
-        return new MvOverlaps(source(), newLeft, newRight);
+    protected MvIntersects replaceChildren(Expression newLeft, Expression newRight) {
+        return new MvIntersects(source(), newLeft, newRight);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, MvOverlaps::new, left(), right());
+        return NodeInfo.create(this, MvIntersects::new, left(), right());
     }
 
     @Override
@@ -190,7 +190,7 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
 
         if (lefType != rightType) {
             throw new EsqlIllegalArgumentException(
-                "Incompatible data types for mv_overlaps, left type({}) value({}) and right type({}) value({}) don't match.",
+                "Incompatible data types for mv_intersects, left type({}) value({}) and right type({}) value({}) don't match.",
                 lefType,
                 left(),
                 rightType,
@@ -199,11 +199,11 @@ public class MvOverlaps extends BinaryScalarFunction implements EvaluatorMapper 
         }
 
         return switch (lefType) {
-            case BOOLEAN -> new MvOverlapsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case BYTES_REF -> new MvOverlapsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case DOUBLE -> new MvOverlapsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case INT -> new MvOverlapsIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
-            case LONG -> new MvOverlapsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case BOOLEAN -> new MvIntersectsBooleanEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case BYTES_REF -> new MvIntersectsBytesRefEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case DOUBLE -> new MvIntersectsDoubleEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case INT -> new MvIntersectsIntEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
+            case LONG -> new MvIntersectsLongEvaluator.Factory(source(), toEvaluator.apply(left()), toEvaluator.apply(right()));
             default -> throw EsqlIllegalArgumentException.illegalDataType(dataType());
         };
     }

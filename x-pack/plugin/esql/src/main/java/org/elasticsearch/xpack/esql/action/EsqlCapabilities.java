@@ -281,9 +281,9 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
-         * support for MV_OVERLAPS function
+         * support for MV_INTERSECTS function
          */
-        FN_MV_OVERLAPS_V1,
+        FN_MV_INTERSECTS,
 
         /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.

@@ -18,11 +18,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvOverlaps}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersects}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvOverlapsIntEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvOverlapsIntEvaluator.class);
+public final class MvIntersectsIntEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectsIntEvaluator.class);
 
   private final Source source;
 
@@ -34,7 +34,7 @@ public final class MvOverlapsIntEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public MvOverlapsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator left,
+  public MvIntersectsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator left,
       EvalOperator.ExpressionEvaluator right, DriverContext driverContext) {
     this.source = source;
     this.left = left;
@@ -62,7 +62,7 @@ public final class MvOverlapsIntEvaluator implements EvalOperator.ExpressionEval
   public BooleanBlock eval(int positionCount, IntBlock leftBlock, IntBlock rightBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(MvOverlaps.process(p, leftBlock, rightBlock));
+        result.appendBoolean(MvIntersects.process(p, leftBlock, rightBlock));
       }
       return result.build();
     }
@@ -70,7 +70,7 @@ public final class MvOverlapsIntEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "MvOverlapsIntEvaluator[" + "left=" + left + ", right=" + right + "]";
+    return "MvIntersectsIntEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
@@ -105,13 +105,13 @@ public final class MvOverlapsIntEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public MvOverlapsIntEvaluator get(DriverContext context) {
-      return new MvOverlapsIntEvaluator(source, left.get(context), right.get(context), context);
+    public MvIntersectsIntEvaluator get(DriverContext context) {
+      return new MvIntersectsIntEvaluator(source, left.get(context), right.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvOverlapsIntEvaluator[" + "left=" + left + ", right=" + right + "]";
+      return "MvIntersectsIntEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

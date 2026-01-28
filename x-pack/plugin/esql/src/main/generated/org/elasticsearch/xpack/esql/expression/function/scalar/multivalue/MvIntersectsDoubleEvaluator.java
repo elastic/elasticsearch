@@ -9,6 +9,7 @@ import java.lang.String;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -17,11 +18,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvOverlaps}.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvIntersects}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class MvOverlapsBooleanEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvOverlapsBooleanEvaluator.class);
+public final class MvIntersectsDoubleEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvIntersectsDoubleEvaluator.class);
 
   private final Source source;
 
@@ -33,7 +34,7 @@ public final class MvOverlapsBooleanEvaluator implements EvalOperator.Expression
 
   private Warnings warnings;
 
-  public MvOverlapsBooleanEvaluator(Source source, EvalOperator.ExpressionEvaluator left,
+  public MvIntersectsDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator left,
       EvalOperator.ExpressionEvaluator right, DriverContext driverContext) {
     this.source = source;
     this.left = left;
@@ -43,8 +44,8 @@ public final class MvOverlapsBooleanEvaluator implements EvalOperator.Expression
 
   @Override
   public Block eval(Page page) {
-    try (BooleanBlock leftBlock = (BooleanBlock) left.eval(page)) {
-      try (BooleanBlock rightBlock = (BooleanBlock) right.eval(page)) {
+    try (DoubleBlock leftBlock = (DoubleBlock) left.eval(page)) {
+      try (DoubleBlock rightBlock = (DoubleBlock) right.eval(page)) {
         return eval(page.getPositionCount(), leftBlock, rightBlock);
       }
     }
@@ -58,10 +59,10 @@ public final class MvOverlapsBooleanEvaluator implements EvalOperator.Expression
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, BooleanBlock leftBlock, BooleanBlock rightBlock) {
+  public BooleanBlock eval(int positionCount, DoubleBlock leftBlock, DoubleBlock rightBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBoolean(MvOverlaps.process(p, leftBlock, rightBlock));
+        result.appendBoolean(MvIntersects.process(p, leftBlock, rightBlock));
       }
       return result.build();
     }
@@ -69,7 +70,7 @@ public final class MvOverlapsBooleanEvaluator implements EvalOperator.Expression
 
   @Override
   public String toString() {
-    return "MvOverlapsBooleanEvaluator[" + "left=" + left + ", right=" + right + "]";
+    return "MvIntersectsDoubleEvaluator[" + "left=" + left + ", right=" + right + "]";
   }
 
   @Override
@@ -104,13 +105,13 @@ public final class MvOverlapsBooleanEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public MvOverlapsBooleanEvaluator get(DriverContext context) {
-      return new MvOverlapsBooleanEvaluator(source, left.get(context), right.get(context), context);
+    public MvIntersectsDoubleEvaluator get(DriverContext context) {
+      return new MvIntersectsDoubleEvaluator(source, left.get(context), right.get(context), context);
     }
 
     @Override
     public String toString() {
-      return "MvOverlapsBooleanEvaluator[" + "left=" + left + ", right=" + right + "]";
+      return "MvIntersectsDoubleEvaluator[" + "left=" + left + ", right=" + right + "]";
     }
   }
 }

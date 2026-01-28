@@ -13,17 +13,17 @@ import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTe
 
 import java.io.IOException;
 
-public class MvOverlapsSerializationTests extends AbstractExpressionSerializationTests<MvOverlaps> {
+public class MvIntersectsSerializationTests extends AbstractExpressionSerializationTests<MvIntersects> {
     @Override
-    protected MvOverlaps createTestInstance() {
+    protected MvIntersects createTestInstance() {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
-        return new MvOverlaps(source, field1, field2);
+        return new MvIntersects(source, field1, field2);
     }
 
     @Override
-    protected MvOverlaps mutateInstance(MvOverlaps instance) throws IOException {
+    protected MvIntersects mutateInstance(MvIntersects instance) throws IOException {
         Source source = randomSource();
         Expression field1 = randomChild();
         Expression field2 = randomChild();
@@ -32,6 +32,6 @@ public class MvOverlapsSerializationTests extends AbstractExpressionSerializatio
         } else {
             field2 = randomValueOtherThan(field2, AbstractExpressionSerializationTests::randomChild);
         }
-        return new MvOverlaps(source, field1, field2);
+        return new MvIntersects(source, field1, field2);
     }
 }

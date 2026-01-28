@@ -39,8 +39,8 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.multivalue
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
-    public MvOverlapsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class MvIntersectsTests extends AbstractScalarFunctionTestCase {
+    public MvIntersectsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -64,7 +64,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new MvOverlaps(source, args.get(0), args.get(1));
+        return new MvIntersects(source, args.get(0), args.get(1));
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers) {
@@ -77,7 +77,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.BOOLEAN, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.BOOLEAN, "field2")
                 ),
-                "MvOverlapsBooleanEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBooleanEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -94,7 +94,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.INTEGER, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.INTEGER, "field2")
                 ),
-                "MvOverlapsIntEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsIntEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -121,7 +121,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, dataType, "field1"),
                     new TestCaseSupplier.TypedData(field2, dataType, "field2")
                 ),
-                "MvOverlapsLongEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsLongEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -138,7 +138,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.DOUBLE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.DOUBLE, "field2")
                 ),
-                "MvOverlapsDoubleEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsDoubleEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -157,7 +157,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                             new TestCaseSupplier.TypedData(field1, lhs, "field1"),
                             new TestCaseSupplier.TypedData(field2, rhs, "field2")
                         ),
-                        "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                        "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                         DataType.BOOLEAN,
                         equalTo(result)
                     );
@@ -173,7 +173,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.IP, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.IP, "field")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -188,7 +188,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.VERSION, "field"),
                     new TestCaseSupplier.TypedData(field2, DataType.VERSION, "field")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -203,7 +203,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_POINT, "field2")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -218,7 +218,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_POINT, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_POINT, "field2")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -233,7 +233,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.GEO_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.GEO_SHAPE, "field2")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );
@@ -248,7 +248,7 @@ public class MvOverlapsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(field1, DataType.CARTESIAN_SHAPE, "field1"),
                     new TestCaseSupplier.TypedData(field2, DataType.CARTESIAN_SHAPE, "field2")
                 ),
-                "MvOverlapsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "MvIntersectsBytesRefEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(result)
             );

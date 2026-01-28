@@ -20,7 +20,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvOverlapsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class MvIntersectsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
         return paramsToSuppliers(MvContainsTests.parameters());

@@ -27,7 +27,7 @@ import java.util.stream.Stream;
  * As certain paths rely on blocks being constructed with specific properties (mvOrdering) we added a
  * separate test class
  */
-public class MvOverlapsBlockTests extends ESTestCase {
+public class MvIntersectsBlockTests extends ESTestCase {
 
     public void testWithOrderedIntMultivalueBlocks() {
         var values = randomListSortedList(ESTestCase::randomInt);
@@ -62,7 +62,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         for (var i = 0; i < values.size(); i++) {
-            assertTrue(MvOverlaps.process(i, left, right));
+            assertTrue(MvIntersects.process(i, left, right));
         }
     }
 
@@ -99,7 +99,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         for (var i = 0; i < values.size(); i++) {
-            assertTrue(MvOverlaps.process(i, left, right));
+            assertTrue(MvIntersects.process(i, left, right));
         }
     }
 
@@ -136,7 +136,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         for (var i = 0; i < values.size(); i++) {
-            assertTrue(MvOverlaps.process(i, left, right));
+            assertTrue(MvIntersects.process(i, left, right));
         }
     }
 
@@ -173,7 +173,7 @@ public class MvOverlapsBlockTests extends ESTestCase {
         }
 
         for (var position = 0; position < values.size(); position++) {
-            if (MvOverlaps.process(position, left, right)) {
+            if (MvIntersects.process(position, left, right)) {
                 continue;
             }
             fail(

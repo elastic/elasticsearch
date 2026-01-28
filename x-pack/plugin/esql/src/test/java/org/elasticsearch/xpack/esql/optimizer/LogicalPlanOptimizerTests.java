@@ -192,6 +192,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.relation;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.testAnalyzerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.EXECUTION_PROFILE_FORMAT_VERSION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.ESQL_LOOKUP_JOIN_FULL_TEXT_FUNCTION;
 import static org.elasticsearch.xpack.esql.analysis.Analyzer.NO_FIELDS;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyze;
@@ -11156,5 +11157,50 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var mvAvgAlias = mvAvgEval.fields().getFirst();
         assertThat(mvAvgAlias.child(), instanceOf(MvAvg.class));
         as(leftEval.child(), EsRelation.class);
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[SUM(salary{f}#11,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum#5]]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testTransportVersionAwareReplacement() {
+        LogicalPlanOptimizer logicalPlanOptimizerWithOldVersion = new LogicalPlanOptimizer(
+            new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), EXECUTION_PROFILE_FORMAT_VERSION)
+        );
+        LogicalPlan plan = plan("""
+            FROM test
+            | STATS sum=SUM(salary)
+            """, logicalPlanOptimizerWithOldVersion);
+
+        Limit limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), is(1000));
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), is(List.of("sum")));
+        Sum sum = (Sum) Alias.unwrap(aggregate.aggregates().getFirst());
+        assertThat(sum.useOverflowingLongSupplier(), is(true));
+    }
+
+    /**
+     * <pre>{@code
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[SUM(salary{f}#11,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD]) AS sum#5]]
+     *   \_EsRelation[test][_meta_field{f}#12, emp_no{f}#6, first_name{f}#7, ge..]
+     * }</pre>
+     */
+    public void testTransportVersionAwareNoReplacement() {
+        LogicalPlan plan = plan("""
+            FROM test
+            | STATS sum=SUM(salary)
+            """, logicalOptimizerWithLatestVersion);
+
+        Limit limit = as(plan, Limit.class);
+        assertThat(((Literal) limit.limit()).value(), is(1000));
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), is(List.of("sum")));
+        Sum sum = (Sum) Alias.unwrap(aggregate.aggregates().getFirst());
+        assertThat(sum.useOverflowingLongSupplier(), is(false));
     }
 }

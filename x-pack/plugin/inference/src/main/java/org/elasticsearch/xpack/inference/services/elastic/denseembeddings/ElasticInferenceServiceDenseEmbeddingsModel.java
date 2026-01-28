@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.elastic.densetextembeddings;
+package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
@@ -26,11 +26,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInferenceServiceModel {
+public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
 
-    public ElasticInferenceServiceDenseTextEmbeddingsModel(
+    public ElasticInferenceServiceDenseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -45,7 +45,7 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
             inferenceEntityId,
             taskType,
             service,
-            ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,
@@ -53,11 +53,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         );
     }
 
-    public ElasticInferenceServiceDenseTextEmbeddingsModel(
+    public ElasticInferenceServiceDenseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings serviceSettings,
         @Nullable TaskSettings taskSettings,
         @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
@@ -72,17 +72,17 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
         this.uri = createUri();
     }
 
-    public ElasticInferenceServiceDenseTextEmbeddingsModel(
-        ElasticInferenceServiceDenseTextEmbeddingsModel model,
-        ElasticInferenceServiceDenseTextEmbeddingsServiceSettings serviceSettings
+    public ElasticInferenceServiceDenseEmbeddingsModel(
+        ElasticInferenceServiceDenseEmbeddingsModel model,
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings serviceSettings
     ) {
         super(model, serviceSettings);
         this.uri = createUri();
     }
 
     @Override
-    public ElasticInferenceServiceDenseTextEmbeddingsServiceSettings getServiceSettings() {
-        return (ElasticInferenceServiceDenseTextEmbeddingsServiceSettings) super.getServiceSettings();
+    public ElasticInferenceServiceDenseEmbeddingsServiceSettings getServiceSettings() {
+        return (ElasticInferenceServiceDenseEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     public URI uri() {
@@ -92,7 +92,11 @@ public class ElasticInferenceServiceDenseTextEmbeddingsModel extends ElasticInfe
     private URI createUri() throws ElasticsearchStatusException {
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/dense");
+            if (getConfigurations().getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
+                return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/dense");
+            } else {
+                return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/dense");
+            }
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["

@@ -106,6 +106,8 @@ setup:
   - match: { hits.hits.2._id: "2" }
 ---
 "Vector rescoring has same scoring as exact search for kNN section":
+  - requires:
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
 
@@ -162,9 +164,9 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 0.00001 }}
 
 ---
 "Test bad quantization parameters":
@@ -227,6 +229,8 @@ setup:
           vector: [1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0, 1.0, 2.0, 3.0, 4.0]
 ---
 "Test index configured rescore vector":
+  - requires:
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
   - do:
@@ -310,9 +314,9 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $rescore_score0 }
-  - match: { hits.hits.1._score: $rescore_score1 }
-  - match: { hits.hits.2._score: $rescore_score2 }
+  - close_to: { hits.hits.0._score: { value: $rescore_score0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $rescore_score1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $rescore_score2, error: 0.00001 }}
 ---
 "Test index configured rescore vector updateable and settable to 0":
   - do:
@@ -369,6 +373,8 @@ setup:
   - match: { .bbq_rescore_update_hnsw.mappings.properties.vector.index_options.rescore_vector.oversample: 0 }
 ---
 "Test index configured rescore vector score consistency":
+  - requires:
+      test_runner_features: "close_to"
   - skip:
       features: "headers"
   - do:
@@ -537,12 +543,12 @@ setup:
 
   # Compare scores as hit IDs may change depending on how things are distributed
   - match: { hits.total: 3 }
-  - match: { hits.hits.0._score: $override_score0 }
-  - match: { hits.hits.0._score: $default_rescore0 }
-  - match: { hits.hits.1._score: $override_score1 }
-  - match: { hits.hits.1._score: $default_rescore1 }
-  - match: { hits.hits.2._score: $override_score2 }
-  - match: { hits.hits.2._score: $default_rescore2 }
+  - close_to: { hits.hits.0._score: { value: $override_score0, error: 0.00001 }}
+  - close_to: { hits.hits.0._score: { value: $default_rescore0, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $override_score1, error: 0.00001 }}
+  - close_to: { hits.hits.1._score: { value: $default_rescore1, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $override_score2, error: 0.00001 }}
+  - close_to: { hits.hits.2._score: { value: $default_rescore2, error: 0.00001 }}
 
 ---
 "default oversample value":

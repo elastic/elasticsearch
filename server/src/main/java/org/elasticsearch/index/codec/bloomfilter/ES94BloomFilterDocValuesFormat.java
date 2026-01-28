@@ -92,7 +92,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
     private static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
-    public static final ByteSizeValue DEFAULT_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(1);
     // With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate is approximately 6.63E-5,
     // calculated as (1 - e^(-k/o))^k where k = number of hash functions and o = oversize factor.
     //
@@ -159,6 +158,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private IndexOutput bloomFilterDataOut;
         private final SegmentWriteState state;
         private final BigArrays bigArrays;
+        // Lazy initialized
         private BitSetBuffer bitSetBuffer;
 
         Writer(SegmentWriteState state, BigArrays bigArrays, int numHashFunctions, String bloomFilterFieldName) throws IOException {
@@ -219,8 +219,9 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
             assert field.name.equals(bloomFilterFieldName) : "Expected field " + bloomFilterFieldName + " but got " + field.name;
+            // Capture maxDoc at flush time when the final document count is known
             var numDocs = state.segmentInfo.maxDoc();
-            createBitSetBuffer(numDocs, 1);
+            initBitSetBuffer(numDocs, 1);
 
             var values = valuesProducer.getBinary(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
@@ -334,7 +335,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
                 BloomFilterFieldReader bloomFilterFieldReader = reader.createBloomFilterReader();
                 if (bitSetInitialized == false) {
-                    createBitSetBuffer(bloomFilterFieldReader.getBloomFilterBitSetSizeInBytes());
+                    initBitSetBuffer(bloomFilterFieldReader.getBloomFilterBitSetSizeInBytes());
                     bitSetInitialized = true;
                 }
 
@@ -380,7 +381,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             final List<ReaderSlice> slices = new ArrayList<>();
 
             var docCount = Arrays.stream(mergeState.maxDocs).sum();
-            createBitSetBuffer(docCount, mergeState.fieldsProducers.length);
+            initBitSetBuffer(docCount, mergeState.fieldsProducers.length);
 
             int docBase = 0;
             for (int readerIndex = 0; readerIndex < mergeState.fieldsProducers.length; readerIndex++) {
@@ -477,12 +478,12 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             throw new UnsupportedOperationException("Not implemented");
         }
 
-        private void createBitSetBuffer(int numDocs, int numSegments) {
+        private void initBitSetBuffer(int numDocs, int numSegments) {
             int sizeInBytes = bloomFilterSizeInBytes(numDocs, numSegments);
-            createBitSetBuffer(sizeInBytes);
+            initBitSetBuffer(sizeInBytes);
         }
 
-        private void createBitSetBuffer(int sizeInBytes) {
+        private void initBitSetBuffer(int sizeInBytes) {
             if (bitSetBuffer != null) {
                 throw new IllegalStateException("BitSetBuffer already exists");
             }
@@ -774,6 +775,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     static int bloomFilterSizeInBytes(int numDocs, int numSegments) {
         assert numDocs > 0 : "Unexpected number of docs " + numDocs;
         assert numSegments > 0 : "Unexpected number of segments " + numSegments;
+        assert MAX_BLOOM_FILTER_SIZE.getBytes() <= Integer.MAX_VALUE : MAX_BLOOM_FILTER_SIZE;
 
         // TODO: Reduce bloom filter size during merges to reclaim space as segments consolidate
         long idealSizeInBytes = Math.divideExact(Math.multiplyExact((long) numDocs, DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR), Byte.SIZE);

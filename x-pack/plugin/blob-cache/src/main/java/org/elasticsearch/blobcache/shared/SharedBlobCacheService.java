@@ -35,8 +35,10 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
@@ -593,6 +595,128 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     /**
+     * Fetch and write in cache multiple region of a blob if there are enough free pages in the cache to do so.
+     * <p>
+     * This method returns as soon as the download tasks are instantiated, but the tasks themselves
+     * are run on the bulk executor.
+     * <p>
+     * If an exception is thrown from the writer then the cache entry being downloaded is freed
+     * and unlinked
+     *
+     * @param cacheKey      the key to fetch data for
+     * @param firstRegion   the first region of the blob to fetch
+     * @param lastRegion    the last region of the blob to fetch
+     * @param blobLength    the length of the blob from which the region is fetched (used to compute the size of the ending region)
+     * @param writer        a writer that handles writing of newly downloaded data to the shared cache
+     * @param fetchExecutor an executor to use for reading from the blob store
+     * @param listener      a listener that is completed with {@code true} if the current thread triggered the fetching of the region, in
+     *                      which case the data is available in cache. The listener is completed with {@code false} in every other cases: if
+     *                      the region to write is already available in cache, if the region is pending fetching via another thread or if
+     *                      there is not enough free pages to fetch the region.
+     */
+    public void maybeFetchRegions(
+        final KeyType cacheKey,
+        final int firstRegion,
+        final int lastRegion,
+        final long blobLength,
+        final RangeMissingHandler writer,
+        final Executor fetchExecutor,
+        final ActionListener<Void> listener
+    ) {
+        int regionCount = lastRegion + 1 - firstRegion;
+        ArrayList<CacheFileRegion<KeyType>> regionsToFetch = new ArrayList<>(regionCount);
+        for (int i = firstRegion; i <= lastRegion; i++) {
+            if (freeRegionCount() < 1 && maybeEvictLeastUsed() == false) {
+                // no free page available and no old enough unused region to be evicted
+                logger.info("No free regions, skipping loading regions [{}-{}]", i, lastRegion);
+                break;
+            } else {
+                try {
+                    final CacheFileRegion<KeyType> entry = get(cacheKey, blobLength, i);
+                    entry.incRefEnsureOpen();
+                    regionsToFetch.add(entry);
+                } catch (AlreadyClosedException e) {
+                    // Fine to ignore. It is only added to the list after we have inc()
+                }
+
+            }
+        }
+        if (regionsToFetch.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+
+        try (
+            RefCountingListener regionsListener = new RefCountingListener(
+                ActionListener.releaseAfter(listener, () -> regionsToFetch.forEach(AbstractRefCounted::decRef))
+            )
+        ) {
+            try {
+                final List<Tuple<CacheFileRegion<KeyType>, RegionGaps>> gaps = new ArrayList<>(regionsToFetch.size());
+                for (CacheFileRegion<KeyType> toFetch : regionsToFetch) {
+                    int region = toFetch.regionKey.region();
+                    ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
+                    if (regionRange.isEmpty() == false) {
+                        List<SparseFileTracker.Gap> regionGaps = toFetch.tracker.waitForRange(
+                            regionRange,
+                            regionRange,
+                            regionsListener.acquire()
+                        );
+                        if (regionGaps.isEmpty() == false) {
+                            gaps.add(new Tuple<>(toFetch, new RegionGaps((long) region * regionSize, regionGaps)));
+                        }
+                    }
+                }
+
+                if (gaps.isEmpty()) {
+                    regionsListener.acquire().onResponse(null);
+                    return;
+                }
+                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps.stream().map(Tuple::v2).toList());
+                logger.trace(
+                    () -> Strings.format(
+                        "fill regions gaps %s %s shared input stream factory",
+                        gaps,
+                        streamFactory == null ? "without" : "with"
+                    )
+                );
+
+                if (streamFactory == null) {
+                    for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
+                        for (SparseFileTracker.Gap gap : gapsToFetch.v2().gaps()) {
+                            int offset = Math.toIntExact(gapsToFetch.v2().regionOffset());
+                            fetchExecutor.execute(gapsToFetch.v1().fillGapRunnable(offset, gap, writer, null, regionsListener.acquire()));
+                        }
+                    }
+                } else {
+                    var regionsToRelease = regionsListener.acquire();
+                    try (
+                        var sequentialGapsListener = new RefCountingListener(
+                            ActionListener.runBefore(regionsToRelease, streamFactory::close)
+                        )
+                    ) {
+                        ArrayList<Runnable> gapFillingTasks = new ArrayList<>();
+                        for (Tuple<CacheFileRegion<KeyType>, RegionGaps> gapsToFetch : gaps) {
+                            int offset = Math.toIntExact(gapsToFetch.v2().regionOffset());
+                            gapFillingTasks.addAll(
+                                gapsToFetch.v1()
+                                    .gapFillingTasks(offset, writer, sequentialGapsListener, streamFactory, gapsToFetch.v2().gaps())
+                            );
+                        }
+                        fetchExecutor.execute(() -> {
+                            // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
+                            // gap will still be executed.
+                            gapFillingTasks.forEach(Runnable::run);
+                        });
+                    }
+                }
+            } catch (Exception e) {
+                regionsListener.acquire().onFailure(e);
+            }
+        }
+    }
+
+    /**
      * Fetch and write in cache a range within a blob region if there is at least a free page in the cache to do so.
      * <p>
      * This method returns as soon as the download tasks are instantiated, but the tasks themselves
@@ -1076,7 +1200,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         listener.onResponse(false);
                         return;
                     }
-                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                    final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
+                        new RegionGaps((long) regionKey.region() * blobCacheService.getRegionSize(), gaps)
+                    );
                     logger.trace(
                         () -> Strings.format(
                             "fill gaps %s %s shared input stream factory",
@@ -1098,21 +1224,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             }
                         }
                     } else {
+                        var refsToRelease = refs.acquire();
                         try (
                             var sequentialGapsListener = new RefCountingListener(
-                                ActionListener.runBefore(listener.map(unused -> true), streamFactory::close)
+                                ActionListener.runBefore(
+                                    listener.map(unused -> true),
+                                    () -> Releasables.close(refsToRelease, streamFactory::close)
+                                )
                             )
                         ) {
-                            final List<Runnable> gapFillingTasks = gaps.stream()
-                                .map(
-                                    gap -> fillGapRunnable(
-                                        gap,
-                                        writer,
-                                        streamFactory,
-                                        ActionListener.releaseAfter(sequentialGapsListener.acquire(), refs.acquire())
-                                    )
-                                )
-                                .toList();
+                            List<Runnable> gapFillingTasks = gapFillingTasks(0, writer, sequentialGapsListener, streamFactory, gaps);
                             executor.execute(() -> {
                                 // Fill the gaps in order. If a gap fails to fill for whatever reason, the task for filling the next
                                 // gap will still be executed.
@@ -1159,7 +1280,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     );
 
                     if (gaps.isEmpty() == false) {
-                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                        final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(
+                            new RegionGaps((long) regionKey.region() * blobCacheService.getRegionSize(), gaps)
+                        );
                         logger.trace(
                             () -> Strings.format(
                                 "fill gaps %s %s shared input stream factory",
@@ -1191,7 +1314,29 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
         }
 
+        List<Runnable> gapFillingTasks(
+            int gapOffset,
+            RangeMissingHandler writer,
+            RefCountingListener sequentialGapsListener,
+            SourceInputStreamFactory streamFactory,
+            List<SparseFileTracker.Gap> gaps
+        ) {
+            return gaps.stream()
+                .map(gap -> fillGapRunnable(gapOffset, gap, writer, streamFactory, sequentialGapsListener.acquire()))
+                .toList();
+        }
+
         private Runnable fillGapRunnable(
+            SparseFileTracker.Gap gap,
+            RangeMissingHandler writer,
+            @Nullable SourceInputStreamFactory streamFactory,
+            ActionListener<Void> listener
+        ) {
+            return fillGapRunnable(0, gap, writer, streamFactory, listener);
+        }
+
+        private Runnable fillGapRunnable(
+            int gapOffset,
             SparseFileTracker.Gap gap,
             RangeMissingHandler writer,
             @Nullable SourceInputStreamFactory streamFactory,
@@ -1206,7 +1351,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     ioRef,
                     start,
                     streamFactory,
-                    start,
+                    gapOffset + start,
                     Math.toIntExact(gap.end() - start),
                     progress -> gap.onProgress(start + progress),
                     l.<Void>map(unused -> {
@@ -1234,6 +1379,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             throwAlreadyEvicted();
         }
     }
+
+    public record RegionGaps(long regionOffset, List<SparseFileTracker.Gap> gaps) {}
 
     public class CacheFile {
 
@@ -1572,6 +1719,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
     @FunctionalInterface
     public interface RangeMissingHandler {
+
+        default SourceInputStreamFactory sharedInputStreamFactory(RegionGaps gaps) {
+            return sharedInputStreamFactory(List.of(gaps));
+        }
+
         /**
          * Attempt to get a shared {@link SourceInputStreamFactory} for the given list of Gaps so that all of them
          * can be filled from the input stream created from the factory. If a factory is returned, the gaps must be
@@ -1582,7 +1734,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          * its own input stream.
          */
         @Nullable
-        default SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+        default SourceInputStreamFactory sharedInputStreamFactory(List<RegionGaps> gaps) {
             return null;
         }
 
@@ -1632,7 +1784,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         @Override
-        public SourceInputStreamFactory sharedInputStreamFactory(List<SparseFileTracker.Gap> gaps) {
+        public SourceInputStreamFactory sharedInputStreamFactory(List<RegionGaps> gaps) {
             return delegate.sharedInputStreamFactory(gaps);
         }
 

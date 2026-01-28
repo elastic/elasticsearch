@@ -355,10 +355,9 @@ public class LocalExecutionPlanner {
             }
         }
 
-        // output fields: use the source fields - no change
-        Layout outputLayout = source.layout;
+        // TODO - we need to ensure the incoming data has at least a _doc and our diversify field channels
+        // this means, we can't have a KEEP (or other field limiting operator) before without these as well
 
-        // TODO - _score channel?
         Integer docIdChannel = null;
         Integer scoreChannel = null;
         Integer diversifyFieldChannel = null;
@@ -389,7 +388,7 @@ public class LocalExecutionPlanner {
 
         return source.with(
             new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, lambda, scoreChannel),
-            outputLayout
+            source.layout
         );
     }
 

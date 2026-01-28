@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.CompleteInputCollectorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Warnings;
@@ -41,7 +42,8 @@ import java.util.Map;
  * we need to apply for each result group.
  *
  */
-public class LinearScoreEvalOperator implements Operator {
+public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
+
     public record Factory(
         int discriminatorPosition,
         int scorePosition,
@@ -81,14 +83,10 @@ public class LinearScoreEvalOperator implements Operator {
     private final LinearConfig config;
     private final Normalizer normalizer;
 
-    private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
-    private boolean finished;
 
     private long emitNanos;
-    private int pagesReceived = 0;
     private int pagesProcessed = 0;
-    private long rowsReceived = 0;
     private long rowsEmitted = 0;
 
     private final String sourceText;
@@ -106,6 +104,7 @@ public class LinearScoreEvalOperator implements Operator {
         int sourceLine,
         int sourceColumn
     ) {
+        super();
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
@@ -116,28 +115,31 @@ public class LinearScoreEvalOperator implements Operator {
         this.sourceLine = sourceLine;
         this.sourceColumn = sourceColumn;
 
-        finished = false;
-        inputPages = new ArrayDeque<>();
         outputPages = new ArrayDeque<>();
     }
 
     @Override
-    public boolean needsInput() {
-        return finished == false;
+    protected void onFinished() {
+        createOutputPages();
     }
 
     @Override
-    public void addInput(Page page) {
-        inputPages.add(page);
-        pagesReceived++;
-        rowsReceived += page.getPositionCount();
+    protected boolean isOperatorFinished() {
+        return outputPages.isEmpty();
     }
 
     @Override
-    public void finish() {
-        if (finished == false) {
-            finished = true;
-            createOutputPages();
+    protected Page onGetOutput() {
+        Page page = outputPages.removeFirst();
+        rowsEmitted += page.getPositionCount();
+
+        return page;
+    }
+
+    @Override
+    protected void onClose() {
+        for (Page page : outputPages) {
+            page.releaseBlocks();
         }
     }
 
@@ -223,33 +225,6 @@ public class LinearScoreEvalOperator implements Operator {
             if (scoreBlock == null && scores != null) {
                 Releasables.close(scores);
             }
-        }
-    }
-
-    @Override
-    public boolean isFinished() {
-        return finished && outputPages.isEmpty();
-    }
-
-    @Override
-    public Page getOutput() {
-        if (finished == false || outputPages.isEmpty()) {
-            return null;
-        }
-
-        Page page = outputPages.removeFirst();
-        rowsEmitted += page.getPositionCount();
-
-        return page;
-    }
-
-    @Override
-    public void close() {
-        for (Page page : inputPages) {
-            page.releaseBlocks();
-        }
-        for (Page page : outputPages) {
-            page.releaseBlocks();
         }
     }
 

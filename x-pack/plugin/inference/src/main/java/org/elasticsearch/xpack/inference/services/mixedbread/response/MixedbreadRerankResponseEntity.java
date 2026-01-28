@@ -149,8 +149,10 @@ public class MixedbreadRerankResponseEntity {
             return new Document(null);
         }
 
-        throw new XContentParseException(parser.getTokenLocation(),
-            "Expected an object, string or null for document field, but got: " + token);
+        throw new XContentParseException(
+            parser.getTokenLocation(),
+            "Expected an object, string or null for document field, but got: " + token
+        );
     }
 
     private record DocumentObject(String text) {

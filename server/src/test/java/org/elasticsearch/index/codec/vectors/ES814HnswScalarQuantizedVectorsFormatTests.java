@@ -49,6 +49,11 @@ public class ES814HnswScalarQuantizedVectorsFormatTests extends BaseKnnVectorsFo
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    @Override
+    protected boolean supportsFloatVectorFallback() {
+        return true;
+    }
+
     static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES814HnswScalarQuantizedRWVectorsFormat());
 
     @Override

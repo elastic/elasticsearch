@@ -75,6 +75,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
      */
     RerankRequestIterator(String inferenceId, String queryText, BytesRefBlock[] inputBlocks, int batchSize) {
         assert inputBlocks.length > 0 : "inputBlocks must not be empty";
+        assert inputBlocks[0] != null : "inputBlocks[0] must not be null";
         this.inferenceId = inferenceId;
         this.queryText = queryText;
         this.inputBlocks = inputBlocks;
@@ -164,6 +165,8 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
         // Read values from each input block
         for (int blockIndex = 0; blockIndex < inputBlocks.length; blockIndex++) {
             BytesRefBlock textBlock = inputBlocks[blockIndex];
+
+            assert textBlock != null : "textBlock must not be null";
 
             if (textBlock.isNull(position)) {
                 // Skip this block since it's null at the position

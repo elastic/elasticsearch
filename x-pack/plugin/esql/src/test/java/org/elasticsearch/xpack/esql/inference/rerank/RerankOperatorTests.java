@@ -148,12 +148,7 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
      * Tests reranking with multiple input fields. Values from all input channels
      * are combined and sent to the inference service.
      */
-    public void testMultipleInputFields() {
-        // Only run this test if we have at least 2 input channels
-        if (inputsCount < 2) {
-            return;
-        }
-
+    public void testMultipleInputFields() throws Exception {
         // Use two different input channels
         int channel1 = 0;
         int channel2 = 1;
@@ -162,23 +157,90 @@ public class RerankOperatorTests extends InferenceOperatorTestCase<RankedDocsRes
         List<Integer> originalChannels = inputChannels;
         inputChannels = List.of(channel1, channel2);
 
-        try {
-            // Create a simple factory with multiple input evaluators
-            Operator.OperatorFactory factory = new RerankOperator.Factory(
-                mockedInferenceService(),
-                SIMPLE_INFERENCE_ID,
-                QUERY_TEXT,
-                inputChannels.stream().map(this::evaluatorFactory).toList(),
-                scoreChannel,
-                BATCH_SIZE
-            );
+        try (
+            BytesRefBlock.Builder blockBuilder1 = blockFactory().newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder blockBuilder2 = blockFactory().newBytesRefBlockBuilder(3)
+        ) {
+            // Block 1:
+            // Position 0: single value "a"
+            blockBuilder1.appendBytesRef(new BytesRef("a"));
+            // Position 1: two values ["b1", "b2"]
+            blockBuilder1.beginPositionEntry();
+            blockBuilder1.appendBytesRef(new BytesRef("b1"));
+            blockBuilder1.appendBytesRef(new BytesRef("b2"));
+            blockBuilder1.endPositionEntry();
+            // Position 2: null
+            blockBuilder1.appendNull();
+            // Position 3: single value
+            blockBuilder1.appendBytesRef(new BytesRef("c"));
 
-            // Verify factory is created correctly
-            assertNotNull(factory);
-        } finally {
-            // Restore original channels
-            inputChannels = originalChannels;
+            // Block 2:
+            // Position 0: two values ["x1", "x2"]
+            blockBuilder2.beginPositionEntry();
+            blockBuilder2.appendBytesRef(new BytesRef("x1"));
+            blockBuilder2.appendBytesRef(new BytesRef("x2"));
+            blockBuilder2.endPositionEntry();
+            // Position 1: single value "y"
+            blockBuilder2.appendBytesRef(new BytesRef("y"));
+            // Position 2: null
+            blockBuilder2.appendNull();
+            // Position 3: null
+            blockBuilder2.appendNull();
+
+            Page inputPage = new Page(blockBuilder1.build(), blockBuilder2.build());
+
+            try {
+                // Create a simple factory with multiple input evaluators
+                Operator.OperatorFactory factory = new RerankOperator.Factory(
+                    mockedInferenceService(),
+                    SIMPLE_INFERENCE_ID,
+                    QUERY_TEXT,
+                    inputChannels.stream().map(this::evaluatorFactory).toList(),
+                    2,
+                    BATCH_SIZE
+                );
+
+                // Verify factory is created correctly
+                assertNotNull(factory);
+
+                List<Page> inputPages = List.of(inputPage);
+                Operator operator = factory.get(driverContext());
+                List<Page> results = drive(operator, inputPages.iterator(), driverContext());
+
+                assertThat(results, hasSize(1));
+                Page resultPage = results.get(0);
+
+                assertThat(resultPage.getPositionCount(), equalTo(4));
+                assertThat(resultPage.getBlockCount(), equalTo(3)); // original + score
+
+                // get the score channel
+                DoubleBlock scoreBlock = resultPage.getBlock(2);
+
+                // Position 0
+                assertFalse(scoreBlock.isNull(0));
+                double expectedScore0 = makeScore("a", "x1", "x2");
+                assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(0)), closeTo(expectedScore0, 0.0001));
+
+                // Position 1
+                assertFalse(scoreBlock.isNull(1));
+                double expectedScore1 = makeScore("b1", "b2", "y");
+                assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(1)), closeTo(expectedScore1, 0.0001));
+
+                // Position 2: null - should produce null score
+                assertTrue(scoreBlock.isNull(2));
+
+                // Position 3
+                assertFalse(scoreBlock.isNull(3));
+                double expectedScore3 = makeScore("c");
+                assertThat(scoreBlock.getDouble(scoreBlock.getFirstValueIndex(3)), closeTo(expectedScore3, 0.0001));
+
+            } finally {
+                // Restore original channels
+                inputChannels = originalChannels;
+            }
         }
+
+        allBreakersEmpty();
     }
 
     /**

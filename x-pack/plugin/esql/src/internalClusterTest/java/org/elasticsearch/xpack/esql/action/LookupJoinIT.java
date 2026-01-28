@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -48,11 +49,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 @TestLogging(
@@ -394,5 +399,56 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
                 )
             );
         }
+    }
+
+    /**
+     * Test ported from csv-spec:lookup-join.mvJoinKeyOnFrom
+     * Tests that multi-value join keys generate the expected warnings.
+     * This test uses real transport (not MockTransport) so warnings should propagate correctly.
+     */
+    public void testMultiValueJoinKeyWarnings() throws Exception {
+        // Required indices for this test
+        ensureIndices(List.of(EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | WHERE emp_no < 10006
+            | EVAL language_code = salary_change.int
+            | LOOKUP JOIN %s ON language_code
+            | SORT emp_no
+            | KEEP emp_no, language_code, language_name
+            """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        // Use async pattern to capture warnings from the thread context (like WarningsIT)
+        CountDownLatch latch = new CountDownLatch(1);
+        EsqlQueryRequest request = syncEsqlQueryRequest(query);
+        AtomicReference<List<String>> capturedWarnings = new AtomicReference<>();
+
+        client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+            try {
+                // Capture warnings from thread context
+                var threadpool = internalCluster().getInstance(TransportService.class, internalCluster().getRandomNodeName())
+                    .getThreadPool();
+                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
+            } finally {
+                latch.countDown();
+            }
+        }));
+
+        assertTrue("Test timed out", latch.await(30, TimeUnit.SECONDS));
+
+        // Verify warnings were captured
+        List<String> warnings = capturedWarnings.get();
+        assertNotNull("Warnings should not be null", warnings);
+
+        // Filter warnings for the LOOKUP JOIN multi-value warning
+        List<String> lookupJoinWarnings = warnings.stream().filter(w -> w.contains("LOOKUP JOIN encountered multi-value")).toList();
+
+        assertThat(
+            "Expected LOOKUP JOIN multi-value warning to be present. All warnings: " + warnings,
+            lookupJoinWarnings.size(),
+            greaterThanOrEqualTo(1)
+        );
     }
 }

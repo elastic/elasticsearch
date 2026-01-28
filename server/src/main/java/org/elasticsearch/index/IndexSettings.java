@@ -732,26 +732,12 @@ public final class IndexSettings {
                             )
                         );
                     }
-
-                    var indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
-                    if (indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID) == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when [%s] is [%s] or later. Current index version: [%s].",
-                                USE_SYNTHETIC_ID.getKey(),
-                                SETTING_INDEX_VERSION_CREATED.getKey(),
-                                IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID,
-                                indexVersion
-                            )
-                        );
-                    }
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING, SETTING_INDEX_VERSION_CREATED);
+                List<Setting<?>> list = List.of(MODE, INDEX_CODEC_SETTING);
                 return list.iterator();
             }
         },
@@ -1287,6 +1273,17 @@ public final class IndexSettings {
         useTimeSeriesDocValuesFormatLargeBlockSize = scopedSettings.get(USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE);
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
+        if (indexMetadata.useTimeSeriesSyntheticId() && version.before(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                        + "versions that do not support it. Please upgrade all nodes to the latest version "
+                        + "and try again.",
+                    IndexSettings.USE_SYNTHETIC_ID.getKey()
+                )
+            );
+        }
 
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {

@@ -52,7 +52,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -801,10 +800,9 @@ public class IndexMetadataTests extends ESTestCase {
 
     public void testVerificationOfSyntheticIdSettingValid() {
         IndexMode mode = IndexMode.TIME_SERIES;
-        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
         String codec = randomBoolean() ? CodecService.DEFAULT_CODEC : null;
         try {
-            Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
+            Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), mode)
                 .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
                 .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")
@@ -815,36 +813,25 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    public void testVerificationOfSyntheticIdSettingBadVersion() {
-        IndexMode mode = IndexMode.TIME_SERIES;
-        IndexVersion badVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
-            IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID
-        );
-        String codec = CodecService.DEFAULT_CODEC;
-        assertThrowsOnUseSyntheticIdWithBadConfig(badVersion, mode, codec);
-    }
-
     public void testVerificationOfSyntheticIdSettingBadCodec() {
         IndexMode mode = IndexMode.TIME_SERIES;
-        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
         String badCodec = randomFrom(
             CodecService.LEGACY_DEFAULT_CODEC,
             CodecService.BEST_COMPRESSION_CODEC,
             CodecService.BEST_COMPRESSION_CODEC,
             CodecService.LUCENE_DEFAULT_CODEC
         );
-        assertThrowsOnUseSyntheticIdWithBadConfig(version, mode, badCodec);
+        assertThrowsOnUseSyntheticIdWithBadConfig(mode, badCodec);
     }
 
     public void testVerificationOfSyntheticIdSettingBadMode() {
         IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
-        IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
         String codec = CodecService.DEFAULT_CODEC;
-        assertThrowsOnUseSyntheticIdWithBadConfig(version, badMode, codec);
+        assertThrowsOnUseSyntheticIdWithBadConfig(badMode, codec);
     }
 
-    private static void assertThrowsOnUseSyntheticIdWithBadConfig(IndexVersion version, IndexMode mode, String codec) {
-        Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
+    private static void assertThrowsOnUseSyntheticIdWithBadConfig(IndexMode mode, String codec) {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), mode)
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -119,7 +120,13 @@ public class MixedbreadRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        assert false : "should never be called when supportsVersion is used";
+        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
+    }
+
+    @Override
+    public boolean supportsVersion(TransportVersion version) {
+        return MixedbreadUtils.supportsMixedbread(version);
     }
 
     @Override

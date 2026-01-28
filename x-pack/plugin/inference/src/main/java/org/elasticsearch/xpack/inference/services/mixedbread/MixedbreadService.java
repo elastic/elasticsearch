@@ -59,7 +59,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
     public static final String NAME = "mixedbread";
     public static final String SERVICE_NAME = "Mixedbread";
 
-    // private static final TransportVersion MIXEDBREAD_SERVICE = TransportVersion.fromName("mixedbread_service");
     private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.RERANK);
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
@@ -260,7 +259,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return MixedbreadUtils.ML_INFERENCE_MIXEDBREAD_ADDED;
     }
 
     @Override

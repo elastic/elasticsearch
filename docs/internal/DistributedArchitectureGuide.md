@@ -494,7 +494,8 @@ files from a snapshot source and then uses local store recovery. Similarly, if t
 peer recovery starts by using local store recovery to bring the local shard as close to up to date as it can, and then
 finishes synchronizing the shard through RPCs (Remote Procedure Calls) to an active source shard.
 
-(How is the translog involved in recovery?)
+At the end of the recovery process, recovery finalization marks the shard as `STARTED` in cluster state, which makes it
+available to handle index and search requests.
 
 ### Create a New Shard
 
@@ -528,23 +529,41 @@ This recovery type uses `HardlinkCopyDirectoryWrapper` to hard link or copy data
 
 ### Peer Recovery
 
-The most complex recovery type is peer recovery, which is used both to bring up a new replica and for shard relocation.
+Whereas the other recovery modes are used to bring up a *primary* shard, peer recovery is used to add replicas of an
+already active primary shard. Peer recovery is also used for primary shard relocation, but relocation goes through
+the standard peer recovery process to bring a replica in sync, before handing off the primary role to the recovered
+replica during finalization.
+
 Unlike `StoreRecovery`, peer recovery is managed through a separate service on the node recovering the shard, the
 [PeerRecoveryTargetService][]. When the IndexShard sees that its recovery source is of type `PEER`, it hands over the
 recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` method. This service begins by creating
-a record of the recovery process to track its progress, and then runs local store recovery, but only up to the latest known
-global checkpoint for the shard (see [Translog][#Translog] for details). Once the local shard has been brought
-close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
+an in-memory record of the recovery process to track its progress, and then runs local store recovery in case the
+recovering replica held a copy of the shard before that has gone out of sync (e.g., because the node holding the
+replica restarted). Because the shard is a replica, it only recovers up to the latest known global checkpoint for the shard
+and discards any operations in the local store that are ahead of that point (see [Translog][#Translog] for details).
+Once the local shard has been brought close to current, the service then sends a request to a corresponding service on the source node, `PeerRecoverySourceService`,
 to complete synchronization.
 
 Synchronization begins by discovering any differences between the source and target shards and transmitting any missing files
-to the target shard. The next step is to transfer any operations from the source translog. Since the source shard is active,
+to the target shard. The source for the files can be the source shard itself, but if a snapshot of the shard is available
+that has some subset of the files to be transmitted, then recovery will fetch them from the snapshot in order to reduce
+load on the source shard.
+
+The next step is to transfer any operations from the source translog. Since the source shard is active,
 it may be receiving index operations while recovery is in process. So, to ensure that the target shard doesn't miss any
-new operations, the source shard adds the target to the shard's recovery group (see the [replication][#Replication] docs)
-by adding the target shard to the shard's recovery group before completing the operation transfer phase. Once the target
+new operations, the source shard adds the target to the shard's replication group (see the [replication][#Replication] docs)
+by adding the target shard to the shard's recovery group *before* completing the operation transfer phase. Because of this
+ordering, any operations accepted on the shard between the time it reads and sends the latest operation in the translog and the
+time the replica completes recovery are sent through the request replication process and will not be lost. Once the target
 has been added to the recovery group, the source reads the latest sequence number from its transaction log knowing that
-any updates past that will be handled by recovery, and replays the translog to the target up to that point. After this
-point the target is in sync and can be started.
+any updates past that will be handled by recovery, and replays the translog to the target up to that point.
+
+At this point the target is ready to be started as an in sync replica. However, peer recovery is also used to perform
+primary relocation. If the target shard is being recovered in order to take over as primary, then the finalization
+stage will call `IndexShard.relocate` to complete the handoff of primary responsibilities. This method blocks operations
+on the source shard and sends an RPC to the target shard with the [ReplicationTracker.PrimaryContext][] needed
+to promote the target to primary. Once the target acknowledges the handoff, the source shard moves itself into
+replica mode.
 
 [ShardRouting]:https://github.com/elastic/elasticsearch/blob/1d4a20ae194ce71fd5819786ba6dfb154ceb123f/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
 [IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/473c4da497681c889728c05cebb27030ae97fc13/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
@@ -553,6 +572,7 @@ point the target is in sync and can be started.
 [IndicesClusterStateService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/cluster/IndicesClusterStateService.java
 [StoreRecovery]:https://github.com/elastic/elasticsearch/blob/d70878f488dfa2e2ba4d02e335c15be7cd4d5af2/server/src/main/java/org/elasticsearch/index/shard/StoreRecovery.java
 [PeerRecoveryTargetService]:https://github.com/elastic/elasticsearch/blob/5346213ade708c63021824ad70cc3fa89f1ea307/server/src/main/java/org/elasticsearch/indices/recovery/PeerRecoveryTargetService.java
+[ReplicationTracker.PrimaryContext]:https://github.com/elastic/elasticsearch/blob/1352df3f0b5157ca1d730428ea5aba2a7644e79b/server/src/main/java/org/elasticsearch/index/seqno/ReplicationTracker.java#L1573
 
 # Data Tiers
 

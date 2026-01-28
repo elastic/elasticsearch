@@ -9,7 +9,6 @@
 
 package org.elasticsearch.simdvec.internal;
 
-import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions.DataType;

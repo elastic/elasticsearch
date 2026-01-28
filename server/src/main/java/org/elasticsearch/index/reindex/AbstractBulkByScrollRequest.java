@@ -496,8 +496,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
 
         public ResumeInfo(StreamInput in) throws IOException {
-            this.worker = in.readNamedWriteable(WorkerResumeInfo.class);
-            this.slices = in.readOptional(i -> i.readMap(StreamInput::readVInt, SliceResumeInfo::new));
+            this.worker = in.readOptionalNamedWriteable(WorkerResumeInfo.class);
+            this.slices = in.readOptionalImmutableMap(StreamInput::readVInt, SliceResumeInfo::new);
         }
 
         @Override
@@ -593,7 +593,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         }
 
         public SliceResumeInfo(StreamInput in) throws IOException {
-            this(in.readVInt(), in.readNamedWriteable(WorkerResumeInfo.class), in.readOptionalWriteable(WorkerResult::new));
+            this(in.readVInt(), in.readOptionalNamedWriteable(WorkerResumeInfo.class), in.readOptionalWriteable(WorkerResult::new));
         }
 
         @Override

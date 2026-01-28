@@ -1,0 +1,5 @@
+pr: 140838
+summary: Add `LongLongSwissHash` - specialization for grouping by two long fields
+area: ES|QL
+type: enhancement
+issues: []

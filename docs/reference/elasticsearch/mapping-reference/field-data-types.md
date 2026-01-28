@@ -80,6 +80,9 @@ Dates
 [`exponential_histogram`](/reference/elasticsearch/mapping-reference/exponential-histogram.md)
 :   Pre-aggregated numerical values in the form of an exponential histogram.
 
+[`tdigest`](/reference/elasticsearch/mapping-reference/t-digest.md) {applies_to}`stack: preview 9.3+` {applies_to}`serverless: preview`
+:   Pre-aggregated numerical values in the form of a T-Digest.
+
 
 ### Text search types [text-search-types]
 

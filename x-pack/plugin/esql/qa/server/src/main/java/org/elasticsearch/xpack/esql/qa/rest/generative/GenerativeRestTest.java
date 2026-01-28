@@ -173,7 +173,25 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
                 QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            try {
+                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                boolean knownError = false;
+                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                    if (isAllowedError(e.getMessage(), allowedError)) {
+                        knownError = true;
+                        break;
+                    }
+                }
+                if (knownError == false) {
+                    StringBuilder message = new StringBuilder();
+                    message.append("Generative tests, error generating new command \n");
+                    message.append("Previous query: \n");
+                    message.append(exec.previousResult.query());
+                    fail(e, message.toString());
+                }
+            }
         }
     }
 

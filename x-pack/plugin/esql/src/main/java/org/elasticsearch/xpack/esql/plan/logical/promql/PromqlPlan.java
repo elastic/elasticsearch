@@ -7,12 +7,27 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+
+import java.util.List;
 
 /**
  * Marker interface for PromQL-specific logical plan nodes.
  */
 public interface PromqlPlan {
+
+    /**
+     * Returns any grouping attributes, for example those added via {@code by(...)},
+     * or {@link FieldAttribute#timeSeriesAttribute(Source)} (group by all).
+     * <p>
+     * Note: The value and step column are added by {@link PromqlCommand#output()}
+     * and should not be added by implementations of this interface.
+     */
+    List<Attribute> output();
 
     /**
      * The PromQL return type of this plan node.
@@ -27,7 +42,7 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsRangeVector(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.RANGE_VECTOR;
+        return getType(plan) == PromqlDataType.RANGE_VECTOR;
     }
 
     /**
@@ -38,7 +53,7 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsInstantVector(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.INSTANT_VECTOR;
+        return getType(plan) == PromqlDataType.INSTANT_VECTOR;
     }
 
     /**
@@ -49,13 +64,14 @@ public interface PromqlPlan {
      * @throws IllegalArgumentException if the plan is not a PromqlPlan
      */
     static boolean returnsScalar(LogicalPlan plan) {
-        return getReturnType(plan) == PromqlDataType.SCALAR;
+        return getType(plan) == PromqlDataType.SCALAR;
     }
 
-    static PromqlDataType getReturnType(LogicalPlan plan) {
+    @Nullable
+    static PromqlDataType getType(@Nullable LogicalPlan plan) {
         if (plan instanceof PromqlPlan promqlPlan) {
             return promqlPlan.returnType();
         }
-        throw new IllegalArgumentException("Logical plan " + plan.getClass().getSimpleName() + " is not a PromqlPlan");
+        return null;
     }
 }

@@ -46,18 +46,4 @@ for BRANCH in "${BRANCHES[@]}"; do
         DRA_WORKFLOW: staging
         VERSION_QUALIFIER: ${VERSION_QUALIFIER:-}
 EOF
-
-  if [ "$BRANCH" = "7.17" ]; then
-    cat <<EOF
-  - trigger: elasticsearch-dra-workflow
-    label: Trigger DRA snapshot workflow for $BRANCH
-    async: true
-    build:
-      branch: "$BRANCH"
-      commit: "$LAST_GOOD_COMMIT"
-      env:
-        DRA_WORKFLOW: snapshot
-        VERSION_QUALIFIER: ${VERSION_QUALIFIER:-}
-EOF
-  fi
 done

@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -67,6 +68,8 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -150,14 +153,6 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-        rateLimitSettings.toXContent(builder, params);
-
-        return builder;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
 
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
@@ -170,6 +165,15 @@ public class ElasticInferenceServiceDenseTextEmbeddingsServiceSettings extends F
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+
+        rateLimitSettings.toXContent(builder, params);
+
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
 

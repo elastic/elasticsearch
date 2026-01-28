@@ -73,22 +73,30 @@ EXPORT f32_t bbq_score_euclidean_bulk(
     f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
+        __m256 res = score_inner(
+            c.lowerIntervals + i,
+            c.upperIntervals + i,
+            c.targetComponentSums + i,
+            scores + i,
+            ay,
+            ly,
+            y1,
+            dimensions
+        );
 
         // For euclidean, we need to invert the score and apply the additional correction, which is
         // assumed to be the squared l2norm of the centroid centered vectors.
-        //res = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(res, _mm256_set1_ps(-2.0f)), additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection + 1.0f));
-        res = _mm256_add_ps(_mm256_fnmadd_ps(_mm256_set1_ps(2.0f), res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection + 1.0f));
+        res = _mm256_add_ps(
+            _mm256_fnmadd_ps(_mm256_set1_ps(2.0f), res, additionalCorrection),
+            _mm256_set1_ps(queryAdditionalCorrection + 1.0f)
+        );
         res = _mm256_max_ps(_mm256_rcp_ps(res), _mm256_setzero_ps());
 
         maxScore = fmax(maxScore, mm256_reduce_ps<_mm_max_ps>(res));
@@ -103,10 +111,10 @@ EXPORT f32_t bbq_score_euclidean_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;
@@ -133,21 +141,30 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
     f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m256 res = score_inner(
+            c.lowerIntervals + i,
+            c.upperIntervals + i,
+            c.targetComponentSums + i,
+            scores + i,
+            ay,
+            ly,
+            y1,
+            dimensions
+        );
 
         // For max inner product, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
-        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp));
+        __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
+        res = _mm256_add_ps(
+            _mm256_add_ps(res, additionalCorrection),
+            _mm256_set1_ps(queryAdditionalCorrection - centroidDp)
+        );
 
         // We do not have masking on AVX2 for this kind of operation, mimic it with AND + ADD
         __m256 negative_scaled = _mm256_rcp_ps(_mm256_fnmadd_ps(_mm256_set1_ps(1.0f), res, _mm256_set1_ps(1.0f)));
@@ -169,10 +186,10 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;
@@ -199,23 +216,32 @@ EXPORT f32_t bbq_score_dot_product_bulk(
     f32_t y1 = queryComponentSum;
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m256) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m256 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m256 res = score_inner(
+            c.lowerIntervals + i,
+            c.upperIntervals + i,
+            c.targetComponentSums + i,
+            scores + i,
+            ay,
+            ly,
+            y1,
+            dimensions
+        );
 
-        __m256 additionalCorrection = _mm256_loadu_ps(additionalCorrections + i);
+        __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
         // For cosine, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
 
         // res = res + additionalCorrection + queryAdditionalCorrection - centroidDp (+ 1.0f);
-        res = _mm256_add_ps(_mm256_add_ps(res, additionalCorrection), _mm256_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f));
+        res = _mm256_add_ps(
+            _mm256_add_ps(res, additionalCorrection),
+            _mm256_set1_ps(queryAdditionalCorrection - centroidDp + 1.0f)
+        );
 
         // res = max(res / 2.0f, 0.0f);
         res = _mm256_max_ps(_mm256_mul_ps(res, _mm256_set1_ps(0.5f)), _mm256_setzero_ps());
@@ -233,10 +259,10 @@ EXPORT f32_t bbq_score_dot_product_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;

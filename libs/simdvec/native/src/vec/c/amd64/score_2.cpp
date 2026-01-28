@@ -82,21 +82,30 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
 
     __m512 max_score = _mm512_set1_ps(-std::numeric_limits<f32_t>::infinity());
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     constexpr int floats_per_cycle = sizeof(__m512) / sizeof(f32_t);
     int upperBound = bulkSize & ~(floats_per_cycle - 1);
     for (; i < upperBound; i += floats_per_cycle) {
-        __m512 res = score_inner(lowerIntervals + i, upperIntervals + i, targetComponentSums + i, scores + i, ay, ly, y1, dimensions);
+        __m512 res = score_inner(
+            c.lowerIntervals + i,
+            c.upperIntervals + i,
+            c.targetComponentSums + i,
+            scores + i,
+            ay,
+            ly,
+            y1,
+            dimensions
+        );
 
         // For max inner product, we need to apply the additional correction, which is
         // assumed to be the non-centered dot-product between the vector and the centroid
-        __m512 additionalCorrection = _mm512_loadu_ps(additionalCorrections + i);
-        res = _mm512_add_ps(_mm512_add_ps(res, additionalCorrection), _mm512_set1_ps(queryAdditionalCorrection - centroidDp));
+        __m512 additionalCorrection = _mm512_loadu_ps(c.additionalCorrections + i);
+        res = _mm512_add_ps(
+            _mm512_add_ps(res, additionalCorrection),
+            _mm512_set1_ps(queryAdditionalCorrection - centroidDp)
+        );
 
         __mmask16 is_neg_mask = _mm512_fpclass_ps_mask(res, 0x40);
         __m512 negative_scaled = _mm512_rcp14_ps(_mm512_fnmadd_ps(_mm512_set1_ps(1.0f), res, _mm512_set1_ps(1.0f)));
@@ -118,10 +127,10 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;

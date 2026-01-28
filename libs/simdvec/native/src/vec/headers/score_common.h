@@ -4,6 +4,22 @@
 
 #include "vec.h"
 
+struct corrections_t {
+    f32_t* lowerIntervals;
+    f32_t* upperIntervals;
+    int16_t* targetComponentSums;
+    f32_t* additionalCorrections;
+};
+
+static inline corrections_t unpack_corrections(const int8_t* corrections, int32_t bulkSize) {
+    f32_t* lowerIntervals = (f32_t*)corrections;
+    f32_t* upperIntervals = (f32_t*)(lowerIntervals + bulkSize);
+    int16_t* targetComponentSums = (int16_t*)(upperIntervals + bulkSize);
+    f32_t* additionalCorrections = (f32_t*)(targetComponentSums + bulkSize);
+
+    return corrections_t { lowerIntervals, upperIntervals, targetComponentSums, additionalCorrections };
+}
+
 static inline f32_t score_euclidean_inner(
     int32_t dimensions,
     f32_t queryLowerInterval,

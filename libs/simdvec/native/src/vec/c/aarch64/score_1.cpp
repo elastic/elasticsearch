@@ -31,10 +31,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
@@ -46,10 +43,10 @@ EXPORT f32_t bbq_score_euclidean_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;
@@ -73,10 +70,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
@@ -88,10 +82,10 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;
@@ -115,10 +109,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
 
-    f32_t* lowerIntervals = (f32_t*)corrections;
-    f32_t* upperIntervals = (f32_t*)(corrections + 4 * bulkSize);
-    int16_t* targetComponentSums = (int16_t*)(corrections + 8 * bulkSize);
-    f32_t* additionalCorrections = (f32_t*)(corrections + 10 * bulkSize);
+    corrections_t c = unpack_corrections(corrections, bulkSize);
 
     int i = 0;
     for (; i < bulkSize; ++i) {
@@ -130,10 +121,10 @@ EXPORT f32_t bbq_score_dot_product_bulk(
             queryAdditionalCorrection,
             queryBitScale,
             centroidDp,
-            *(lowerIntervals + i),
-            *(upperIntervals + i),
-            *(targetComponentSums + i),
-            *(additionalCorrections + i),
+            *(c.lowerIntervals + i),
+            *(c.upperIntervals + i),
+            *(c.targetComponentSums + i),
+            *(c.additionalCorrections + i),
             *(scores + i)
         );
         *(scores + i) = score;

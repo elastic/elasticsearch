@@ -347,7 +347,12 @@ public class PushDownFilterAndLimitIntoUnionAll extends OptimizerRules.Parameter
                 hasLimitAfterSort.set(true);
                 return;
             }
-            if (plan instanceof OrderBy orderBy && unboundedSort.get() == null) {
+
+            if (unboundedSort.get() != null) {
+                return; // already found unbounded sort, return early
+            }
+
+            if (plan instanceof OrderBy orderBy) {
                 unboundedSort.set(orderBy);
             }
         });

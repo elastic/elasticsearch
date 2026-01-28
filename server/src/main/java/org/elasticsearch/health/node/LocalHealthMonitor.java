@@ -50,10 +50,11 @@ public class LocalHealthMonitor implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(LocalHealthMonitor.class);
 
+    public static final TimeValue MIN_POLL_INTERVAL = TimeValue.timeValueSeconds(10);
     public static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "health.reporting.local.monitor.interval",
         TimeValue.timeValueSeconds(30),
-        TimeValue.timeValueSeconds(10),
+        MIN_POLL_INTERVAL,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

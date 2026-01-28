@@ -64,19 +64,11 @@ public class ViewService {
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
-    public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
-        "esql.views.max_view_depth",
-        10,
-        0,
-        100,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     private volatile int maxViewsCount;
     private volatile int maxViewLength;
 
-    public ViewService(ClusterService clusterService, Settings settings) {
+    public ViewService(ClusterService clusterService) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue(
             "update-esql-view-metadata",
@@ -84,10 +76,8 @@ public class ViewService {
             new SequentialAckingBatchedTaskExecutor<>()
         );
         this.telemetry = new PlanTelemetry(new EsqlFunctionRegistry());
-        this.maxViewsCount = MAX_VIEWS_COUNT_SETTING.get(settings);
-        this.maxViewLength = MAX_VIEW_LENGTH_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEWS_COUNT_SETTING, (i) -> this.maxViewsCount = i);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_LENGTH_SETTING, (i) -> this.maxViewLength = i);
+        clusterService.getClusterSettings().initializeAndWatch(MAX_VIEWS_COUNT_SETTING, v -> this.maxViewsCount = v);
+        clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_LENGTH_SETTING, v -> this.maxViewLength = v);
     }
 
     protected ViewMetadata getMetadata(ProjectMetadata projectMetadata) {

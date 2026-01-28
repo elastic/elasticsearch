@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -37,14 +37,20 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.esql.view.ViewService.MAX_VIEW_DEPTH_SETTING;
-
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private volatile int maxViewDepth;
+    public static final Setting<Integer> MAX_VIEW_DEPTH_SETTING = Setting.intSetting(
+        "esql.views.max_view_depth",
+        10,
+        0,
+        100,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Public constructor for NOOP instance (in release mode, when component is not registered, but TransportEsqlQueryAction still needs it)
@@ -55,11 +61,10 @@ public class ViewResolver {
         this.maxViewDepth = 0;
     }
 
-    public ViewResolver(ClusterService clusterService, ProjectResolver projectResolver, Settings settings) {
+    public ViewResolver(ClusterService clusterService, ProjectResolver projectResolver) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
-        this.maxViewDepth = MAX_VIEW_DEPTH_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_VIEW_DEPTH_SETTING, (i) -> this.maxViewDepth = i);
+        clusterService.getClusterSettings().initializeAndWatch(MAX_VIEW_DEPTH_SETTING, v -> this.maxViewDepth = v);
     }
 
     ViewMetadata getMetadata() {

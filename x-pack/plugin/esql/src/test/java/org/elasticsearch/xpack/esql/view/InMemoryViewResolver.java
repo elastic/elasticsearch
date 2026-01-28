@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -21,8 +20,8 @@ public class InMemoryViewResolver extends ViewResolver {
     protected Supplier<ViewMetadata> metadata;
     protected LinkedHashSet<String> indices = new LinkedHashSet<>();
 
-    public InMemoryViewResolver(ClusterService clusterService, Supplier<ViewMetadata> metadata, Settings settings) {
-        super(clusterService, null, settings);
+    public InMemoryViewResolver(ClusterService clusterService, Supplier<ViewMetadata> metadata) {
+        super(clusterService, null);
         this.metadata = metadata;
     }
 

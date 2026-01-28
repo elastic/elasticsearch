@@ -393,7 +393,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
     public void testModifiedViewDepth() {
         try (
             InMemoryViewService customViewService = viewService.withSettings(
-                Settings.builder().put(ViewService.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
+                Settings.builder().put(ViewResolver.MAX_VIEW_DEPTH_SETTING.getKey(), 1).build()
             )
         ) {
             addView("view1", "FROM emp", customViewService);
@@ -429,7 +429,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     public void testModifiedViewCount() {
         try (
-            InMemoryViewService customViewService = InMemoryViewService.makeViewService(
+            InMemoryViewService customViewService = viewService.withSettings(
                 Settings.builder().put(ViewService.MAX_VIEWS_COUNT_SETTING.getKey(), 1).build()
             )
         ) {

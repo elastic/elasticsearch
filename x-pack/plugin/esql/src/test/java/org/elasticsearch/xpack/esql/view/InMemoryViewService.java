@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.view.ViewResolver.MAX_VIEW_DEPTH_SETTING;
+
 /**
  * Simple implementation of {@link ViewService} that keeps the views in memory.
  * This is useful for testing.
@@ -36,7 +38,6 @@ import java.util.stream.Collectors;
 public class InMemoryViewService extends ViewService implements Closeable {
 
     private final ThreadPool threadPool;
-    private final Settings settings;
     protected ViewMetadata metadata;
     private static final Set<Setting<?>> ALL_SETTINGS;
     static {
@@ -48,11 +49,7 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public static InMemoryViewService makeViewService() {
-        return InMemoryViewService.makeViewService(Settings.EMPTY);
-    }
-
-    public static InMemoryViewService makeViewService(Settings settings) {
-        return makeViewService(settings, ViewMetadata.EMPTY);
+        return InMemoryViewService.makeViewService(Settings.EMPTY, ViewMetadata.EMPTY);
     }
 
     private static InMemoryViewService makeViewService(Settings settings, ViewMetadata metadata) {
@@ -61,14 +58,13 @@ public class InMemoryViewService extends ViewService implements Closeable {
 
     private static InMemoryViewService makeViewService(ThreadPool threadPool, Settings settings, ViewMetadata metadata) {
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, new ClusterSettings(settings, ALL_SETTINGS));
-        return new InMemoryViewService(clusterService, threadPool, settings, metadata);
+        return new InMemoryViewService(clusterService, threadPool, metadata);
     }
 
-    private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, Settings settings, ViewMetadata metadata) {
-        super(clusterService, settings);
+    private InMemoryViewService(ClusterService clusterService, ThreadPool threadPool, ViewMetadata metadata) {
+        super(clusterService);
         this.threadPool = threadPool;
         this.metadata = metadata;
-        this.settings = settings;
     }
 
     InMemoryViewService withSettings(Settings settings) {
@@ -134,6 +130,6 @@ public class InMemoryViewService extends ViewService implements Closeable {
     }
 
     public InMemoryViewResolver getViewResolver() {
-        return new InMemoryViewResolver(clusterService, () -> metadata, settings);
+        return new InMemoryViewResolver(clusterService, () -> metadata);
     }
 }

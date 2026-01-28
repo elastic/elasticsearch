@@ -469,38 +469,27 @@ final class CanMatchPreFilterSearchPhase {
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        int i = 0;
-        List<SearchShardIterator> possibleShards = new ArrayList<>(possibleMatches.length());
+        int i = 0, iMatched = 0, iSkipped = 0, numMatch = possibleMatches.cardinality();
+        ArrayList<SearchShardIterator> resolvedShards = new ArrayList<>(Collections.nCopies(shardsIts.size(), null));
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
             boolean match = possibleMatches.get(i++);
             if (match) {
                 assert iter.skip() == false;
-                possibleShards.add(iter);
+                resolvedShards.set(iMatched++, iter);
             } else {
                 iter.skip(true);
+                resolvedShards.set(iSkipped++ + numMatch, iter);
             }
         }
         // order matching shard by the natural order, so that search results will use that order
-        possibleShards.sort(SearchShardIterator::compareTo);
-        // add skipped shards
-        i = 0;
-        for (SearchShardIterator iter : shardsIts) {
-            iter.reset();
-            boolean match = possibleMatches.get(i++);
-            if (match) {
-                assert iter.skip() == false;
-            } else {
-                iter.skip(true);
-                possibleShards.add(iter);
-            }
-        }
+        resolvedShards.subList(0, numMatch).sort(SearchShardIterator::compareTo);
 
         if (shouldSortShards(minAndMaxes) == false) {
-            return possibleShards;
+            return resolvedShards;
         }
         FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-        return sortShards(possibleShards, minAndMaxes, fieldSort.order());
+        return sortShards(resolvedShards, minAndMaxes, fieldSort.order());
     }
 
     private List<SearchShardIterator> sortShards(List<SearchShardIterator> shardsIts, MinAndMax<?>[] minAndMaxes, SortOrder order) {

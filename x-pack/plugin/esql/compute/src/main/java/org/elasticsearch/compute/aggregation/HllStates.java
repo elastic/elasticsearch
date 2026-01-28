@@ -40,11 +40,32 @@ final class HllStates {
         return new BytesRef(baos.toByteArray());
     }
 
+    /**
+     * Deserialize an HLL from bytes. Note: This creates a temporary HLL object using
+     * {@link BigArrays#NON_RECYCLING_INSTANCE}, which means the internal byte arrays
+     * won't be recycled. Prefer using {@link #mergeHLL} for merging serialized HLL
+     * states directly without creating intermediate objects.
+     */
     static AbstractHyperLogLogPlusPlus deserializeHLL(BytesRef bytesRef) {
         ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
         in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         try {
             return HyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * Merge serialized HLL state directly into an existing HLL without creating
+     * intermediate objects. This is more memory-efficient than deserializing to
+     * a temporary HLL and then merging.
+     */
+    static void mergeHLL(int targetGroup, BytesRef serialized, HyperLogLogPlusPlus target) {
+        ByteArrayStreamInput in = new ByteArrayStreamInput(serialized.bytes);
+        in.reset(serialized.bytes, serialized.offset, serialized.length);
+        try {
+            target.mergeFrom(targetGroup, in);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -111,8 +132,10 @@ final class HllStates {
             hll.merge(groupId, other, otherGroup);
         }
 
-        void merge(int groupId, BytesRef other, int otherGroup) {
-            hll.merge(groupId, deserializeHLL(other), otherGroup);
+        void merge(int groupId, BytesRef serialized, int otherGroup) {
+            // otherGroup is always 0 for serialized HLL since we serialize one bucket at a time
+            assert otherGroup == 0 : "otherGroup should be 0 for serialized HLL, got " + otherGroup;
+            mergeHLL(groupId, serialized, hll);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
@@ -168,8 +191,10 @@ final class HllStates {
             return hll.cardinality(groupId);
         }
 
-        void merge(int groupId, BytesRef other, int otherGroup) {
-            hll.merge(groupId, deserializeHLL(other), otherGroup);
+        void merge(int groupId, BytesRef serialized, int otherGroup) {
+            // otherGroup is always 0 for serialized HLL since we serialize one bucket at a time
+            assert otherGroup == 0 : "otherGroup should be 0 for serialized HLL, got " + otherGroup;
+            mergeHLL(groupId, serialized, hll);
         }
 
         /** Extracts an intermediate view of the contents of this state.  */

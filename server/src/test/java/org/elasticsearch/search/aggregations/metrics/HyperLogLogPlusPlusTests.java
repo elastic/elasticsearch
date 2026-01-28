@@ -14,6 +14,8 @@ import com.carrotsearch.hppc.BitMixer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -21,6 +23,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -183,6 +186,118 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         MockBigArrays.assertFitsIn(
             ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
+        );
+    }
+
+    public void testMergeFromStream() throws IOException {
+        // Test that mergeFrom produces the same results as merge(deserialize())
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final int numSources = randomIntBetween(2, 20);
+        final int numValues = randomIntBetween(100, 10000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
+
+        // Create source HLLs and collect values
+        HyperLogLogPlusPlus[] sources = new HyperLogLogPlusPlus[numSources];
+        for (int i = 0; i < numSources; i++) {
+            sources[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        }
+
+        for (int i = 0; i < numValues; i++) {
+            final int n = randomInt(maxValue);
+            final long hash = BitMixer.mix64(n);
+            sources[randomInt(numSources - 1)].collect(0, hash);
+        }
+
+        // Merge using traditional approach: deserialize then merge
+        HyperLogLogPlusPlus mergedTraditional = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        for (HyperLogLogPlusPlus source : sources) {
+            // Serialize
+            BytesStreamOutput out = new BytesStreamOutput();
+            source.writeTo(0, out);
+
+            // Deserialize and merge
+            ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().toBytesRef().bytes);
+            AbstractHyperLogLogPlusPlus deserialized = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
+            mergedTraditional.merge(0, deserialized, 0);
+        }
+
+        // Merge using streaming approach: mergeFrom
+        HyperLogLogPlusPlus mergedStreaming = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        for (HyperLogLogPlusPlus source : sources) {
+            // Serialize
+            BytesStreamOutput out = new BytesStreamOutput();
+            source.writeTo(0, out);
+
+            // Merge directly from stream
+            ByteArrayStreamInput in = new ByteArrayStreamInput(out.bytes().toBytesRef().bytes);
+            mergedStreaming.mergeFrom(0, in);
+        }
+
+        // Both should produce the same cardinality
+        assertEquals(mergedTraditional.cardinality(0), mergedStreaming.cardinality(0));
+    }
+
+    public void testMergeFromStreamWithDifferentAlgorithms() throws IOException {
+        // Test merging when source and target are in different modes (LINEAR_COUNTING vs HYPERLOGLOG)
+
+        // Choose counts that will stay in LINEAR_COUNTING vs trigger upgrade to HYPERLOGLOG
+        final int valuesForLinearCounting = 100;
+        final int valuesForHyperLogLog = 100_000;
+        // Use precisionFromThreshold to get a precision where valuesForLinearCounting stays in LINEAR_COUNTING
+        // but valuesForHyperLogLog exceeds the threshold and triggers upgrade to HYPERLOGLOG
+        final int p = HyperLogLogPlusPlus.precisionFromThreshold(valuesForLinearCounting);
+        // HLL has ~2% standard error, so 10% tolerance is safe for equality checks
+        final double cardinalityErrorTolerance = 0.1;
+
+        // Create a source with few values (stays in LINEAR_COUNTING)
+        HyperLogLogPlusPlus sourceLinear = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        for (int i = 0; i < valuesForLinearCounting; i++) {
+            sourceLinear.collect(0, BitMixer.mix64(i));
+        }
+
+        // Create a source with many values (upgrades to HYPERLOGLOG)
+        HyperLogLogPlusPlus sourceHll = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        for (int i = 0; i < valuesForHyperLogLog; i++) {
+            sourceHll.collect(0, BitMixer.mix64(i));
+        }
+
+        // Serialize both sources
+        BytesStreamOutput outLinear = new BytesStreamOutput();
+        sourceLinear.writeTo(0, outLinear);
+        byte[] linearBytes = outLinear.bytes().toBytesRef().bytes;
+
+        BytesStreamOutput outHll = new BytesStreamOutput();
+        sourceHll.writeTo(0, outHll);
+        byte[] hllBytes = outHll.bytes().toBytesRef().bytes;
+
+        // Scenario 1: Merge LINEAR_COUNTING source into empty target
+        HyperLogLogPlusPlus targetForLinearMerge = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        targetForLinearMerge.mergeFrom(0, new ByteArrayStreamInput(linearBytes));
+        assertEquals(sourceLinear.cardinality(0), targetForLinearMerge.cardinality(0));
+
+        // Scenario 2: Merge HYPERLOGLOG source into empty target
+        HyperLogLogPlusPlus targetForHllMerge = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        targetForHllMerge.mergeFrom(0, new ByteArrayStreamInput(hllBytes));
+        assertEquals(sourceHll.cardinality(0), targetForHllMerge.cardinality(0));
+
+        // Scenario 3: Merge LINEAR_COUNTING into existing HYPERLOGLOG
+        // (linear values are a subset of HLL values, so cardinality shouldn't change much)
+        HyperLogLogPlusPlus targetHllThenLinear = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        targetHllThenLinear.mergeFrom(0, new ByteArrayStreamInput(hllBytes));
+        targetHllThenLinear.mergeFrom(0, new ByteArrayStreamInput(linearBytes));
+        long expectedCardinality = sourceHll.cardinality(0);
+        assertThat(
+            (double) targetHllThenLinear.cardinality(0),
+            closeTo(expectedCardinality, cardinalityErrorTolerance * expectedCardinality)
+        );
+
+        // Scenario 4: Merge HYPERLOGLOG into existing LINEAR_COUNTING (should trigger upgrade to HLL)
+        HyperLogLogPlusPlus targetLinearThenHll = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        targetLinearThenHll.mergeFrom(0, new ByteArrayStreamInput(linearBytes));
+        targetLinearThenHll.mergeFrom(0, new ByteArrayStreamInput(hllBytes));
+        assertThat(
+            (double) targetLinearThenHll.cardinality(0),
+            closeTo(expectedCardinality, cardinalityErrorTolerance * expectedCardinality)
         );
     }
 }

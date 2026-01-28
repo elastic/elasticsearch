@@ -11,14 +11,17 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
@@ -173,6 +176,50 @@ public final class HyperLogLogPlusPlus extends AbstractHyperLogLogPlusPlus {
             merge(thisBucket, other.getLinearCounting(otherBucket));
         } else {
             merge(thisBucket, other.getHyperLogLog(otherBucket));
+        }
+    }
+
+    /**
+     * Merge HLL state directly from a stream without creating an intermediate HLL object.
+     * This is more efficient than deserializing to a temporary HLL and then merging.
+     * The stream format must match {@link AbstractHyperLogLogPlusPlus#writeTo(long, StreamOutput)}.
+     */
+    public void mergeFrom(long thisBucket, StreamInput in) throws IOException {
+        final int otherPrecision = in.readVInt();
+        if (precision() != otherPrecision) {
+            throw new IllegalArgumentException("Cannot merge HLL with different precision: " + precision() + " vs " + otherPrecision);
+        }
+        hll.ensureCapacity(thisBucket + 1);
+        final boolean otherAlgorithm = in.readBoolean();
+        if (otherAlgorithm == LINEAR_COUNTING) {
+            final long size = in.readVLong();
+            for (long i = 0; i < size; i++) {
+                final int encoded = in.readInt();
+                mergeEncoded(thisBucket, encoded);
+            }
+        } else {
+            // HYPERLOGLOG - merge run lengths directly
+            if (algorithm.get(thisBucket) != HYPERLOGLOG) {
+                upgradeToHll(thisBucket);
+            }
+            final int registers = 1 << otherPrecision;
+            for (int i = 0; i < registers; i++) {
+                hll.addRunLen(thisBucket, i, in.readByte());
+            }
+        }
+    }
+
+    /**
+     * Merge a single encoded value (from linear counting) into this bucket.
+     */
+    private void mergeEncoded(long thisBucket, int encoded) {
+        if (algorithm.get(thisBucket) == LINEAR_COUNTING) {
+            final int newSize = lc.addEncoded(thisBucket, encoded);
+            if (newSize > lc.threshold) {
+                upgradeToHll(thisBucket);
+            }
+        } else {
+            hll.collectEncoded(thisBucket, encoded);
         }
     }
 

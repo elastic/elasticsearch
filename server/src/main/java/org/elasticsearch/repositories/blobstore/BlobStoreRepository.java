@@ -286,6 +286,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String UPLOADED_DATA_BLOB_PREFIX = "__";
 
     /**
+     * Prefix that signals that index metadata with this identifier was adjusted for resharding.
+     * See metadata write logic in {@link BlobStoreRepository#finalizeSnapshot(FinalizeSnapshotContext)}.
+     * This prefix is added for debugging purposes, it is not actually used in any logic.
+     */
+    public static final String RESHARDED_METADATA_IDENTIFIER_PREFIX = "resharded-";
+
+    /**
      * @param repositoryGeneration The numeric generation of the {@link RepositoryData} blob.
      * @return The name of the blob holding the corresponding {@link RepositoryData}.
      */
@@ -1944,27 +1951,55 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         executor.execute(ActionRunnable.run(allMetaListeners.acquire(), () -> {
                             final IndexMetadata indexMetaData = projectMetadata.index(index.getName());
                             if (writeIndexGens) {
-                                final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
-                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
+                                String identifier = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
+                                String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifier);
                                 if (metaUUID == null) {
                                     // We don't yet have this version of the metadata so we write it
                                     metaUUID = UUIDs.base64UUID();
-                                    IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
+                                    Optional<IndexMetadata> possiblyAdjusted = adjustIndexMetadataIfNeeded(
                                         index,
                                         indexMetaData,
                                         finalizeSnapshotContext.updatedShardGenerations().liveIndices()
                                     );
-                                    INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), metaUUID, compress);
-                                    metadataWriteResult.indexMetaIdentifiers().put(identifiers, metaUUID);
+
+                                    if (possiblyAdjusted.isPresent()) {
+                                        // Create custom deliberately unique identifier for the adjusted index metadata.
+                                        //
+                                        // We are adjusting the metadata, but it's possible that we are already using the latest identifier.
+                                        // For example a resharding operation is already complete and therefore any changes done to
+                                        // index settings are already captured in the metadata and the identifier.
+                                        // In this case the next snapshot of this index would create the same identifier
+                                        // since none of the data used to create it changed.
+                                        // As such the snapshot will deduplicate and reuse the adjusted metadata which is
+                                        // wrong since we want to use a "clean" (non-adjusted) post resharding state metadata.
+                                        //
+                                        // By creating a unique identifier here we make sure that the next snapshot doesn't see this
+                                        // metadata blob. That is because it is going to query metadata blobs using a properly created
+                                        // identifier and get `null`. We know that because resharding bumps the index settings version
+                                        // when modifying metadata to add new shards.
+                                        // So the only metadata blobs that can exist are:
+                                        // 1. Pre-resharding with lower index settings version and therefore non-matching identifier
+                                        // 2. Adjusted for resharding with unique identifier
+                                        // Neither of these will be returned when a snapshot performs a
+                                        // `getIndexMetaBlobId(identifier)` lookup.
+                                        // With that we ensured that adjusted index metadata blobs are not reused.
+                                        // Resharding is not frequent, and so we are not concerned with size or writes of these
+                                        // non-deduplicated blobs.
+                                        identifier = RESHARDED_METADATA_IDENTIFIER_PREFIX + UUIDs.base64UUID();
+                                        INDEX_METADATA_FORMAT.write(possiblyAdjusted.get(), indexContainer(index), metaUUID, compress);
+                                    } else {
+                                        INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
+                                    }
+                                    metadataWriteResult.indexMetaIdentifiers().put(identifier, metaUUID);
                                 } // else this task was largely a no-op - TODO no need to fork in that case
-                                metadataWriteResult.indexMetas().put(index, identifiers);
+                                metadataWriteResult.indexMetas().put(index, identifier);
                             } else {
-                                IndexMetadata adjustedMetadata = adjustIndexMetadataIfNeeded(
+                                IndexMetadata possiblyAdjusted = adjustIndexMetadataIfNeeded(
                                     index,
-                                    clusterMetadata.getProject(getProjectId()).index(index.getName()),
+                                    indexMetaData,
                                     finalizeSnapshotContext.updatedShardGenerations().liveIndices()
-                                );
-                                INDEX_METADATA_FORMAT.write(adjustedMetadata, indexContainer(index), snapshotId.getUUID(), compress);
+                                ).orElse(indexMetaData);
+                                INDEX_METADATA_FORMAT.write(possiblyAdjusted, indexContainer(index), snapshotId.getUUID(), compress);
                             }
                         }));
                     }
@@ -2032,7 +2067,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             );
     }
 
-    /// Adjusts metadata that will be stored in a snapshot.
+    /// Adjusts metadata that will be stored in a snapshot. Returns empty optional if no adjustment is needed.
     /// This is needed because some functionality like resharding uses transient index metadata in the implementation.
     /// Due to the async nature of the snapshot logic, such metadata can be out of sync with the shard data captured in the
     /// snapshot.
@@ -2042,7 +2077,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /// This is a no-op for majority of indices since the shards in the snapshot will always match index metadata.
     ///
     /// Visible for tests.
-    static IndexMetadata adjustIndexMetadataIfNeeded(IndexId index, IndexMetadata indexMetadata, ShardGenerations liveShardGenerations) {
+    static Optional<IndexMetadata> adjustIndexMetadataIfNeeded(
+        IndexId index,
+        IndexMetadata indexMetadata,
+        ShardGenerations liveShardGenerations
+    ) {
         int numberOfShardsAccordingToSnapshot = calculateNumberOfShardsAccordingToSnapshot(liveShardGenerations, index);
         // We currently only expect resharding to increase the number of shards.
         assert numberOfShardsAccordingToSnapshot <= indexMetadata.getNumberOfShards() : "Snapshot shards diverge from index metadata";
@@ -2070,7 +2109,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newMetadataBuilder = newMetadataBuilder.reshardRemoveShards(numberOfShardsAccordingToSnapshot);
             }
 
-            return newMetadataBuilder.build();
+            return Optional.of(newMetadataBuilder.build());
         }
 
         // Even if resharding metadata is not present it is still possible that resharding has happened and completed
@@ -2082,11 +2121,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexMetadata.getNumberOfShards(),
                 numberOfShardsAccordingToSnapshot
             );
-            return IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShardsAccordingToSnapshot).build();
+            return Optional.of(IndexMetadata.builder(indexMetadata).reshardRemoveShards(numberOfShardsAccordingToSnapshot).build());
         }
 
         // No changes.
-        return indexMetadata;
+        return Optional.empty();
     }
 
     /**

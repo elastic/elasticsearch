@@ -903,14 +903,14 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
         // We should strip resharding metadata from the index that has it.
         // But number of shards doesn't change since the snapshot entry has post-reshard number of shards.
-
         var adjustedIndexMetadataWithReshardingMetadata1 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
             indexWithReshardingMetadata,
             indexMetadataWithReshardingMetadata,
             liveShardGenerationsInPostReshardState
         );
-        assertNull(adjustedIndexMetadataWithReshardingMetadata1.getReshardingMetadata());
-        assertEquals(2, adjustedIndexMetadataWithReshardingMetadata1.getNumberOfShards());
+        assertFalse(adjustedIndexMetadataWithReshardingMetadata1.isEmpty());
+        assertNull(adjustedIndexMetadataWithReshardingMetadata1.get().getReshardingMetadata());
+        assertEquals(2, adjustedIndexMetadataWithReshardingMetadata1.get().getNumberOfShards());
 
         var adjustedIndexMetadataWithoutReshardingMetadata1 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
             indexWithoutReshardingMetadata,
@@ -918,7 +918,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             liveShardGenerationsInPostReshardState
         );
         // Unaffected since the number of shard matches and there is no resharding metadata.
-        assertEquals(indexMetadataWithoutReshardingMetadata, adjustedIndexMetadataWithoutReshardingMetadata1);
+        assertTrue(adjustedIndexMetadataWithoutReshardingMetadata1.isEmpty());
 
         // This how an entry would look like if the snapshot started before resharding.
         // Note how shards with id 1 are not present.
@@ -944,14 +944,16 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             indexMetadataWithReshardingMetadata,
             liveShardGenerationsInPreReshardState
         );
-        assertNull(adjustedIndexMetadataWithReshardingMetadata2.getReshardingMetadata());
-        assertEquals(1, adjustedIndexMetadataWithReshardingMetadata2.getNumberOfShards());
+        assertFalse(adjustedIndexMetadataWithReshardingMetadata2.isEmpty());
+        assertNull(adjustedIndexMetadataWithReshardingMetadata2.get().getReshardingMetadata());
+        assertEquals(1, adjustedIndexMetadataWithReshardingMetadata2.get().getNumberOfShards());
 
         var adjustedIndexMetadataWithoutReshardingMetadata2 = BlobStoreRepository.adjustIndexMetadataIfNeeded(
             indexWithoutReshardingMetadata,
             indexMetadataWithoutReshardingMetadata,
             liveShardGenerationsInPreReshardState
         );
-        assertEquals(1, adjustedIndexMetadataWithoutReshardingMetadata2.getNumberOfShards());
+        assertFalse(adjustedIndexMetadataWithoutReshardingMetadata2.isEmpty());
+        assertEquals(1, adjustedIndexMetadataWithoutReshardingMetadata2.get().getNumberOfShards());
     }
 }

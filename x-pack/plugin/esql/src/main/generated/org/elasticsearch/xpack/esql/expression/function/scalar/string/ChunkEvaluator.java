@@ -4,14 +4,11 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -24,12 +21,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Chunk}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChunkBytesRefEvaluator.class);
+public final class ChunkEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ChunkEvaluator.class);
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator str;
+  private final EvalOperator.ExpressionEvaluator field;
 
   private final ChunkingSettings chunkingSettings;
 
@@ -37,60 +34,40 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings;
 
-  public ChunkBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
+  public ChunkEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       ChunkingSettings chunkingSettings, DriverContext driverContext) {
     this.source = source;
-    this.str = str;
+    this.field = field;
     this.chunkingSettings = chunkingSettings;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
-      BytesRefVector strVector = strBlock.asVector();
-      if (strVector == null) {
-        return eval(page.getPositionCount(), strBlock);
-      }
-      return eval(page.getPositionCount(), strVector);
+    try (BytesRefBlock fieldBlock = (BytesRefBlock) field.eval(page)) {
+      return eval(page.getPositionCount(), fieldBlock);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += str.baseRamBytesUsed();
+    baseRamBytesUsed += field.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock fieldBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        switch (strBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
+        boolean allBlocksAreNulls = true;
+        if (!fieldBlock.isNull(p)) {
+          allBlocksAreNulls = false;
         }
-        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
-        Chunk.process(result, str, this.chunkingSettings);
-      }
-      return result.build();
-    }
-  }
-
-  public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef strScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef str = strVector.getBytesRef(p, strScratch);
-        Chunk.process(result, str, this.chunkingSettings);
+        if (allBlocksAreNulls) {
+          result.appendNull();
+          continue position;
+        }
+        Chunk.process(result, p, fieldBlock, this.chunkingSettings);
       }
       return result.build();
     }
@@ -98,12 +75,12 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "ChunkBytesRefEvaluator[" + "str=" + str + ", chunkingSettings=" + chunkingSettings + "]";
+    return "ChunkEvaluator[" + "field=" + field + ", chunkingSettings=" + chunkingSettings + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(str);
+    Releasables.closeExpectNoException(field);
   }
 
   private Warnings warnings() {
@@ -121,25 +98,25 @@ public final class ChunkBytesRefEvaluator implements EvalOperator.ExpressionEval
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory str;
+    private final EvalOperator.ExpressionEvaluator.Factory field;
 
     private final ChunkingSettings chunkingSettings;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory field,
         ChunkingSettings chunkingSettings) {
       this.source = source;
-      this.str = str;
+      this.field = field;
       this.chunkingSettings = chunkingSettings;
     }
 
     @Override
-    public ChunkBytesRefEvaluator get(DriverContext context) {
-      return new ChunkBytesRefEvaluator(source, str.get(context), chunkingSettings, context);
+    public ChunkEvaluator get(DriverContext context) {
+      return new ChunkEvaluator(source, field.get(context), chunkingSettings, context);
     }
 
     @Override
     public String toString() {
-      return "ChunkBytesRefEvaluator[" + "str=" + str + ", chunkingSettings=" + chunkingSettings + "]";
+      return "ChunkEvaluator[" + "field=" + field + ", chunkingSettings=" + chunkingSettings + "]";
     }
   }
 }

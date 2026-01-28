@@ -86,8 +86,8 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "str")),
-                "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
+                List.of(new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field")),
+                "ChunkEvaluator[field=Attribute[channel=0], "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}]",
                 DataType.KEYWORD,
                 equalTo(expectedResult)
@@ -114,14 +114,14 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                     : chunks.stream().map(s -> new BytesRef(s.trim())).toList();
 
                 List<TestCaseSupplier.TypedData> values = List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "field"),
                     new TestCaseSupplier.TypedData(createChunkingSettings(chunkingSettings), UNSUPPORTED, "chunking_settings")
                         .forceLiteral()
                 );
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "ChunkBytesRefEvaluator[str=Attribute[channel=0], "
+                    "ChunkEvaluator[field=Attribute[channel=0], "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}]",
                     DataType.KEYWORD,
                     equalTo(expectedResult)
@@ -218,7 +218,7 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
         MapExpression optionsMap = chunkingSettings == null ? null : createChunkingSettings(chunkingSettings);
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("str", DataType.KEYWORD), optionsMap)).get(
+            EvalOperator.ExpressionEvaluator eval = evaluator(new Chunk(Source.EMPTY, field("field", DataType.KEYWORD), optionsMap)).get(
                 driverContext()
             );
             Block block = eval.eval(row(List.of(new BytesRef(str))))

@@ -156,7 +156,7 @@ public class IndexAbstractionResolver {
             final HashSet<String> resolvedIndices = new HashSet<>();
             for (String authorizedIndex : allAuthorizedAndAvailableBySelector.apply(selector)) {
                 if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
-                    && isIndexVisible(
+                    && isIndexVisibleUnderWildcardAccess(
                         indexAbstraction,
                         selectorString,
                         authorizedIndex,
@@ -199,7 +199,8 @@ public class IndexAbstractionResolver {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);
                 if (authorized) {
                     boolean visible = indexExists(projectMetadata, indexAbstraction)
-                        && isConcreteIndexVisible(
+                        && isIndexVisibleUnderConcreteAccess(
+                            indexAbstraction,
                             selectorString,
                             indexAbstraction,
                             indicesOptions,
@@ -268,7 +269,8 @@ public class IndexAbstractionResolver {
         }
     }
 
-    public static boolean isConcreteIndexVisible(
+    public static boolean isIndexVisibleUnderConcreteAccess(
+        String expression,
         @Nullable String selectorString,
         String index,
         IndicesOptions indicesOptions,
@@ -276,94 +278,11 @@ public class IndexAbstractionResolver {
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
-        IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
-        if (indexAbstraction == null) {
-            throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.VIEW) {
-            // TODO: perhaps revisit this in the future if we make views "visible" or "hidden"?
-            return false;
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-            if (indicesOptions.ignoreAliases()) return false;
-
-            if (indexAbstraction.isSystem()) {
-                // check if it is net new
-                if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
-                    // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
-                    // issues in a way that happens to *work*. there's probably a better way of writing things such that this won't
-                    // be necessary, but for the moment, it happens to be expedient to write things this way.
-
-                    // unwrap the alias and re-run the function on the write index of the alias -- that is, the alias is visible if
-                    // the concrete index that it refers to is visible
-                    Index writeIndex = indexAbstraction.getWriteIndex();
-                    if (writeIndex == null) {
-                        return false;
-                    } else {
-                        return isConcreteIndexVisible(
-                            selectorString,
-                            writeIndex.getName(),
-                            indicesOptions,
-                            projectMetadata,
-                            resolver,
-                            includeDataStreams
-                        );
-                    }
-                }
-            }
-
-            if (selectorString != null) {
-                // Check if a selector was present, and if it is, check if this alias is applicable to it
-                IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
-                if (IndexComponentSelector.FAILURES.equals(selector)) {
-                    return indexAbstraction.isDataStreamRelated();
-                }
-            }
-            return true;
-        }
-        if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM) {
-            if (includeDataStreams == false) {
-                return false;
-            }
-            if (indexAbstraction.isSystem()) {
-                return isSystemIndexVisible(resolver, indexAbstraction);
-            } else {
-                return true;
-            }
-        }
-        assert indexAbstraction.getIndices().size() == 1 : "concrete index must point to a single index";
-        if (indexAbstraction.isSystem()) {
-            // check if it is net new
-            if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
-                return isSystemIndexVisible(resolver, indexAbstraction);
-            }
-
-            // does the system index back a system data stream?
-            if (indexAbstraction.getParentDataStream() != null) {
-                if (indexAbstraction.getParentDataStream().isSystem() == false) {
-                    assert false : "system index is part of a data stream that is not a system data stream";
-                    throw new IllegalStateException("system index is part of a data stream that is not a system data stream");
-                }
-                return isSystemIndexVisible(resolver, indexAbstraction);
-            }
-        }
-        if (selectorString != null && Regex.isMatchAllPattern(selectorString) == false) {
-            // Check if a selector was present, and if it is, check if this index is applicable to it
-            IndexComponentSelector selector = IndexComponentSelector.getByKey(selectorString);
-            if (IndexComponentSelector.FAILURES.equals(selector)) {
-                return false;
-            }
-        }
-
-        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().getFirst());
-        if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.forbidClosedIndices()) {
-            return false;
-        }
-
-        return true;
+        assert Regex.isSimpleMatchPattern(expression) == false : "Expected a concrete expression";
+        return isIndexVisible(index, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
     }
 
-    public static boolean isIndexVisible(
+    public static boolean isIndexVisibleUnderWildcardAccess(
         String expression,
         @Nullable String selectorString,
         String index,
@@ -373,7 +292,19 @@ public class IndexAbstractionResolver {
         boolean includeDataStreams
     ) {
         assert Regex.isSimpleMatchPattern(expression) : "Expected a wildcard expression";
+        return isIndexVisible(expression, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, true);
+    }
 
+    private static boolean isIndexVisible(
+        String expression,
+        @Nullable String selectorString,
+        String index,
+        IndicesOptions indicesOptions,
+        ProjectMetadata projectMetadata,
+        IndexNameExpressionResolver resolver,
+        boolean includeDataStreams,
+        boolean isWildcardExpression
+    ) {
         IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(index);
         if (indexAbstraction == null) {
             throw new IllegalStateException("could not resolve index abstraction [" + index + "]");
@@ -383,11 +314,14 @@ public class IndexAbstractionResolver {
             return false;
         }
         final boolean isHidden = indexAbstraction.isHidden();
-        boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
+        boolean isVisible = isWildcardExpression == false
+            || isHidden == false
+            || indicesOptions.expandWildcardsHidden()
+            || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // it's complicated to support those options with aliases pointing to multiple indices...
-            isVisible = isVisible && indicesOptions.ignoreAliases() == false;
+            if (indicesOptions.ignoreAliases()) return false;
 
             if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
@@ -409,7 +343,8 @@ public class IndexAbstractionResolver {
                             indicesOptions,
                             projectMetadata,
                             resolver,
-                            includeDataStreams
+                            includeDataStreams,
+                            isWildcardExpression
                         );
                     }
                 }
@@ -461,7 +396,16 @@ public class IndexAbstractionResolver {
             }
         }
 
-        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata indexMetadata = projectMetadata.index(indexAbstraction.getIndices().getFirst());
+
+        if (isWildcardExpression == false) {
+            if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.forbidClosedIndices()) {
+                return false;
+            }
+
+            return true;
+        }
+
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE && indicesOptions.expandWildcardsClosed()) {
             return true;
         }
@@ -489,7 +433,7 @@ public class IndexAbstractionResolver {
     }
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
-        return index.startsWith(".") && expression.startsWith(".") && Regex.isSimpleMatchPattern(expression);
+        return index.startsWith(".") && expression.startsWith(".");
     }
 
     private static boolean indexExists(ProjectMetadata projectMetadata, String indexAbstraction) {

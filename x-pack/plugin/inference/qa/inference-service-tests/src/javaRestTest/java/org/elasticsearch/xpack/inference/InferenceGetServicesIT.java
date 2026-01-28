@@ -81,7 +81,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "mixedbread"
                 ).toArray()
             )
         );

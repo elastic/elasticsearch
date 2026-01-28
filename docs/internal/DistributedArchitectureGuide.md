@@ -537,7 +537,7 @@ replica during finalization.
 Unlike `StoreRecovery`, peer recovery is managed through a separate service on the node recovering the shard, the
 [PeerRecoveryTargetService][]. When the IndexShard sees that its recovery source is of type `PEER`, it hands over the
 recovery process to `PeerRecoveryTargetService` by invoking its `startRecovery` method. This service begins by creating
-an in-memory record of the recovery process to track its progress, and then runs local store recovery in case the
+an in-memory record of the recovery process to track its progress, and then runs `EXISTING_STORE` recovery in case the
 recovering replica held a copy of the shard before that has gone out of sync (e.g., because the node holding the
 replica restarted). Because the shard is a replica, it only recovers up to the latest known global checkpoint for the shard
 and discards any operations in the local store that are ahead of that point (see [Translog][#Translog] for details).

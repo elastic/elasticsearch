@@ -362,8 +362,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
                     @Override
                     int getLength() {
-                        long startOffset = addresses.get(doc);
-                        return (int) (addresses.get(doc + 1L) - startOffset);
+                        return (int) (addresses.get(doc + 1L) - addresses.get(doc));
                     }
                 };
             }
@@ -819,11 +818,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             try (var builder = factory.ints(count)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (advanceExact(doc)) {
-                        builder.appendInt(getLength());
-                    } else {
-                        builder.appendNull();
-                    }
+                    boolean advance = advanceExact(doc);
+                    assert advance;
+                    builder.appendInt(getLength());
                 }
                 return builder.build();
             }

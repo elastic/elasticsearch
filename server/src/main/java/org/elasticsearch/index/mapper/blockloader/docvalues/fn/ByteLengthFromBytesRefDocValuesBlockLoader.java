@@ -26,8 +26,8 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
 /**
  * Loads byte length from BytesRef.
  */
-public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    protected final String fieldName;
+public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+    private final String fieldName;
 
     private final Warnings warnings;
 
@@ -37,7 +37,7 @@ public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesRe
     }
 
     @Override
-    public final Builder builder(BlockFactory factory, int expectedCount) {
+    public Builder builder(BlockFactory factory, int expectedCount) {
         return factory.ints(expectedCount);
     }
 
@@ -59,8 +59,8 @@ public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesRe
         return new MultiValuedBinaryWithSeparateCounts(warnings, counts, values);
     }
 
-    static class SingleValued extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
+    private static final class SingleValued extends BlockDocValuesReader {
+        private final BinaryDocValues docValues;
 
         SingleValued(BinaryDocValues docValues) {
             this.docValues = docValues;
@@ -109,7 +109,7 @@ public class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesRe
         }
     }
 
-    private static class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
+    private static final class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
 
         MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
             super(warnings, counts, values);

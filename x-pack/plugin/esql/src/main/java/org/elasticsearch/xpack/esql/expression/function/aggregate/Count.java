@@ -58,7 +58,7 @@ public class Count extends AggregateFunction implements ToAggregator, SurrogateE
                 [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
                 shouldn’t be included.""", file = "stats", tag = "count-where"),
             @Example(
-                description = "To count the number of times *many* expression return `TRUE` use a WHERE inside the STATS.",
+                description = "To count the number of times *multiple* expressions return `TRUE` use a WHERE inside the STATS.",
                 file = "stats",
                 tag = "count-where-many"
             ),

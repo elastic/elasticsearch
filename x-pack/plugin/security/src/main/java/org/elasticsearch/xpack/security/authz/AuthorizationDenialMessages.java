@@ -182,10 +182,9 @@ public interface AuthorizationDenialMessages {
         }
 
         private String authenticatedUserDescription(Authentication authentication) {
-            String userText = (authentication.isServiceAccount() ? "service account" : "user")
-                + " ["
-                + authentication.getAuthenticatingSubject().getUser().principal()
-                + "]";
+            String userText = (authentication.isServiceAccount() ? "service account"
+                : authentication.isCloudApiKey() ? "cloud API key"
+                : "user") + " [" + authentication.getAuthenticatingSubject().getUser().principal() + "]";
             if (authentication.isAuthenticatedAsApiKey() || authentication.isCrossClusterAccess()) {
                 final String apiKeyId = (String) authentication.getAuthenticatingSubject()
                     .getMetadata()
@@ -208,7 +207,7 @@ public interface AuthorizationDenialMessages {
         // package-private for tests
         String rolesDescription(Subject subject, @Nullable AuthorizationEngine.AuthorizationInfo authorizationInfo) {
             // We cannot print the roles if it's an API key or a service account (both do not have roles, but privileges)
-            if (subject.getType() != Subject.Type.USER) {
+            if (subject.getType() != Subject.Type.USER && subject.getType() != Subject.Type.CLOUD_API_KEY) {
                 return "";
             }
 

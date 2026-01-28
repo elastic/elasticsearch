@@ -137,6 +137,16 @@ interface LocalSpecBuilder<T extends LocalSpecBuilder<?>> {
     T version(String version);
 
     /**
+     * Sets the version of Elasticsearch and whether it is a detached version.
+     * If not set, then defaults to {@link Version#CURRENT} and {@code false}.
+     *
+     * @param version the ES cluster version string
+     * @param detachedVersion true if using unreleased version of Elasticsearch that is also different from the local current HEAD.
+     *                        Defaults to false.
+     */
+    T version(String version, boolean detachedVersion);
+
+    /**
      * Adds a system property to node JVM arguments.
      */
     T systemProperty(String property, String value);

@@ -304,7 +304,7 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             }
         ) {
             @Override
-            protected List<ShardIterator> shards(
+            protected List<? extends ShardIterator> shards(
                 ClusterState clusterState,
                 AnalyzeIndexDiskUsageRequest request,
                 String[] concreteIndices

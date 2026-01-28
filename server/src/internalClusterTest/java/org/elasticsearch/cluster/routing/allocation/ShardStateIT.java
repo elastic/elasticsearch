@@ -66,7 +66,7 @@ public class ShardStateIT extends ESIntegTestCase {
     protected void assertPrimaryTerms(long shard0Term, long shard1Term) {
         for (String node : internalCluster().getNodeNames()) {
             logger.debug("--> asserting primary terms terms on [{}]", node);
-            ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
+            ClusterState state = client(node).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             IndexMetadata metadata = state.metadata().getProject().index("test");
             assertThat(metadata.primaryTerm(0), equalTo(shard0Term));
             assertThat(metadata.primaryTerm(1), equalTo(shard1Term));

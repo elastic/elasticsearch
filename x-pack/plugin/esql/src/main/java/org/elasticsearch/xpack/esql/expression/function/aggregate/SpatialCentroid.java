@@ -21,6 +21,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -45,16 +47,18 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @FunctionInfo(
         returnType = { "geo_point", "cartesian_point" },
+        preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = "Calculate the spatial centroid over a field with spatial point geometry type.",
         type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
     )
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
-        this(source, field, Literal.TRUE, NONE);
+        this(source, field, Literal.TRUE, NO_WINDOW, NONE);
     }
 
-    private SpatialCentroid(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
-        super(source, field, filter, preference);
+    private SpatialCentroid(Source source, Expression field, Expression filter, Expression window, FieldExtractPreference preference) {
+        super(source, field, filter, window, preference);
     }
 
     private SpatialCentroid(StreamInput in) throws IOException {
@@ -68,12 +72,12 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
 
     @Override
     public SpatialCentroid withFilter(Expression filter) {
-        return new SpatialCentroid(source(), field(), filter, fieldExtractPreference);
+        return new SpatialCentroid(source(), field(), filter, window(), fieldExtractPreference);
     }
 
     @Override
     public SpatialCentroid withFieldExtractPreference(FieldExtractPreference preference) {
-        return new SpatialCentroid(source(), field(), filter(), preference);
+        return new SpatialCentroid(source(), field(), filter(), window(), preference);
     }
 
     @Override

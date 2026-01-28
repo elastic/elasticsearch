@@ -1,4 +1,7 @@
-## `RENAME` [esql-rename]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `RENAME` processing command renames one or more columns.
 
@@ -7,6 +10,16 @@ The `RENAME` processing command renames one or more columns.
 ```esql
 RENAME old_name1 AS new_name1[, ..., old_nameN AS new_nameN]
 ```
+
+The following syntax is also supported {applies_to}`stack: ga 9.1`:
+
+```esql
+RENAME new_name1 = old_name1[, ..., new_nameN = old_nameN]
+```
+
+::::{tip}
+Both syntax options can be used interchangeably but we recommend sticking to one for consistency and readability.
+::::
 
 **Parameters**
 

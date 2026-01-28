@@ -18,6 +18,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,6 +34,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -47,6 +49,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -128,6 +131,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
+        settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
         AcknowledgedResponse putRepositoryResponse = clusterAdmin().preparePutRepository(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
@@ -136,7 +140,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
     }
 
-    public void testCompareAndExchangeCleanup() throws IOException {
+    @Override
+    public void testFailIfAlreadyExists() {
+        assumeTrue("S3 repository is not configured with conditional writes and existence check", supportsConditionalWrites());
+        super.testFailIfAlreadyExists();
+    }
+
+    public void testMPUCompareAndExchangeCleanup() throws IOException {
+        assumeFalse("S3 repository is configured condtional-writes and does not use MPU for CAS", supportsConditionalWrites());
+
         final var timeOffsetMillis = new AtomicLong();
         final var threadpool = new TestThreadPool(getTestName()) {
             @Override
@@ -147,14 +159,15 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         // construct our own repo instance so we can inject a threadpool that allows to control the passage of time
         try (
             var repository = new S3Repository(
-                randomProjectIdOrDefault(),
+                ProjectId.DEFAULT,
                 node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata(),
                 xContentRegistry(),
                 node().injector().getInstance(PluginsService.class).filterPlugins(S3RepositoryPlugin.class).findFirst().get().getService(),
                 ClusterServiceUtils.createClusterService(threadpool),
                 BigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(node().settings(), node().injector().getInstance(ClusterService.class).getClusterSettings()),
-                S3RepositoriesMetrics.NOOP
+                S3RepositoriesMetrics.NOOP,
+                SnapshotMetrics.NOOP
             )
         ) {
             repository.start();
@@ -191,7 +204,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 assertTrue(testHarness.tryCompareAndSet(BytesArray.EMPTY, bytes1));
 
                 // show we're looking at the right blob
-                assertEquals(bytes1, testHarness.readRegister());
+                assertThat(testHarness.readRegister(), equalBytes(bytes1));
                 assertArrayEquals(
                     bytes1.array(),
                     client.getObject(GetObjectRequest.builder().bucket(bucketName).key(registerBlobPath).build()).readAllBytes()
@@ -214,7 +227,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 timeOffsetMillis.addAndGet(blobStore.getCompareAndExchangeTimeToLive().millis() - Math.min(0, age));
                 assertTrue(testHarness.tryCompareAndSet(bytes1, bytes2));
                 assertThat(testHarness.listMultipartUploads(), hasSize(0));
-                assertEquals(bytes2, testHarness.readRegister());
+                assertThat(testHarness.readRegister(), equalBytes(bytes2));
             } finally {
                 blobContainer.delete(randomPurpose());
             }
@@ -281,5 +294,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
         });
 
         assertArrayEquals(BytesReference.toBytes(blobBytes), targetBytes);
+    }
+
+    boolean supportsConditionalWrites() {
+        final var repoMetadata = node().injector().getInstance(RepositoriesService.class).repository(TEST_REPO_NAME).getMetadata();
+        return repoMetadata.settings().getAsBoolean("unsafely_incompatible_with_s3_conditional_writes", false) == false;
     }
 }

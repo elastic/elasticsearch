@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -34,6 +35,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
@@ -66,7 +68,7 @@ public class OptimizedTextBenchmark {
     private SourceToParse[] sources;
 
     private String randomValue(int length) {
-        final String CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        final String CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ";
         Random random = new Random();
         StringBuilder builder = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
@@ -83,17 +85,17 @@ public class OptimizedTextBenchmark {
                     "dynamic": false,
                     "properties": {
                         "field": {
-                            "type": "keyword"
+                            "type": "match_only_text"
                         }
                     }
                 }
             }
-            """);
+            """, List.of(new MapperExtrasPlugin()));
 
         sources = new SourceToParse[nDocs];
         for (int i = 0; i < nDocs; i++) {
             XContentBuilder b = XContentFactory.jsonBuilder();
-            b.startObject().field("field", randomValue(8)).endObject();
+            b.startObject().field("field", randomValue(512)).endObject();
             sources[i] = new SourceToParse(UUIDs.randomBase64UUID(), BytesReference.bytes(b), XContentType.JSON);
         }
     }

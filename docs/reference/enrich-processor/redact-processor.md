@@ -80,6 +80,7 @@ The document in the response still contains the `message` field but now the IP a
   ]
 }
 ```
+% TESTRESPONSE[s/2023-02-01T16:08:39.419056008Z/$body.docs.0.doc._ingest.timestamp/]
 
 The IP address is replaced with the word `client` because that is what is specified in the Grok pattern `%{IP:client}`. The `<` and `>` tokens which surround the pattern name are configurable using the `prefix` and `suffix` options.
 
@@ -135,6 +136,7 @@ In the response both the IP `55.3.244.1` and email address `test@elastic.co` hav
   ]
 }
 ```
+% TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
 
 
 ## Custom patterns [redact-custom-patterns]
@@ -197,6 +199,7 @@ The username is redacted in the response.
   ]
 }
 ```
+% TESTRESPONSE[s/2023-02-01T16:53:14.560005377Z/$body.docs.0.doc._ingest.timestamp/]
 
 
 ## Grok watchdog [grok-watchdog-redact]

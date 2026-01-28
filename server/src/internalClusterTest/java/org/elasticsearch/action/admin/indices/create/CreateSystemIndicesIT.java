@@ -84,7 +84,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is first used, when it is referenced via its alias.
      */
     public void testSystemIndexIsAutoCreatedViaAlias() {
-        doCreateTest(() -> indexDoc(INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME);
+        doCreateTest(() -> indexDoc(INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME, false);
     }
 
     /**
@@ -93,7 +93,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * index name.
      */
     public void testSystemIndexIsAutoCreatedViaConcreteName() {
-        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME);
+        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "foo", "bar"), PRIMARY_INDEX_NAME, false);
     }
 
     /**
@@ -144,7 +144,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is explicitly created, when it is referenced via its alias.
      */
     public void testCreateSystemIndexViaAlias() {
-        doCreateTest(() -> assertAcked(prepareCreate(INDEX_NAME)), PRIMARY_INDEX_NAME);
+        doCreateTest(() -> assertAcked(prepareCreate(INDEX_NAME)), PRIMARY_INDEX_NAME, false);
     }
 
     /**
@@ -153,7 +153,11 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * concrete index name.
      */
     public void testCreateSystemIndexViaConcreteName() {
-        doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)), PRIMARY_INDEX_NAME);
+        doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)), PRIMARY_INDEX_NAME, false);
+    }
+
+    public void testSystemIndexIsAutoCreatedWithDynamicDefault() {
+        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "vector", new int[] { 1, 2, 3 }), PRIMARY_INDEX_NAME, true);
     }
 
     private void createSystemAliasViaV1Template(String indexName, String primaryIndexName) throws Exception {
@@ -265,12 +269,12 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         );
     }
 
-    private void doCreateTest(Runnable runnable, String concreteIndex) {
+    private void doCreateTest(Runnable runnable, String concreteIndex, boolean expandVectorDefault) {
         // Trigger the creation of the system index
         runnable.run();
         ensureGreen(INDEX_NAME);
 
-        assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(), concreteIndex);
+        assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings(expandVectorDefault), concreteIndex);
 
         // Remove the index and alias...
         assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).removeAlias(concreteIndex, INDEX_NAME).get());
@@ -283,7 +287,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         runnable.run();
         ensureGreen(INDEX_NAME);
 
-        assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(), concreteIndex);
+        assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings(expandVectorDefault), concreteIndex);
         assertAliases(concreteIndex);
     }
 
@@ -362,7 +366,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         );
         final Map<String, Object> sourceAsMap = mappings.get(concreteIndex).getSourceAsMap();
 
-        assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, false)));
+        assertThat(sourceAsMap, equalTo(XContentHelper.convertToMap(XContentType.JSON.xContent(), expectedMappings, true)));
 
         final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
             new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(INDEX_NAME)

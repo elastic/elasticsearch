@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Advanced workflows"
 ---
 

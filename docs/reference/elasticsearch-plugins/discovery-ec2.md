@@ -20,7 +20,7 @@ sudo bin/elasticsearch-plugin install discovery-ec2
 
 The plugin must be installed on every node in the cluster, and each node must be restarted after installation.
 
-You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version}}.zip.asc).
+You can download this plugin for [offline install](/reference/elasticsearch-plugins/plugin-management-custom-url.md) from [https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version.stack}}.zip](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version.stack}}.zip). To verify the `.zip` file, use the [SHA hash](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version.stack}}.zip.sha512) or [ASC key](https://artifacts.elastic.co/downloads/elasticsearch-plugins/discovery-ec2/discovery-ec2-{{version.stack}}.zip.asc).
 
 
 ## Removal [discovery-ec2-remove]

@@ -14,6 +14,7 @@ public class IbmWatsonxUtils {
     public static final String TEXT = "text";
     public static final String EMBEDDINGS = "embeddings";
     public static final String RERANKS = "reranks";
+    public static final String COMPLETIONS = "chat";
 
     private IbmWatsonxUtils() {}
 

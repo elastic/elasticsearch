@@ -27,7 +27,15 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
  */
 public final class TextFieldFamilySyntheticSourceTestSetup {
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
-        return new TextFieldFamilySyntheticSourceSupport(fieldType, supportsCustomIndexConfiguration);
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true);
+    }
+
+    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
+        String fieldType,
+        boolean supportsCustomIndexConfiguration,
+        boolean fallbackUsesBinaryDocValues
+    ) {
+        return new TextFieldFamilySyntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues);
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -44,18 +52,25 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         private final boolean store;
         private final boolean index;
         private final Integer ignoreAbove;
+        private final boolean fallbackUsesBinaryDocValues;
         private final KeywordFieldSyntheticSourceSupport keywordMultiFieldSyntheticSourceSupport;
 
-        TextFieldFamilySyntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
+        TextFieldFamilySyntheticSourceSupport(
+            String fieldType,
+            boolean supportsCustomIndexConfiguration,
+            boolean fallbackUsesBinaryDocValues
+        ) {
             this.fieldType = fieldType;
             this.store = randomBoolean();
             this.index = supportsCustomIndexConfiguration == false || randomBoolean();
             this.ignoreAbove = randomBoolean() ? null : between(10, 100);
+            this.fallbackUsesBinaryDocValues = fallbackUsesBinaryDocValues;
             this.keywordMultiFieldSyntheticSourceSupport = new KeywordFieldSyntheticSourceSupport(
                 ignoreAbove,
                 randomBoolean(),
                 null,
-                false
+                false,
+                KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false)
             );
         }
 
@@ -81,7 +96,12 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             // Block loader will not use keyword multi-field if it has ignore_above configured.
             // And in this case it will use values from source.
             boolean loadingFromSource = ignoreAbove != null;
-            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(maxValues, loadingFromSource);
+            MapperTestCase.SyntheticSourceExample delegate = keywordMultiFieldSyntheticSourceSupport.example(
+                maxValues,
+                loadingFromSource,
+                true,
+                fallbackUsesBinaryDocValues
+            );
 
             return new MapperTestCase.SyntheticSourceExample(delegate.inputValue(), delegate.expectedForSyntheticSource(), b -> {
                 b.field("type", fieldType);

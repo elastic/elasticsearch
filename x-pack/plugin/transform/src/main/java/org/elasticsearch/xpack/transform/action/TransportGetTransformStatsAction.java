@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -34,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Request;
@@ -79,6 +79,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
+        ThreadPool threadPool,
         Client client,
         Settings settings
     ) {
@@ -89,7 +90,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
             actionFilters,
             Request::new,
             Response::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transformConfigManager = transformServices.configManager();
         this.transformCheckpointService = transformServices.checkpointService();
@@ -275,6 +276,8 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         } else if (derivedState.equals(TransformStats.State.STARTED) && transformTask.getContext().isWaitingForIndexToUnblock()) {
             derivedState = TransformStats.State.WAITING;
             reason = Strings.isNullOrEmpty(reason) ? "transform is paused while destination index is blocked" : reason;
+        } else if (derivedState.equals(TransformStats.State.STOPPING) && transformTask.isRetryingStartup()) {
+            derivedState = TransformStats.State.STARTED;
         }
         return new TransformStats(
             transformTask.getTransformId(),

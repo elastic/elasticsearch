@@ -10,6 +10,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -118,12 +119,14 @@ public class EsExecutors {
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
         ThreadContext contextHolder,
-        TaskTrackingConfig config
+        TaskTrackingConfig config,
+        HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
         // Force queued work via ForceQueuePolicy might starve if no worker is available (if core size is empty),
         // probing the worker pool prevents this.
         boolean probeWorkerPool = min == 0 && queue instanceof ExecutorScalingQueue;
+        final ForceQueuePolicy queuePolicy = new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool);
         if (config.trackExecutionTime()) {
             return new TaskExecutionTimeTrackingEsThreadPoolExecutor(
                 name,
@@ -134,9 +137,10 @@ public class EsExecutors {
                 queue,
                 TimedRunnable::new,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
+                queuePolicy,
                 contextHolder,
-                config
+                config,
+                hotThreadsOnLargeQueueConfig
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -147,8 +151,9 @@ public class EsExecutors {
                 unit,
                 queue,
                 threadFactory,
-                new ForceQueuePolicy(rejectAfterShutdown, probeWorkerPool),
-                contextHolder
+                queuePolicy,
+                contextHolder,
+                hotThreadsOnLargeQueueConfig
             );
         }
     }
@@ -187,7 +192,8 @@ public class EsExecutors {
             rejectAfterShutdown,
             threadFactory,
             contextHolder,
-            TaskTrackingConfig.DO_NOT_TRACK
+            TaskTrackingConfig.DO_NOT_TRACK,
+            HotThreadsOnLargeQueueConfig.DISABLED
         );
     }
 
@@ -220,7 +226,8 @@ public class EsExecutors {
                 threadFactory,
                 rejectedExecutionHandler,
                 contextHolder,
-                config
+                config,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         } else {
             return new EsThreadPoolExecutor(
@@ -232,7 +239,8 @@ public class EsExecutors {
                 queue,
                 threadFactory,
                 rejectedExecutionHandler,
-                contextHolder
+                contextHolder,
+                HotThreadsOnLargeQueueConfig.DISABLED
             );
         }
     }
@@ -322,91 +330,78 @@ public class EsExecutors {
      */
     public static final ExecutorService DIRECT_EXECUTOR_SERVICE = new DirectExecutorService();
 
-    public static String threadName(Settings settings, String namePrefix) {
-        if (Node.NODE_NAME_SETTING.exists(settings)) {
-            return threadName(Node.NODE_NAME_SETTING.get(settings), namePrefix);
-        } else {
-            // TODO this should only be allowed in tests
-            return threadName("", namePrefix);
-        }
-    }
-
-    public static String threadName(final String nodeName, final String namePrefix) {
-        // TODO missing node names should only be allowed in tests
-        return nodeName.isEmpty() == false ? "elasticsearch[" + nodeName + "][" + namePrefix + "]" : "elasticsearch[" + namePrefix + "]";
-    }
-
-    public static String executorName(String threadName) {
-        // subtract 2 to avoid the `]` of the thread number part.
-        int executorNameEnd = threadName.lastIndexOf(']', threadName.length() - 2);
-        int executorNameStart = threadName.lastIndexOf('[', executorNameEnd);
-        if (executorNameStart == -1
-            || executorNameEnd - executorNameStart <= 1
-            || threadName.startsWith("TEST-")
-            || threadName.startsWith("LuceneTestCase")) {
-            return null;
-        }
-        return threadName.substring(executorNameStart + 1, executorNameEnd);
+    public static String threadName(Settings settings, String executorName) {
+        // TODO require node name to be non empty unless in tests
+        return EsThreadFactory.threadNamePrefix(Node.NODE_NAME_SETTING.get(settings), executorName);
     }
 
     public static String executorName(Thread thread) {
-        return executorName(thread.getName());
+        return EsThread.executorName(thread);
     }
 
-    public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return createDaemonThreadFactory(threadName(settings, namePrefix), false);
+    public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
+        // TODO require node name to be non empty unless in tests
+        return new EsThreadFactory(Node.NODE_NAME_SETTING.get(settings), executorName, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
-        return daemonThreadFactory(nodeName, namePrefix, false);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName) {
+        return new EsThreadFactory(nodeName, executorName, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix, boolean isSystemThread) {
-        assert nodeName != null && false == nodeName.isEmpty();
-        return createDaemonThreadFactory(threadName(nodeName, namePrefix), isSystemThread);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String executorName, boolean isSystemThread) {
+        assert Strings.hasLength(nodeName);
+        return new EsThreadFactory(nodeName, executorName, isSystemThread);
     }
 
-    public static ThreadFactory daemonThreadFactory(String name) {
-        assert name != null && name.isEmpty() == false;
-        return createDaemonThreadFactory(name, false);
-    }
-
-    private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {
-        return new EsThreadFactory(namePrefix, isSystemThread);
-    }
-
-    static class EsThreadFactory implements ThreadFactory {
+    private static class EsThreadFactory implements ThreadFactory {
 
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
-        final String namePrefix;
+        final String nodeName;
+        final String executorName;
         final boolean isSystem;
 
-        EsThreadFactory(String namePrefix, boolean isSystem) {
-            this.namePrefix = namePrefix;
-            SecurityManager s = System.getSecurityManager();
-            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+        EsThreadFactory(String nodeName, String executorName, boolean isSystem) {
+            this.nodeName = nodeName;
+            this.executorName = executorName;
+            this.group = Thread.currentThread().getThreadGroup();
             this.isSystem = isSystem;
         }
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
-            t.setDaemon(true);
-            return t;
+            String threadName = threadNamePrefix(nodeName, executorName) + "[T#" + threadNumber.getAndIncrement() + "]";
+            Thread thread = new EsThread(group, r, threadName, 0, executorName, isSystem);
+            thread.setDaemon(true);
+            return thread;
+        }
+
+        static String threadNamePrefix(String nodeName, String executorName) {
+            return Strings.hasLength(nodeName)
+                ? "elasticsearch[" + nodeName + "][" + executorName + "]"
+                : "elasticsearch[" + executorName + "]";
         }
     }
 
     public static class EsThread extends Thread {
+        private final String executorName;
         private final boolean isSystem;
 
-        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, boolean isSystem) {
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, String executorName, boolean isSystem) {
             super(group, target, name, stackSize);
+            this.executorName = executorName;
             this.isSystem = isSystem;
         }
 
         public boolean isSystem() {
             return isSystem;
+        }
+
+        private static String executorName(Thread thread) {
+            if (thread instanceof EsThread esThread) {
+                return esThread.executorName;
+            }
+            return null;
         }
     }
 
@@ -577,24 +572,43 @@ public class EsExecutors {
     }
 
     public static class TaskTrackingConfig {
-        // This is a random starting point alpha. TODO: revisit this with actual testing and/or make it configurable
-        public static final double DEFAULT_EWMA_ALPHA = 0.3;
+        // This is a random starting point alpha.
+        public static final double DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST = 0.3;
 
         private final boolean trackExecutionTime;
         private final boolean trackOngoingTasks;
-        private final double ewmaAlpha;
+        private final boolean trackMaxQueueLatency;
+        private final double executionTimeEwmaAlpha;
 
-        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(false, false, DEFAULT_EWMA_ALPHA);
-        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(true, false, DEFAULT_EWMA_ALPHA);
+        public static final TaskTrackingConfig DO_NOT_TRACK = new TaskTrackingConfig(
+            false,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
+        public static final TaskTrackingConfig DEFAULT = new TaskTrackingConfig(
+            true,
+            false,
+            false,
+            DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST
+        );
 
-        public TaskTrackingConfig(boolean trackOngoingTasks, double ewmaAlpha) {
-            this(true, trackOngoingTasks, ewmaAlpha);
-        }
-
-        private TaskTrackingConfig(boolean trackExecutionTime, boolean trackOngoingTasks, double EWMAAlpha) {
+        /**
+         * @param trackExecutionTime Whether to track execution stats
+         * @param trackOngoingTasks Whether to track ongoing task execution time, not just finished tasks
+         * @param trackMaxQueueLatency Whether to track max queue latency.
+         * @param executionTimeEWMAAlpha The alpha seed for execution time EWMA (ExponentiallyWeightedMovingAverage).
+         */
+        private TaskTrackingConfig(
+            boolean trackExecutionTime,
+            boolean trackOngoingTasks,
+            boolean trackMaxQueueLatency,
+            double executionTimeEWMAAlpha
+        ) {
             this.trackExecutionTime = trackExecutionTime;
             this.trackOngoingTasks = trackOngoingTasks;
-            this.ewmaAlpha = EWMAAlpha;
+            this.trackMaxQueueLatency = trackMaxQueueLatency;
+            this.executionTimeEwmaAlpha = executionTimeEWMAAlpha;
         }
 
         public boolean trackExecutionTime() {
@@ -605,9 +619,54 @@ public class EsExecutors {
             return trackOngoingTasks;
         }
 
-        public double getEwmaAlpha() {
-            return ewmaAlpha;
+        public boolean trackMaxQueueLatency() {
+            return trackMaxQueueLatency;
+        }
+
+        public double getExecutionTimeEwmaAlpha() {
+            return executionTimeEwmaAlpha;
+        }
+
+        public static Builder builder() {
+            return new Builder();
+        }
+
+        public static class Builder {
+            private boolean trackExecutionTime = false;
+            private boolean trackOngoingTasks = false;
+            private boolean trackMaxQueueLatency = false;
+            private double ewmaAlpha = DEFAULT_EXECUTION_TIME_EWMA_ALPHA_FOR_TEST;
+
+            public Builder() {}
+
+            public Builder trackExecutionTime(double alpha) {
+                trackExecutionTime = true;
+                ewmaAlpha = alpha;
+                return this;
+            }
+
+            public Builder trackOngoingTasks() {
+                trackOngoingTasks = true;
+                return this;
+            }
+
+            public Builder trackMaxQueueLatency() {
+                trackMaxQueueLatency = true;
+                return this;
+            }
+
+            public TaskTrackingConfig build() {
+                return new TaskTrackingConfig(trackExecutionTime, trackOngoingTasks, trackMaxQueueLatency, ewmaAlpha);
+            }
         }
     }
 
+    public record HotThreadsOnLargeQueueConfig(int sizeThreshold, long durationThresholdInMillis, long intervalInMillis) {
+
+        public static final HotThreadsOnLargeQueueConfig DISABLED = new HotThreadsOnLargeQueueConfig(0, -1, -1);
+
+        public boolean isEnabled() {
+            return sizeThreshold > 0;
+        }
+    }
 }

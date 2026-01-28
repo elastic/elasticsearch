@@ -9,10 +9,13 @@ package org.elasticsearch.system_indices.task;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -39,6 +42,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
     private final SystemIndices systemIndices;
     private final IndexScopedSettings indexScopedSettings;
     private final ThreadPool threadPool;
+    private final ProjectResolver projectResolver;
 
     public SystemIndexMigrationExecutor(
         Client client,
@@ -53,6 +57,7 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
         this.systemIndices = systemIndices;
         this.indexScopedSettings = indexScopedSettings;
         this.threadPool = threadPool;
+        this.projectResolver = client.projectResolver();
     }
 
     @Override
@@ -81,15 +86,17 @@ public class SystemIndexMigrationExecutor extends PersistentTasksExecutor<System
             clusterService,
             systemIndices,
             indexScopedSettings,
-            threadPool
+            threadPool,
+            projectResolver.getProjectId()
         );
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(
+    protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
         SystemIndexMigrationTaskParams params,
         Collection<DiscoveryNode> candidateNodes,
-        ClusterState clusterState
+        ClusterState clusterState,
+        @Nullable ProjectId projectId
     ) {
         // This should select from master-eligible nodes because we already require all master-eligible nodes to have all plugins installed.
         // However, due to a misunderstanding, this code as-written needs to run on the master node in particular. This is not a fundamental

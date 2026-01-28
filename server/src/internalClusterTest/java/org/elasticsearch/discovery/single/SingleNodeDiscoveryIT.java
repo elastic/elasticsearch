@@ -87,7 +87,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             0,
             "other",
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try {
             other.beforeTest(random());
@@ -137,7 +138,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             0,
             "other",
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
-            Function.identity()
+            Function.identity(),
+            TEST_ENTITLEMENTS::addEntitledNodePaths
         );
         try (var mockLog = MockLog.capture(JoinHelper.class)) {
             mockLog.addExpectation(

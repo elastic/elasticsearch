@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -48,8 +49,8 @@ public class NodeClient extends AbstractClient {
     private Transport.Connection localConnection;
     private RemoteClusterService remoteClusterService;
 
-    public NodeClient(Settings settings, ThreadPool threadPool) {
-        super(settings, threadPool);
+    public NodeClient(Settings settings, ThreadPool threadPool, ProjectResolver projectResolver) {
+        super(settings, threadPool, projectResolver);
     }
 
     public void initialize(

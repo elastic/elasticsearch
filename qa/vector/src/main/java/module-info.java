@@ -11,10 +11,13 @@ module org.elasticsearch.test.knn {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.cli;
     requires org.apache.lucene.core;
     requires org.apache.lucene.codecs;
     requires org.apache.lucene.queries;
     requires org.elasticsearch.logging;
     requires java.management;
     requires jdk.management;
+    requires org.apache.lucene.misc;
+    requires org.elasticsearch.gpu;
 }

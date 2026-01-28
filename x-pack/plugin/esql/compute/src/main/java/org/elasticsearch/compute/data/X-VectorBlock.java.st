@@ -86,6 +86,11 @@ $endif$
     }
 
     @Override
+    public $Type$Block deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
+    }
+
+    @Override
     public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return vector.lookup(positions, targetBlockSize);
     }

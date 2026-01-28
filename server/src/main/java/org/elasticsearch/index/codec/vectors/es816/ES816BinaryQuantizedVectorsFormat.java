@@ -22,19 +22,19 @@ package org.elasticsearch.index.codec.vectors.es816;
 import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 /**
  * Copied from Lucene, replace with Lucene's implementation sometime after Lucene 10
  */
-public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
+public class ES816BinaryQuantizedVectorsFormat extends AbstractFlatVectorsFormat {
 
     public static final String BINARIZED_VECTOR_COMPONENT = "BVEC";
     public static final String NAME = "ES816BinaryQuantizedVectorsFormat";
@@ -61,6 +61,11 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     }
 
     @Override
+    public FlatVectorsScorer flatVectorsScorer() {
+        return scorer;
+    }
+
+    @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
         throw new UnsupportedOperationException();
     }
@@ -68,15 +73,5 @@ public class ES816BinaryQuantizedVectorsFormat extends FlatVectorsFormat {
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
         return new ES816BinaryQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), scorer);
-    }
-
-    @Override
-    public int getMaxDimensions(String fieldName) {
-        return MAX_DIMS_COUNT;
-    }
-
-    @Override
-    public String toString() {
-        return "ES816BinaryQuantizedVectorsFormat(name=" + NAME + ", flatVectorScorer=" + scorer + ")";
     }
 }

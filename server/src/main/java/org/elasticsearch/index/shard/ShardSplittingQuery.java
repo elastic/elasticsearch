@@ -52,13 +52,13 @@ import java.util.function.Predicate;
  * It can be used to split a shard into N shards marking every document that doesn't belong into the shard
  * as deleted. See {@link org.apache.lucene.index.IndexWriter#deleteDocuments(Query...)}
  */
-final class ShardSplittingQuery extends Query {
+public final class ShardSplittingQuery extends Query {
     private final IndexMetadata indexMetadata;
     private final IndexRouting indexRouting;
     private final int shardId;
     private final BitSetProducer nestedParentBitSetProducer;
 
-    ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
+    public ShardSplittingQuery(IndexMetadata indexMetadata, int shardId, boolean hasNested) {
         this.indexMetadata = indexMetadata;
         this.indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         this.shardId = shardId;

@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.state.RemoteClusterStateRequest;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -207,7 +207,7 @@ public class CcrLicenseChecker {
     public static void checkRemoteClusterLicenseAndFetchClusterState(
         final Client client,
         final String clusterAlias,
-        final ClusterStateRequest request,
+        final RemoteClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer
     ) {
@@ -242,7 +242,7 @@ public class CcrLicenseChecker {
         final Client client,
         final String clusterAlias,
         final RemoteClusterClient remoteClient,
-        final ClusterStateRequest request,
+        final RemoteClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
         final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,
@@ -279,7 +279,7 @@ public class CcrLicenseChecker {
         final Client client,
         final String clusterAlias,
         final RemoteClusterClient remoteClient,
-        final ClusterStateRequest request,
+        final RemoteClusterStateRequest request,
         final Consumer<Exception> onFailure,
         final Consumer<ClusterStateResponse> leaderClusterStateConsumer,
         final Function<RemoteClusterLicenseChecker.LicenseCheck, ElasticsearchStatusException> nonCompliantLicense,

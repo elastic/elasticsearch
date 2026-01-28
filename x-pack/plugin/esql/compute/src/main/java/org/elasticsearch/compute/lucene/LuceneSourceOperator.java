@@ -28,6 +28,7 @@ import org.elasticsearch.compute.lucene.LuceneSliceQueue.PartitioningStrategy;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -59,29 +60,33 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final int minPageSize;
 
     public static class Factory extends LuceneOperator.Factory {
-
-        private final int maxPageSize;
-        private final Limiter limiter;
+        protected final IndexedByShardId<? extends RefCounted> refCounteds;
+        protected final int maxPageSize;
+        protected final Limiter limiter;
 
         public Factory(
-            List<? extends ShardContext> contexts,
+            IndexedByShardId<? extends ShardContext> shardContexts,
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
             DataPartitioning dataPartitioning,
+            DataPartitioning.AutoStrategy autoStrategy,
             int taskConcurrency,
             int maxPageSize,
             int limit,
             boolean needsScore
         ) {
             super(
-                contexts,
+                shardContexts,
                 queryFunction,
                 dataPartitioning,
-                autoStrategy(limit),
+                dataPartitioning == DataPartitioning.AUTO ? autoStrategy.pickStrategy(limit) : q -> {
+                    throw new UnsupportedOperationException("locked in " + dataPartitioning);
+                },
                 taskConcurrency,
                 limit,
                 needsScore,
-                needsScore ? COMPLETE : COMPLETE_NO_SCORES
+                shardContext -> needsScore ? COMPLETE : COMPLETE_NO_SCORES
             );
+            this.refCounteds = shardContexts;
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
@@ -89,7 +94,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
         }
 
         public int maxPageSize() {
@@ -216,6 +221,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
+        IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
         int maxPageSize,
         LuceneSliceQueue sliceQueue,
@@ -223,7 +229,7 @@ public class LuceneSourceOperator extends LuceneOperator {
         Limiter limiter,
         boolean needsScore
     ) {
-        super(blockFactory, maxPageSize, sliceQueue);
+        super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
         this.remainingDocs = limit;
         this.limiter = limiter;
@@ -290,7 +296,6 @@ public class LuceneSourceOperator extends LuceneOperator {
     @Override
     public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
-            assert currentPagePos == 0 : currentPagePos;
             return null;
         }
         long start = System.nanoTime();
@@ -321,22 +326,22 @@ public class LuceneSourceOperator extends LuceneOperator {
                 IntVector shard = null;
                 IntVector leaf = null;
                 IntVector docs = null;
-                Block[] blocks = new Block[1 + (scoreBuilder == null ? 0 : 1) + scorer.tags().size()];
+                int metadataBlocks = numMetadataBlocks();
+                Block[] blocks = new Block[1 + metadataBlocks + scorer.tags().size()];
                 currentPagePos -= discardedDocs;
                 try {
-                    shard = blockFactory.newConstantIntVector(scorer.shardContext().index(), currentPagePos);
+                    int shardId = scorer.shardContext().index();
+                    shard = blockFactory.newConstantIntVector(shardId, currentPagePos);
                     leaf = blockFactory.newConstantIntVector(scorer.leafReaderContext().ord, currentPagePos);
                     docs = buildDocsVector(currentPagePos);
                     docsBuilder = blockFactory.newIntVectorBuilder(Math.min(remainingDocs, maxPageSize));
                     int b = 0;
-                    blocks[b++] = new DocVector(shard, leaf, docs, true).asBlock();
+                    blocks[b++] = new DocVector(refCounteds, shard, leaf, docs, true).asBlock();
                     shard = null;
                     leaf = null;
                     docs = null;
-                    if (scoreBuilder != null) {
-                        blocks[b++] = buildScoresVector(currentPagePos).asBlock();
-                        scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
-                    }
+                    buildMetadataBlocks(blocks, b, currentPagePos);
+                    b += metadataBlocks;
                     for (Object e : scorer.tags()) {
                         blocks[b++] = BlockUtils.constantBlock(blockFactory, e, currentPagePos);
                     }
@@ -386,8 +391,19 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    protected int numMetadataBlocks() {
+        return scoreBuilder != null ? 1 : 0;
+    }
+
+    protected void buildMetadataBlocks(Block[] blocks, int offset, int currentPagePos) {
+        if (scoreBuilder != null) {
+            blocks[offset] = buildScoresVector(currentPagePos).asBlock();
+            scoreBuilder = blockFactory.newDoubleVectorBuilder(Math.min(remainingDocs, maxPageSize));
+        }
+    }
+
     @Override
-    public void close() {
+    public void additionalClose() {
         Releasables.close(docsBuilder, scoreBuilder);
     }
 

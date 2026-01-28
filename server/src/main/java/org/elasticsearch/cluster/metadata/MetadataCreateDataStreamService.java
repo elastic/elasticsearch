@@ -235,7 +235,10 @@ public class MetadataCreateDataStreamService {
         Objects.requireNonNull(backingIndices);
         final var currentProject = currentState.metadata().getProject(request.projectId());
         if (currentProject.dataStreams().containsKey(dataStreamName)) {
-            throw new ResourceAlreadyExistsException("data_stream [" + dataStreamName + "] already exists");
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists", dataStreamName);
+        }
+        if (currentProject.hasView(dataStreamName)) {
+            throw new ResourceAlreadyExistsException("data_stream [{}] already exists as an ESQL view", dataStreamName);
         }
 
         MetadataCreateIndexService.validateIndexOrAliasName(
@@ -332,6 +335,7 @@ public class MetadataCreateDataStreamService {
             initialGeneration,
             template.metadata() != null ? Map.copyOf(template.metadata()) : null,
             Settings.EMPTY,
+            ComposableIndexTemplate.EMPTY_MAPPINGS,
             hidden,
             false,
             isSystem,

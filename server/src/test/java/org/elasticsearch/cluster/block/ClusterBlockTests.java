@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.block;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -23,10 +22,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 import static java.util.EnumSet.copyOf;
-import static org.elasticsearch.test.TransportVersionUtils.getFirstVersion;
-import static org.elasticsearch.test.TransportVersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.TransportVersionUtils.randomVersion;
-import static org.elasticsearch.test.TransportVersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -39,8 +35,8 @@ public class ClusterBlockTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            TransportVersion version = randomVersion(random());
-            ClusterBlock clusterBlock = randomClusterBlock(version);
+            TransportVersion version = randomVersion();
+            ClusterBlock clusterBlock = randomClusterBlock();
 
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(version);
@@ -54,41 +50,13 @@ public class ClusterBlockTests extends ESTestCase {
         }
     }
 
-    public void testSerializationBwc() throws Exception {
-        var out = new BytesStreamOutput();
-        out.setTransportVersion(
-            randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
-        );
-
-        var clusterBlock = randomClusterBlock(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
-        clusterBlock.writeTo(out);
-
-        var in = out.bytes().streamInput();
-        in.setTransportVersion(randomVersion());
-
-        assertClusterBlockEquals(
-            new ClusterBlock(
-                clusterBlock.id(),
-                clusterBlock.uuid(),
-                clusterBlock.description(),
-                clusterBlock.retryable(),
-                clusterBlock.disableStatePersistence(),
-                clusterBlock.isAllowReleaseResources(),
-                clusterBlock.status(),
-                // ClusterBlockLevel.REFRESH should not be sent over the wire to nodes with version < NEW_REFRESH_CLUSTER_BLOCK
-                ClusterBlock.filterLevels(clusterBlock.levels(), level -> ClusterBlockLevel.REFRESH.equals(level) == false)
-            ),
-            new ClusterBlock(in)
-        );
-    }
-
     public void testToStringDanglingComma() {
-        final ClusterBlock clusterBlock = randomClusterBlock(randomVersion(random()));
+        final ClusterBlock clusterBlock = randomClusterBlock();
         assertThat(clusterBlock.toString(), not(endsWith(",")));
     }
 
     public void testGlobalBlocksCheckedIfNoIndicesSpecified() {
-        ClusterBlock globalBlock = randomClusterBlock(randomVersion(random()));
+        ClusterBlock globalBlock = randomClusterBlock();
         ClusterBlocks clusterBlocks = new ClusterBlocks(Collections.singleton(globalBlock), Map.of());
         ClusterBlockException exception = clusterBlocks.indicesBlockedException(
             randomProjectIdOrDefault(),
@@ -171,13 +139,32 @@ public class ClusterBlockTests extends ESTestCase {
         );
     }
 
-    private static ClusterBlock randomClusterBlock(TransportVersion version) {
+    public void testProjectGlobal() {
+        final ProjectId project1 = randomUniqueProjectId();
+        final ProjectId project2 = randomUniqueProjectId();
+        final ClusterBlocks.Builder builder = ClusterBlocks.builder();
+        final var project1Index = randomIdentifier();
+        final var indexBlock = randomClusterBlock();
+        final var globalBlock = randomClusterBlock();
+        final var projectGlobalBlock = randomClusterBlock();
+        if (randomBoolean()) {
+            builder.addIndexBlock(project1, project1Index, indexBlock);
+        }
+        builder.addGlobalBlock(globalBlock);
+        builder.addProjectGlobalBlock(project1, projectGlobalBlock);
+        var clusterBlocks = builder.build();
+        assertThat(clusterBlocks.global().size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project1).size(), equalTo(1));
+        assertThat(clusterBlocks.projectGlobal(project2).size(), equalTo(0));
+        assertThat(clusterBlocks.global(project1).size(), equalTo(2));
+        assertThat(clusterBlocks.global(project2).size(), equalTo(1));
+        assertTrue(clusterBlocks.indexBlocked(project1, randomFrom(projectGlobalBlock.levels()), project1Index));
+        assertTrue(clusterBlocks.hasGlobalBlock(project1, projectGlobalBlock));
+    }
+
+    private static ClusterBlock randomClusterBlock() {
         final String uuid = randomBoolean() ? UUIDs.randomBase64UUID() : null;
-        final EnumSet<ClusterBlockLevel> levels = ClusterBlock.filterLevels(
-            EnumSet.allOf(ClusterBlockLevel.class),
-            // Filter out ClusterBlockLevel.REFRESH for versions < TransportVersions.NEW_REFRESH_CLUSTER_BLOCK
-            level -> ClusterBlockLevel.REFRESH.equals(level) == false || version.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK)
-        );
+        final EnumSet<ClusterBlockLevel> levels = EnumSet.allOf(ClusterBlockLevel.class);
         return new ClusterBlock(
             randomInt(),
             uuid,

@@ -8,6 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -23,12 +25,17 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDatetimeFromStringEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator in;
 
+  private final DateFormatter formatter;
+
   public ToDatetimeFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
-      DriverContext driverContext) {
+      DateFormatter formatter, DriverContext driverContext) {
     super(driverContext, source);
     this.in = in;
+    this.formatter = formatter;
   }
 
   @Override
@@ -64,7 +71,7 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
 
   private long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDatetime.fromKeyword(value, this.formatter);
   }
 
   @Override
@@ -104,12 +111,12 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
 
   private long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDatetime.fromKeyword(value, this.formatter);
   }
 
   @Override
   public String toString() {
-    return "ToDatetimeFromStringEvaluator[" + "in=" + in + "]";
+    return "ToDatetimeFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
   }
 
   @Override
@@ -117,24 +124,35 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     Releasables.closeExpectNoException(in);
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in) {
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        DateFormatter formatter) {
       this.source = source;
       this.in = in;
+      this.formatter = formatter;
     }
 
     @Override
     public ToDatetimeFromStringEvaluator get(DriverContext context) {
-      return new ToDatetimeFromStringEvaluator(source, in.get(context), context);
+      return new ToDatetimeFromStringEvaluator(source, in.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToDatetimeFromStringEvaluator[" + "in=" + in + "]";
+      return "ToDatetimeFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
     }
   }
 }

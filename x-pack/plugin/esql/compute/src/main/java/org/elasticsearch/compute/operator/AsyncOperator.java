@@ -9,7 +9,6 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
@@ -43,6 +42,8 @@ import java.util.concurrent.atomic.LongAdder;
  * @see #performAsync(Page, ActionListener)
  */
 public abstract class AsyncOperator<Fetched> implements Operator {
+
+    private static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = TransportVersion.fromName("esql_profile_async_nanos");
 
     private volatile SubscribableListener<Void> blockedFuture;
 
@@ -95,19 +96,16 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         driverContext.addAsyncAction();
         boolean success = false;
         try {
-            final ActionListener<Fetched> listener = ActionListener.wrap(output -> {
-                buffers.put(seqNo, output);
-                onSeqNoCompleted(seqNo);
-            }, e -> {
+            final ActionListener<Fetched> listener = ActionListener.wrap(output -> buffers.put(seqNo, output), e -> {
                 releasePageOnAnyThread(input);
                 failureCollector.unwrapAndCollect(e);
-                onSeqNoCompleted(seqNo);
             });
             final long startNanos = System.nanoTime();
             performAsync(input, ActionListener.runAfter(listener, () -> {
                 responseHeadersCollector.collect();
-                driverContext.removeAsyncAction();
                 processNanos.add(System.nanoTime() - startNanos);
+                onSeqNoCompleted(seqNo);
+                driverContext.removeAsyncAction();
             }));
             success = true;
         } finally {
@@ -241,7 +239,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
     @Override
     public final Operator.Status status() {
-        return status(Math.max(0L, checkpoint.getMaxSeqNo()), Math.max(0L, checkpoint.getProcessedCheckpoint()), processNanos.sum());
+        return status(checkpoint.getMaxSeqNo() + 1, checkpoint.getProcessedCheckpoint() + 1, processNanos.sum());
     }
 
     protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
@@ -268,7 +266,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
         protected Status(StreamInput in) throws IOException {
             this.receivedPages = in.readVLong();
             this.completedPages = in.readVLong();
-            this.processNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+            this.processNanos = in.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                 ? in.readVLong()
                 : TimeValue.timeValueMillis(in.readVLong()).nanos();
         }
@@ -278,7 +276,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             out.writeVLong(receivedPages);
             out.writeVLong(completedPages);
             out.writeVLong(
-                out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ASYNC_NANOS)
+                out.getTransportVersion().supports(ESQL_PROFILE_ASYNC_NANOS)
                     ? processNanos
                     : TimeValue.timeValueNanos(processNanos).millis()
             );
@@ -292,7 +290,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             return completedPages;
         }
 
-        public long procesNanos() {
+        public long processNanos() {
             return processNanos;
         }
 
@@ -313,8 +311,8 @@ public abstract class AsyncOperator<Fetched> implements Operator {
             if (builder.humanReadable()) {
                 builder.field("process_time", TimeValue.timeValueNanos(processNanos));
             }
-            builder.field("received_pages", receivedPages);
-            builder.field("completed_pages", completedPages);
+            builder.field("pages_received", receivedPages);
+            builder.field("pages_completed", completedPages);
             return builder;
         }
 
@@ -338,7 +336,7 @@ public abstract class AsyncOperator<Fetched> implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_14_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

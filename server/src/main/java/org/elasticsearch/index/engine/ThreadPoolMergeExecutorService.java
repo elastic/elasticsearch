@@ -20,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -28,11 +29,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -45,6 +50,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.function.LongUnaryOperator;
+import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_MAX_HEADROOM_SETTING;
@@ -169,6 +175,9 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+
+    private static final Logger logger = LogManager.getLogger(ThreadPoolMergeExecutorService.class);
+
     /**
      * Total number of submitted merge tasks that support IO auto throttling and that have not yet been run (or aborted).
      * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
@@ -291,6 +300,10 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         return queuedMergeTasks.isQueueEmpty() && runningMergeTasks.isEmpty() && ioThrottledMergeTasksCount.get() == 0L;
     }
 
+    public boolean isMergingBlockedDueToInsufficientDiskSpace() {
+        return availableDiskSpacePeriodicMonitor.isScheduled() && queuedMergeTasks.queueHeadIsOverTheAvailableBudget();
+    }
+
     /**
      * Enqueues a runnable that executes exactly one merge task, the smallest that is runnable at some point in time.
      * A merge task is not runnable if its scheduler already reached the configured max-allowed concurrency level.
@@ -365,7 +378,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
         }
     }
 
-    private void abortMergeTask(MergeTask mergeTask) {
+    void abortMergeTask(MergeTask mergeTask) {
         assert mergeTask.hasStartedRunning() == false;
         assert runningMergeTasks.contains(mergeTask) == false;
         try {
@@ -375,6 +388,25 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 ioThrottledMergeTasksCount.decrementAndGet();
             }
             mergeEventListeners.forEach(l -> l.onMergeAborted(mergeTask.getOnGoingMerge()));
+        }
+    }
+
+    private void abortMergeTasks(Collection<MergeTask> mergeTasks) {
+        if (mergeTasks != null && mergeTasks.isEmpty() == false) {
+            for (var mergeTask : mergeTasks) {
+                abortMergeTask(mergeTask);
+            }
+        }
+    }
+
+    /**
+     * Removes all {@link MergeTask} that match the predicate and aborts them.
+     * @param predicate             the predicate to filter merge tasks to be aborted
+     */
+    void abortQueuedMergeTasks(Predicate<MergeTask> predicate) {
+        final var queuedMergesToAbort = new HashSet<MergeTask>();
+        if (queuedMergeTasks.drainMatchingElementsTo(predicate, queuedMergesToAbort) > 0) {
+            abortMergeTasks(queuedMergesToAbort);
         }
     }
 
@@ -546,10 +578,11 @@ public class ThreadPoolMergeExecutorService implements Closeable {
     }
 
     static class MergeTaskPriorityBlockingQueue extends PriorityBlockingQueueWithBudget<MergeTask> {
+        private static final Logger LOGGER = LogManager.getLogger(MergeTaskPriorityBlockingQueue.class);
+
         MergeTaskPriorityBlockingQueue() {
-            // start with 0 budget (so takes on this queue will always block until {@link #updateBudget} is invoked)
-            // use the estimated *remaining* merge size as the budget function so that the disk space budget of taken (in-use) elements is
-            // updated according to the remaining disk space requirements of the currently running merge tasks
+            // by default, start with 0 budget (so takes on this queue will always block until the first {@link #updateBudget} is invoked)
+            // use the estimated *remaining* merge size as the budget function so that the disk space budget of elements is updated
             super(MergeTask::estimatedRemainingMergeSize, 0L);
         }
 
@@ -560,7 +593,56 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
         // exposed for tests
         MergeTask peekQueue() {
-            return enqueuedByBudget.peek();
+            return enqueuedByBudget.peek().v1();
+        }
+
+        @Override
+        void postBudgetUpdate() {
+            assert super.lock.isHeldByCurrentThread();
+            Tuple<MergeTask, Long> head = enqueuedByBudget.peek();
+            if (head != null && head.v2() > availableBudget) {
+                LOGGER.warn(
+                    String.format(
+                        Locale.ROOT,
+                        "There are merge tasks enqueued but there's insufficient disk space available to execute them "
+                            + "(the smallest merge task requires [%d] bytes, but the available disk space is only [%d] bytes)",
+                        head.v2(),
+                        availableBudget
+                    )
+                );
+                if (LOGGER.isDebugEnabled()) {
+                    if (unreleasedBudgetPerElement.isEmpty()) {
+                        LOGGER.debug(
+                            String.format(
+                                Locale.ROOT,
+                                "There are no merge tasks currently running, "
+                                    + "but there are [%d] enqueued ones that are blocked because of insufficient disk space "
+                                    + "(the smallest merge task requires [%d] bytes, but the available disk space is only [%d] bytes)",
+                                enqueuedByBudget.size(),
+                                head.v2(),
+                                availableBudget
+                            )
+                        );
+                    } else {
+                        StringBuilder messageBuilder = new StringBuilder();
+                        messageBuilder.append("The following merge tasks are currently running [");
+                        for (var runningMergeTask : super.unreleasedBudgetPerElement.entrySet()) {
+                            messageBuilder.append(runningMergeTask.getKey().element().toString());
+                            messageBuilder.append(" with disk space budgets in bytes ").append(runningMergeTask.getValue()).append(" , ");
+                        }
+                        messageBuilder.delete(messageBuilder.length() - 3, messageBuilder.length());
+                        messageBuilder.append("], and there are [")
+                            .append(enqueuedByBudget.size())
+                            .append("] additional enqueued ones that are blocked because of insufficient disk space");
+                        messageBuilder.append(" (the smallest merge task requires [")
+                            .append(head.v2())
+                            .append("] bytes, but the available disk space is only [")
+                            .append(availableBudget)
+                            .append("] bytes)");
+                        LOGGER.debug(messageBuilder.toString());
+                    }
+                }
+            }
         }
     }
 
@@ -570,15 +652,15 @@ public class ThreadPoolMergeExecutorService implements Closeable {
      */
     static class PriorityBlockingQueueWithBudget<E> {
         private final ToLongFunction<? super E> budgetFunction;
-        protected final PriorityQueue<E> enqueuedByBudget;
-        private final IdentityHashMap<ElementWithReleasableBudget, Long> unreleasedBudgetPerElement;
+        protected final PriorityQueue<Tuple<E, Long>> enqueuedByBudget;
+        protected final IdentityHashMap<ElementWithReleasableBudget, Budgets> unreleasedBudgetPerElement;
         private final ReentrantLock lock;
         private final Condition elementAvailable;
         protected long availableBudget;
 
         PriorityBlockingQueueWithBudget(ToLongFunction<? super E> budgetFunction, long initialAvailableBudget) {
             this.budgetFunction = budgetFunction;
-            this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(budgetFunction));
+            this.enqueuedByBudget = new PriorityQueue<>(64, Comparator.comparingLong(Tuple::v2));
             this.unreleasedBudgetPerElement = new IdentityHashMap<>();
             this.lock = new ReentrantLock();
             this.elementAvailable = lock.newCondition();
@@ -589,7 +671,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             final ReentrantLock lock = this.lock;
             lock.lock();
             try {
-                enqueuedByBudget.offer(e);
+                enqueuedByBudget.offer(new Tuple<>(e, budgetFunction.applyAsLong(e)));
                 elementAvailable.signal();
             } finally {
                 lock.unlock();
@@ -605,14 +687,33 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             final ReentrantLock lock = this.lock;
             lock.lockInterruptibly();
             try {
-                E peek;
-                long peekBudget;
+                Tuple<E, Long> head;
                 // blocks until the smallest budget element fits the currently available budget
-                while ((peek = enqueuedByBudget.peek()) == null || (peekBudget = budgetFunction.applyAsLong(peek)) > availableBudget) {
+                while ((head = enqueuedByBudget.peek()) == null || head.v2() > availableBudget) {
                     elementAvailable.await();
                 }
+                head = enqueuedByBudget.poll();
                 // deducts and holds up that element's budget from the available budget
-                return newElementWithReleasableBudget(enqueuedByBudget.poll(), peekBudget);
+                return newElementWithReleasableBudget(head.v1(), head.v2());
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        int drainMatchingElementsTo(Predicate<E> predicate, Collection<? super E> c) {
+            int removed = 0;
+            final ReentrantLock lock = this.lock;
+            lock.lock();
+            try {
+                for (Iterator<Tuple<E, Long>> iterator = enqueuedByBudget.iterator(); iterator.hasNext();) {
+                    E item = iterator.next().v1();
+                    if (predicate.test(item)) {
+                        iterator.remove();
+                        c.add(item);
+                        removed++;
+                    }
+                }
+                return removed;
             } finally {
                 lock.unlock();
             }
@@ -620,7 +721,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
 
         /**
          * Updates the available budged given the passed-in argument, from which it deducts the budget hold up by taken elements
-         * that are still in use. The budget of in-use elements is also updated (by re-applying the budget function).
+         * that are still in use. The elements budget is also updated by re-applying the budget function.
          * The newly updated budget is used to potentially block {@link #take()} operations if the smallest-budget enqueued element
          * is over this newly computed available budget.
          */
@@ -629,18 +730,56 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             lock.lock();
             try {
                 this.availableBudget = availableBudget;
-                // update the per-element budget (these are all the elements that are using any budget)
-                unreleasedBudgetPerElement.replaceAll((e, v) -> budgetFunction.applyAsLong(e.element()));
-                // available budget is decreased by the used per-element budget (for all dequeued elements that are still in use)
-                this.availableBudget -= unreleasedBudgetPerElement.values().stream().mapToLong(i -> i).sum();
+                // updates the budget of enqueued elements (and possibly reorders the priority queue)
+                updateBudgetOfEnqueuedElementsAndReorderQueue();
+                // update the budget of dequeued, but still in-use elements (these are the elements that are consuming budget)
+                unreleasedBudgetPerElement.replaceAll((e, v) -> v.updateBudgetEstimation(budgetFunction.applyAsLong(e.element())));
+                // the available budget is decreased by the budget of still in-use elements (dequeued elements that are still in-use)
+                this.availableBudget -= unreleasedBudgetPerElement.values()
+                    .stream()
+                    .mapToLong(i -> i.latestBudgetEstimationForElement)
+                    .sum();
                 elementAvailable.signalAll();
+                postBudgetUpdate();
             } finally {
                 lock.unlock();
             }
         }
 
+        void postBudgetUpdate() {
+            assert lock.isHeldByCurrentThread();
+        }
+
+        private void updateBudgetOfEnqueuedElementsAndReorderQueue() {
+            assert this.lock.isHeldByCurrentThread();
+            int queueSizeBefore = enqueuedByBudget.size();
+            var it = enqueuedByBudget.iterator();
+            List<Tuple<E, Long>> elementsToReorder = new ArrayList<>();
+            while (it.hasNext()) {
+                var elementWithBudget = it.next();
+                Long previousBudget = elementWithBudget.v2();
+                long latestBudget = budgetFunction.applyAsLong(elementWithBudget.v1());
+                if (previousBudget.equals(latestBudget) == false) {
+                    // the budget (estimation) of an enqueued element has changed
+                    // this element will be reordered by removing and reinserting using the latest budget (estimation)
+                    it.remove();
+                    elementsToReorder.add(new Tuple<>(elementWithBudget.v1(), latestBudget));
+                }
+            }
+            // reinsert elements based on the latest budget (estimation)
+            for (var reorderedElement : elementsToReorder) {
+                enqueuedByBudget.offer(reorderedElement);
+            }
+            assert queueSizeBefore == enqueuedByBudget.size();
+        }
+
         boolean isQueueEmpty() {
             return enqueuedByBudget.isEmpty();
+        }
+
+        boolean queueHeadIsOverTheAvailableBudget() {
+            var head = enqueuedByBudget.peek();
+            return head != null && head.v2() > availableBudget;
         }
 
         int queueSize() {
@@ -651,7 +790,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
             ElementWithReleasableBudget elementWithReleasableBudget = new ElementWithReleasableBudget(element);
             assert this.lock.isHeldByCurrentThread();
             // the taken element holds up some budget
-            var prev = this.unreleasedBudgetPerElement.put(elementWithReleasableBudget, budget);
+            var prev = this.unreleasedBudgetPerElement.put(elementWithReleasableBudget, new Budgets(budget, budget, this.availableBudget));
             assert prev == null;
             this.availableBudget -= budget;
             assert this.availableBudget >= 0L;
@@ -701,6 +840,16 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 return element;
             }
         }
+
+        record Budgets(long initialBudgetEstimationForElement, long latestBudgetEstimationForElement, long initialTotalAvailableBudget) {
+            Budgets updateBudgetEstimation(long latestBudgetEstimationForElement) {
+                return new Budgets(
+                    this.initialBudgetEstimationForElement,
+                    latestBudgetEstimationForElement,
+                    this.initialTotalAvailableBudget
+                );
+            }
+        }
     }
 
     private static long newTargetIORateBytesPerSec(
@@ -717,6 +866,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                 MIN_IO_RATE.getBytes(),
                 currentTargetIORateBytesPerSec - currentTargetIORateBytesPerSec / 10L
             );
+            logger.debug("Decreasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
         } else if (currentlySubmittedIOThrottledMergeTasks > concurrentMergesCeilLimitForThrottling
             && currentTargetIORateBytesPerSec < MAX_IO_RATE.getBytes()) {
                 // increase target IO rate by 20% (capped)
@@ -724,6 +874,7 @@ public class ThreadPoolMergeExecutorService implements Closeable {
                     MAX_IO_RATE.getBytes(),
                     currentTargetIORateBytesPerSec + currentTargetIORateBytesPerSec / 5L
                 );
+                logger.debug("Increasing target IO rate for merges to {}", newTargetIORateBytesPerSec);
             } else {
                 newTargetIORateBytesPerSec = currentTargetIORateBytesPerSec;
             }

@@ -7,74 +7,48 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.action;
 
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
-import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.elastic.rerank.ElasticInferenceServiceRerankRequest;
-import org.elasticsearch.xpack.inference.external.response.elastic.ElasticInferenceServiceRerankResponseEntity;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceResponseHandler;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsRequestManager;
-import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
-import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
-import static org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceRequest.extractRequestMetadataFromThreadContext;
 
-public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
+public class ElasticInferenceServiceActionCreator {
 
     private final Sender sender;
-
     private final ServiceComponents serviceComponents;
+    private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
 
-    private final TraceContext traceContext;
-
-    static final ResponseHandler RERANK_HANDLER = new ElasticInferenceServiceResponseHandler(
-        "elastic rerank",
-        (request, response) -> ElasticInferenceServiceRerankResponseEntity.fromResponse(response)
-    );
-
-    public ElasticInferenceServiceActionCreator(Sender sender, ServiceComponents serviceComponents, TraceContext traceContext) {
+    public ElasticInferenceServiceActionCreator(
+        Sender sender,
+        ServiceComponents serviceComponents,
+        CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory
+    ) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
-        this.traceContext = traceContext;
+        this.ccmAuthenticationApplierFactory = Objects.requireNonNull(ccmAuthenticationApplierFactory);
     }
 
-    @Override
-    public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
-        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
-        var errorMessage = constructFailedToSendRequestMessage(
-            Strings.format("%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
-        );
-        return new SenderExecutableAction(sender, requestManager, errorMessage);
-    }
+    public <T extends ElasticInferenceServiceModel> void create(
+        T model,
+        TraceContext traceContext,
+        ActionListener<ExecutableAction> listener
+    ) {
+        var authListener = listener.<CCMAuthenticationApplierFactory.AuthApplier>delegateFailureAndWrap((delegate, applier) -> {
+            var strategy = ModelStrategyFactory.getStrategy(model);
+            var requestManager = strategy.createRequestManager(model, serviceComponents, traceContext, applier);
+            delegate.onResponse(
+                new SenderExecutableAction(sender, requestManager, constructFailedToSendRequestMessage(strategy.requestDescription()))
+            );
+        });
 
-    @Override
-    public ExecutableAction create(ElasticInferenceServiceRerankModel model) {
-        var threadPool = serviceComponents.threadPool();
-        var requestManager = new GenericRequestManager<>(
-            threadPool,
-            model,
-            RERANK_HANDLER,
-            (rerankInput) -> new ElasticInferenceServiceRerankRequest(
-                rerankInput.getQuery(),
-                rerankInput.getChunks(),
-                rerankInput.getTopN(),
-                model,
-                traceContext,
-                extractRequestMetadataFromThreadContext(threadPool.getThreadContext())
-            ),
-            QueryAndDocsInputs.class
-        );
-        var errorMessage = constructFailedToSendRequestMessage(Strings.format("%s rerank", ELASTIC_INFERENCE_SERVICE_IDENTIFIER));
-        return new SenderExecutableAction(sender, requestManager, errorMessage);
+        ccmAuthenticationApplierFactory.getAuthenticationApplier(authListener);
     }
 }

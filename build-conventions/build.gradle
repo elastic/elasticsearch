@@ -72,6 +72,9 @@ repositories {
 }
 
 dependencies {
+  constraints {
+    api("org.slf4j:slf4j-api:2.0.6")
+  }
   api buildLibs.maven.model
   api buildLibs.shadow.plugin
   api buildLibs.apache.rat

@@ -53,8 +53,11 @@ interface ResultBuilder extends Releasable {
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
-            case DOC -> new ResultBuilderForDoc(blockFactory, positions);
+            case DOC -> new ResultBuilderForDoc(blockFactory, (DocVectorEncoder) encoder, positions);
             case AGGREGATE_METRIC_DOUBLE -> new ResultBuilderForAggregateMetricDouble(blockFactory, positions);
+            case LONG_RANGE -> new ResultBuilderForLongRange(blockFactory, positions);
+            case EXPONENTIAL_HISTOGRAM -> new ResultBuilderForExponentialHistogram(blockFactory, positions);
+            case TDIGEST -> new ResultBuilderForTDigest(blockFactory, positions);
             default -> {
                 assert false : "Result builder for [" + elementType + "]";
                 throw new UnsupportedOperationException("Result builder for [" + elementType + "]");

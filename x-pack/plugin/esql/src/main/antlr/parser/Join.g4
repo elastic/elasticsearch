@@ -11,15 +11,15 @@ joinCommand
     ;
 
 joinTarget
-    : index=indexPattern
+    // Cannot use UNQUOTED_IDENTIFIER for the qualifier because the lexer will confuse it with an UNQUOTED_SOURCE; would
+    // require pushing a mode to the lexer to disambiguate.
+    : {this.isDevVersion()}? index=indexPattern AS? qualifier=UNQUOTED_SOURCE
+    | index=indexPattern
     ;
 
 joinCondition
-    : ON joinPredicate (COMMA joinPredicate)*
+    : ON booleanExpression (COMMA booleanExpression)*
     ;
 
-joinPredicate
-    : valueExpression
-    ;
 
 

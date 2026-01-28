@@ -22,7 +22,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
@@ -87,13 +86,7 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
                 );
             }
         };
-        transportService = new MockTransportService(
-            Settings.EMPTY,
-            transport,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null
-        );
+        transportService = MockTransportService.createMockTransportService(transport, threadPool);
     }
 
     public void testBuildDynamicNodes() throws Exception {

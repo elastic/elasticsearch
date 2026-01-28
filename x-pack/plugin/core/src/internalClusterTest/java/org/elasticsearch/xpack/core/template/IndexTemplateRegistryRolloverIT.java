@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -59,8 +58,7 @@ public class IndexTemplateRegistryRolloverIT extends ESIntegTestCase {
             clusterService.threadPool(),
             client,
             xContentRegistry(),
-            3L,
-            TestProjectResolvers.mustExecuteFirst()
+            3L
         );
         registry.initialize();
         ensureGreen();

@@ -53,7 +53,7 @@ public abstract class ReservedStateAwareHandledTransportAction<Request extends A
             clusterService.state().metadata().reservedStateMetadata().values(),
             reservedStateHandlerName().get(),
             modifiedKeys(request),
-            request.toString()
+            request::toString
         );
         doExecuteProtected(task, request, listener);
     }

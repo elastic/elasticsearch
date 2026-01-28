@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.jdk.RuntimeVersionFeature;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -61,13 +60,10 @@ final class SystemJvmOptions {
                 "-Dio.netty.noUnsafe=true",
                 "-Dio.netty.noKeySetOptimization=true",
                 "-Dio.netty.recycler.maxCapacityPerThread=0",
-                // temporary until we get off-heap vector stats in Lucene 10.3
+                // Needed to get access to raw vectors from Lucene scorers
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server",
-                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene90=org.elasticsearch.server",
-                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene91=org.elasticsearch.server",
-                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene92=org.elasticsearch.server",
-                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene94=org.elasticsearch.server",
-                "--add-opens=org.apache.lucene.backward_codecs/org.apache.lucene.backward_codecs.lucene95=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server",
+                "--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server",
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
@@ -85,7 +81,6 @@ final class SystemJvmOptions {
             maybeSetActiveProcessorCount(nodeSettings),
             maybeSetReplayFile(distroType, isHotspot),
             maybeWorkaroundG1Bug(),
-            maybeAllowSecurityManager(useEntitlements),
             maybeAttachEntitlementAgent(esHome, useEntitlements)
         ).flatMap(s -> s).toList();
     }
@@ -160,14 +155,6 @@ final class SystemJvmOptions {
         return Stream.of();
     }
 
-    private static Stream<String> maybeAllowSecurityManager(boolean useEntitlements) {
-        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
-            // Will become conditional on useEntitlements once entitlements can run without SM
-            return Stream.of("-Djava.security.manager=allow");
-        }
-        return Stream.of();
-    }
-
     private static Stream<String> maybeAttachEntitlementAgent(Path esHome, boolean useEntitlements) {
         if (useEntitlements == false) {
             return Stream.empty();
@@ -191,7 +178,6 @@ final class SystemJvmOptions {
         // into java.base, we must export the bridge from java.base to these modules, as a comma-separated list
         String modulesContainingEntitlementInstrumentation = "java.logging,java.net.http,java.naming,jdk.net";
         return Stream.of(
-            "-Des.entitlements.enabled=true",
             "-XX:+EnableDynamicAgentLoading",
             "-Djdk.attach.allowAttachSelf=true",
             "--patch-module=java.base=" + bridgeJar,

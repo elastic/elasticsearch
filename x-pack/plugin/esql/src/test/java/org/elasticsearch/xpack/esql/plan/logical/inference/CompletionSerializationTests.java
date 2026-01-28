@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -22,31 +21,37 @@ public class CompletionSerializationTests extends AbstractLogicalPlanSerializati
 
     @Override
     protected Completion createTestInstance() {
-        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomPrompt(), randomAttribute());
+        return new Completion(randomSource(), randomChild(0), randomInferenceId(), randomRowLimit(), randomPrompt(), randomAttribute());
     }
 
     @Override
     protected Completion mutateInstance(Completion instance) throws IOException {
         LogicalPlan child = instance.child();
         Expression inferenceId = instance.inferenceId();
+        Expression rowLimit = instance.rowLimit();
         Expression prompt = instance.prompt();
         Attribute targetField = instance.targetField();
 
-        switch (between(0, 3)) {
+        switch (between(0, 4)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
             case 1 -> inferenceId = randomValueOtherThan(inferenceId, this::randomInferenceId);
-            case 2 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
-            case 3 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
+            case 2 -> rowLimit = randomValueOtherThan(rowLimit, this::randomRowLimit);
+            case 3 -> prompt = randomValueOtherThan(prompt, this::randomPrompt);
+            case 4 -> targetField = randomValueOtherThan(targetField, this::randomAttribute);
         }
-        return new Completion(instance.source(), child, inferenceId, prompt, targetField);
+        return new Completion(instance.source(), child, inferenceId, rowLimit, prompt, targetField);
     }
 
     private Literal randomInferenceId() {
-        return new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD);
+        return Literal.keyword(Source.EMPTY, randomIdentifier());
+    }
+
+    private Expression randomRowLimit() {
+        return new Literal(Source.EMPTY, randomIntBetween(1, 100), org.elasticsearch.xpack.esql.core.type.DataType.INTEGER);
     }
 
     private Expression randomPrompt() {
-        return randomBoolean() ? new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD) : randomAttribute();
+        return randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier()) : randomAttribute();
     }
 
     private Attribute randomAttribute() {

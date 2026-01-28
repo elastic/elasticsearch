@@ -10,8 +10,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
@@ -48,6 +51,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
 
     @Before
     public void setupTransportAction() {
+        ProjectId projectId = randomProjectIdOrDefault();
         threadPool = new TestThreadPool("TransportWatcherStatsActionTests");
         TransportService transportService = mock(TransportService.class);
         when(transportService.getThreadPool()).thenReturn(threadPool);
@@ -60,8 +64,10 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         when(clusterService.getClusterName()).thenReturn(clusterName);
 
         ClusterState clusterState = mock(ClusterState.class);
-        when(clusterState.getMetadata()).thenReturn(Metadata.EMPTY_METADATA);
         when(clusterService.state()).thenReturn(clusterState);
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).build()).build();
+        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
 
         WatcherLifeCycleService watcherLifeCycleService = mock(WatcherLifeCycleService.class);
         when(watcherLifeCycleService.getState()).thenReturn(() -> WatcherState.STARTED);
@@ -91,7 +97,8 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
             new ActionFilters(Collections.emptySet()),
             watcherLifeCycleService,
             executionService,
-            triggerService
+            triggerService,
+            TestProjectResolvers.singleProject(projectId)
         );
     }
 

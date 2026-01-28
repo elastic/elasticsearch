@@ -7,22 +7,28 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +38,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,7 +48,17 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(MockTransportService.TestPlugin.class);
+        plugins.add(DataTierFieldMapperPlugin.class);
+        return plugins;
+    }
+
+    public static class DataTierFieldMapperPlugin extends Plugin implements MapperPlugin {
+        @Override
+        public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+            return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
+        }
     }
 
     /**
@@ -69,20 +86,13 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("@timestamp", "2023-03-25", "uid", "u1"))
             .get();
         try {
-            Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).addRequestHandlingBehavior(
-                    ComputeService.DATA_ACTION_NAME,
-                    (handler, request, channel, task) -> {
-                        DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                        for (ShardId shardId : dataNodeRequest.shardIds()) {
-                            queriedIndices.add(shardId.getIndexName());
-                        }
-                        handler.messageReceived(request, channel, task);
-                    }
-                );
-            }
-            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
+            var queriedIndices = captureQueriedIndices();
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
+                )
+            ) {
                 assertThat(getValuesList(resp), hasSize(4));
                 assertThat(queriedIndices, equalTo(Set.of("events_2023")));
                 queriedIndices.clear();
@@ -93,7 +103,12 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 queriedIndices.clear();
             }
 
-            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"))) {
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").lt("2023-01-01"))
+                )
+            ) {
                 assertThat(getValuesList(resp), hasSize(3));
                 assertThat(queriedIndices, equalTo(Set.of("events_2022")));
                 queriedIndices.clear();
@@ -106,9 +121,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    "from events_*",
-                    randomPragmas(),
-                    new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31")
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31"))
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(7));
@@ -129,9 +143,8 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
 
             try (
                 EsqlQueryResponse resp = run(
-                    "from events_*",
-                    randomPragmas(),
-                    new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31")
+                    syncEsqlQueryRequest("from events_*").pragmas(randomPragmas())
+                        .filter(new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31"))
                 )
             ) {
                 assertThat(getValuesList(resp), hasSize(0));
@@ -149,10 +162,29 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, empty());
                 queriedIndices.clear();
             }
-        } finally {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).clearAllRules();
+
+            try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("""
+                from events_*
+                | WHERE @timestamp >= date_parse("yyyy-MM-dd", "2023-01-01")
+                | STATS count() BY DATE_FORMAT("yyyy-MM-dd", @timestamp)
+                """).pragmas(randomPragmas()))) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
             }
+            try (
+                EsqlQueryResponse resp = run(
+                    syncEsqlQueryRequest("from events_* | STATS count() BY DATE_FORMAT(\"yyyy-MM-dd\", @timestamp)").pragmas(
+                        randomPragmas()
+                    ).filter(new RangeQueryBuilder("@timestamp").gte("2023-01-01"))
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
+        } finally {
+            cleanAllTransportRules();
         }
     }
 
@@ -181,62 +213,102 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
         // employees index
-        try (var resp = run("from employees | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from employees | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from employees | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
         }
 
-        try (var resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from employees | stats count(emp_no)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from employees | stats avg(salary)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // match both employees index and engineers alias -> employees
-        try (var resp = run("from e* | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from e* | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
         }
-        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from employees | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
         }
 
-        try (var resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from e* | stats count(emp_no)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from e* | stats avg(salary)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
         // engineers alias
-        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from engineer* | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
         }
-        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from engineer* | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
         }
 
-        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from engineer* | stats count(emp_no)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
         }
-        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from engineer* | stats avg(salary)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
         }
 
         // sales alias
-        try (var resp = run("from sales | stats count(emp_no)", randomPragmas())) {
+        try (var resp = run("from sales | stats count(emp_no)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
         }
-        try (var resp = run("from sales | stats avg(salary)", randomPragmas())) {
+        try (var resp = run("from sales | stats avg(salary)")) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
         }
 
-        try (var resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from sales | stats count(emp_no)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
         }
-        try (var resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+        try (
+            var resp = run(
+                syncEsqlQueryRequest("from sales | stats avg(salary)").pragmas(randomPragmas())
+                    .filter(new RangeQueryBuilder("hired").lt("2012-04-30"))
+            )
+        ) {
             assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
         }
     }
@@ -297,7 +369,11 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             containsString("index [logs] has no active shard copy"),
             () -> run("from * | KEEP timestamp,message")
         );
-        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message", null, null, true)) {
+        try (EsqlQueryResponse resp = run(syncEsqlQueryRequest("from events,logs | KEEP timestamp,message").allowPartialResults(true))) {
+            assertTrue(resp.isPartial());
+            EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.getFailures(), hasSize(1));
+            assertThat(local.getFailures().get(0).reason(), containsString("index [logs] has no active shard copy"));
             assertThat(getValuesList(resp), hasSize(3));
         }
     }
@@ -318,19 +394,7 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             bulk.get();
             indexToNumDocs.put(index, docs);
         }
-        Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
-        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            as(transportService, MockTransportService.class).addRequestHandlingBehavior(
-                ComputeService.DATA_ACTION_NAME,
-                (handler, request, channel, task) -> {
-                    DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
-                    for (ShardId shardId : dataNodeRequest.shardIds()) {
-                        queriedIndices.add(shardId.getIndexName());
-                    }
-                    handler.messageReceived(request, channel, task);
-                }
-            );
-        }
+        var queriedIndices = captureQueriedIndices();
         try {
             for (int i = 0; i < numIndices; i++) {
                 queriedIndices.clear();
@@ -341,9 +405,57 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 assertThat(queriedIndices, equalTo(Set.of(index)));
             }
         } finally {
-            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                as(transportService, MockTransportService.class).clearAllRules();
+            cleanAllTransportRules();
+        }
+    }
+
+    public void testSkipOnTierName() {
+        assumeTrue("_tier metadata only available in snapshot builds", Build.current().isSnapshot());
+        var tiers = List.of("hot", "warm", "cold");
+        for (String tier : tiers) {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("index-" + tier)
+                    .setSettings(Settings.builder().put(DataTier.TIER_PREFERENCE, "data_" + tier))
+            );
+            indexRandom(true, "index-" + tier, 1);
+        }
+
+        var queriedIndices = captureQueriedIndices();
+        try {
+            for (String tier : tiers) {
+                queriedIndices.clear();
+                try (EsqlQueryResponse resp = run("from index-* METADATA _tier | WHERE _tier == \"data_" + tier + "\"")) {
+                    assertThat(getValuesList(resp), hasSize(1));
+                    assertThat(queriedIndices, equalTo(Set.of("index-" + tier)));
+                }
             }
+        } finally {
+            cleanAllTransportRules();
+        }
+    }
+
+    private static Set<String> captureQueriedIndices() {
+        Set<String> queriedIndices = ConcurrentCollections.newConcurrentSet();
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            as(transportService, MockTransportService.class).addRequestHandlingBehavior(
+                ComputeService.DATA_ACTION_NAME,
+                (handler, request, channel, task) -> {
+                    DataNodeRequest dataNodeRequest = (DataNodeRequest) request;
+                    for (DataNodeRequest.Shard shard : dataNodeRequest.shards()) {
+                        queriedIndices.add(shard.shardId().getIndexName());
+                    }
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+        }
+        return queriedIndices;
+    }
+
+    private static void cleanAllTransportRules() {
+        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+            as(transportService, MockTransportService.class).clearAllRules();
         }
     }
 }

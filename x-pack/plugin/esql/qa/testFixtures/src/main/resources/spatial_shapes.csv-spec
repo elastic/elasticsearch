@@ -324,6 +324,7 @@ wkt:keyword                               |pt:geo_shape
 
 polygonEnvelope
 required_capability: st_envelope
+required_capability: st_x_y_quantized
 
 // tag::st_envelope[]
 FROM airport_city_boundaries
@@ -335,13 +336,14 @@ FROM airport_city_boundaries
 ;
 
 // tag::st_envelope-result[]
-abbrev:keyword | airport:text  | envelope:geo_shape
-CPH            |  Copenhagen   | BBOX(12.453, 12.6398, 55.7327, 55.6318)
+abbrev:keyword | airport:text | envelope:geo_shape
+CPH            | Copenhagen   | BBOX (12.45299999602139, 12.639799928292632, 55.732699991203845, 55.63179998192936)
 // end::st_envelope-result[]
 ;
 
 polygonEnvelopeXYMinMax
 required_capability: st_envelope
+required_capability: st_x_y_quantized
 
 // tag::st_x_y_min_max[]
 FROM airport_city_boundaries
@@ -354,9 +356,46 @@ FROM airport_city_boundaries
 ;
 
 // tag::st_x_y_min_max-result[]
-abbrev:keyword | airport:text  | xmin:double | xmax:double | ymin:double | ymax:double 
-CPH            |  Copenhagen   | 12.453      | 12.6398     | 55.6318     | 55.7327
+abbrev:keyword | airport:text | xmin:double       | xmax:double        | ymin:double       | ymax:double
+CPH            | Copenhagen   | 12.45299999602139 | 12.639799928292632 | 55.63179998192936 | 55.732699991203845
 // end::st_x_y_min_max-result[]
+;
+
+###############################################
+# Tests for GEO_SHAPE type with ST_NPOINTS
+#
+
+polygonNPoints
+required_capability: st_npoints
+
+// tag::st_npoints[]
+FROM airport_city_boundaries
+| WHERE abbrev == "CPH"
+| EVAL points = ST_NPOINTS(city_boundary)
+| KEEP abbrev, airport, points
+// end::st_npoints[]
+;
+
+// tag::st_npoints-result[]
+abbrev:keyword | airport:text | points:integer
+CPH            | Copenhagen   | 15
+// end::st_npoints-result[]
+;
+
+polygonNPointsStats
+required_capability: st_npoints
+
+// tag::st_npoints_stats[]
+FROM airport_city_boundaries
+| EVAL points = ST_NPOINTS(city_boundary)
+| STATS count=COUNT(), min=MIN(points), max=MAX(points), avg=AVG(points), sum=SUM(points)
+// end::st_npoints_stats[]
+;
+
+// tag::st_npoints_stats-result[]
+count:long | min:integer | max:integer | avg:double        | sum:long
+770        | 5           | 50          | 18.47854356306892 | 14210
+// end::st_npoints_stats-result[]
 ;
 
 ###############################################
@@ -589,4 +628,66 @@ wkt:keyword                |pt:cartesian_shape
 "POINTX(4297.11 -1475.53)" |null
 "POINT(7580.93 2272.77)"   |POINT(7580.93 2272.77)
 "POINT(111)"               |null
+;
+
+###############################################
+# Tests for CARTESIAN_SHAPE type with ST_ENVELOPE, ST_XMIN, etc.
+#
+
+cartesianPolygonEnvelope
+required_capability: st_envelope
+required_capability: st_x_y_quantized
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL envelope = ST_ENVELOPE(shape)
+| KEEP id, name, envelope
+;
+
+id:keyword | name:keyword | envelope:cartesian_shape
+ZAF        | South Africa | BBOX (1834915.625, 4218142.5, -2527908.5, -5937134.0)
+;
+
+cartesianPolygonEnvelopeXYMinMax
+required_capability: st_envelope
+required_capability: st_x_y_quantized
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL envelope = ST_ENVELOPE(shape)
+| EVAL xmin = ST_XMIN(envelope), xmax = ST_XMAX(envelope), ymin = ST_YMIN(envelope), ymax = ST_YMAX(envelope)
+| KEEP id, name, xmin, xmax, ymin, ymax
+;
+
+id:keyword | name:keyword | xmin:double | xmax:double | ymin:double | ymax:double
+ZAF        | South Africa | 1834915.625 | 4218142.5   | -5937134.0  | -2527908.5
+;
+
+###############################################
+# Tests for CARTESIAN_SHAPE type with ST_NPOINTS
+#
+
+cartesianPolygonNPoints
+required_capability: st_npoints
+
+FROM countries_bbox_web
+| WHERE id == "ZAF"
+| EVAL points = ST_NPOINTS(shape)
+| KEEP id, name, points
+;
+
+id:keyword | name:keyword | points:integer
+ZAF        | South Africa | 4
+;
+
+cartesianPolygonNPointsStats
+required_capability: st_npoints
+
+FROM countries_bbox_web
+| EVAL points = ST_NPOINTS(shape)
+| STATS count=COUNT(), min=MIN(points), max=MAX(points), avg=AVG(points), sum=SUM(points)
+;
+
+count:long | min:integer | max:integer | avg:double | sum:long
+248        | 4           | 4           | 4.0        | 992
 ;

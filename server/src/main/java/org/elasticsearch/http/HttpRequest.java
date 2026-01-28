@@ -30,11 +30,15 @@ public interface HttpRequest extends HttpPreRequest {
 
     HttpBody body();
 
+    void setBody(HttpBody body);
+
     List<String> strictCookies();
 
     HttpVersion protocolVersion();
 
     HttpRequest removeHeader(String header);
+
+    boolean hasContent();
 
     /**
      * Create an http response from this request and the supplied status and content.

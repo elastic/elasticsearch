@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptContext;
@@ -43,7 +44,13 @@ public class WatcherTemplateTests extends ESTestCase {
             Watcher.SCRIPT_TEMPLATE_CONTEXT.name,
             Watcher.SCRIPT_TEMPLATE_CONTEXT
         );
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
+        ScriptService scriptService = new ScriptService(
+            Settings.EMPTY,
+            engines,
+            contexts,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
         textTemplateEngine = new TextTemplateEngine(scriptService);
     }
 

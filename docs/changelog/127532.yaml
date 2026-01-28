@@ -1,6 +1,0 @@
-pr: 127532
-summary: Fix case insensitive comparisons to ""
-area: ES|QL
-type: bug
-issues:
- - 127431

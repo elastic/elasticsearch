@@ -35,7 +35,6 @@ import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
@@ -60,6 +59,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -142,6 +142,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.shuffle;
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
@@ -169,6 +170,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
+    protected MergeMetrics mergeMetrics;
 
     protected IndexSettings defaultSettings;
     protected String codecName;
@@ -187,7 +189,7 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
     }
@@ -263,6 +265,7 @@ public abstract class EngineTestCase extends ESTestCase {
         primaryTranslogDir = createTempDir("translog-primary");
         mapperService = createMapperService(defaultSettings.getSettings(), defaultMapping(), extraMappers());
         translogHandler = createTranslogHandler(mapperService);
+        mergeMetrics = MergeMetrics.NOOP;
         engine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -313,7 +316,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -347,11 +352,13 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
-    public EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
+    public static EngineConfig copy(EngineConfig config, MergePolicy mergePolicy) {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
@@ -381,7 +388,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -783,7 +792,8 @@ public abstract class EngineTestCase extends ESTestCase {
             globalCheckpointSupplier,
             retentionLeasesSupplier,
             new NoneCircuitBreakerService(),
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -809,7 +819,8 @@ public abstract class EngineTestCase extends ESTestCase {
             maybeGlobalCheckpointSupplier,
             maybeGlobalCheckpointSupplier == null ? null : () -> RetentionLeases.EMPTY,
             breakerService,
-            null
+            null,
+            Function.identity()
         );
     }
 
@@ -824,7 +835,8 @@ public abstract class EngineTestCase extends ESTestCase {
         final @Nullable LongSupplier maybeGlobalCheckpointSupplier,
         final @Nullable Supplier<RetentionLeases> maybeRetentionLeasesSupplier,
         final CircuitBreakerService breakerService,
-        final @Nullable Engine.IndexCommitListener indexCommitListener
+        final @Nullable Engine.IndexCommitListener indexCommitListener,
+        final @Nullable Function<ElasticsearchIndexDeletionPolicy, ElasticsearchIndexDeletionPolicy> indexDeletionPolicyWrapper
     ) {
         final IndexWriterConfig iwc = newIndexWriterConfig();
         final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
@@ -887,7 +899,9 @@ public abstract class EngineTestCase extends ESTestCase {
             indexCommitListener,
             true,
             mapperService,
-            new EngineResetLock()
+            new EngineResetLock(),
+            mergeMetrics,
+            indexDeletionPolicyWrapper == null ? Function.identity() : indexDeletionPolicyWrapper
         );
     }
 
@@ -929,7 +943,9 @@ public abstract class EngineTestCase extends ESTestCase {
             config.getIndexCommitListener(),
             config.isPromotableToPrimary(),
             config.getMapperService(),
-            config.getEngineResetLock()
+            config.getEngineResetLock(),
+            config.getMergeMetrics(),
+            config.getIndexDeletionPolicyWrapper()
         );
     }
 
@@ -1003,7 +1019,7 @@ public abstract class EngineTestCase extends ESTestCase {
             engine.refresh("test");
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
-            Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+            Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
             assertThat(totalHits, equalTo(numDocs));
         }
     }
@@ -1412,13 +1428,14 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
                 if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()
-                    || engine.engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false) {
+                    || engine.engineConfig.getMapperService().mappingLookup().inferenceFields().isEmpty() == false
+                    || engine.engineConfig.getMapperService().mappingLookup().syntheticVectorFields().isEmpty() == false) {
                     assertTrue(
                         "luceneOp=" + luceneOp + " != translogOp=" + translogOp,
                         translogOperationAsserter.assertSameIndexOperation((Translog.Index) luceneOp, (Translog.Index) translogOp)
                     );
                 } else {
-                    assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
+                    assertThat(((Translog.Index) luceneOp).source(), equalBytes(((Translog.Index) translogOp).source()));
                 }
             }
         }
@@ -1645,7 +1662,7 @@ public abstract class EngineTestCase extends ESTestCase {
         if (randomBoolean()) {
             return reader -> reader;
         } else {
-            return reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery());
+            return reader -> new MatchingDirectoryReader(reader, Queries.ALL_DOCS_INSTANCE);
         }
     }
 
@@ -1690,7 +1707,7 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static CodecService newCodecService() {
-        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE);
+        return new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     /**

@@ -22,11 +22,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaStateService;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -79,29 +80,10 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
+    MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-        @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
-                @Override
-                public Map<String, String> indexFields() {
-                    return Map.of();
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
-                    return Map.of();
-                }
-            };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
+    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {
     };
 
     public IndicesServiceBuilder settings(Settings settings) {
@@ -206,6 +188,11 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public IndicesServiceBuilder mergeMetrics(MergeMetrics mergeMetrics) {
+        this.mergeMetrics = mergeMetrics;
+        return this;
+    }
+
     public List<SearchOperationListener> searchOperationListeners() {
         return searchOperationListener;
     }
@@ -215,8 +202,8 @@ public class IndicesServiceBuilder {
         return this;
     }
 
-    public IndicesServiceBuilder slowLogFieldProvider(SlowLogFieldProvider slowLogFieldProvider) {
-        this.slowLogFieldProvider = slowLogFieldProvider;
+    public IndicesServiceBuilder loggingFieldsProvider(ActionLoggingFieldsProvider loggingFieldsProvider) {
+        this.loggingFieldsProvider = loggingFieldsProvider;
         return this;
     }
 
@@ -244,8 +231,9 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
+        Objects.requireNonNull(mergeMetrics);
         Objects.requireNonNull(searchOperationListener);
-        Objects.requireNonNull(slowLogFieldProvider);
+        Objects.requireNonNull(loggingFieldsProvider);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

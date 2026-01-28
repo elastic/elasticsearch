@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -42,6 +44,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.UNSIGNED_LONG, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DOUBLE, ValuesDoubleAggregatorFunctionSupplier::new),
@@ -53,6 +56,9 @@ public class Values extends AggregateFunction implements ToAggregator {
         Map.entry(DataType.CARTESIAN_POINT, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.GEO_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.CARTESIAN_SHAPE, ValuesBytesRefAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHASH, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOTILE, ValuesLongAggregatorFunctionSupplier::new),
+        Map.entry(DataType.GEOHEX, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.BOOLEAN, ValuesBooleanAggregatorFunctionSupplier::new)
     );
 
@@ -66,12 +72,17 @@ public class Values extends AggregateFunction implements ToAggregator {
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
             "long",
+            "unsigned_long",
             "version" },
         preview = true,
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW) },
         description = """
             Returns unique values as a multivalued field. The order of the returned values isn’t guaranteed.
             If you need the values returned in order use
@@ -104,19 +115,23 @@ public class Values extends AggregateFunction implements ToAggregator {
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "unsigned_long",
                 "text",
                 "version" }
         ) Expression v
     ) {
-        this(source, v, Literal.TRUE);
+        this(source, v, Literal.TRUE, NO_WINDOW);
     }
 
-    public Values(Source source, Expression field, Expression filter) {
-        super(source, field, filter, emptyList());
+    public Values(Source source, Expression field, Expression filter, Expression window) {
+        super(source, field, filter, window, emptyList());
     }
 
     private Values(StreamInput in) throws IOException {
@@ -130,17 +145,17 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected NodeInfo<Values> info() {
-        return NodeInfo.create(this, Values::new, field(), filter());
+        return NodeInfo.create(this, Values::new, field(), filter(), window());
     }
 
     @Override
     public Values replaceChildren(List<Expression> newChildren) {
-        return new Values(source(), newChildren.get(0), newChildren.get(1));
+        return new Values(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 
     @Override
     public Values withFilter(Expression filter) {
-        return new Values(source(), field(), filter);
+        return new Values(source(), field(), filter, window());
     }
 
     @Override
@@ -150,7 +165,7 @@ public class Values extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isType(field(), SUPPLIERS::containsKey, sourceText(), DEFAULT, "any type except unsigned_long");
+        return TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override

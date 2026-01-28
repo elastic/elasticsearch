@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,7 +16,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -57,12 +56,12 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
             VALID_INPUT_TYPE_VALUES,
             validationException
         );
-        CohereTruncation truncation = extractOptionalEnum(
+        Truncation truncation = extractOptionalEnum(
             map,
             TRUNCATE,
             ModelConfigurations.TASK_SETTINGS,
-            CohereTruncation::fromString,
-            CohereTruncation.ALL,
+            Truncation::fromString,
+            Truncation.ALL,
             validationException
         );
 
@@ -77,10 +76,11 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
      * Creates a new {@link CohereEmbeddingsTaskSettings} by preferring non-null fields from the provided parameters.
      * For the input type, preference is given to requestInputType if it is not null and not UNSPECIFIED.
      * Then preference is given to the requestTaskSettings and finally to originalSettings even if the value is null.
-     *
+     * <p>
      * Similarly, for the truncation field preference is given to requestTaskSettings if it is not null and then to
      * originalSettings.
-     * @param originalSettings the settings stored as part of the inference entity configuration
+     *
+     * @param originalSettings    the settings stored as part of the inference entity configuration
      * @param requestTaskSettings the settings passed in within the task_settings field of the request
      * @return a constructed {@link CohereEmbeddingsTaskSettings}
      */
@@ -108,7 +108,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return inputTypeToUse;
     }
 
-    private static CohereTruncation getValidTruncation(
+    private static Truncation getValidTruncation(
         CohereEmbeddingsTaskSettings originalSettings,
         CohereEmbeddingsTaskSettings requestTaskSettings
     ) {
@@ -116,13 +116,13 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
     }
 
     private final InputType inputType;
-    private final CohereTruncation truncation;
+    private final Truncation truncation;
 
     public CohereEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(CohereTruncation.class));
+        this(in.readOptionalEnum(InputType.class), in.readOptionalEnum(Truncation.class));
     }
 
-    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable CohereTruncation truncation) {
+    public CohereEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Truncation truncation) {
         validateInputType(inputType);
         this.inputType = inputType;
         this.truncation = truncation;
@@ -159,7 +159,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
         return inputType;
     }
 
-    public CohereTruncation getTruncation() {
+    public Truncation getTruncation() {
         return truncation;
     }
 
@@ -170,7 +170,7 @@ public class CohereEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_13_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

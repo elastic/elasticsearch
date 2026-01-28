@@ -16,7 +16,9 @@ import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.FloatPoint;
+import org.apache.lucene.document.IntField;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -25,7 +27,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
@@ -46,8 +50,6 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchExecutionContextHelper;
-import org.elasticsearch.lucene.document.NumericField;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,6 +62,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -153,11 +156,28 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         assertTrue(ft.termQuery(42.1, MOCK_CONTEXT) instanceof MatchNoDocsQuery);
     }
 
+    private static MappedFieldType unsearchable() {
+        return new NumberFieldType(
+            "field",
+            NumberType.LONG,
+            IndexType.NONE,
+            false,
+            true,
+            null,
+            Collections.emptyMap(),
+            null,
+            false,
+            null,
+            null,
+            false
+        );
+    }
+
     private record TermQueryTestCase(NumberType type, Query[] expectedQueries) {}
 
     public void testTermQuery() {
         Query[] expectedIntegerQueries = new Query[] {
-            NumericField.newExactIntQuery("field", 42),
+            IntField.newExactQuery("field", 42),
             IntPoint.newExactQuery("field", 42),
             SortedNumericDocValuesField.newSlowExactQuery("field", 42) };
         List<TermQueryTestCase> testCases = List.of(
@@ -167,7 +187,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             new TermQueryTestCase(
                 NumberType.LONG,
                 new Query[] {
-                    NumericField.newExactLongQuery("field", 42),
+                    LongField.newExactQuery("field", 42),
                     LongPoint.newExactQuery("field", 42),
                     SortedNumericDocValuesField.newSlowExactQuery("field", 42) }
             ),
@@ -262,7 +282,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         for (OutOfRangeTermQueryTestCase testCase : testCases) {
             boolean indexed = randomBoolean();
             boolean hasDocValues = indexed == false || randomBoolean();
-            assertTrue(testCase.type.termQuery("field", testCase.value, indexed, hasDocValues) instanceof MatchNoDocsQuery);
+            assertTrue(
+                testCase.type.termQuery("field", testCase.value, IndexType.points(indexed, hasDocValues)) instanceof MatchNoDocsQuery
+            );
         }
     }
 
@@ -740,16 +762,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         final boolean hasDocValues = isIndexed == false || randomBoolean(); // at least one should be true
         assertNotEquals(
-            NumberType.DOUBLE.termQuery("field", -0d, isIndexed, hasDocValues),
-            NumberType.DOUBLE.termQuery("field", +0d, isIndexed, hasDocValues)
+            NumberType.DOUBLE.termQuery("field", -0d, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.DOUBLE.termQuery("field", +0d, IndexType.points(isIndexed, hasDocValues))
         );
         assertNotEquals(
-            NumberType.FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
-            NumberType.FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+            NumberType.FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
         );
         assertNotEquals(
-            NumberType.HALF_FLOAT.termQuery("field", -0f, isIndexed, hasDocValues),
-            NumberType.HALF_FLOAT.termQuery("field", +0f, isIndexed, hasDocValues)
+            NumberType.HALF_FLOAT.termQuery("field", -0f, IndexType.points(isIndexed, hasDocValues)),
+            NumberType.HALF_FLOAT.termQuery("field", +0f, IndexType.points(isIndexed, hasDocValues))
         );
     }
 
@@ -789,7 +811,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "foo", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "foo", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
         DirectoryReader reader = DirectoryReader.open(w);
@@ -831,9 +853,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
 
         // Create an index writer configured with the same index sort.
         NumberFieldType fieldType = new NumberFieldType("field", type);
-        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
-            .build(null, null);
-        SortField sortField = fielddata.sortField(null, MultiValueMode.MIN, null, randomBoolean());
+        IndexNumericFieldData fielddata = (IndexNumericFieldData) fieldType.fielddataBuilder(
+            FieldDataContext.noRuntimeFields("index", "test")
+        ).build(null, null);
+        SortField sortField = fielddata.indexSort(IndexVersion.current(), null, MultiValueMode.MIN, randomBoolean());
 
         IndexWriterConfig writerConfig = new IndexWriterConfig();
         writerConfig.setIndexSort(new Sort(sortField));
@@ -843,7 +866,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         final int numDocs = TestUtil.nextInt(random(), 100, 500);
         for (int i = 0; i < numDocs; ++i) {
             final LuceneDocument doc = new LuceneDocument();
-            type.addFields(doc, "field", valueSupplier.get(), true, true, false);
+            type.addFields(doc, "field", valueSupplier.get(), IndexType.points(true, true), false);
             w.addDocument(doc);
         }
 
@@ -866,8 +889,8 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 context,
                 isIndexed
             );
-            assertThat(query, instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class));
-            Query fallbackQuery = ((XIndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
+            assertThat(query, instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class));
+            Query fallbackQuery = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
 
             if (isIndexed) {
                 assertThat(fallbackQuery, instanceOf(IndexOrDocValuesQuery.class));
@@ -877,6 +900,10 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 assertEquals(searcher.count(query), searcher.count(fallbackQuery));
             }
         }
+
+        var comparator = sortField.getComparator(10, Pruning.GREATER_THAN_OR_EQUAL_TO);
+        var leafComparator = comparator.getLeafComparator(reader.getContext().leaves().get(0));
+        assertNotNull(leafComparator.competitiveIterator());
 
         reader.close();
         w.close();
@@ -1046,16 +1073,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.INTEGER,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
@@ -1064,27 +1084,16 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             "field",
             NumberType.FLOAT,
             ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
+            defaultIndexSettings()
         ).nullValue(2.71f).build(MapperBuilderContext.root(false, false)).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder(
-            "field",
-            NumberType.HALF_FLOAT,
-            ScriptCompiler.NONE,
-            false,
-            true,
-            IndexVersion.current(),
-            null,
-            null
-        ).build(MapperBuilderContext.root(false, false)).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, defaultIndexSettings())
+            .build(MapperBuilderContext.root(false, false))
+            .fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

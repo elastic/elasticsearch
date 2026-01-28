@@ -36,6 +36,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -60,6 +61,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_RESTORE_BYTES_PER_SEC;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_SNAPSHOT_BYTES_PER_SEC;
@@ -160,14 +162,22 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
 
         assertThat(blobStore.currentPath, nullValue());
 
-        assertNoThrottling(response);
+        assertResponseSummaryFields(request, response);
     }
 
-    static void assertNoThrottling(RepositoryAnalyzeAction.Response response) {
+    static void assertResponseSummaryFields(RepositoryAnalyzeAction.Request request, RepositoryAnalyzeAction.Response response) {
         try {
             final var responseMap = convertToMap(response);
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.write.total_throttled_nanos", responseMap));
-            assertEquals(Strings.toString(response), 0, (int) ObjectPath.eval("summary.read.total_throttled_nanos", responseMap));
+            final var responseString = Strings.toString(response);
+            assertThat(responseString, ObjectPath.eval("summary.write.count", responseMap), equalTo(request.getBlobCount()));
+
+            // extraordinarily unlikely but in theory up to half of the writes could be copies, and each of those writes could attempt the
+            // copy early, fail with a NoSuchFileException, and thus not attempt to read the copy, so we can only assert this:
+            final var minReadCount = request.getBlobCount() / 2;
+            assertThat(responseString, ObjectPath.eval("summary.read.count", responseMap), greaterThanOrEqualTo(minReadCount));
+
+            assertThat(responseString, ObjectPath.eval("summary.write.total_throttled_nanos", responseMap), equalTo(0));
+            assertThat(responseString, ObjectPath.eval("summary.read.total_throttled_nanos", responseMap), equalTo(0));
         } catch (IOException e) {
             fail(e);
         }
@@ -184,7 +194,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 ASSERTING_REPO_TYPE,
@@ -195,7 +206,8 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    buildBlobPath(metadata.settings())
+                    buildBlobPath(metadata.settings()),
+                    snapshotMetrics
                 )
             );
         }
@@ -225,9 +237,10 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {
@@ -590,7 +603,7 @@ public class RepositoryAnalysisSuccessIT extends AbstractSnapshotIntegTestCase {
                         contendedRegisterValue = updatedValue;
                     }
                 } else {
-                    assertEquals(expected, witness); // uncontended writes always succeed
+                    assertThat(witness, equalBytes(expected)); // uncontended writes always succeed
                     assertNotEquals(expected, updated); // uncontended register sees only updates
                     if (updated.length() != 0) {
                         final var updatedValue = longFromBytes(updated);

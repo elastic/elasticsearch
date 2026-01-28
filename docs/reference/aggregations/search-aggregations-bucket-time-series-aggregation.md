@@ -33,6 +33,7 @@ PUT /my-time-series-index-0/_bulk
 { "index": {}}
 { "key": "b", "val": 3, "@timestamp": "2022-01-02T00:00:00Z" }
 ```
+% NOTCONSOLE
 
 To perform a time series aggregation, specify "time_series" as the aggregation type. When the boolean "keyed" is true, each bucket is given a unique key.
 
@@ -48,6 +49,7 @@ GET /_search
   }
 }
 ```
+% NOTCONSOLE
 
 This will return all results in the time series, however a more typical query will use sub aggregations to reduce the date returned to something more relevant.
 

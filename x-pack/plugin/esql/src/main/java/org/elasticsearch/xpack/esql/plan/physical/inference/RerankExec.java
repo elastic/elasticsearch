@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
-import static org.elasticsearch.xpack.esql.plan.logical.inference.Rerank.planHasAttribute;
 
 public class RerankExec extends InferenceExec {
 
@@ -39,6 +38,7 @@ public class RerankExec extends InferenceExec {
     private final Expression queryText;
     private final List<Alias> rerankFields;
     private final Attribute scoreAttribute;
+    private List<Attribute> lazyOutput;
 
     public RerankExec(
         Source source,
@@ -102,22 +102,15 @@ public class RerankExec extends InferenceExec {
 
     @Override
     public List<Attribute> output() {
-        if (planHasAttribute(child(), scoreAttribute)) {
-            return child().output();
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(List.of(scoreAttribute), child().output());
         }
-
-        return mergeOutputAttributes(List.of(scoreAttribute), child().output());
+        return lazyOutput;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet.Builder refs = Rerank.computeReferences(rerankFields).asBuilder();
-
-        if (planHasAttribute(child(), scoreAttribute)) {
-            refs.add(scoreAttribute);
-        }
-
-        return refs.build();
+        return Rerank.computeReferences(rerankFields);
     }
 
     @Override

@@ -41,7 +41,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
      * Uses the sampler aggregation to find the minimum value of a field out of the top 3 scoring documents in a search.
      */
     public void testSampler() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -75,7 +75,7 @@ public class SamplerAggregatorTests extends AggregatorTestCase {
     }
 
     public void testRidiculousSize() throws IOException {
-        TextFieldType textFieldType = new TextFieldType("text", randomBoolean());
+        TextFieldType textFieldType = new TextFieldType("text", randomBoolean(), false);
         MappedFieldType numericFieldType = new NumberFieldMapper.NumberFieldType("int", NumberFieldMapper.NumberType.LONG);
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();

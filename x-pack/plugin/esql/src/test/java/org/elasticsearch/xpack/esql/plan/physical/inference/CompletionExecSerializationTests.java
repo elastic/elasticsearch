@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ReferenceAttributeTests;
 import org.elasticsearch.xpack.esql.plan.physical.AbstractPhysicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -41,11 +40,11 @@ public class CompletionExecSerializationTests extends AbstractPhysicalPlanSerial
     }
 
     private Literal randomInferenceId() {
-        return new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD);
+        return Literal.keyword(Source.EMPTY, randomIdentifier());
     }
 
     private Expression randomPrompt() {
-        return randomBoolean() ? new Literal(Source.EMPTY, randomIdentifier(), DataType.KEYWORD) : randomAttribute();
+        return randomBoolean() ? Literal.keyword(Source.EMPTY, randomIdentifier()) : randomAttribute();
     }
 
     private Attribute randomAttribute() {

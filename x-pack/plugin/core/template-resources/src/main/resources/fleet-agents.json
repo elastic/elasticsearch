@@ -58,6 +58,9 @@
             }
           }
         },
+        "last_known_status": {
+          "type": "keyword"
+        },
         "unhealthy_reason": {
           "type": "keyword"
         },
@@ -224,6 +227,9 @@
         "policy_id": {
           "type": "keyword"
         },
+        "agent_policy_id": {
+          "type": "keyword"
+        },
         "policy_output_permissions_hash": {
           "type": "keyword"
         },
@@ -308,6 +314,15 @@
                 },
                 "retry_until": {
                   "type": "date"
+                },
+                "reason": {
+                  "type":"text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
                 }
               }
             }
@@ -334,6 +349,20 @@
         },
         "audit_unenrolled_reason": {
           "type": "keyword"
+        },
+        "upgrade": {
+          "properties":{
+            "rollbacks":{
+              "properties": {
+                "valid_until": {
+                  "type": "date"
+                },
+                "version": {
+                  "type": "version"
+                }
+              }
+            }
+          }
         }
       }
     }

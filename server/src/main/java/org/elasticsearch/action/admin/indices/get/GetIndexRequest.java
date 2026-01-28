@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -109,13 +108,10 @@ public class GetIndexRequest extends LocalClusterStateRequest implements Indices
      * NB prior to 9.1 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public GetIndexRequest(StreamInput in) throws IOException {
         super(in);
         indices = in.readStringArray();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();
-        }
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         features = in.readArray(i -> Feature.fromId(i.readByte()), Feature[]::new);
         humanReadable = in.readBoolean();

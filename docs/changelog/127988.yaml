@@ -1,5 +1,0 @@
-pr: 127988
-summary: Add emit time to hash aggregation status
-area: ES|QL
-type: enhancement
-issues: []

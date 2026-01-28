@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -30,10 +29,12 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -68,8 +69,11 @@ import static org.hamcrest.Matchers.nullValue;
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
 
+    @Rule(order = Integer.MIN_VALUE)
+    public ProfileLogger profileLogger = new ProfileLogger();
+
     @ParametersFactory(argumentFormatting = "%s")
-    public static List<Object[]> args() throws Exception {
+    public static List<Object[]> args() {
         return List.of(
             new Object[] { null },
             new Object[] { MappedFieldType.FieldExtractPreference.NONE },
@@ -203,10 +207,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testUnsignedLong() throws IOException {
-        assumeTrue(
-            "order of fields in error message inconsistent before 8.14",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
-        );
         BigInteger value = randomUnsignedLong();
         new Test("unsigned_long").randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()
@@ -278,10 +278,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoPoint() throws IOException {
-        assumeTrue(
-            "not supported until 8.13",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
-        );
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
@@ -291,10 +287,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoShape() throws IOException {
-        assumeTrue(
-            "not supported until 8.13",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
-        );
         new Test("geo_shape")
             // TODO if source isn't enabled how can we load *something*? It's just triangles, right?
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
@@ -336,7 +328,11 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertThat(err, containsString("Unknown column [missing]"));
 
         // TODO this is broken in main too
-        // Map<String, Object> result = runEsqlSync(new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"));
+        // Map<String, Object> result = runEsqlSync(
+        // new RestEsqlTestCase.RequestObjectBuilder().query("FROM test* | LIMIT 2"),
+        // new AssertWarnings.NoWarnings(),
+        // profileLogger
+        // );
         // assertResultMap(
         // result,
         // matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
@@ -917,10 +913,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testIntegerDocValuesConflict() throws IOException {
-        assumeTrue(
-            "order of fields in error message inconsistent before 8.14",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
-        );
         intTest().sourceMode(SourceMode.DEFAULT).storeAndDocValues(null, true).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -1777,7 +1769,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             );
             request.pragmasOk();
         }
-        return runEsqlSync(request);
+        return runEsqlSync(request, new AssertWarnings.NoWarnings(), profileLogger);
     }
 
     protected abstract void canUsePragmasOk();

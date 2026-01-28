@@ -10,9 +10,8 @@ apply plugin: 'elasticsearch.java'
 description = 'Fixture for URL external service'
 
 dependencies {
-  api project(':server')
-  api project(':test:framework')
-  api "org.apache.ftpserver:ftpserver-core:1.2.1"
-  api "org.apache.ftpserver:ftplet-api:1.2.1"
-  api "org.apache.mina:mina-core:${versions.apache_mina}"
+  implementation project(':server')
+  implementation project(':test:framework')
+  implementation "org.apache.ftpserver:ftpserver-core:1.2.1"
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
 }

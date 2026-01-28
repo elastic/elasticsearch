@@ -182,8 +182,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
             case "home" -> BaseDir.USER_HOME;
+            case "shared_data" -> BaseDir.SHARED_DATA;
             // it would be nice to limit this to just ES modules, but we don't have a way to plumb that through to here
-            // however, we still don't document in the error case below that shared_repo is valid
+            // however, we still don't document in the error case below that shared_repo and shared_data is valid
             case "shared_repo" -> BaseDir.SHARED_REPO;
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"

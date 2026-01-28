@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ql.execution.search.extractor;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -76,11 +75,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         String typeName = in.readOptionalString();
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         hitName = in.readOptionalString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_6_0)) {
-            this.multiValueSupport = in.readBoolean() ? MultiValueSupport.LENIENT : MultiValueSupport.NONE;
-        } else {
-            this.multiValueSupport = in.readEnum(MultiValueSupport.class);
-        }
+        this.multiValueSupport = in.readEnum(MultiValueSupport.class);
         zoneId = readZoneId(in);
     }
 
@@ -95,11 +90,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeString(fieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeOptionalString(hitName);
-        if (out.getTransportVersion().before(TransportVersions.V_8_6_0)) {
-            out.writeBoolean(multiValueSupport != MultiValueSupport.NONE);
-        } else {
-            out.writeEnum(multiValueSupport);
-        }
+        out.writeEnum(multiValueSupport);
 
     }
 

@@ -11,11 +11,17 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
@@ -42,7 +48,11 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -64,7 +74,7 @@ public final class CsvAssert {
         var actualColumnNames = new ArrayList<String>(actualColumns.size());
         var actualColumnTypes = actualColumns.stream()
             .peek(c -> actualColumnNames.add(c.get("name")))
-            .map(c -> CsvTestUtils.Type.asType(c.get("type")))
+            .map(c -> Type.asType(c.get("type")))
             .toList();
         assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
     }
@@ -135,6 +145,9 @@ public final class CsvAssert {
                         || expectedType == Type.DATE_NANOS
                         || expectedType == Type.GEO_POINT
                         || expectedType == Type.CARTESIAN_POINT
+                        || expectedType == Type.GEOHASH
+                        || expectedType == Type.GEOTILE
+                        || expectedType == Type.GEOHEX
                         || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
@@ -218,17 +231,21 @@ public final class CsvAssert {
                     logger.info(row(actualValues, row));
                 }
 
-                var expectedRow = expectedValues.get(row);
-                var actualRow = actualValues.get(row);
+                List<Object> expectedRow = expectedValues.get(row);
+                List<Object> actualRow = actualValues.get(row);
 
                 for (int column = 0; column < expectedRow.size(); column++) {
-                    var expectedType = expected.columnTypes().get(column);
-                    var expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
-                    var actualValue = actualRow.get(column);
+                    Type expectedType = expected.columnTypes().get(column);
+                    Object expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
+                    if (expectedValue == CsvTestUtils.ANY) {
+                        continue;
+                    }
+                    Object actualValue = convertActualValue(expectedType, actualRow.get(column));
 
-                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
-                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
-                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                    Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    Object transformedActual = valueTransformer.apply(expectedType, actualValue);
+
+                    if (equals(transformedExpected, transformedActual) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -264,6 +281,24 @@ public final class CsvAssert {
                 actualValues,
                 valueTransformer
             );
+        }
+    }
+
+    private static boolean equals(Object expected, Object actual) {
+        if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
+            if (expectedList.size() != actualList.size()) {
+                return false;
+            }
+            for (int i = 0; i < expectedList.size(); i++) {
+                if (equals(expectedList.get(i), actualList.get(i)) == false) {
+                    return false;
+                }
+            }
+            return true;
+        } else if (expected instanceof CsvTestUtils.Range expectedRange) {
+            return expectedRange.includes(actual);
+        } else {
+            return Objects.equals(expected, actual);
         }
     }
 
@@ -412,6 +447,9 @@ public final class CsvAssert {
                 BytesRef.class,
                 x -> CARTESIAN.wkbToWkt((BytesRef) x)
             );
+            case Type.GEOHASH -> rebuildExpected(expectedValue, Long.class, x -> Geohash.stringEncode((long) x));
+            case Type.GEOTILE -> rebuildExpected(expectedValue, Long.class, x -> GeoTileUtils.stringEncode((long) x));
+            case Type.GEOHEX -> rebuildExpected(expectedValue, Long.class, x -> H3.h3ToString((long) x));
             case Type.IP -> // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                 rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
             case Type.VERSION -> // convert BytesRef-packed Version to String
@@ -422,7 +460,40 @@ public final class CsvAssert {
                 AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class,
                 x -> aggregateMetricDoubleLiteralToString((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) x)
             );
-            default -> expectedValue;
+            case EXPONENTIAL_HISTOGRAM -> rebuildExpected(
+                expectedValue,
+                ExponentialHistogram.class,
+                x -> exponentialHistogramToString((ExponentialHistogram) x)
+            );
+            case HISTOGRAM -> rebuildExpected(expectedValue, BytesRef.class, x -> histogramToString((BytesRef) x));
+            case DATE_RANGE -> rebuildExpected(
+                expectedValue,
+                LongRangeBlockBuilder.LongRange.class,
+                x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
+            );
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, NULL, BOOLEAN,
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+        };
+    }
+
+    private static Object convertActualValue(Type expectedType, Object actualValue) {
+        if (actualValue == null) {
+            return null;
+        }
+
+        // The CSV assertions expect UTC dates
+        return switch (expectedType) {
+            case Type.DATETIME -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_TIME_FORMATTER.formatMillis(DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) x))
+            );
+            case Type.DATE_NANOS -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
+            );
+            default -> actualValue;
         };
     }
 

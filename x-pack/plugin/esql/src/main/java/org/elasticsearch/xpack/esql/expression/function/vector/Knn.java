@@ -11,11 +11,17 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
+import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
+import org.elasticsearch.xpack.esql.common.Failure;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
-import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -27,64 +33,72 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.MapParam;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Options;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.SingleFieldFullTextFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.KnnQuery;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.BOOST_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.K_FIELD;
-import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.NUM_CANDS_FIELD;
 import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VECTOR_SIMILARITY_FIELD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isMapExpression;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.search.vectors.KnnVectorQueryBuilder.VISIT_PERCENTAGE_FIELD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FOURTH;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.Match.getNameFromFieldAttribute;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
-public class Knn extends FullTextFunction implements OptionalArgument, VectorFunction {
+public class Knn extends SingleFieldFullTextFunction implements OptionalArgument, VectorFunction, PostOptimizationVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Knn", Knn::readFrom);
 
-    private final Expression field;
-    private final Expression options;
+    // Implicit k is not serialized as it's already included in the query builder on the rewrite step before being sent to data nodes
+    private final transient Integer implicitK;
+    // Expressions to be used as prefilters in knn query
+    private final List<Expression> filterExpressions;
+
+    public static final String MIN_CANDIDATES_OPTION = "min_candidates";
 
     public static final Map<String, DataType> ALLOWED_OPTIONS = Map.ofEntries(
         entry(K_FIELD.getPreferredName(), INTEGER),
-        entry(NUM_CANDS_FIELD.getPreferredName(), INTEGER),
+        entry(MIN_CANDIDATES_OPTION, INTEGER),
         entry(VECTOR_SIMILARITY_FIELD.getPreferredName(), FLOAT),
+        entry(VISIT_PERCENTAGE_FIELD.getPreferredName(), FLOAT),
         entry(BOOST_FIELD.getPreferredName(), FLOAT),
         entry(KnnQuery.RESCORE_OVERSAMPLE_FIELD, FLOAT)
     );
 
     @FunctionInfo(
         returnType = "boolean",
-        preview = true,
         description = "Finds the k nearest vectors to a query vector, as measured by a similarity metric. "
-            + "knn function finds nearest vectors through approximate search on indexed dense_vectors.",
-        examples = {
-            @Example(file = "knn-function", tag = "knn-function"),
-            @Example(file = "knn-function", tag = "knn-function-options"), },
-        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.DEVELOPMENT) }
+            + "knn function finds nearest vectors through approximate search on indexed dense_vectors or semantic_text fields.",
+        examples = { @Example(file = "knn-function", tag = "knn-function") },
+        appliesTo = {
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0"),
+            @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.4.0") }
     )
     public Knn(
         Source source,
-        @Param(name = "field", type = { "dense_vector" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "dense_vector", "text" },
+            description = "Field that the query will target. "
+                + "knn function can be used with dense_vector or semantic_text fields. Other text fields are not allowed"
+        ) Expression field,
         @Param(
             name = "query",
             type = { "dense_vector" },
@@ -94,6 +108,15 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             name = "options",
             params = {
                 @MapParam.MapParamEntry(
+                    name = "k",
+                    type = "integer",
+                    valueHint = { "10" },
+                    description = "The number of nearest neighbors to return from each shard. "
+                        + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
+                        + "This value must be less than or equal to num_candidates. "
+                        + "This value is automatically set with any LIMIT applied to the function."
+                ),
+                @MapParam.MapParamEntry(
                     name = "boost",
                     type = "float",
                     valueHint = { "2.5" },
@@ -101,20 +124,23 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                         + "Defaults to 1.0."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "k",
+                    name = "min_candidates",
                     type = "integer",
                     valueHint = { "10" },
-                    description = "The number of nearest neighbors to return from each shard. "
-                        + "Elasticsearch collects k results from each shard, then merges them to find the global top results. "
-                        + "This value must be less than or equal to num_candidates. Defaults to 10."
+                    description = "The minimum number of nearest neighbor candidates to consider per shard while doing knn search. "
+                        + " KNN may use a higher number of candidates in case the query can't use a approximate results. "
+                        + "Cannot exceed 10,000. Increasing min_candidates tends to improve the accuracy of the final results. "
+                        + "Defaults to 1.5 * k (or LIMIT) used for the query."
                 ),
                 @MapParam.MapParamEntry(
-                    name = "num_candidates",
-                    type = "integer",
+                    name = "visit_percentage",
+                    type = "float",
                     valueHint = { "10" },
-                    description = "The number of nearest neighbor candidates to consider per shard while doing knn search. "
-                        + "Cannot exceed 10,000. Increasing num_candidates tends to improve the accuracy of the final results. "
-                        + "Defaults to 1.5 * k"
+                    description = "The percentage of vectors to explore per shard while doing knn search with bbq_disk. "
+                        + "Must be between 0 and 100. 0 will default to using num_candidates for calculating the percent visited. "
+                        + "Increasing visit_percentage tends to improve the accuracy of the final results. "
+                        + "If visit_percentage is set for bbq_disk, num_candidates is ignored. "
+                        + "Defaults to ~1% per shard for every 1 million vectors"
                 ),
                 @MapParam.MapParamEntry(
                     name = "similarity",
@@ -132,107 +158,144 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
                         + "(docs-content://solutions/search/vector/knn.md#dense-vector-knn-search-rescoring) for details."
                 ), },
             description = "(Optional) kNN additional options as <<esql-function-named-params,function named parameters>>."
-                + " See <<query-dsl-knn-query,knn query>> for more information.",
+                + " See [knn query](/reference/query-languages/query-dsl/query-dsl-knn-query.md) for more information.",
             optional = true
         ) Expression options
     ) {
-        this(source, field, query, options, null);
+        this(source, field, query, options, null, null, List.of());
     }
 
-    private Knn(Source source, Expression field, Expression query, Expression options, QueryBuilder queryBuilder) {
-        super(source, query, options == null ? List.of(field, query) : List.of(field, query, options), queryBuilder);
-        this.field = field;
-        this.options = options;
+    public Knn(
+        Source source,
+        Expression field,
+        Expression query,
+        Expression options,
+        Integer implicitK,
+        QueryBuilder queryBuilder,
+        List<Expression> filterExpressions
+    ) {
+        super(source, field, query, options, expressionList(field, query, options), queryBuilder);
+        this.implicitK = implicitK;
+        this.filterExpressions = filterExpressions;
     }
 
-    public Expression field() {
-        return field;
-    }
-
-    public Expression options() {
-        return options;
-    }
-
-    @Override
-    public DataType dataType() {
-        return DataType.BOOLEAN;
-    }
-
-    @Override
-    protected TypeResolution resolveParams() {
-        return resolveField().and(resolveQuery()).and(resolveOptions());
-    }
-
-    private TypeResolution resolveField() {
-        return isNotNull(field(), sourceText(), FIRST).and(isType(field(), dt -> dt == DENSE_VECTOR, sourceText(), FIRST, "dense_vector"));
-    }
-
-    private TypeResolution resolveQuery() {
-        return isType(query(), dt -> dt == DENSE_VECTOR, sourceText(), TypeResolutions.ParamOrdinal.SECOND, "dense_vector").and(
-            isNotNullAndFoldable(query(), sourceText(), SECOND)
-        );
-    }
-
-    private TypeResolution resolveOptions() {
-        if (options() != null) {
-            TypeResolution resolution = isNotNull(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-            // MapExpression does not have a DataType associated with it
-            resolution = isMapExpression(options(), sourceText(), THIRD);
-            if (resolution.unresolved()) {
-                return resolution;
-            }
-
-            try {
-                knnQueryOptions();
-            } catch (InvalidArgumentException e) {
-                return new TypeResolution(e.getMessage());
-            }
+    private static List<Expression> expressionList(Expression field, Expression query, Expression options) {
+        List<Expression> result = new ArrayList<>();
+        result.add(field);
+        result.add(query);
+        if (options != null) {
+            result.add(options);
         }
-        return TypeResolution.TYPE_RESOLVED;
+        return result;
     }
 
-    private Map<String, Object> knnQueryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
-        }
-
-        Map<String, Object> matchOptions = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), matchOptions, THIRD, sourceText(), ALLOWED_OPTIONS);
-        return matchOptions;
+    public Integer implicitK() {
+        return implicitK;
     }
 
-    @Override
-    protected Query translate(TranslatorHandler handler) {
-        var fieldAttribute = Match.fieldAsFieldAttribute(field());
+    public List<Expression> filterExpressions() {
+        return filterExpressions;
+    }
 
-        Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
-        String fieldName = getNameFromFieldAttribute(fieldAttribute);
-        @SuppressWarnings("unchecked")
-        List<Number> queryFolded = (List<Number>) query().fold(FoldContext.small() /* TODO remove me */);
-        float[] queryAsFloats = new float[queryFolded.size()];
-        for (int i = 0; i < queryFolded.size(); i++) {
-            queryAsFloats[i] = queryFolded.get(i).floatValue();
+    public Knn withImplicitK(Integer k) {
+        Check.notNull(k, "k must not be null");
+        return new Knn(source(), field(), query(), options(), k, queryBuilder(), filterExpressions());
+    }
+
+    public List<Number> queryAsObject() {
+        // we need to check that we got a list and every element in the list is a number
+        Expression query = query();
+        if (query instanceof Literal literal) {
+            @SuppressWarnings("unchecked")
+            List<Number> result = ((List<Number>) literal.value());
+            return result;
         }
-
-        return new KnnQuery(source(), fieldName, queryAsFloats, queryOptions());
+        throw new EsqlIllegalArgumentException(format(null, "Query value must be a list of numbers in [{}], found [{}]", source(), query));
     }
 
     @Override
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
-        return new Knn(source(), field(), query(), options(), queryBuilder);
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder, filterExpressions());
+    }
+
+    @Override
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        Translatable translatable = super.translatable(pushdownPredicates);
+        // We need to check whether filter expressions are translatable as well
+        for (Expression filterExpression : filterExpressions()) {
+            translatable = translatable.merge(TranslationAware.translatable(filterExpression, pushdownPredicates));
+        }
+
+        return translatable;
+    }
+
+    @Override
+    protected Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        assert implicitK() != null : "Knn function must have a k value set before translation";
+        var fieldAttribute = fieldAsFieldAttribute(field());
+
+        Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        float[] queryAsFloats = queryAsFloats();
+
+        List<QueryBuilder> filterQueries = new ArrayList<>();
+        for (Expression filterExpression : filterExpressions()) {
+            if (filterExpression instanceof TranslationAware translationAware) {
+                // We can only translate filter expressions that are translatable. In case any is not translatable,
+                // Knn won't be pushed down so it's safe not to translate all filters and check them when creating an evaluator
+                // for the non-pushed down query
+                if (translationAware.translatable(pushdownPredicates) == Translatable.YES) {
+                    filterQueries.add(handler.asQuery(pushdownPredicates, filterExpression).toQueryBuilder());
+                }
+            }
+        }
+
+        Map<String, Object> options = queryOptions();
+        Integer explicitK = (Integer) options.get(K_FIELD.getPreferredName());
+
+        return new KnnQuery(source(), fieldName, queryAsFloats, explicitK != null ? explicitK : implicitK(), options, filterQueries);
+    }
+
+    private float[] queryAsFloats() {
+        List<Number> queryFolded = queryAsObject();
+        float[] queryAsFloats = new float[queryFolded.size()];
+        for (int i = 0; i < queryFolded.size(); i++) {
+            queryAsFloats[i] = queryFolded.get(i).floatValue();
+        }
+        return queryAsFloats;
+    }
+
+    public Expression withFilters(List<Expression> filterExpressions) {
+        return new Knn(source(), field(), query(), options(), implicitK(), queryBuilder(), filterExpressions);
     }
 
     private Map<String, Object> queryOptions() throws InvalidArgumentException {
-        if (options() == null) {
-            return Map.of();
-        }
-
         Map<String, Object> options = new HashMap<>();
-        populateOptionsMap((MapExpression) options(), options, THIRD, sourceText(), ALLOWED_OPTIONS);
+        if (options() != null) {
+            Options.populateMap((MapExpression) options(), options, source(), FOURTH, ALLOWED_OPTIONS);
+        }
         return options;
+    }
+
+    protected QueryBuilder evaluatorQueryBuilder() {
+        // Either we couldn't push down due to non-pushable filters, or because it's part of a disjuncion.
+        // Uses a nearest neighbors exact query instead of an approximate one
+        var fieldAttribute = fieldAsFieldAttribute(field());
+        Check.notNull(fieldAttribute, "Knn must have a field attribute as the first argument");
+        String fieldName = getNameFromFieldAttribute(fieldAttribute);
+        Map<String, Object> opts = queryOptions();
+
+        return new ExactKnnQueryBuilder(VectorData.fromFloats(queryAsFloats()), fieldName, (Float) opts.get(VECTOR_SIMILARITY_FIELD));
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        // Check that a k has been set
+        if (implicitK() == null) {
+            failures.add(
+                Failure.fail(this, "Knn function must be used with a LIMIT clause after it to set the number of nearest neighbors to find")
+            );
+        }
     }
 
     @Override
@@ -242,13 +305,15 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
             newChildren.get(0),
             newChildren.get(1),
             newChildren.size() > 2 ? newChildren.get(2) : null,
-            queryBuilder()
+            implicitK(),
+            queryBuilder(),
+            filterExpressions()
         );
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Knn::new, field(), query(), options());
+        return NodeInfo.create(this, Knn::new, field(), query(), options(), implicitK(), queryBuilder(), filterExpressions());
     }
 
     @Override
@@ -261,8 +326,8 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
         QueryBuilder queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
-
-        return new Knn(source, field, query, null, queryBuilder);
+        List<Expression> filterExpressions = in.readNamedWriteableCollectionAsList(Expression.class);
+        return new Knn(source, field, query, null, null, queryBuilder, filterExpressions);
     }
 
     @Override
@@ -271,6 +336,23 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         out.writeOptionalNamedWriteable(queryBuilder());
+        out.writeNamedWriteableCollection(filterExpressions());
+    }
+
+    @Override
+    protected Set<DataType> getFieldDataTypes() {
+        // Knn accepts DENSE_VECTOR or TEXT (for semantic_text), plus NULL for missing fields
+        return Set.of(DENSE_VECTOR, TEXT, NULL);
+    }
+
+    @Override
+    protected Set<DataType> getQueryDataTypes() {
+        return Set.of(DENSE_VECTOR);
+    }
+
+    @Override
+    protected Map<String, DataType> getAllowedOptions() {
+        return ALLOWED_OPTIONS;
     }
 
     @Override
@@ -279,14 +361,14 @@ public class Knn extends FullTextFunction implements OptionalArgument, VectorFun
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return Objects.equals(field(), knn.field())
-            && Objects.equals(query(), knn.query())
-            && Objects.equals(queryBuilder(), knn.queryBuilder());
+        return super.equals(knn)
+            && Objects.equals(implicitK(), knn.implicitK())
+            && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field(), query(), queryBuilder());
+        return Objects.hash(field(), query(), queryBuilder(), implicitK(), filterExpressions());
     }
 
 }

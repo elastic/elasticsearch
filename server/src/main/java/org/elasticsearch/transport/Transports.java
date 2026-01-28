@@ -19,7 +19,7 @@ public enum Transports {
     ;
     private static final Set<String> REQUEST_HEADERS_ALLOWED_ON_DEFAULT_THREAD_CONTEXT = Set.of(
         Task.TRACE_ID,
-        Task.TRACE_PARENT,
+        Task.TRACE_PARENT_HTTP_HEADER,
         Task.X_OPAQUE_ID_HTTP_HEADER,
         Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER,
         Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER

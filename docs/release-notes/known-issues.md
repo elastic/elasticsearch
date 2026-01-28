@@ -1,11 +1,74 @@
 ---
 navigation_title: "Known issues"
 mapped_pages:
-  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-connectors-known-issues.html
+  - https://www.elastic.co/guide/en/elasticsearch/reference/current/es-release-notes.html
 ---
 
 # Elasticsearch known issues [elasticsearch-known-issues]
+
 Known issues are significant defects or limitations that may impact your implementation. These issues are actively being worked on and will be addressed in a future release. Review the Elasticsearch known issues to help you make informed decisions, such as upgrading to a new version.
+
+## 9.2.4 [elasticsearch-9.2.4-known-issues]
+
+* Upgrading from 9.1.10 to 9.2.4 may cause the following error:
+
+  ```
+  fatal exception while booting Elasticsearch org.elasticsearch.ElasticsearchException: failed to load metadata at org.elasticsearch.gateway.GatewayMetaState.start(GatewayMetaState.java:119) ~[elasticsearch-9.2.4.jar:?] at [..] Caused by: org.elasticsearch.gateway.CorruptStateException: org.elasticsearch.xcontent.XContentParseException: [-1:107032] [node_shutdown] failed to parse field [nodes]
+  ...
+  org.elasticsearch.xcontent.XContentParseException: [-1:107008] [node_shutdown_info] unknown field [shutdown_started_millis] did you mean [shutdown_startedmillis]
+  ```
+  
+  This bug is addressed in version 9.2.5.
+
+## 9.2.0 [elasticsearch-9.2.0-known-issues]
+
+* The `bbq_disk` index format, licensed under the [Enterprise subscription tier](https://www.elastic.co/subscriptions) was introduced in 9.2.0 without appropriate license enforcement. This allowed users to create and use `bbq_disk` indices without an Enterprise license. This will be addressed in version 9.3.0. Upon upgrading to 9.3+ indices created on 9.2 will still be available for updates and queries, but new indices created on 9.3+ will require an Enterprise license.
+
+  This will be addressed in version 9.3.0.
+
+## 9.1.1 [elasticsearch-9.1.1-known-issues]
+
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+
+The bug is addressed in version 9.1.2.
+
+## 9.1.0 [elasticsearch-9.1.0-known-issues]
+
+* An [optimization](https://github.com/elastic/elasticsearch/pull/125403) introduced in 9.1.0 contains a [bug](https://github.com/elastic/elasticsearch/pull/132597) that causes merges to fail for shrunk TSDB and LogsDB indices.
+
+  Possible *temporary* workarounds include:
+  * Configure the ILM policy to not perform force merges after shrinking TSDB or LogsDB indices.
+  * Add `-Dorg.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesConsumer.enableOptimizedMerge=false` as a Java system property to all data nodes in the cluster and perform a rolling restart.
+    * *Important:* Remove this property when upgrading to the fixed version to re-enable merge optimization. Otherwise, merges will be slower.
+
+The bug is addressed in version 9.1.2.
+
+* The `-Dvector.rescoring.directio` JVM option is enabled (set to `true`) by default. When used with `bbq_hnsw` type vector indices, this can cause significant search performance degradation; particularly when enough memory is available to hold all vector data. In some cases, kNN search latency can increase by as much as 10x. To mitigate this, set the JVM option `-Dvector.rescoring.directio=false` on all search nodes and restart them. This option can be removed in 9.1.1.
+
+**How do I know if my index vector type is `bbq_hnsw`?**
+
+* Prior to 9.1, the vector type had to be explicitly set to `bbq_hnsw`. Starting with 9.1, `bbq_hnsw` is the default vector type for dense vectors with more than 384 dimensions in new indices, unless another type is specified.
+
+## 9.0.3 [elasticsearch-9.0.3-known-issues]
+
+* A bug in the merge scheduler in Elasticsearch 9.0.3 may prevent shards from closing when there isn’t enough disk space to complete a merge. As a result, operations such as closing or relocating an index may hang until sufficient disk space becomes available.
+To mitigate this issue, the disk space checker is disabled by default in 9.0.3 by setting `indices.merge.disk.check_interval` to `0` seconds. Manually enabling this setting is not recommended.
+
+  This issue is planned to be fixed in future patch release [#129613](https://github.com/elastic/elasticsearch/pull/129613)
+
+* A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
+
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
+
+  Possible workarounds include:
+  * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
+  * reducing the grouping key cardinality, by filtering out values before STATS
 
 ## 9.0.0 [elasticsearch-9.0.0-known-issues]
 * Elasticsearch on Windows might fail to start, or might forbid some file-related operations, when referencing paths with a case different from the one stored by the filesystem. Windows treats paths as case-insensitive, but the filesystem stores them with case. Entitlements, the new security system used by Elasticsearch, treat all paths as case-sensitive, and can therefore prevent access to a path that should be accessible.
@@ -34,3 +97,14 @@ This issue will be fixed in a future patch release (see [PR #126990](https://git
      DELETE _index_template/.watches
      POST /_watcher/_start
      ```
+
+* A bug in the ES|QL STATS command may yield incorrect results. The bug only happens in very specific cases that follow this pattern: `STATS ... BY keyword1, keyword2`, i.e. the command must have exactly two grouping fields, both keywords, where the first field has high cardinality (more than 65k distinct values).
+
+  The bug is described in detail in [this issue](https://github.com/elastic/elasticsearch/issues/130644).
+  The problem was introduced in 8.16.0 and [fixed](https://github.com/elastic/elasticsearch/pull/130705) in 8.17.9, 8.18.7, 9.0.4.
+
+  Possible workarounds include:
+    * switching the order of the grouping keys (eg. `STATS ... BY keyword2, keyword1`, if the `keyword2` has a lower cardinality)
+    * reducing the grouping key cardinality, by filtering out values before STATS
+
+* Repository analyses of snapshot repositories based on AWS S3 include some checks that the APIs which relate to multipart uploads have linearizable (strongly-consistent) semantics, based on guarantees offered by representatives from AWS on this subject. Further investigation has determined that these guarantees do not hold under all conditions as previously claimed. If you are analyzing a snapshot repository based on AWS S3 using a version of {{es}} prior to 9.3.0 and you encounter a failure related to linearizable register operations, you may work around the issue and suppress these checks by setting the query parameter `?register_operation_count=1` and running the analysis using a one-node cluster. This issue is fixed in {{es}} version 9.3.0 by [#138663](https://github.com/elastic/elasticsearch/pull/138663).

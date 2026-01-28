@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -35,10 +36,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         return true;
     }
 
-    private abstract static class StoredFieldsBlockLoader implements BlockLoader {
+    public abstract static class StoredFieldsBlockLoader implements BlockLoader {
         protected final String field;
 
-        StoredFieldsBlockLoader(String field) {
+        public StoredFieldsBlockLoader(String field) {
             this.field = field;
         }
 
@@ -112,10 +113,10 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
-    private abstract static class Bytes extends BlockStoredFieldsReader {
+    public abstract static class Bytes extends BlockStoredFieldsReader {
         private final String field;
 
-        Bytes(String field) {
+        public Bytes(String field) {
             this.field = field;
         }
 

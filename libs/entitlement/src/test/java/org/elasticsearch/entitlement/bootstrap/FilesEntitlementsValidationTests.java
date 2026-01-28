@@ -48,6 +48,7 @@ public class FilesEntitlementsValidationTests extends ESTestCase {
                 testBaseDir.resolve("user/home"),
                 TEST_CONFIG_DIR,
                 new Path[] { testBaseDir.resolve("data1"), testBaseDir.resolve("data2") },
+                Path.of("/shareddata"),
                 new Path[] { testBaseDir.resolve("shared1"), testBaseDir.resolve("shared2") },
                 TEST_LIBS_DIR,
                 testBaseDir.resolve("modules"),

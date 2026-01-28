@@ -1,15 +1,11 @@
-## `CHANGE_POINT` [esql-change_point]
+```yaml {applies_to}
+serverless: ga
+stack: preview =9.1, ga 9.2+
+```
 
 :::{note}
 The `CHANGE_POINT` command requires a [platinum license](https://www.elastic.co/subscriptions).
 :::
-
-::::{warning}
-This functionality is in technical preview and may be
-changed or removed in a future release. Elastic will work to fix any
-issues, but features in technical preview are not subject to the support
-SLA of official GA features.
-::::
 
 `CHANGE_POINT` detects spikes, dips, and change points in a metric.
 

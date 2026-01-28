@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.rank.rrf;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -105,7 +104,7 @@ public class RRFRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public int rankConstant() {
@@ -202,7 +201,7 @@ public class RRFRankBuilder extends RankBuilder {
         for (int i = 0; i < source.subSearches().size(); i++) {
             RetrieverBuilder standardRetriever = new StandardRetrieverBuilder(source.subSearches().get(i).getQueryBuilder());
             standardRetriever.retrieverName(source.subSearches().get(i).getQueryBuilder().queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(standardRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(standardRetriever));
         }
         for (int i = 0; i < source.knnSearch().size(); i++) {
             KnnSearchBuilder knnSearchBuilder = source.knnSearch().get(i);
@@ -212,11 +211,12 @@ public class RRFRankBuilder extends RankBuilder {
                 knnSearchBuilder.getQueryVectorBuilder(),
                 knnSearchBuilder.k(),
                 knnSearchBuilder.getNumCands(),
+                knnSearchBuilder.getVisitPercentage(),
                 knnSearchBuilder.getRescoreVectorBuilder(),
                 knnSearchBuilder.getSimilarity()
             );
             knnRetriever.retrieverName(knnSearchBuilder.queryName());
-            retrieverSources.add(new CompoundRetrieverBuilder.RetrieverSource(knnRetriever, null));
+            retrieverSources.add(CompoundRetrieverBuilder.RetrieverSource.from(knnRetriever));
         }
         return new RRFRetrieverBuilder(retrieverSources, rankWindowSize(), rankConstant());
     }

@@ -16,14 +16,16 @@ import org.elasticsearch.core.Releasables;
 
 class ResultBuilderForDoc implements ResultBuilder {
     private final BlockFactory blockFactory;
+    private final DocVectorEncoder encoder;
     private final int[] shards;
     private final int[] segments;
     private final int[] docs;
     private int position;
 
-    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+    ResultBuilderForDoc(BlockFactory blockFactory, DocVectorEncoder encoder, int positions) {
         // TODO use fixed length builders
         this.blockFactory = blockFactory;
+        this.encoder = encoder;
         this.shards = new int[positions];
         this.segments = new int[positions];
         this.docs = new int[positions];
@@ -36,9 +38,12 @@ class ResultBuilderForDoc implements ResultBuilder {
 
     @Override
     public void decodeValue(BytesRef values) {
-        shards[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        segments[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
-        docs[position] = TopNEncoder.DEFAULT_UNSORTABLE.decodeInt(values);
+        int shard = encoder.decodeInt(values);
+        shards[position] = shard;
+        // Since rows can be closed before build is called, we need to increment the ref count to ensure the shard context isn't closed.
+        encoder.refCounteds().get(shard).mustIncRef();
+        segments[position] = encoder.decodeInt(values);
+        docs[position] = encoder.decodeInt(values);
         position++;
     }
 
@@ -47,16 +52,19 @@ class ResultBuilderForDoc implements ResultBuilder {
         boolean success = false;
         IntVector shardsVector = null;
         IntVector segmentsVector = null;
+        IntVector docsVector = null;
+
         try {
             shardsVector = blockFactory.newIntArrayVector(shards, position);
             segmentsVector = blockFactory.newIntArrayVector(segments, position);
-            var docsVector = blockFactory.newIntArrayVector(docs, position);
-            var docsBlock = new DocVector(shardsVector, segmentsVector, docsVector, null).asBlock();
+            docsVector = blockFactory.newIntArrayVector(docs, position);
+            var docsBlock = DocVector.withoutIncrementingShardRefCounts(encoder.refCounteds(), shardsVector, segmentsVector, docsVector)
+                .asBlock();
             success = true;
             return docsBlock;
         } finally {
             if (success == false) {
-                Releasables.closeExpectNoException(shardsVector, segmentsVector);
+                Releasables.closeExpectNoException(shardsVector, segmentsVector, docsVector);
             }
         }
     }
@@ -68,6 +76,6 @@ class ResultBuilderForDoc implements ResultBuilder {
 
     @Override
     public void close() {
-        // TODO memory accounting
+        // TODO Memory accounting
     }
 }

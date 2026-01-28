@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
@@ -35,38 +35,45 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     public static final String NAME = "elastic_inference_service_completion_service_settings";
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(720L);
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         String modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
+            ModelConfigurations.SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
-            context
+            TaskType.CHAT_COMPLETION,
+            context,
+            validationException
         );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElasticInferenceServiceCompletionServiceSettings(modelId, rateLimitSettings);
+        return new ElasticInferenceServiceCompletionServiceSettings(modelId);
     }
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public ElasticInferenceServiceCompletionServiceSettings(String modelId, RateLimitSettings rateLimitSettings) {
+    public ElasticInferenceServiceCompletionServiceSettings(String modelId) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
     public ElasticInferenceServiceCompletionServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
+            new RateLimitSettings(in);
+        }
     }
 
     @Override
@@ -85,7 +92,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -110,7 +117,9 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
+            rateLimitSettings.writeTo(out);
+        }
     }
 
     @Override

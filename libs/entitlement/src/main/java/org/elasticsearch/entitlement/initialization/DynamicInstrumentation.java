@@ -117,9 +117,13 @@ class DynamicInstrumentation {
             // We should have failed already in the loop above, but just in case we did not, rethrow.
             throw e;
         }
+
+        if (transformer.hadErrors()) {
+            throw new RuntimeException("Failed to transform JDK classes for entitlements");
+        }
     }
 
-    private static Map<MethodKey, CheckMethod> getMethodsToInstrument(Class<?> checkerInterface) throws ClassNotFoundException,
+    static Map<MethodKey, CheckMethod> getMethodsToInstrument(Class<?> checkerInterface) throws ClassNotFoundException,
         NoSuchMethodException {
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(checkerInterface));
         Stream.of(fileSystemProviderChecks(), fileStoreChecks(), pathChecks(), selectorProviderChecks())

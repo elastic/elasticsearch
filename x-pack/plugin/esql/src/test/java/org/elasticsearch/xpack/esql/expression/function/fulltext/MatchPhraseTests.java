@@ -30,9 +30,9 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.AbstractMatchFullTextFunctionTests.addNullFieldTestCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,19 +51,33 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
     private static List<TestCaseSupplier> testCaseSuppliers() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         addStringTestCases(suppliers);
-        return suppliers;
+        return addNullFieldTestCases(suppliers);
     }
 
-    public static void addStringTestCases(List<TestCaseSupplier> suppliers) {
+    private static void addStringTestCases(List<TestCaseSupplier> suppliers) {
         for (DataType fieldType : DataType.stringTypes()) {
-            if (DataType.UNDER_CONSTRUCTION.containsKey(fieldType)) {
+            if (DataType.UNDER_CONSTRUCTION.contains(fieldType)) {
                 continue;
             }
             for (TestCaseSupplier.TypedDataSupplier queryDataSupplier : stringCases(fieldType)) {
+                TestCaseSupplier.TypedDataSupplier querySupplier = new TestCaseSupplier.TypedDataSupplier(
+                    fieldType.typeName(),
+                    () -> randomAlphaOfLength(10),
+                    DataType.KEYWORD
+                );
                 suppliers.add(
                     TestCaseSupplier.testCaseSupplier(
                         queryDataSupplier,
-                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.KEYWORD),
+                        querySupplier,
+                        (d1, d2) -> equalTo("string"),
+                        DataType.BOOLEAN,
+                        (o1, o2) -> true
+                    )
+                );
+                suppliers.add(
+                    TestCaseSupplier.testCaseSupplier(
+                        new TestCaseSupplier.TypedDataSupplier("fieldName", () -> Literal.NULL, DataType.NULL),
+                        querySupplier,
                         (d1, d2) -> equalTo("string"),
                         DataType.BOOLEAN,
                         (o1, o2) -> true
@@ -87,7 +101,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), new Literal(Source.EMPTY, randomAlphaOfLength(10), KEYWORD))
+                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
                         ),
                         UNSUPPORTED,
                         "options"

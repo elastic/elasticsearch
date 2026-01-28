@@ -16,28 +16,37 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.esql.MockAppender;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.DEPENDENCY_RESOLUTION;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PARSING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PLANNING;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryProfile.PRE_ANALYSIS;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_ERROR_TYPE;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK;
-import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_PREFIX;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_QUERY;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_SUCCESS;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK;
 import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX;
+import static org.elasticsearch.xpack.esql.querylog.EsqlQueryLog.ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -163,9 +172,7 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                 )
             ).get();
 
-            EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-            request.query(query);
-            request.pragmas(randomPragmas());
+            EsqlQueryRequest request = syncEsqlQueryRequest(query).pragmas(randomPragmas());
             CountDownLatch latch = new CountDownLatch(1);
             client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
                 try {
@@ -184,18 +191,24 @@ public class EsqlQueryLogIT extends AbstractEsqlIntegTestCase {
                     assertThat(tookMillis, is(tookMillisExpected));
 
                     if (expectedException == null) {
-                        long planningTook = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK));
-                        long planningTookMillisExpected = planningTook / 1_000_000;
-                        long planningTookMillis = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_PLANNING_TOOK_MILLIS));
-                        assertThat(planningTook, greaterThanOrEqualTo(0L));
-                        assertThat(planningTookMillis, is(planningTookMillisExpected));
-                        assertThat(took, greaterThan(planningTook));
+                        for (String timing : List.of(PLANNING, PARSING, PRE_ANALYSIS, DEPENDENCY_RESOLUTION, ANALYSIS)) {
+                            long timingTook = Long.valueOf(
+                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX)
+                            );
+                            long timingTookMillisExpected = timingTook / 1_000_000;
+                            long timingTookMillis = Long.valueOf(
+                                msg.get(ELASTICSEARCH_QUERYLOG_PREFIX + timing + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX)
+                            );
+                            assertThat(timingTook, greaterThanOrEqualTo(0L));
+                            assertThat(timingTookMillis, is(timingTookMillisExpected));
+                            assertThat(took, greaterThan(timingTook));
+                        }
                     }
 
                     assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
                     assertThat(appender.getLastEventAndReset().getLevel(), equalTo(logLevel.getKey()));
 
-                    boolean success = Boolean.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
+                    boolean success = Booleans.parseBoolean(msg.get(ELASTICSEARCH_QUERYLOG_SUCCESS));
                     assertThat(success, is(expectedException == null));
                     if (expectedErrorMsg == null) {
                         assertThat(msg.get(ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE), is(nullValue()));

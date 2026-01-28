@@ -84,7 +84,7 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`network_direction` processor](/reference/enrich-processor/network-direction-processor.md)
 :   Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
 
-[`normalize_for_stream` processor](/reference/enrich-processor/normalize-for-stream.md)
+[`normalize_for_stream` processor](/reference/enrich-processor/normalize-for-stream.md) {applies_to}`stack: preview 9.1`
 :   Normalizes non-OpenTelemetry documents to be OpenTelemetry-compliant.
 
 [`registered_domain` processor](/reference/enrich-processor/registered-domain-processor.md)
@@ -135,6 +135,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 [`bytes` processor](/reference/enrich-processor/bytes-processor.md)
 :   Converts a human-readable byte value to its value in bytes (for example `1kb` becomes `1024`).
 
+[`cef` processor](/reference/enrich-processor/cef-processor.md)
+:   Extracts fields from a Common Event Format (CEF) messages.
+
 [`csv` processor](/reference/enrich-processor/csv-processor.md)
 :   Extracts a single line of CSV data from a text field.
 
@@ -155,6 +158,9 @@ Refer to [Enrich your data](docs-content://manage-data/ingest/transform-enrich/d
 
 [`lowercase` processor](/reference/enrich-processor/lowercase-processor.md) and [`uppercase` processor](/reference/enrich-processor/uppercase-processor.md)
 :   Converts a string field to lowercase or uppercase.
+
+[`recover_failure_document` processor](/reference/enrich-processor/recover-failure-document-processor.md)
+:   Converts a failure-store document to its original format.
 
 [`split` processor](/reference/enrich-processor/split-processor.md)
 :   Splits a field into an array of values.
@@ -213,49 +219,3 @@ Mark a plugin as mandatory by setting `plugin.mandatory` in `elasticsearch.yml`.
 ```yaml
 plugin.mandatory: my-ingest-plugin
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -25,7 +25,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -41,6 +40,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
@@ -50,6 +50,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -232,7 +233,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 try (DirectoryReader snapshotReader = DirectoryReader.open(snapshotDirectory)) {
                     final IndexSearcher snapshotSearcher = newSearcher(snapshotReader);
                     {
-                        Query query = new MatchAllDocsQuery();
+                        Query query = Queries.ALL_DOCS_INSTANCE;
                         assertThat(snapshotSearcher.count(query), equalTo(searcher.count(query)));
                         CheckHits.checkEqual(query, snapshotSearcher.search(query, 10).scoreDocs, searcher.search(query, 10).scoreDocs);
                     }
@@ -592,8 +593,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     repositorySettings.build()
                 );
 
+                final ProjectId projectId = randomProjectIdOrDefault();
                 final BlobStoreRepository repository = new FsRepository(
-                    randomProjectIdOrDefault(),
+                    projectId,
                     repositoryMetadata,
                     new Environment(
                         Settings.builder()
@@ -604,7 +606,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         null
                     ),
                     NamedXContentRegistry.EMPTY,
-                    BlobStoreTestUtil.mockClusterService(repositoryMetadata),
+                    BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata),
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
                 );

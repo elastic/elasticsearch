@@ -11,7 +11,6 @@ import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,19 +18,15 @@ import org.elasticsearch.core.Releasable;
 
 import java.util.function.Function;
 
-public class GroupingAggregator implements Releasable {
-    private final GroupingAggregatorFunction aggregatorFunction;
+public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) implements Releasable {
 
-    private final AggregatorMode mode;
+    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {
 
-    public interface Factory extends Function<DriverContext, GroupingAggregator>, Describable {}
-
-    public GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, AggregatorMode mode) {
-        this.aggregatorFunction = aggregatorFunction;
-        this.mode = mode;
     }
 
-    /** The number of Blocks required for evaluation. */
+    /**
+     * The number of Blocks required for evaluation.
+     */
     public int evaluateBlockCount() {
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
@@ -43,18 +38,13 @@ public class GroupingAggregator implements Releasable {
         if (mode.isInputPartial()) {
             return new GroupingAggregatorFunction.AddInput() {
                 @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
-                }
-
-                @Override
                 public void add(int positionOffset, IntArrayBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
 
                 @Override
                 public void add(int positionOffset, IntBigArrayBlock groupIds) {
-                    throw new IllegalStateException("Intermediate group id must not have nulls");
+                    aggregatorFunction.addIntermediateInput(positionOffset, groupIds, page);
                 }
 
                 @Override
@@ -66,15 +56,8 @@ public class GroupingAggregator implements Releasable {
                 public void close() {}
             };
         } else {
-            return aggregatorFunction.prepareProcessPage(seenGroupIds, page);
+            return aggregatorFunction.prepareProcessRawInputPage(seenGroupIds, page);
         }
-    }
-
-    /**
-     * Add the position-th row from the intermediate output of the given aggregator to this aggregator at the groupId position
-     */
-    public void addIntermediateRow(int groupId, GroupingAggregator input, int position) {
-        aggregatorFunction.addIntermediateRowInput(groupId, input.aggregatorFunction, position);
     }
 
     /**

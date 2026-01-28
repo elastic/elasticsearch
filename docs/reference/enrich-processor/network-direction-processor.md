@@ -9,7 +9,7 @@ mapped_pages:
 
 Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
 
-The network direction processor reads IP addresses from [Elastic Common Schema (ECS)][Elastic Common Schema (ECS)](ecs://reference/index.md)) fields by default. If you use the ECS, only the `internal_networks` option must be specified.
+The network direction processor reads IP addresses from [Elastic Common Schema (ECS)](ecs://reference/index.md) fields by default. If you use the ECS, only the `internal_networks` option must be specified.
 
 $$$network-direction-options$$$
 
@@ -100,4 +100,6 @@ Which produces the following result:
   ]
 }
 ```
+% TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
+% NOTCONSOLE
 

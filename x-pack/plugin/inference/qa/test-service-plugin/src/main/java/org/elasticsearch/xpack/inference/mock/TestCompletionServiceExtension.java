@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -49,7 +50,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
     }
 
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "completion_test_service";
+        public static final String NAME = "completion_test_service";
         private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.COMPLETION);
 
         public TestInferenceService(InferenceServiceFactoryContext context) {}
@@ -132,6 +133,21 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
         }
 
         @Override
+        public void embeddingInfer(
+            Model model,
+            EmbeddingRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
+        }
+
+        @Override
         public void chunkedInfer(
             Model model,
             String query,
@@ -178,6 +194,7 @@ public class TestCompletionServiceExtension implements InferenceServiceExtension
                     );
 
                     return new InferenceServiceConfiguration.Builder().setService(NAME)
+                        .setName(NAME)
                         .setTaskTypes(SUPPORTED_TASK_TYPES)
                         .setConfigurations(configurationMap)
                         .build();

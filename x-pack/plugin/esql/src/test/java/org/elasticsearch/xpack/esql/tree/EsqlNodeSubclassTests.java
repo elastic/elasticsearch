@@ -16,6 +16,9 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -23,7 +26,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.AbstractNodeTestCase;
@@ -36,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -47,10 +50,13 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
@@ -93,9 +99,11 @@ import java.util.jar.JarInputStream;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
-import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
-import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomEsIndex;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
+import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -146,7 +154,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, UnionAll.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -177,7 +185,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          */
         expectedCount -= 1;
 
-        assertEquals(expectedCount, info(node).properties().size());
+        assertEquals("Wrong number of info parameters for " + subclass.getSimpleName(), expectedCount, info(node).properties().size());
     }
 
     /**
@@ -187,9 +195,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * implementations in the process.
      */
     public void testTransform() throws Exception {
-        if (FieldAttribute.class.equals(subclass)) {
-            assumeTrue("FieldAttribute private constructor", false);
-        }
         Constructor<T> ctor = longestCtor(subclass);
         Object[] nodeCtorArgs = ctorArgs(ctor);
         T node = ctor.newInstance(nodeCtorArgs);
@@ -312,7 +317,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * {@code ctor} that make sense when {@code ctor}
      * builds subclasses of {@link Node}.
      */
-    private Object[] ctorArgs(Constructor<? extends Node<?>> ctor) throws Exception {
+    public static Object[] ctorArgs(Constructor<? extends Node<?>> ctor) {
         Type[] argTypes = ctor.getGenericParameterTypes();
         Object[] args = new Object[argTypes.length];
         for (int i = 0; i < argTypes.length; i++) {
@@ -351,7 +356,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    private static Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
@@ -378,6 +383,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                         // do nothing
                     }
                 };
+            }
+            if (toBuildClass == ResolvingProject.class && pt.getRawType() == java.util.function.Function.class) {
+                return java.util.function.Function.identity();
             }
 
             throw new IllegalArgumentException("Unsupported parameterized type [" + pt + "], for " + toBuildClass.getSimpleName());
@@ -443,12 +451,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomResolvedExpression(argClass);
         } else if (argClass == Stat.class) {
             // record field
-            return new Stat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
+            return new EsStatsQueryExec.BasicStat(randomRealisticUnicodeOfLength(10), randomFrom(StatsType.values()), null);
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
-        } else if (List.of(Fork.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+        } else if (List.of(Fork.class, MergeExec.class, UnionAll.class).contains(toBuildClass) && argType == LogicalPlan.class) {
             // limit recursion of plans, in order to prevent stackoverflow errors
             return randomEsRelation();
         }
@@ -514,8 +522,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
                 JoinTypes.LEFT,
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
                 List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
-                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
+                randomJoinOnExpression()
             );
+        }
+
+        if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
+            return randomQueryBuildAndTags();
         }
 
         try {
@@ -525,11 +537,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         }
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         List<Object> list = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -537,11 +549,11 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
+    private static Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType, int size) throws Exception {
         Set<Object> list = new HashSet<>();
         for (int i = 0; i < size; i++) {
             list.add(makeArg(toBuildClass, listType.getActualTypeArguments()[0]));
@@ -549,7 +561,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return list;
     }
 
-    private Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+    private static Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {
@@ -560,9 +572,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return map;
     }
 
-    private int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
+    private static int randomSizeForCollection(Class<? extends Node<?>> toBuildClass) {
         int minCollectionLength = 0;
-        int maxCollectionLength = 10;
+        int maxCollectionLength = 8;
 
         if (hasAtLeastTwoChildren(toBuildClass)) {
             minCollectionLength = 2;
@@ -584,7 +596,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     }
 
-    public <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
+    public static <T extends Node<?>> T makeNode(Class<? extends T> nodeClass) throws Exception {
         if (Modifier.isAbstract(nodeClass.getModifiers())) {
             nodeClass = randomFrom(innerSubclassesOf(nodeClass));
         }
@@ -636,9 +648,23 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
              */
             Type[] argTypes = ctor.getGenericParameterTypes();
             Object[] args = new Object[argTypes.length];
-            for (int i = 0; i < argTypes.length; i++) {
-                args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
+
+            if (transformed instanceof ResolvingProject transformedProject && changedArgValue instanceof LogicalPlan newChild) {
+                for (int i = 0; i < argTypes.length; i++) {
+                    if (i == changedArgOffset) {
+                        args[i] = changedArgValue;
+                    } else if (i == changedArgOffset + 2) {
+                        args[i] = transformedProject.resolver().apply(newChild.output());
+                    } else {
+                        args[i] = nodeCtorArgs[i];
+                    }
+                }
+            } else {
+                for (int i = 0; i < argTypes.length; i++) {
+                    args[i] = nodeCtorArgs[i] == nodeCtorArgs[changedArgOffset] ? changedArgValue : nodeCtorArgs[i];
+                }
             }
+
             T reflectionTransformed = ctor.newInstance(args);
             assertEquals(reflectionTransformed, transformed);
         }
@@ -666,7 +692,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return longest;
     }
 
-    private boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
+    private static boolean hasAtLeastTwoChildren(Class<? extends Node<?>> toBuildClass) {
         return CLASSES_WITH_MIN_TWO_CHILDREN.stream().anyMatch(toBuildClass::equals);
     }
 
@@ -674,7 +700,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         return PhysicalPlan.class.isAssignableFrom(toBuildClass) || LogicalPlan.class.isAssignableFrom(toBuildClass);
     }
 
-    Expression randomResolvedExpression(Class<?> argClass) throws Exception {
+    static Expression randomResolvedExpression(Class<?> argClass) throws Exception {
         assert Expression.class.isAssignableFrom(argClass);
         @SuppressWarnings("unchecked")
         Class<? extends Expression> asNodeSubclass = (Class<? extends Expression>) argClass;
@@ -702,7 +728,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     static List<DataType> DATA_TYPES = DataType.types()
         .stream()
-        .filter(d -> DataType.UNDER_CONSTRUCTION.containsKey(d) == false || Build.current().isSnapshot())
+        .filter(d -> DataType.UNDER_CONSTRUCTION.contains(d) == false || Build.current().isSnapshot())
         .toList();
 
     static EsQueryExec.FieldSort randomFieldSort() {
@@ -727,20 +753,34 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             SourceTests.randomSource(),
             randomIdentifier(),
             randomFrom(IndexMode.values()),
+            randomRemotesWithIndices(),
+            randomRemotesWithIndices(),
             randomIndexNameWithModes(),
             randomFieldAttributes(0, 10, false)
         );
     }
 
+    static QueryBuilder randomQuery() {
+        return randomBoolean() ? new MatchAllQueryBuilder() : new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(4));
+    }
+
+    static EsQueryExec.QueryBuilderAndTags randomQueryBuildAndTags() {
+        return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
+    }
+
     static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     public static <T> Set<Class<? extends T>> subclassesOf(Class<T> clazz) throws IOException {
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 
-    private <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
+    private static <T> Set<Class<? extends T>> innerSubclassesOf(Class<T> clazz) throws IOException {
         return subclassesOf(clazz, CLASSNAME_FILTER);
     }
 

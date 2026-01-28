@@ -76,4 +76,16 @@ public class PutInferenceModelActionTests extends ESTestCase {
         validationException = invalidRequest3.validate();
         assertNotNull(validationException);
     }
+
+    public void testValidate_ReturnsException_WhenIdStartsWithADot() {
+        var invalidRequest = new PutInferenceModelAction.Request(
+            TASK_TYPE,
+            ".elser-2-elastic",
+            BYTES,
+            X_CONTENT_TYPE,
+            InferenceAction.Request.DEFAULT_TIMEOUT
+        );
+        var validationException = invalidRequest.validate();
+        assertNotNull(validationException);
+    }
 }

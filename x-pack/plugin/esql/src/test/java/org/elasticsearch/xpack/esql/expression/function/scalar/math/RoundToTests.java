@@ -146,7 +146,7 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
         suppliers.add(supplier(1.5, 1.0, 0.0, 1.0, 100.0));
         suppliers.add(supplier(200, 100, 0.0, 1.0, 100.0));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+        return parameterSuppliersFromTypedDataWithDefaultChecks(
             (int nullPosition, DataType nullValueDataType, TestCaseSupplier.TestCase original) -> {
                 if (nullValueDataType != DataType.NULL) {
                     return original.expectedType();
@@ -270,11 +270,8 @@ public class RoundToTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String specialization(int pointsSize) {
-        if (pointsSize < 5) {
-            return Integer.toString(pointsSize);
-        }
         if (pointsSize < 11) {
-            return "LinearSearch";
+            return Integer.toString(pointsSize);
         }
         return "BinarySearch";
     }

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
@@ -23,13 +23,13 @@ import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.CHUNK_RESCORER_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FAILURES_ALLOWED_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
@@ -49,11 +49,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final TransportVersion RERANKER_FAILURES_ALLOWED = TransportVersion.fromName("reranker_failures_allowed");
+    private static final TransportVersion RERANK_SNIPPETS = TransportVersion.fromName("rerank_snippets");
+
     private final String inferenceId;
     private final String inferenceText;
     private final String field;
     private final Float minScore;
     private final boolean failuresAllowed;
+    private final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -61,7 +65,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceText,
         int rankWindowSize,
         Float minScore,
-        boolean failuresAllowed
+        boolean failuresAllowed,
+        ChunkScorerConfig chunkScorerConfig
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
@@ -69,6 +74,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.field = field;
         this.minScore = minScore;
         this.failuresAllowed = failuresAllowed;
+        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -78,11 +84,15 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
-        if (in.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (in.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             this.failuresAllowed = in.readBoolean();
         } else {
             this.failuresAllowed = false;
+        }
+        if (in.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            this.chunkScorerConfig = in.readOptionalWriteable(ChunkScorerConfig::new);
+        } else {
+            this.chunkScorerConfig = null;
         }
     }
 
@@ -93,7 +103,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -103,9 +113,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
-        if (out.getTransportVersion().isPatchFrom(TransportVersions.RERANKER_FAILURES_ALLOWED_8_19)
-            || out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+        if (out.getTransportVersion().supports(RERANKER_FAILURES_ALLOWED)) {
             out.writeBoolean(failuresAllowed);
+        }
+        if (out.getTransportVersion().supports(RERANK_SNIPPETS)) {
+            out.writeOptionalWriteable(chunkScorerConfig);
         }
     }
 
@@ -121,6 +133,9 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         }
         if (failuresAllowed) {
             builder.field(FAILURES_ALLOWED_FIELD.getPreferredName(), true);
+        }
+        if (chunkScorerConfig != null) {
+            builder.field(CHUNK_RESCORER_FIELD.getPreferredName(), chunkScorerConfig);
         }
     }
 
@@ -168,7 +183,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-        return new RerankingRankFeaturePhaseRankShardContext(field);
+        return new TextSimilarityRerankingRankFeaturePhaseRankShardContext(field, chunkScorerConfig);
     }
 
     @Override
@@ -181,7 +196,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            failuresAllowed
+            failuresAllowed,
+            chunkScorerConfig != null
+                ? new ChunkScorerConfig(chunkScorerConfig.size, inferenceText, chunkScorerConfig.chunkingSettings())
+                : null
         );
     }
 
@@ -212,11 +230,17 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
-            && failuresAllowed == that.failuresAllowed;
+            && failuresAllowed == that.failuresAllowed
+            && Objects.equals(chunkScorerConfig, that.chunkScorerConfig);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed, chunkScorerConfig);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

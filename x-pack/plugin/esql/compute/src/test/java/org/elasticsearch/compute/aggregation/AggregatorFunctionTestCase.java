@@ -58,7 +58,12 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected abstract String expectedDescriptionOfAggregator();
 
-    protected abstract void assertSimpleOutput(List<Block> input, Block result);
+    /**
+     * Assert that the result is correct given the input.
+     * @param input the input pages build by {@link #simpleInput}
+     * @param result the result of running {@link #aggregatorFunction()}
+     */
+    protected abstract void assertSimpleOutput(List<Page> input, Block result);
 
     @Override
     protected Operator.OperatorFactory simpleWithMode(SimpleOptions options, AggregatorMode mode) {
@@ -69,10 +74,16 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         AggregatorMode mode,
         Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
     ) {
-        List<Integer> channels = mode.isInputPartial() ? range(0, aggregatorIntermediateBlockCount()).boxed().toList() : List.of(0);
+        List<Integer> channels = mode.isInputPartial()
+            ? range(0, aggregatorIntermediateBlockCount()).boxed().toList()
+            : IntStream.range(0, inputCount()).boxed().toList();
         AggregatorFunctionSupplier supplier = aggregatorFunction();
         Aggregator.Factory factory = wrap.apply(supplier).aggregatorFactory(mode, channels);
         return new AggregationOperator.AggregationOperatorFactory(List.of(factory), mode);
+    }
+
+    protected int inputCount() {
+        return 1;
     }
 
     @Override
@@ -89,7 +100,7 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
 
     protected String expectedToStringOfSimpleAggregator() {
         String type = getClass().getSimpleName().replace("Tests", "");
-        return type + "[channels=[0]]";
+        return type + "[channels=" + IntStream.range(0, inputCount()).boxed().toList() + "]";
     }
 
     @Override
@@ -99,11 +110,20 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertThat(results.get(0).getPositionCount(), equalTo(1));
 
         Block result = results.get(0).getBlock(0);
-        assertSimpleOutput(input.stream().map(p -> p.<Block>getBlock(0)).toList(), result);
+        assertSimpleOutput(input, result);
+    }
+
+    /**
+     * Defines how large datasets are generated, should be overridden for complex types to reduce test runtime.
+     *
+     * @return the maximum number of rows to generate for tests
+     */
+    protected int maximumTestRowCount() {
+        return 100_000;
     }
 
     public final void testIgnoresNulls() {
-        int end = between(1_000, 100_000);
+        int end = between(1_000, maximumTestRowCount());
         List<Page> results = new ArrayList<>();
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -123,8 +143,13 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
         assertSimpleOutput(origInput, results);
     }
 
+    protected boolean supportsMultiValues() {
+        return true;
+    }
+
     public final void testMultivalued() {
-        int end = between(1_000, 100_000);
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
+        int end = between(1_000, maximumTestRowCount());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(
@@ -135,7 +160,8 @@ public abstract class AggregatorFunctionTestCase extends ForkingOperatorTestCase
     }
 
     public final void testMultivaluedWithNulls() {
-        int end = between(1_000, 100_000);
+        assumeTrue("Multivalues support is required for the tested type", supportsMultiValues());
+        int end = between(1_000, maximumTestRowCount());
         DriverContext driverContext = driverContext();
         BlockFactory blockFactory = driverContext.blockFactory();
         List<Page> input = CannedSourceOperator.collectPages(

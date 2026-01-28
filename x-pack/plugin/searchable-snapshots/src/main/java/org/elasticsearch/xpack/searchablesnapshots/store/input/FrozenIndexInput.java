@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
@@ -177,7 +178,8 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
                             return null;
                         }
                     }
-                )
+                ),
+                fileInfo.physicalName()
             );
             assert bytesRead == length : bytesRead + " vs " + length;
             byteBufferReference.finish(bytesRead);
@@ -211,6 +213,11 @@ public final class FrozenIndexInput extends MetadataCachingIndexInput {
             sliceHeaderByteRange,
             sliceFooterByteRange
         );
+    }
+
+    @Override
+    public void prefetch(long offset, long length) throws IOException {
+        cacheFile.tryPrefetch(offset + this.offset, length);
     }
 
     @Override

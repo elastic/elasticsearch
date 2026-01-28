@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -101,14 +102,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             )
         );
         xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new SnapshotLifecycleTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            xContentRegistry,
-            TestProjectResolvers.mustExecuteFirst()
-        );
+        registry = new SnapshotLifecycleTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
     }
 
     @After
@@ -125,8 +119,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            xContentRegistry,
-            TestProjectResolvers.mustExecuteFirst()
+            xContentRegistry
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getLifecyclePolicies(), hasSize(0));
@@ -311,23 +304,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testValidate() {
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), null)));
-        assertFalse(
-            registry.validate(
-                createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), Collections.emptyMap(), null)
-            )
-        );
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        policyMap.put(SLM_POLICY_NAME, new LifecyclePolicy(SLM_POLICY_NAME, new HashMap<>()));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), policyMap, null)));
-
-        assertTrue(
-            registry.validate(createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), policyMap, null))
-        );
-    }
-
     public void testTemplateNameIsVersioned() {
         assertThat(SLM_TEMPLATE_NAME, endsWith("-" + INDEX_TEMPLATE_VERSION));
     }
@@ -345,7 +321,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         };
 
         VerifyingClient(ThreadPool threadPool) {
-            super(threadPool);
+            super(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()));
         }
 
         @Override
@@ -402,7 +378,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
     ) {
-        ClusterState cs = createClusterState(Settings.EMPTY, existingTemplates, existingPolicies, nodes);
+        ClusterState cs = createClusterState(existingTemplates, existingPolicies, nodes);
         ClusterChangedEvent realEvent = new ClusterChangedEvent(
             "created-from-test",
             cs,
@@ -415,7 +391,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     }
 
     private ClusterState createClusterState(
-        Settings nodeSettings,
         Map<String, Integer> existingTemplates,
         Map<String, LifecyclePolicy> existingPolicies,
         DiscoveryNodes nodes
@@ -434,14 +409,13 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             .collect(Collectors.toMap(Map.Entry::getKey, e -> new LifecyclePolicyMetadata(e.getValue(), Collections.emptyMap(), 1, 1)));
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(existingILMMeta, OperationMode.RUNNING);
 
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(indexTemplates)
+            .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
+            .build();
         return ClusterState.builder(new ClusterName("test"))
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(indexTemplates)
-                    .transientSettings(nodeSettings)
-                    .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
-                    .build()
-            )
+            // We need to ensure only one project is present in the cluster state to simplify the assertions in these tests.
+            .metadata(Metadata.builder().projectMetadata(Map.of(project.id(), project)).build())
             .blocks(new ClusterBlocks.Builder().build())
             .nodes(nodes)
             .build();

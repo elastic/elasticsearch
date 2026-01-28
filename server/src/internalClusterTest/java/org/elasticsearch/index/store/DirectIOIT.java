@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.logging.log4j.Level;
 import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
@@ -17,10 +19,12 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -33,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -40,15 +45,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @LuceneTestCase.SuppressCodecs("*") // only use our own codecs
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class DirectIOIT extends ESIntegTestCase {
 
+    private static boolean SUPPORTED;
+
     @BeforeClass
-    public static void checkSupported() throws IOException {
+    public static void checkSupported() {
         Path path = createTempDir("directIOProbe");
         try (Directory dir = open(path); IndexOutput out = dir.createOutput("out", IOContext.DEFAULT)) {
             out.writeString("test");
+            SUPPORTED = true;
         } catch (IOException e) {
-            assumeNoException("test requires filesystem that supports Direct IO", e);
+            SUPPORTED = false;
         }
     }
 
@@ -61,16 +70,27 @@ public class DirectIOIT extends ESIntegTestCase {
         };
     }
 
+    private final String type;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() {
+        return Stream.of("int4_hnsw", "int8_hnsw", "bbq_hnsw").map(s -> new Object[] { s }).toList();
+    }
+
+    public DirectIOIT(String type) {
+        this.type = type;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(InternalSettingsPlugin.class);
     }
 
-    private void indexVectors() {
-        String type = randomFrom("bbq_flat", "bbq_hnsw");
+    private String indexVectors(boolean directIO) {
+        String indexName = "test-vectors-" + directIO;
         assertAcked(
-            prepareCreate("foo-vectors").setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
-                .setMapping("""
+            prepareCreate(indexName).setSettings(Settings.builder().put(InternalSettingsPlugin.USE_COMPOUND_FILE.getKey(), false))
+                .setMapping(Strings.format("""
                     {
                       "properties": {
                         "fooVector": {
@@ -80,47 +100,82 @@ public class DirectIOIT extends ESIntegTestCase {
                           "index": true,
                           "similarity": "l2_norm",
                           "index_options": {
-                            "type": "%type%"
+                            "type": "%s",
+                            "on_disk_rescore": %s
                           }
                         }
                       }
                     }
-                    """.replace("%type%", type))
+                    """, type, directIO))
         );
-        ensureGreen("foo-vectors");
+        ensureGreen(indexName);
 
         for (int i = 0; i < 1000; i++) {
-            indexDoc("foo-vectors", Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
+            indexDoc(indexName, Integer.toString(i), "fooVector", IntStream.range(0, 64).mapToDouble(d -> randomFloat()).toArray());
         }
         refresh();
-        assertBBQIndexType(type); // test assertion to ensure that the correct index type is being used
+        assertIndexType(indexName, type); // test assertion to ensure that the correct index type is being used
+        return indexName;
     }
 
-    @SuppressWarnings("unchecked")
-    static void assertBBQIndexType(String type) {
-        var response = indicesAdmin().prepareGetFieldMappings("foo-vectors").setFields("fooVector").get();
-        var map = (Map<String, Object>) response.fieldMappings("foo-vectors", "fooVector").sourceAsMap().get("fooVector");
-        assertThat((String) ((Map<String, Object>) map.get("index_options")).get("type"), is(equalTo(type)));
+    static void assertIndexType(String indexName, String type) {
+        var response = indicesAdmin().prepareGetFieldMappings(indexName).setFields("fooVector").get();
+        var map = (Map<?, ?>) response.fieldMappings(indexName, "fooVector").sourceAsMap().get("fooVector");
+        assertThat(((Map<?, ?>) map.get("index_options")).get("type"), is(equalTo(type)));
     }
 
     @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
     public void testDirectIOUsed() {
         try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
-            // we're just looking for some evidence direct IO is used
-            mockLog.addExpectation(
-                new MockLog.PatternSeenEventExpectation(
+            // we're just looking for some evidence direct IO is used (or not)
+            MockLog.LoggingExpectation expectation = SUPPORTED
+                ? new MockLog.PatternSeenEventExpectation(
                     "Direct IO used",
                     FsDirectoryFactory.class.getCanonicalName(),
                     Level.DEBUG,
                     "Opening .*\\.vec with direct IO"
                 )
-            );
+                : new MockLog.PatternSeenEventExpectation(
+                    "Direct IO not used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Could not open .*\\.vec with direct IO"
+                );
+            mockLog.addExpectation(expectation);
 
-            indexVectors();
+            String indexName = indexVectors(true);
 
             // do a search
-            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, null, null));
-            assertHitCount(prepareSearch("foo-vectors").setKnnSearch(knn), 10);
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    @TestLogging(value = "org.elasticsearch.index.store.FsDirectoryFactory:DEBUG", reason = "to capture trace logging for direct IO")
+    public void testDirectIONotUsed() {
+        try (MockLog mockLog = MockLog.capture(FsDirectoryFactory.class)) {
+            // nothing about direct IO should be logged at all
+            MockLog.LoggingExpectation expectation = SUPPORTED
+                ? new MockLog.PatternNotSeenEventExpectation(
+                    "Direct IO used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Opening .*\\.vec with direct IO"
+                )
+                : new MockLog.PatternNotSeenEventExpectation(
+                    "Direct IO not used",
+                    FsDirectoryFactory.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "Could not open .*\\.vec with direct IO"
+                );
+            mockLog.addExpectation(expectation);
+
+            String indexName = indexVectors(false);
+
+            // do a search
+            var knn = List.of(new KnnSearchBuilder("fooVector", new VectorData(null, new byte[64]), 10, 20, 10f, null, null));
+            assertHitCount(prepareSearch(indexName).setKnnSearch(knn), 10);
             mockLog.assertAllExpectationsMatched();
         }
     }

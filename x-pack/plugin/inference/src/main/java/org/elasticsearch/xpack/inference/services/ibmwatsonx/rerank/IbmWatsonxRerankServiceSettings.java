@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +40,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     /**
      * Rate limits are defined at
      * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
-     * For Lite plan, you've 120 requests per minute.
+     * For the Lite plan, the limit is 120 requests per minute.
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
@@ -157,7 +156,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

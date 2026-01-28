@@ -16,6 +16,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -25,10 +26,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
-import org.elasticsearch.lucene.search.XIndexSortSortedNumericDocValuesRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -172,7 +173,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     instanceOf(PointRangeQuery.class),
                     instanceOf(IndexOrDocValuesQuery.class),
                     instanceOf(PrefixQuery.class),
-                    instanceOf(XIndexSortSortedNumericDocValuesRangeQuery.class)
+                    instanceOf(IndexSortSortedNumericDocValuesRangeQuery.class)
                 )
             )
         );
@@ -425,19 +426,19 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
             .field(KEYWORD_FIELD_NAME)
             .analyzer("stop")
             .toQuery(createSearchExecutionContext());
-        expected = new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f);
+        expected = new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f);
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).analyzer("stop"))
             .toQuery(createSearchExecutionContext());
-        expected = new BooleanQuery.Builder().add(new MatchNoDocsQuery(), BooleanClause.Occur.SHOULD).build();
+        expected = new BooleanQuery.Builder().add(Queries.NO_DOCS_INSTANCE, BooleanClause.Occur.SHOULD).build();
         assertEquals(expected, query);
 
         query = new BoolQueryBuilder().should(
             new MultiMatchQueryBuilder("the").field(TEXT_FIELD_NAME).field(KEYWORD_FIELD_NAME).analyzer("stop")
         ).toQuery(createSearchExecutionContext());
         expected = new BooleanQuery.Builder().add(
-            new DisjunctionMaxQuery(Arrays.asList(new MatchNoDocsQuery(), new MatchNoDocsQuery()), 0f),
+            new DisjunctionMaxQuery(Arrays.asList(Queries.NO_DOCS_INSTANCE, Queries.NO_DOCS_INSTANCE), 0f),
             BooleanClause.Occur.SHOULD
         ).build();
         assertEquals(expected, query);

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.downsample;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -19,7 +18,15 @@ public class DownsampleRestIT extends ESClientYamlSuiteTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
+        .module("x-pack-downsample")
+        .module("x-pack-ilm")
+        .module("lang-painless")
+        .module("aggregations")         // for auto_date_histogram
+        .module("mapper-extras")        // for scaled_float
+        .module("x-pack-analytics")     // for histogram
+        .module("data-streams")         // for time series
+        .module("exponential-histogram")// for exponential histograms
+        .module("ingest-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();
@@ -35,7 +42,7 @@ public class DownsampleRestIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters();
+        return ESClientYamlSuiteTestCase.createParameters("downsample");
     }
 
 }

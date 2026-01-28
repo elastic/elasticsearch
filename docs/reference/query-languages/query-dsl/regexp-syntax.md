@@ -56,6 +56,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 ::::
 

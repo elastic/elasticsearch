@@ -7,28 +7,25 @@
 
 package org.elasticsearch.xpack.ml.rest.cat;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsActionResponseTests;
+import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfigTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
-import org.junit.Before;
 
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestCatTrainedModelsActionTests extends ESTestCase {
 
-    private RestCatTrainedModelsAction action;
-
-    @Before
-    public void setUpAction() {
-        action = new RestCatTrainedModelsAction();
-    }
-
     public void testBuildTableAccumulatedStats() {
+        var action = new RestCatTrainedModelsAction(true);
+
         // GetTrainedModelsStatsActionResponseTests
         var deployment1 = new GetTrainedModelsStatsAction.Response.TrainedModelStats(
             "id1",
@@ -48,10 +45,13 @@ public class RestCatTrainedModelsActionTests extends ESTestCase {
             null
         );
 
-        var configs = List.of(TrainedModelConfigTests.createTestInstance("id1").build());
+        var dataframeConfig = DataFrameAnalyticsConfigTests.createRandom("dataframe1");
+        var configs = List.of(
+            TrainedModelConfigTests.createTestInstance(deployment1.getModelId()).setTags(List.of(dataframeConfig.getId())).build()
+        );
 
-        var table = action.buildTable(new FakeRestRequest(), List.of(deployment1, deployment2), configs, List.of());
-        assertThat(table.getRows().get(0).get(0).value, is("id1"));
+        var table = action.buildTable(new FakeRestRequest(), List.of(deployment1, deployment2), configs, List.of(dataframeConfig));
+        assertThat(table.getRows().get(0).get(0).value, is(deployment1.getModelId()));
         // pipeline count
         assertThat(table.getRows().get(0).get(9).value, is(4));
         // ingest count
@@ -81,6 +81,13 @@ public class RestCatTrainedModelsActionTests extends ESTestCase {
                     .totalStats()
                     .ingestFailedCount()
             )
+        );
+        assertThat(table.getRows().get(0).get(14).value, is(dataframeConfig.getId()));
+        assertThat(table.getRows().get(0).get(15).value, is(dataframeConfig.getCreateTime()));
+        assertThat(table.getRows().get(0).get(16).value, is(Strings.arrayToCommaDelimitedString(dataframeConfig.getSource().getIndex())));
+        assertThat(
+            table.getRows().get(0).get(17).value,
+            dataframeConfig.getAnalysis() == null ? nullValue() : is(dataframeConfig.getAnalysis().getWriteableName())
         );
     }
 }

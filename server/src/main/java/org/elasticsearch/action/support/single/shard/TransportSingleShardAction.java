@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
@@ -122,7 +123,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
     protected abstract boolean resolveIndex(Request request);
 
     protected static ClusterBlockException checkGlobalBlock(ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.READ);
     }
 
     protected ClusterBlockException checkRequestBlock(ProjectState state, InternalRequest request) {
@@ -185,6 +186,9 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
 
             this.shardIt = shards(project, internalRequest);
+            if (request instanceof SplitAwareRequest splitAwareRequest) {
+                splitAwareRequest.setSplitShardCountSummary(project.metadata(), concreteSingleIndex);
+            }
         }
 
         public void start() {

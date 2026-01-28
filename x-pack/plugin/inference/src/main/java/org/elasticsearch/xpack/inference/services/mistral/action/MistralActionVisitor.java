@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.mistral.completion.MistralChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
-import java.util.Map;
-
 /**
  * Interface for creating {@link ExecutableAction} instances for Mistral models.
  * <p>
@@ -25,10 +23,9 @@ public interface MistralActionVisitor {
      * Creates an {@link ExecutableAction} for the given {@link MistralEmbeddingsModel}.
      *
      * @param embeddingsModel The model to create the action for.
-     * @param taskSettings    The task settings to use.
      * @return An {@link ExecutableAction} for the given model.
      */
-    ExecutableAction create(MistralEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
+    ExecutableAction create(MistralEmbeddingsModel embeddingsModel);
 
     /**
      * Creates an {@link ExecutableAction} for the given {@link MistralChatCompletionModel}.

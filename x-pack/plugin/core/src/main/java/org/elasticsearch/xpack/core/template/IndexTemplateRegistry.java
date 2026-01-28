@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -94,7 +93,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     protected final ConcurrentMap<ProjectId, ConcurrentHashMap<String, AtomicBoolean>> pipelineCreationsInProgress =
         new ConcurrentHashMap<>();
     protected final List<LifecyclePolicy> lifecyclePolicies;
-    protected final ProjectResolver projectResolver;
 
     @SuppressWarnings("this-escape")
     public IndexTemplateRegistry(
@@ -102,15 +100,13 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        ProjectResolver projectResolver
+        NamedXContentRegistry xContentRegistry
     ) {
         this.settings = nodeSettings;
         this.client = client;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
         this.clusterService = clusterService;
-        this.projectResolver = projectResolver;
         if (isDataStreamsLifecycleOnlyMode(clusterService.getSettings()) == false) {
             this.lifecyclePolicies = getLifecycleConfigs().stream()
                 .map(config -> config.load(LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY))
@@ -201,7 +197,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutTemplateFailure(String templateName, Exception e) {
-        logger.error(() -> format("error adding index template [%s] for [%s]", templateName, getOrigin()), e);
+        logger.warn(() -> format("error adding index template [%s] for [%s]", templateName, getOrigin()), e);
     }
 
     /**
@@ -210,7 +206,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPolicyFailure(LifecyclePolicy policy, Exception e) {
-        logger.error(() -> format("error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
+        logger.warn(() -> format("error adding lifecycle policy [%s] for [%s]", policy.getName(), getOrigin()), e);
     }
 
     @Override
@@ -493,7 +489,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding legacy template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -507,7 +503,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                projectResolver.projectClient(client, projectId).admin().indices()::putTemplate
+                client.projectClient(projectId).admin().indices()::putTemplate
             );
         });
     }
@@ -531,7 +527,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding component template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -545,8 +541,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId)
-                    .execute(PutComponentTemplateAction.INSTANCE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(PutComponentTemplateAction.INSTANCE, req, listener)
             );
         });
     }
@@ -577,7 +572,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                             }
                         } else {
                             creationCheck.set(false);
-                            logger.error(
+                            logger.warn(
                                 "error adding composable template [{}] for [{}], request was not acknowledged",
                                 templateName,
                                 getOrigin()
@@ -591,8 +586,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutTemplateFailure(templateName, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, project.id())
-                    .execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
+                (req, listener) -> client.projectClient(project.id()).execute(TransportPutComposableIndexTemplateAction.TYPE, req, listener)
             );
         });
     }
@@ -648,7 +642,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding lifecycle policy [{}] for [{}], request was not acknowledged",
                                 policy.getName(),
                                 getOrigin()
@@ -662,7 +656,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPolicyFailure(policy, e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId).execute(ILMActions.PUT, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(ILMActions.PUT, req, listener)
             );
         });
     }
@@ -760,7 +754,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     public void onResponse(AcknowledgedResponse response) {
                         creationCheck.set(false);
                         if (response.isAcknowledged() == false) {
-                            logger.error(
+                            logger.warn(
                                 "error adding ingest pipeline [{}] for [{}], request was not acknowledged",
                                 pipelineConfig.getId(),
                                 getOrigin()
@@ -776,7 +770,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                         onPutPipelineFailure(pipelineConfig.getId(), e);
                     }
                 },
-                (req, listener) -> projectResolver.projectClient(client, projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
+                (req, listener) -> client.projectClient(projectId).execute(PutPipelineTransportAction.TYPE, req, listener)
             );
         });
     }
@@ -800,7 +794,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      * @param e The exception that caused the failure.
      */
     protected void onPutPipelineFailure(String pipelineId, Exception e) {
-        logger.error(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
+        logger.warn(() -> format("error adding ingest pipeline template [%s] for [%s]", pipelineId, getOrigin()), e);
     }
 
     /**
@@ -851,7 +845,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     getOrigin(),
                     request,
                     groupedActionListener,
-                    (req, listener) -> projectResolver.projectClient(client, project.id()).execute(RolloverAction.INSTANCE, req, listener)
+                    (req, listener) -> client.projectClient(project.id()).execute(RolloverAction.INSTANCE, req, listener)
                 );
             }
         });
@@ -870,9 +864,9 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     void onRolloverFailure(ProjectId projectId, Exception e) {
-        logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
+        logger.warn(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), e);
         for (Throwable throwable : e.getSuppressed()) {
-            logger.error(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
+            logger.warn(String.format(Locale.ROOT, "[%s] related rollover failed in project [%s]", getOrigin(), projectId), throwable);
         }
     }
 

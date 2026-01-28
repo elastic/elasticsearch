@@ -17,9 +17,11 @@ public class MvFunctionWritables {
             MvAppend.ENTRY,
             MvAvg.ENTRY,
             MvConcat.ENTRY,
+            MvContains.ENTRY,
             MvCount.ENTRY,
             MvDedupe.ENTRY,
             MvFirst.ENTRY,
+            MvIntersection.ENTRY,
             MvLast.ENTRY,
             MvMax.ENTRY,
             MvMedian.ENTRY,
@@ -30,6 +32,7 @@ public class MvFunctionWritables {
             MvSlice.ENTRY,
             MvSort.ENTRY,
             MvSum.ENTRY,
+            MvUnion.ENTRY,
             MvZip.ENTRY
         );
     }

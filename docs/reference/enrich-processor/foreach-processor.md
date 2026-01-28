@@ -60,6 +60,7 @@ Assume the following document:
   "values" : ["foo", "bar", "baz"]
 }
 ```
+% NOTCONSOLE
 
 When this `foreach` processor operates on this sample document:
 
@@ -75,6 +76,7 @@ When this `foreach` processor operates on this sample document:
   }
 }
 ```
+% NOTCONSOLE
 
 Then the document will look like this after processing:
 
@@ -83,6 +85,7 @@ Then the document will look like this after processing:
   "values" : ["FOO", "BAR", "BAZ"]
 }
 ```
+% NOTCONSOLE
 
 
 ### Array of objects [foreach-array-objects-ex]
@@ -103,6 +106,7 @@ Assume the following document:
   ]
 }
 ```
+% NOTCONSOLE
 
 In this case, the `id` field needs to be removed, so the following `foreach` processor is used:
 
@@ -118,6 +122,7 @@ In this case, the `id` field needs to be removed, so the following `foreach` pro
   }
 }
 ```
+% NOTCONSOLE
 
 After processing the result is:
 
@@ -133,6 +138,7 @@ After processing the result is:
   ]
 }
 ```
+% NOTCONSOLE
 
 For another array of objects example, refer to the [attachment processor documentation](/reference/enrich-processor/attachment.md#attachment-with-arrays).
 
@@ -162,6 +168,7 @@ You can also use the `foreach` processor on object fields. For example, the foll
   }
 }
 ```
+% NOTCONSOLE
 
 The following `foreach` processor changes the value of `products.display_name` to uppercase.
 
@@ -177,6 +184,7 @@ The following `foreach` processor changes the value of `products.display_name` t
   }
 }
 ```
+% NOTCONSOLE
 
 When run on the document, the `foreach` processor returns:
 
@@ -201,6 +209,7 @@ When run on the document, the `foreach` processor returns:
   }
 }
 ```
+% NOTCONSOLE
 
 The following `foreach` processor sets each element’s key to the value of `products.display_name`. If `products.display_name` contains an empty string, the processor deletes the element.
 
@@ -217,6 +226,7 @@ The following `foreach` processor sets each element’s key to the value of `pro
   }
 }
 ```
+% NOTCONSOLE
 
 When run on the previous document, the `foreach` processor returns:
 
@@ -236,6 +246,7 @@ When run on the previous document, the `foreach` processor returns:
   }
 }
 ```
+% NOTCONSOLE
 
 
 ### Failure handling [failure-handling-ex]
@@ -262,6 +273,7 @@ The wrapped processor can have a `on_failure` definition. For example, the `id` 
   }
 }
 ```
+% NOTCONSOLE
 
 In this example, if the `remove` processor does fail, then the array elements that have been processed thus far will be updated.
 

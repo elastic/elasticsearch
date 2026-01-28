@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.util;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -109,6 +110,8 @@ public class Delay extends UnaryScalarFunction {
     }
 
     static final class DelayEvaluator implements ExpressionEvaluator {
+        private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DelayEvaluator.class);
+
         private final DriverContext driverContext;
         private final long ms;
 
@@ -136,6 +139,11 @@ public class Delay extends UnaryScalarFunction {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return BASE_RAM_BYTES_USED;
         }
 
         @Override

@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.type;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -14,10 +15,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.Converter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
@@ -545,7 +548,7 @@ public class DataTypeConversionTests extends ESTestCase {
         Converter ipToString = converterFor(IP, KEYWORD);
         assertEquals("10.0.0.1", ipToString.convert(new Literal(s, "10.0.0.1", IP)));
         Converter stringToIp = converterFor(KEYWORD, IP);
-        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(new Literal(s, "10.0.0.1", KEYWORD))));
+        assertEquals("10.0.0.1", ipToString.convert(stringToIp.convert(Literal.keyword(s, "10.0.0.1"))));
     }
 
     public void testStringToVersion() {
@@ -562,10 +565,21 @@ public class DataTypeConversionTests extends ESTestCase {
         Source s2 = new Source(Location.EMPTY, "2.1.4-SNAPSHOT");
         DataType stringType = randomFrom(TEXT, KEYWORD);
         Converter versionToString = converterFor(VERSION, stringType);
-        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
-        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, new Version("2.1.4").toBytesRef(), VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, new Version("2.1.4-SNAPSHOT").toBytesRef(), VERSION)));
         Converter stringToVersion = converterFor(stringType, VERSION);
-        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, "2.1.4", stringType))));
-        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToVersion.convert(new Literal(s2, "2.1.4-SNAPSHOT", stringType))));
+        assertEquals("2.1.4", versionToString.convert(stringToVersion.convert(new Literal(s, BytesRefs.toBytesRef("2.1.4"), stringType))));
+        assertEquals(
+            "2.1.4-SNAPSHOT",
+            versionToString.convert(stringToVersion.convert(new Literal(s2, BytesRefs.toBytesRef("2.1.4-SNAPSHOT"), stringType)))
+        );
+    }
+
+    private ZonedDateTime asDateTime(long millis) {
+        return DateUtils.asDateTime(millis, ZoneOffset.UTC);
+    }
+
+    private ZonedDateTime asDateTime(String dateString) {
+        return DateUtils.asDateTime(dateString);
     }
 }

@@ -84,6 +84,7 @@ PUT geocells/_doc/1?pipeline=geotile2shape
 
 GET geocells/_doc/1
 ```
+% TEST[continued]
 
 The response shows how the ingest-processor has replaced the `geocell` field with an indexable `geo_shape`:
 
@@ -106,6 +107,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
   }
 }
 ```
+% TESTRESPONSE[s/"_version": \d+/"_version": $body._version/ s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
 ![Kibana map with showing the geotile at 4/8/5 and its four child cells](images/geogrid_tile.png "")
 
@@ -122,6 +124,7 @@ PUT geocells/_doc/1?pipeline=geohex2shape
 
 GET geocells/_doc/1
 ```
+% TEST[continued]
 
 The response shows how the ingest-processor has replaced the `geocell` field with an indexable `geo_shape`:
 
@@ -138,6 +141,7 @@ The response shows how the ingest-processor has replaced the `geocell` field wit
   }
 }
 ```
+% TESTRESPONSE[s/"_version": \d+/"_version": $body._version/ s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
 ![Kibana map with showing an H3 cell](images/geogrid_h3.png "")
 
@@ -178,6 +182,7 @@ PUT geocells/_doc/1?pipeline=geohex2shape
 
 GET geocells/_doc/1
 ```
+% TEST[continued]
 
 The response from this index request:
 
@@ -214,6 +219,7 @@ The response from this index request:
   }
 }
 ```
+% TESTRESPONSE[s/"_version": \d+/"_version": $body._version/ s/"_seq_no": \d+/"_seq_no": $body._seq_no/ s/"_primary_term": 1/"_primary_term": $body._primary_term/]
 
 This additional information will then enable, for example, creating a visualization of the H3 cell, its children and its intersecting non-children cells.
 

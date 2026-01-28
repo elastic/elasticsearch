@@ -8,10 +8,10 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -42,7 +43,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         long fromPointValues(PointValues pointValues) throws IOException;
 
         /** Wraps the provided {@link SortedNumericDocValues} with a {@link MultiValueMode} */
-        NumericDocValues multiValueMode(SortedNumericDocValues sortedNumericDocValues);
+        LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues);
 
         /** Return the competitive value between {@code value1} and {@code value2} */
         long evaluate(long value1, long value2);
@@ -65,6 +66,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
     private final String fieldName;
 
     LuceneMinMaxOperator(
+        IndexedByShardId<? extends RefCounted> shardRefCounters,
         BlockFactory blockFactory,
         LuceneSliceQueue sliceQueue,
         String fieldName,
@@ -72,7 +74,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         int limit,
         long initialResult
     ) {
-        super(blockFactory, PAGE_SIZE, sliceQueue);
+        super(shardRefCounters, blockFactory, PAGE_SIZE, sliceQueue);
         this.remainingDocs = limit;
         this.numberType = numberType;
         this.fieldName = fieldName;
@@ -132,7 +134,7 @@ final class LuceneMinMaxOperator extends LuceneOperator {
                 }
                 if (scorer.isDone() == false) {
                     // could not apply shortcut, trigger the search
-                    final NumericDocValues values = numberType.multiValueMode(reader.getSortedNumericDocValues(fieldName));
+                    final LongValues values = numberType.multiValueMode(reader.getSortedNumericDocValues(fieldName));
                     final LeafCollector leafCollector = new LeafCollector() {
                         @Override
                         public void setScorer(Scorable scorer) {}

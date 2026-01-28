@@ -276,7 +276,7 @@ override sort order settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.order:[asc, asc], size mismatch" }
+  - match: { error.reason: "setting [index.sort.order] requires [index.sort.field] to be configured" }
 
 ---
 override sort missing settings:
@@ -312,7 +312,7 @@ override sort missing settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.missing:[_last, _first], size mismatch" }
+  - match: { error.reason: "setting [index.sort.missing] requires [index.sort.field] to be configured" }
 
 ---
 override sort mode settings:
@@ -348,7 +348,7 @@ override sort mode settings:
                 type: text
 
   - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "index.sort.fields:[] index.sort.mode:[MAX, MAX], size mismatch" }
+  - match: { error.reason: "setting [index.sort.mode] requires [index.sort.field] to be configured" }
 
 ---
 override sort field using nested field type in sorting:
@@ -502,72 +502,6 @@ routing path allowed in logs mode with routing on sort fields:
   - match: { test.settings.index.mode: logsdb }
   - match: { test.settings.index.logsdb.route_on_sort_fields: "true" }
   - match: { test.settings.index.routing_path: [ host.name, agent_id ] }
-
----
-start time not allowed in logs mode:
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              mode: logsdb
-              number_of_replicas: 0
-              number_of_shards: 2
-              time_series:
-                start_time: 2023-01-01T00:00:00Z
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-              agent_id:
-                type: keyword
-              process_id:
-                type: integer
-              http_method:
-                type: keyword
-              message:
-                type: text
-
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[index.time_series.start_time] requires [index.mode=time_series]" }
-
----
-end time not allowed in logs mode:
-  - do:
-      catch: bad_request
-      indices.create:
-        index: test
-        body:
-          settings:
-            index:
-              mode: logsdb
-              number_of_replicas: 0
-              number_of_shards: 2
-              time_series:
-                end_time: 2023-01-30T00:00:00Z
-          mappings:
-            properties:
-              "@timestamp":
-                type: date
-              host.name:
-                type: keyword
-              agent_id:
-                type: keyword
-              process_id:
-                type: integer
-              http_method:
-                type: keyword
-              message:
-                type: text
-
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
-  - match: { error.type: "illegal_argument_exception" }
-  - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }
 
 ---
 ignore dynamic beyond limit logsdb default value:

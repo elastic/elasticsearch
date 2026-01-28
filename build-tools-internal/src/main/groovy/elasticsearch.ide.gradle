@@ -21,6 +21,17 @@ import java.nio.file.StandardCopyOption
 allprojects {
   apply plugin: 'idea'
 
+  // We got reports of invalid idea classpaths when major classpath changes (e.g. lucene update)
+  // has been merged and developers switching back and forth. This should enforce idea
+  // to not try to be smart.
+  // This enforces A "complete rewrite" causing all existing content to be discarded,
+  // thereby losing any changes made directly in the IDE but that should be fine for us.
+  idea.module.iml {
+    beforeMerged { module ->
+      module.dependencies.clear()
+    }
+  }
+
   tasks.named('idea').configure {
     doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see CONTRIBUTING.md.") }
   }
@@ -180,6 +191,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   // this path is produced by the extractLibs task above
   String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
   def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
+  def delegateToGradle = providers.gradleProperty("org.elasticsearch.idea-delegate-to-gradle").getOrElse("false").toBoolean()
   idea {
     project {
       vcs = 'Git'
@@ -188,7 +200,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       settings {
         delegateActions {
           delegateBuildRunToGradle = false
-          testRunner = 'choose_per_test'
+          testRunner = delegateToGradle ? 'gradle' : 'choose_per_test'
         }
         taskTriggers {
           afterSync tasks.named('configureIdeCheckstyle'),

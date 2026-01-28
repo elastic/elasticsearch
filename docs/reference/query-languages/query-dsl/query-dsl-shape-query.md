@@ -40,6 +40,7 @@ PUT /example/_doc/1?refresh=wait_for
   }
 }
 ```
+% TESTSETUP
 
 The following query will find the point using the Elasticsearch’s `envelope` GeoJSON extension:
 

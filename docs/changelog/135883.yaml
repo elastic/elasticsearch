@@ -1,0 +1,5 @@
+pr: 135883
+summary: Improve block loader for source only runtime `geo_point` fields
+area: Mapping
+type: enhancement
+issues: []

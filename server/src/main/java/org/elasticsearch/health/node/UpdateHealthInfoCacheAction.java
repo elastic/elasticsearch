@@ -9,7 +9,7 @@
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -41,6 +41,8 @@ import java.util.Objects;
  */
 public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse> {
     private static final Logger logger = LogManager.getLogger(UpdateHealthInfoCacheAction.class);
+
+    private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
 
     public static class Request extends HealthNodeRequest {
         private final String nodeId;
@@ -86,25 +88,12 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
-                this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
-                this.repositoriesHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
-                    ? in.readOptionalWriteable(RepositoriesHealthInfo::new)
-                    : null;
-                this.fileSettingsHealthInfo = in.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)
-                    ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
-                    : null;
-            } else {
-                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.HEALTH_INFO_ENRICHED_WITH_DSL_STATUS} transport version
-                // before sending any requests to update the health info that'd break the pre HEALTH_INFO_ENRICHED_WITH_DSL_STATUS
-                // transport invariant of always having a disk health information in the request
-                this.diskHealthInfo = new DiskHealthInfo(in);
-                this.dslHealthInfo = null;
-                this.repositoriesHealthInfo = null;
-                this.fileSettingsHealthInfo = null;
-            }
+            this.diskHealthInfo = in.readOptionalWriteable(DiskHealthInfo::new);
+            this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
+            this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
+            this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
+                ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
+                : null;
         }
 
         public String getNodeId() {
@@ -137,21 +126,11 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeOptionalWriteable(diskHealthInfo);
-                out.writeOptionalWriteable(dslHealthInfo);
-                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                    out.writeOptionalWriteable(repositoriesHealthInfo);
-                }
-                if (out.getTransportVersion().onOrAfter(TransportVersions.FILE_SETTINGS_HEALTH_INFO)) {
-                    out.writeOptionalWriteable(fileSettingsHealthInfo);
-                }
-            } else {
-                // BWC for pre-8.12 the disk health info was mandatory. Evolving this request has proven tricky however we've made use of
-                // waiting for all nodes to be on the {@link TransportVersions.V_8_12_0} transport version
-                // before sending any requests to update the health info that'd break the pre-8.12
-                // transport invariant of always having a disk health information in the request
-                diskHealthInfo.writeTo(out);
+            out.writeOptionalWriteable(diskHealthInfo);
+            out.writeOptionalWriteable(dslHealthInfo);
+            out.writeOptionalWriteable(repositoriesHealthInfo);
+            if (out.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
+                out.writeOptionalWriteable(fileSettingsHealthInfo);
             }
         }
 

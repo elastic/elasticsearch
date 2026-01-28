@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
@@ -57,11 +56,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
         super(in);
         this.seed = in.readInt();
         this.probability = in.readDouble();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.shardSeed = in.readOptionalInt();
-        } else {
-            this.shardSeed = null;
-        }
+        this.shardSeed = in.readOptionalInt();
     }
 
     @Override
@@ -69,9 +64,7 @@ public class InternalRandomSampler extends InternalSingleBucketAggregation {
         super.doWriteTo(out);
         out.writeInt(seed);
         out.writeDouble(probability);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalInt(shardSeed);
-        }
+        out.writeOptionalInt(shardSeed);
     }
 
     @Override

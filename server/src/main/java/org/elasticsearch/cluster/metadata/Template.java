@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -67,18 +66,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
-        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return parseMappings(p); },
+            MAPPINGS,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             XContentParser.Token token;
@@ -102,6 +95,19 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
+    }
+
+    public static CompressedXContent parseMappings(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new CompressedXContent(Base64.getDecoder().decode(parser.text()));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return new CompressedXContent(parser.binaryValue());
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Nullable
@@ -166,24 +172,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = in.readBoolean();
-            if (isExplicitNull) {
-                this.lifecycle = DISABLED_LIFECYCLE;
-            } else {
-                this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-            }
-        } else {
-            this.lifecycle = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
-        } else {
-            // We default to no data stream options since failure store is behind a feature flag up to this version
-            this.dataStreamOptions = ResettableValue.undefined();
-        }
+        this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
+        dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
     }
 
     @Nullable
@@ -235,18 +225,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            out.writeOptionalWriteable(lifecycle);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
-            out.writeBoolean(isExplicitNull);
-            if (isExplicitNull == false) {
-                out.writeOptionalWriteable(lifecycle);
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
-        }
+        out.writeOptionalWriteable(lifecycle);
+        ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }
 
     @Override

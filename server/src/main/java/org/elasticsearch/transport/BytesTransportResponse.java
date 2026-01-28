@@ -9,10 +9,13 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A specialized, bytes only response, that can potentially be optimized on the network layer.
@@ -20,9 +23,27 @@ import java.io.IOException;
 public class BytesTransportResponse extends TransportResponse implements BytesTransportMessage {
 
     private final ReleasableBytesReference bytes;
+    private final TransportVersion version;
 
-    public BytesTransportResponse(ReleasableBytesReference bytes) {
+    public BytesTransportResponse(ReleasableBytesReference bytes, TransportVersion version) {
         this.bytes = bytes;
+        this.version = Objects.requireNonNull(version);
+    }
+
+    /**
+     * Does the binary response need conversion before being sent to the provided target version?
+     */
+    public boolean mustConvertResponseForVersion(TransportVersion targetVersion) {
+        return version.equals(targetVersion) == false;
+    }
+
+    /**
+     * Returns a {@link StreamInput} configured to read the underlying bytes that this response holds.
+     */
+    public StreamInput streamInput() throws IOException {
+        StreamInput streamInput = bytes.streamInput();
+        streamInput.setTransportVersion(version);
+        return streamInput;
     }
 
     @Override

@@ -10,7 +10,10 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.ES91Int4VectorsScorer;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
+import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -29,7 +32,22 @@ public abstract class ESVectorizationProvider {
     public abstract ESVectorUtilSupport getVectorUtilSupport();
 
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
-    public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException;
+    public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize
+    ) throws IOException;
+
+    /** Create a new {@link ES91Int4VectorsScorer} for the given {@link IndexInput}. */
+    public abstract ES91Int4VectorsScorer newES91Int4VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
+    public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {

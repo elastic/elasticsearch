@@ -9,10 +9,12 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -41,8 +43,63 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomShardSizes(),
             randomDataSetSizes(),
             randomRoutingToDataPath(),
-            randomReservedSpace()
+            randomReservedSpace(),
+            randomNodeHeapUsage(),
+            randomNodeUsageStatsForThreadPools(),
+            randomShardWriteLoad(),
+            randomMaxHeapSizes()
         );
+    }
+
+    private static Map<ShardId, Double> randomShardWriteLoad() {
+        final int numEntries = randomIntBetween(0, 128);
+        final Map<ShardId, Double> builder = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            builder.put(randomShardId(), randomDouble());
+        }
+        return builder;
+    }
+
+    private static Map<String, ByteSizeValue> randomMaxHeapSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, ByteSizeValue> nodeMaxHeapSizes = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeMaxHeapSizes.put(randomAlphaOfLength(32), randomByteSizeValue());
+        }
+        return nodeMaxHeapSizes;
+    }
+
+    private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, EstimatedHeapUsage> nodeHeapUsage = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String key = randomAlphaOfLength(32);
+            final int totalBytes = randomIntBetween(0, Integer.MAX_VALUE);
+            final EstimatedHeapUsage estimatedHeapUsage = new EstimatedHeapUsage(
+                randomAlphaOfLength(4),
+                totalBytes,
+                randomIntBetween(0, totalBytes)
+            );
+            nodeHeapUsage.put(key, estimatedHeapUsage);
+        }
+        return nodeHeapUsage;
+    }
+
+    private static Map<String, NodeUsageStatsForThreadPools> randomNodeUsageStatsForThreadPools() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, NodeUsageStatsForThreadPools> nodeUsageStatsForThreadPools = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeIdKey = randomAlphaOfLength(32);
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolUsageStats =
+                new NodeUsageStatsForThreadPools.ThreadPoolUsageStats(/* totalThreadPoolThreads= */ randomIntBetween(1, 16),
+                    /* averageThreadPoolUtilization= */ randomFloat(),
+                    /* maxThreadPoolQueueLatencyMillis= */ randomLongBetween(0, 50000)
+                );
+            Map<String, NodeUsageStatsForThreadPools.ThreadPoolUsageStats> usageStatsForThreadPools = new HashMap<>();
+            usageStatsForThreadPools.put(ThreadPool.Names.WRITE, writeThreadPoolUsageStats);
+            nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
+        }
+        return nodeUsageStatsForThreadPools;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

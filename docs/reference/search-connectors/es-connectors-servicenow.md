@@ -11,11 +11,7 @@ The *Elastic ServiceNow connector* is a [connector](/reference/search-connectors
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/servicenow.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/servicenow) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-servicenow-connector-client-reference]
 
@@ -31,7 +27,7 @@ The ServiceNow connector was introduced in Elastic version 8.9.0. This connector
 
 To create a new ServiceNow connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **ServiceNow** self-managed connector.
 
 
@@ -49,6 +45,7 @@ PUT _connector/my-servicenow-connector
   "service_type": "servicenow"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -119,9 +116,6 @@ The ServiceNow connector is compatible with the following versions of ServiceNow
 
 ### Configuration [es-connectors-servicenow-client-configuration]
 
-
-
-
 The following configuration fields are required to set up the connector:
 
 `url`
@@ -136,11 +130,11 @@ The following configuration fields are required to set up the connector:
 `services`
 :   Comma-separated list of services to fetch data from ServiceNow. If the value is `*`, the connector will fetch data from the list of basic services provided by ServiceNow:
 
-    * [User](https://docs.servicenow.com/bundle/utah-platform-administration/page/administer/roles/concept/user.md)
-    * [Incident](https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.md)
-    * [Requested Item](https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.md)
-    * [Knowledge](https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.md)
-    * [Change request](https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.md)
+    * [User](https://www.servicenow.com/docs/bundle/vancouver-platform-administration/page/administer/roles/concept/user.html)
+    * [Incident](https://www.servicenow.com/docs/bundle/vancouver-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html)
+    * [Requested Item](https://www.servicenow.com/docs/bundle/vancouver-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html)
+    * [Knowledge](https://www.servicenow.com/docs/bundle/vancouver-servicenow-platform/page/product/knowledge-management/concept/c_KnowledgeHomepage.html)
+    * [Change request](https://www.servicenow.com/docs/bundle/vancouver-it-service-management/page/product/change-management/task/t_CreateAChange.html)
 
         ::::{note}
         If you have configured a custom service, the `*` value will not fetch data from the basic services above by default. In this case you’ll need to mention these service names explicitly.
@@ -223,8 +217,9 @@ You can deploy the ServiceNow connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -262,13 +257,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -315,6 +310,7 @@ $$$es-connectors-servicenow-client-sync-rules-number-incident-service$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
 **Indexing document based on user activity state for User service**
@@ -327,6 +323,7 @@ $$$es-connectors-servicenow-client-sync-rules-active-false-user-service$$$
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-service$$$
 **Indexing document based on author name for Knowledge service**
@@ -339,6 +336,7 @@ $$$es-connectors-servicenow-client-sync-rules-author-administrator-knowledge-ser
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### End-to-end Testing [es-connectors-servicenow-client-connector-client-operations-testing]

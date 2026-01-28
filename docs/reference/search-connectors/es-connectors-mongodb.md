@@ -9,11 +9,7 @@ mapped_pages:
 
 The *Elastic MongoDB connector* is a [connector](/reference/search-connectors/index.md) for [MongoDB](https://www.mongodb.com) data sources. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/mongodb.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/mongo) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-mongodb-connector-client-reference]
 
@@ -96,7 +92,7 @@ We strongly recommend leaving this option disabled in production environments.
 
 To create a new MongoDB connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **MongoDB** self-managed connector.
 
 
@@ -114,6 +110,7 @@ PUT _connector/my-mongodb-connector
   "service_type": "mongodb"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -196,6 +193,7 @@ Incorrect (`new Date()` will be interpreted as string):
     }
 }
 ```
+% NOTCONSOLE
 
 Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW)):
 
@@ -224,6 +222,7 @@ Correct (usage of [$$NOW](https://www.mongodb.com/docs/manual/reference/aggregat
   }
 }
 ```
+% NOTCONSOLE
 
 
 #### Connecting with self-signed or custom CA TLS Cert [es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
@@ -249,8 +248,23 @@ The full host in this example will look like this:
 
 A bug introduced in **8.12.0** causes the Connectors docker image to error out if run using MongoDB as its source. The command line will output the error `cannot import name 'coroutine' from 'asyncio'`. *** This issue is fixed in versions *8.12.2** and **8.13.0**. ** This bug does not affect Elastic managed connectors.
 
-See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
+#### UUIDs are not correctly deserialized, causing problems with ingesting documents into Elasticsearch
 
+MongoDB has special handling of UUID type: there is a legacy and a modern approach. You can read [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html) about the details.
+
+With connector framework version 9.0.3, we improved how standard UUIDs are handled. Now, the MongoDB connector can correctly deserialize UUIDs into valid Elasticsearch values. However, for legacy UUIDs or older connector versions, you might need to adjust the connection string to specify the UUID representation.
+
+For example, if you are using the modern UUID representation, adding the `uuidRepresentation=standard` query parameter to the MongoDB connection URI in the `host` Rich Configurable Field will allow the connector to properly handle UUIDs. With this change, the full `host` Rich Configurable Field value could look like this:`mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority&uuidRepresentation=standard`
+
+If you’re using a legacy UUID representation, you should adjust the connection URI accordingly. For example:
+
+- C#: `uuidRepresentation=csharpLegacy`
+- Java: `uuidRepresentation=javaLegacy`
+- Python: `uuidRepresentation=pythonLegacy`
+
+You can find a full explanation in the [official docs](https://pymongo.readthedocs.io/en/stable/examples/uuid.html#configuring-a-uuid-representation).
+
+See [Known issues](/release-notes/known-issues.md) for any issues affecting all connectors.
 
 ### Troubleshooting [es-connectors-mongodb-client-troubleshooting]
 
@@ -270,8 +284,9 @@ You can deploy the MongoDB connector as a self-managed connector using Docker. F
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -309,13 +324,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -396,6 +411,7 @@ For `find` queries, the structure of this JSON DSL should look like:
 	}
 }
 ```
+% NOTCONSOLE
 
 For example:
 
@@ -413,6 +429,7 @@ For example:
 	}
 }
 ```
+% NOTCONSOLE
 
 `find` queries also support additional options, for example the `projection` object:
 
@@ -433,6 +450,7 @@ For example:
   }
 }
 ```
+% NOTCONSOLE
 
 Where the available options are:
 
@@ -465,6 +483,7 @@ Similarly, for aggregation pipelines, the structure of the JSON DSL should look 
     }
 }
 ```
+% NOTCONSOLE
 
 Where the available options are:
 

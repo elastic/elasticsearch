@@ -80,7 +80,7 @@ setup:
                 -
                   standard:
                     query:
-                      match: { text: "document" }
+                      match_none: {}
                 -
                   pinned:
                     ids: ["doc4", "doc5"]
@@ -90,9 +90,6 @@ setup:
                           match: { text: "document" }
 
   - match: { hits.total.value: 5 }
-  - match: { hits.hits.0._id: doc1 }
-  - lt: { hits.hits.0._score: 100.0 }
-  - match: { hits.hits.1._id: doc4 }
-  - match: { hits.hits.2._id: doc5 }
-
+  - match: { hits.hits.0._id: doc4 }
+  - match: { hits.hits.1._id: doc5 }
 

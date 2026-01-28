@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -31,6 +32,8 @@ import java.util.BitSet;
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
 public class InNanosMillisEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(InNanosMillisEvaluator.class);
+
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -147,6 +150,16 @@ public class InNanosMillisEvaluator implements EvalOperator.ExpressionEvaluator 
     @Override
     public String toString() {
         return "InNanosMillisEvaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+    }
+
+    @Override
+    public long baseRamBytesUsed() {
+        long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+        baseRamBytesUsed += lhs.baseRamBytesUsed();
+        for (EvalOperator.ExpressionEvaluator r : rhs) {
+            baseRamBytesUsed += r.baseRamBytesUsed();
+        }
+        return baseRamBytesUsed;
     }
 
     @Override

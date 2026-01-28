@@ -104,6 +104,11 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public FloatVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantFloatVector(value, getPositionCount());
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

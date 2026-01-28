@@ -10,31 +10,38 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeFloatAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.LastOverTimeLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastExponentialHistogramByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastIntByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastLongByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator {
+public class LastOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "LastOverTime",
@@ -43,26 +50,35 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     private final Expression timestamp;
 
+    // TODO: support all types
     @FunctionInfo(
-        returnType = { "int", "double", "integer", "long" },
-        description = "Collect the most recent value of a time-series in the specified interval. Available with TS command only",
-        type = FunctionType.AGGREGATE
+        type = FunctionType.TIME_SERIES_AGGREGATE,
+        returnType = { "long", "integer", "double", "_tsid", "exponential_histogram" },
+        description = "Calculates the latest value of a field, where recency determined by the `@timestamp` field.",
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.2.0") },
+        preview = true,
+        examples = { @Example(file = "k8s-timeseries", tag = "last_over_time") }
     )
     public LastOverTime(
         Source source,
-        @Param(name = "field", type = { "long|int|double|float" }, description = "field") Expression field,
+        @Param(
+            name = "field",
+            type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid", "exponential_histogram" },
+            description = "the metric field to calculate the latest value for"
+        ) Expression field,
+        @Param(
+            name = "window",
+            type = { "time_duration" },
+            description = "the time window over which to find the latest value",
+            optional = true
+        ) Expression window,
         Expression timestamp
     ) {
-        this(source, field, Literal.TRUE, timestamp);
+        this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW), timestamp);
     }
 
-    // compatibility constructor used when reading from the stream
-    private LastOverTime(Source source, Expression field, Expression filter, List<Expression> children) {
-        this(source, field, filter, children.getFirst());
-    }
-
-    private LastOverTime(Source source, Expression field, Expression filter, Expression timestamp) {
-        super(source, field, filter, List.of(timestamp));
+    public LastOverTime(Source source, Expression field, Expression filter, Expression window, Expression timestamp) {
+        super(source, field, filter, window, List.of(timestamp));
         this.timestamp = timestamp;
     }
 
@@ -71,7 +87,8 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            readWindow(in),
+            in.readNamedWriteableCollectionAsList(Expression.class).getFirst()
         );
     }
 
@@ -80,47 +97,53 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         return ENTRY.name;
     }
 
-    public static LastOverTime withUnresolvedTimestamp(Source source, Expression field) {
-        return new LastOverTime(source, field, new UnresolvedAttribute(source, "@timestamp"));
-    }
-
     @Override
     protected NodeInfo<LastOverTime> info() {
-        return NodeInfo.create(this, LastOverTime::new, field(), timestamp);
+        return NodeInfo.create(this, LastOverTime::new, field(), filter(), window(), timestamp);
     }
 
     @Override
     public LastOverTime replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            assert false : "expected 3 children for field, filter, @timestamp; got " + newChildren;
-            throw new IllegalArgumentException("expected 3 children for field, filter, @timestamp; got " + newChildren);
-        }
-        return new LastOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
+        return new LastOverTime(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 
     @Override
     public LastOverTime withFilter(Expression filter) {
-        return new LastOverTime(source(), field(), filter, timestamp);
+        return new LastOverTime(source(), field(), filter, window(), timestamp);
     }
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noCounter();
     }
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(field(), dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG, sourceText(), DEFAULT, "numeric except unsigned_long");
+        return isType(
+            field(),
+            dt -> (dt.noCounter().isNumeric() && dt != DataType.UNSIGNED_LONG)
+                || dt == DataType.TSID_DATA_TYPE
+                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long"
+        ).and(
+            isType(timestamp, dt -> dt == DataType.DATETIME || dt == DataType.DATE_NANOS, sourceText(), SECOND, "date_nanos or datetime")
+        );
     }
 
     @Override
     public AggregatorFunctionSupplier supplier() {
+        // TODO: When processing TSDB data_streams they are sorted by `_tsid` and timestamp in descending order,
+        // we can read the first encountered value for each group of `_tsid` and time bucket.
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new LastOverTimeLongAggregatorFunctionSupplier();
-            case INTEGER -> new LastOverTimeIntAggregatorFunctionSupplier();
-            case DOUBLE -> new LastOverTimeDoubleAggregatorFunctionSupplier();
-            case FLOAT -> new LastOverTimeFloatAggregatorFunctionSupplier();
+            case LONG, COUNTER_LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
+            case INTEGER, COUNTER_INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
+            case DOUBLE, COUNTER_DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
+            case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
+            case TSID_DATA_TYPE -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case EXPONENTIAL_HISTOGRAM -> new LastExponentialHistogramByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
@@ -132,10 +155,11 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
 
     @Override
     public String toString() {
-        return "last_over_time(" + field() + ")";
+        return "last_over_time(" + field() + ", " + timestamp() + ")";
     }
 
-    Expression timestamp() {
+    @Override
+    public Expression timestamp() {
         return timestamp;
     }
 }

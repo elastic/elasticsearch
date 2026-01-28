@@ -37,7 +37,19 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
 
     @Override
     protected UpdateInferenceModelAction.Request mutateInstance(UpdateInferenceModelAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        var inferenceId = instance.getInferenceEntityId();
+        var content = instance.getContent();
+        var contentType = instance.getContentType();
+        var taskType = instance.getTaskType();
+        switch (randomInt(3)) {
+            case 0 -> inferenceId = randomValueOtherThan(inferenceId, () -> randomAlphaOfLength(5));
+            case 1 -> content = randomValueOtherThan(content, () -> randomBytesReference(50));
+            case 2 -> contentType = randomValueOtherThan(contentType, () -> randomFrom(XContentType.values()));
+            case 3 -> taskType = randomValueOtherThan(taskType, () -> randomFrom(TaskType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new UpdateInferenceModelAction.Request(inferenceId, content, contentType, taskType, randomTimeValue());
     }
 
     @Override

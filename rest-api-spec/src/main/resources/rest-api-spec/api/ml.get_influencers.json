@@ -1,68 +1,80 @@
 {
-  "ml.get_influencers":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-influencer.html",
-      "description":"Retrieves anomaly detection job results for one or more influencers."
+  "ml.get_influencers": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-influencers",
+      "description": "Get anomaly detection job results for influencers"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/anomaly_detectors/{job_id}/results/influencers",
-          "methods":[
+          "path": "/_ml/anomaly_detectors/{job_id}/results/influencers",
+          "methods": [
             "GET",
             "POST"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"Identifier for the anomaly detection job"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "Identifier for the anomaly detection job"
             }
           }
         }
       ]
     },
-    "params":{
-      "exclude_interim":{
-        "type":"boolean",
-        "description":"Exclude interim results"
+    "params": {
+      "exclude_interim": {
+        "type": "boolean",
+        "default": false,
+        "description": "Exclude interim results"
       },
-      "from":{
-        "type":"int",
-        "description":"skips a number of influencers"
+      "from": {
+        "type": "int",
+        "default": 0,
+        "description": "skips a number of influencers"
       },
-      "size":{
-        "type":"int",
-        "description":"specifies a max number of influencers to get"
+      "size": {
+        "type": "int",
+        "default": 100,
+        "description": "specifies a max number of influencers to get"
       },
-      "start":{
-        "type":"string",
-        "description":"start timestamp for the requested influencers"
+      "start": {
+        "type": "date",
+        "default": "-1",
+        "description": "start timestamp for the requested influencers"
       },
-      "end":{
-        "type":"string",
-        "description":"end timestamp for the requested influencers"
+      "end": {
+        "type": "date",
+        "default": "-1",
+        "description": "end timestamp for the requested influencers"
       },
-      "influencer_score":{
-        "type":"double",
-        "description":"influencer score threshold for the requested influencers"
+      "influencer_score": {
+        "type": "double",
+        "default": 0,
+        "description": "influencer score threshold for the requested influencers"
       },
-      "sort":{
-        "type":"string",
-        "description":"sort field for the requested influencers"
+      "sort": {
+        "type": "string",
+        "description": "sort field for the requested influencers"
       },
-      "desc":{
-        "type":"boolean",
-        "description":"whether the results should be sorted in decending order"
+      "desc": {
+        "type": "boolean",
+        "default": false,
+        "description": "whether the results should be sorted in decending order"
       }
     },
-    "body":{
-      "description":"Influencer selection criteria"
+    "body": {
+      "description": "Influencer selection criteria",
+      "required": false
     }
   }
 }

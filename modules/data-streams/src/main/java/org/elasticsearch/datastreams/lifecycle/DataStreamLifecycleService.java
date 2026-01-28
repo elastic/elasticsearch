@@ -816,11 +816,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 if (currentRound.equals(lastRound)) {
                     // target downsampling index exists and is not a downsampling index (name clash?)
                     // we fail now but perhaps we should just randomise the name?
-
-                    recordAndLogError(
+                    errorStore.recordAndLogError(
                         projectId,
                         indexName,
-                        errorStore,
                         new ResourceAlreadyExistsException(downsampleIndexName),
                         String.format(
                             Locale.ROOT,

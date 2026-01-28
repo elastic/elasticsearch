@@ -17,17 +17,26 @@ import java.util.Set;
 public abstract class ResolveTransportVersionConflictTask extends AbstractGenerateTransportVersionDefinitionTask {
 
     @Override
-    protected void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds)
+    protected void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds, boolean onReleaseBranch)
         throws IOException {
 
-        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
-        if (changedDefinitionNames.isEmpty()) {
-            getLogger().lifecycle("No transport version changes detected, skipping transport version re-generation");
-            return;
-        }
-        String targetDefinitionName = changedDefinitionNames.iterator().next();
+        if (onReleaseBranch) {
+            if (resources.hasCherryPickConflicts()) {
+                getLogger().lifecycle("Resolving transport version conflicts by accepting upstream changes...");
+                resources.checkoutOriginalChange();
+            } else {
+                getLogger().lifecycle("No transport version merge conflicts detected");
+            }
+        } else {
+            Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+            if (changedDefinitionNames.isEmpty()) {
+                getLogger().lifecycle("No transport version changes detected, skipping transport version re-generation");
+                return;
+            }
+            String targetDefinitionName = changedDefinitionNames.iterator().next();
 
-        generateTransportVersionDefinition(resources, targetDefinitionName, upstreamUpperBounds, resources.getIdsByBase());
+            generateTransportVersionDefinition(resources, targetDefinitionName, upstreamUpperBounds, resources.getIdsByBase());
+        }
     }
 
     @Override

@@ -1040,6 +1040,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
     }
 
     public void testSuccessfulSnapshotWithConcurrentDynamicMappingUpdates() {
+
         setupTestCluster(randomFrom(1, 3, 5), randomIntBetween(2, 10));
 
         String repoName = "repo";
@@ -1097,7 +1098,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(restoredIndexGreenListener, restoreSnapshotResponse -> {
             client().search(
-                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(documents).trackTotalHits(true)),
+                new SearchRequest(restoredIndex).source(new SearchSourceBuilder().size(0).trackTotalHits(true)),
                 searchResponseStepListener
             );
         });

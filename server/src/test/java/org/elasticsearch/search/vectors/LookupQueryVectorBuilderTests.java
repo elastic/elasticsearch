@@ -53,17 +53,8 @@ public class LookupQueryVectorBuilderTests extends AbstractQueryVectorBuilderTes
     @Override
     protected ActionResponse createResponse(float[] array, LookupQueryVectorBuilder builder) {
         SearchHit hit = new SearchHit(1, builder.getId());
-        hit.addDocumentFields(
-            Map.of(builder.getPath(), new DocumentField(builder.getPath(), List.of(array))),
-            Map.of()
-        );
-        SearchHits sHits = new SearchHits(
-            new SearchHit[] {
-                hit
-            },
-            new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-            1.0f
-        );
+        hit.addDocumentFields(Map.of(builder.getPath(), new DocumentField(builder.getPath(), List.of(array))), Map.of());
+        SearchHits sHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
         return new SearchResponse(
             sHits,
             null,

@@ -152,7 +152,7 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
         if (idsForUpperBound == null) {
             throw new RuntimeException("Could not find base id: " + upperBound.definitionId().base());
         }
-        IdAndDefinition resetValue = idsForUpperBound.getLast();
+        IdAndDefinition resetValue = idsForUpperBound.get(idsForUpperBound.size() - 1);
         if (resetValue.definition().name().equals(ignoreDefinitionName)) {
             // there must be another definition in this base since the ignored definition is new
             assert idsForUpperBound.size() >= 2;
@@ -177,7 +177,7 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
         }
         if (upperBound.name().equals(getCurrentUpperBoundName().get())) {
             // this is the upper bound of the current branch, so use the primary id
-            return existingDefinition.ids().getFirst();
+            return existingDefinition.ids().get(0);
         }
         // the upper bound is for a non-current branch, so find the id with the same base
         for (TransportVersionId id : existingDefinition.ids()) {

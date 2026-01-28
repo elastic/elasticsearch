@@ -398,7 +398,15 @@ public class ESNextOSQVectorsScorer {
         if (count != bulkSize) {
             throw new IllegalArgumentException("Bulk size mismatch: " + count + " != " + bulkSize);
         }
-        return scoreBulk(q, queryLowerInterval, queryUpperInterval, queryComponentSum, queryAdditionalCorrection, similarityFunction,
-            centroidDp, scores);
+        return scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores
+        );
     }
 }

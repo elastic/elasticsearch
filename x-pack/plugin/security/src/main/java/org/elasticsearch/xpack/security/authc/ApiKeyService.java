@@ -1541,10 +1541,10 @@ public class ApiKeyService implements Closeable {
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
-        if (isUsingExpensiveHashAlgorithm(hasher)) {
-            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
-        } else {
+        if (isUsingFastHashAlgorithm(hasher)) {
             ActionListener.completeWith(listener, () -> hasher.hash(apiKey));
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
         }
     }
 
@@ -1559,19 +1559,20 @@ public class ApiKeyService implements Closeable {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
         };
-        if (isUsingExpensiveHashAlgorithm(hasher)) {
-            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, hashVerification));
-        } else {
+        if (isUsingFastHashAlgorithm(hasher)) {
             ActionListener.completeWith(listener, hashVerification);
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, hashVerification));
         }
     }
 
     /**
-     * Returns true if the hasher uses a computationally expensive algorithm
-     * that should be executed on a dedicated thread pool to avoid blocking.
+     * Returns true if the hasher uses a computationally fast algorithm
+     * that can be directly executed without forking to the
+     * {@code security-crypto} thread pool.
      */
-    static boolean isUsingExpensiveHashAlgorithm(Hasher hasher) {
-        return hasher.name().startsWith("BCRYPT") || hasher.name().startsWith("PBKDF2");
+    static boolean isUsingFastHashAlgorithm(Hasher hasher) {
+        return hasher == Hasher.SSHA256;
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {

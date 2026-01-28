@@ -2602,16 +2602,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         verify(mockExecutorService, expectCryptoThreadPoolUsed ? times(1) : never()).execute(any(Runnable.class));
     }
 
-    public void testIsUsingExpensiveHashAlgorithm() {
+    public void testIsUsingFastHashAlgorithm() {
         for (String algorithmName : Hasher.getAvailableAlgoStoredSecureTokenHash()) {
             Hasher hasher = Hasher.resolve(algorithmName);
-            boolean isExpensive = ApiKeyService.isUsingExpensiveHashAlgorithm(hasher);
+            boolean isFastHashAlgorithm = ApiKeyService.isUsingFastHashAlgorithm(hasher);
 
             if (algorithmName.startsWith("pbkdf2") || algorithmName.startsWith("bcrypt")) {
-                assertTrue("Algorithm " + algorithmName + " should be classified as expensive", isExpensive);
+                assertFalse("Algorithm " + algorithmName + " should be classified as expensive", isFastHashAlgorithm);
 
-            } else if (algorithmName.startsWith("ssha256")) {
-                assertFalse("Algorithm " + algorithmName + " expected to be classified as fast", isExpensive);
+            } else if (algorithmName.equalsIgnoreCase("ssha256")) {
+                assertTrue("Algorithm " + algorithmName + " expected to be classified as fast", isFastHashAlgorithm);
 
             } else {
                 fail("Algorithm " + algorithmName + " must explicitly be classified as fast or expensive");

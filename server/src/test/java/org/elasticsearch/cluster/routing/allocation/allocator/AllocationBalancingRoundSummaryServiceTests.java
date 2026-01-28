@@ -69,7 +69,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     final String INDEX_UUID = "_indexUUID_";
 
     final Settings enabledSummariesSettings = Settings.builder()
-        .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), true)
+        .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING.getKey(), true)
         .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), true)
         .build();
     final Settings disabledDefaultEmptySettings = Settings.builder().build();
@@ -93,7 +93,7 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     /**
      * Test that the service is disabled and no logging occurs when
-     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} defaults to false.
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} defaults to false.
      */
     public void testServiceDisabledByDefault() {
         var recordingMeterRegistry = new RecordingMeterRegistry();
@@ -128,62 +128,6 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
             service.verifyNumberOfSummaries(0);
 
             assertMetricsCollected(recordingMeterRegistry, List.of(), List.of(), Map.of(), Map.of(), Map.of(), Map.of());
-        }
-    }
-
-    /**
-     * Test that the service is disabled and no logging occurs when
-     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} defaults to false.
-     */
-    public void testLoggingServiceDisabledByDefault() {
-        var recordingMeterRegistry = new RecordingMeterRegistry();
-        var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
-        final Settings enabledSummariesServiceDisabledLoggingSettings = Settings.builder()
-            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), true)
-            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
-            .build();
-        ClusterSettings enabledServiceDisabledLoggingClusterSettings = new ClusterSettings(
-            enabledSummariesServiceDisabledLoggingSettings,
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS
-        );
-        var service = new AllocationBalancingRoundSummaryService(
-            testThreadPool,
-            enabledServiceDisabledLoggingClusterSettings,
-            balancingRoundMetrics
-        );
-
-        try (var mockLog = MockLog.capture(AllocationBalancingRoundSummaryService.class)) {
-            /**
-             * Add a summary and check it is not logged.
-             */
-
-            service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
-            service.verifyNumberOfSummaries(0); // when summaries are disabled, summaries are not retained when added.
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "Running balancer summary logging",
-                    AllocationBalancingRoundSummaryService.class.getName(),
-                    Level.INFO,
-                    "*"
-                )
-            );
-
-            if (deterministicTaskQueue.hasDeferredTasks()) {
-                deterministicTaskQueue.advanceTime();
-            }
-            deterministicTaskQueue.runAllRunnableTasks();
-            mockLog.awaitAllExpectationsMatched();
-            service.verifyNumberOfSummaries(0);
-
-            assertMetricsCollected(
-                recordingMeterRegistry,
-                List.of(1L),
-                List.of(50L),
-                Map.of("node1", List.of(1L), "node2", List.of(1L)),
-                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
-                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
-                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
-            );
         }
     }
 
@@ -353,14 +297,14 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     }
 
     /**
-     * Test that the service is disabled by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING}
-     * to false.
+     * Test that the service is disabled by setting
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} to false.
      */
     public void testEnableAndThenDisableService() {
         var recordingMeterRegistry = new RecordingMeterRegistry();
         var balancingRoundMetrics = new AllocationBalancingRoundMetrics(recordingMeterRegistry);
         var disabledSettingsUpdate = Settings.builder()
-            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING.getKey(), false)
+            .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING.getKey(), false)
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
             .build();
         ClusterSettings clusterSettings = new ClusterSettings(enabledSummariesSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -424,9 +368,9 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
     /**
      * Test that the logging portion of the service and its queued summaries are cleared/disabled
-     * by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} to false.
+     * by setting {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} to false.
      */
-    public void testEnableAndThenDisableLogging() {
+    public void testMetricsRemainEnabledWhenLoggingIsDisabled() {
         var disabledSettingsUpdate = Settings.builder()
             .put(AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING.getKey(), false)
             .build();
@@ -443,6 +387,16 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
 
             service.addBalancerRoundSummary(new BalancingRoundSummary(NODE_NAME_TO_WEIGHT_CHANGES, 50));
             service.verifyNumberOfSummaries(1);
+
+            assertMetricsCollected(
+                recordingMeterRegistry,
+                List.of(1L),
+                List.of(50L),
+                Map.of("node1", List.of(1L), "node2", List.of(1L)),
+                Map.of("node1", List.of(2.0), "node2", List.of(2.0)),
+                Map.of("node1", List.of(3.0), "node2", List.of(3.0)),
+                Map.of("node1", List.of(4.0), "node2", List.of(4.0))
+            );
 
             clusterSettings.applySettings(disabledSettingsUpdate);
             service.verifyNumberOfSummaries(0);

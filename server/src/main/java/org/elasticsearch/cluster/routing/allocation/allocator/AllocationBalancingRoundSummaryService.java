@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class AllocationBalancingRoundSummaryService {
 
     /** Turns on or off balancing round summary reporting to metrics */
-    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.desired_balance.enable_balancer_round_summaries",
         false,
         Setting.Property.NodeScope,
@@ -65,7 +65,7 @@ public class AllocationBalancingRoundSummaryService {
 
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryService.class);
     private final ThreadPool threadPool;
-    private volatile boolean enableBalancerRoundSummaries;
+    private volatile boolean enableBalancerRoundSummariesMetrics;
     private volatile boolean enableBalancerRoundSummariesLogging;
     private volatile TimeValue summaryReportInterval;
     private final AllocationBalancingRoundMetrics balancingRoundMetrics;
@@ -87,18 +87,17 @@ public class AllocationBalancingRoundSummaryService {
         this.threadPool = threadPool;
         // Initialize the local setting values to avoid a null access when ClusterSettings#initializeAndWatch is called on each setting:
         // updating enableBalancerRoundSummaries accesses summaryReportInterval.
-        this.enableBalancerRoundSummaries = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING);
+        this.enableBalancerRoundSummariesMetrics = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING);
         this.enableBalancerRoundSummariesLogging = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING);
         this.summaryReportInterval = clusterSettings.get(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING);
         this.balancingRoundMetrics = balancingRoundMetrics;
 
-        clusterSettings.initializeAndWatch(
-            ENABLE_BALANCER_ROUND_SUMMARIES_SETTING,
-            value -> { this.enableBalancerRoundSummaries = value; }
-        );
+        clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING, value -> {
+            this.enableBalancerRoundSummariesMetrics = value;
+        });
         clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING, value -> {
             this.enableBalancerRoundSummariesLogging = value;
-            updateBalancingRoundSummaryReporting();
+            updateBalancingRoundSummaryLoggingReporting();
         });
         clusterSettings.initializeAndWatch(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING, value -> {
             // The new value will get picked up the next time that the summary report task reschedules itself on the thread pool.
@@ -167,8 +166,8 @@ public class AllocationBalancingRoundSummaryService {
 
     /**
      * Creates and saves a balancer round summary for the work to move from {@code oldDesiredBalance} to {@code newDesiredBalance}. If
-     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_SETTING}), then the summary is
-     * immediately discarded.
+     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING}), then the
+     * summary is immediately discarded.
      */
     public void addBalancerRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
         addBalancerRoundSummary(createBalancerRoundSummary(oldDesiredBalance, newDesiredBalance));
@@ -180,7 +179,7 @@ public class AllocationBalancingRoundSummaryService {
      * never be drained).
      */
     public void addBalancerRoundSummary(BalancingRoundSummary summary) {
-        if (enableBalancerRoundSummaries) {
+        if (enableBalancerRoundSummariesMetrics) {
             balancingRoundMetrics.addBalancingRoundSummary(summary);
         }
 
@@ -229,7 +228,7 @@ public class AllocationBalancingRoundSummaryService {
      * setting values dictate a change to enable or disable reporting. A change to {@link #BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING}
      * will only take effect when the periodic task completes and reschedules itself.
      */
-    private void updateBalancingRoundSummaryReporting() {
+    private void updateBalancingRoundSummaryLoggingReporting() {
         if (this.enableBalancerRoundSummariesLogging) {
             startReporting(this.summaryReportInterval);
         } else {

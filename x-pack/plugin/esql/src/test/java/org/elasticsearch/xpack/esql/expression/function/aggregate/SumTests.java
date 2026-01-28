@@ -11,6 +11,8 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -38,12 +40,11 @@ public class SumTests extends AbstractAggregationTestCase {
 
         Stream.of(
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
+            MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
             MultiRowTestCaseSupplier.tdigestCases(1, 100)
-            // Longs currently throw on overflow.
-            // Restore after https://github.com/elastic/elasticsearch/issues/110437
-            // MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
+
             // Doubles currently return +/-Infinity on overflow.
             // Restore after https://github.com/elastic/elasticsearch/issues/111026
             // MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
@@ -106,29 +107,19 @@ public class SumTests extends AbstractAggregationTestCase {
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
-        return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
+        return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             var fieldTypedData = fieldSupplier.get();
 
             Object expected;
+            String expectedWarning = null;
 
+            DataType type = fieldTypedData.type().widenSmallNumeric();
             try {
-                expected = switch (fieldTypedData.type().widenSmallNumeric()) {
-                    case INTEGER -> fieldTypedData.multiRowData()
-                        .stream()
-                        .map(v -> (Integer) v)
-                        .collect(Collectors.summarizingInt(Integer::intValue))
-                        .getSum();
-                    case LONG -> fieldTypedData.multiRowData()
-                        .stream()
-                        .map(v -> (Long) v)
-                        .collect(Collectors.summarizingLong(Long::longValue))
-                        .getSum();
+                expected = switch (type) {
+                    case INTEGER -> fieldTypedData.multiRowData().stream().mapToLong(v -> (int) v).sum();
+                    case LONG -> fieldTypedData.multiRowData().stream().mapToLong(v -> (long) v).reduce(0L, Math::addExact);
                     case DOUBLE -> {
-                        var value = fieldTypedData.multiRowData()
-                            .stream()
-                            .map(v -> (Double) v)
-                            .collect(Collectors.summarizingDouble(Double::doubleValue))
-                            .getSum();
+                        var value = fieldTypedData.multiRowData().stream().mapToDouble(v -> (double) v).sum();
 
                         if (Double.isInfinite(value) || Double.isNaN(value)) {
                             yield null;
@@ -136,22 +127,42 @@ public class SumTests extends AbstractAggregationTestCase {
 
                         yield value;
                     }
+                    case AGGREGATE_METRIC_DOUBLE -> fieldTypedData.multiRowData()
+                        .stream()
+                        .mapToDouble(v -> ((AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral) v).sum())
+                        .sum();
+                    case EXPONENTIAL_HISTOGRAM -> fieldTypedData.multiRowData()
+                        .stream()
+                        .mapToDouble(obj -> ((ExponentialHistogram) obj).sum())
+                        .sum();
+                    case TDIGEST -> fieldTypedData.multiRowData().stream().mapToDouble(obj -> ((TDigestHolder) obj).getSum()).sum();
                     default -> throw new IllegalStateException("Unexpected value: " + fieldTypedData.type());
                 };
-            } catch (Exception e) {
+            } catch (ArithmeticException e) {
                 expected = null;
+                if (type == DataType.LONG) {
+                    expectedWarning = "java.lang.ArithmeticException: long overflow";
+                } else {
+                    throw new UnsupportedOperationException("Unsupported exception in test for type " + type + ": " + e);
+                }
             }
 
-            var dataType = fieldTypedData.type().isWholeNumber() == false || fieldTypedData.type() == UNSIGNED_LONG
-                ? DataType.DOUBLE
-                : DataType.LONG;
+            var returnType = type.isWholeNumber() == false || type == UNSIGNED_LONG ? DataType.DOUBLE : DataType.LONG;
 
-            return new TestCaseSupplier.TestCase(
+            var testCase = new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 standardAggregatorName("Sum", fieldSupplier.type()),
-                dataType,
+                returnType,
                 equalTo(expected)
             );
+
+            if (expectedWarning != null) {
+                testCase = testCase.withWarning(
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+                ).withWarning("Line 1:1: " + expectedWarning);
+            }
+
+            return testCase;
         });
     }
 }

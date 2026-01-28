@@ -48,7 +48,7 @@ public class AggregationOperatorTests extends ForkingOperatorTestCase {
 
         return new AggregationOperator.AggregationOperatorFactory(
             List.of(
-                new SumLongAggregatorFunctionSupplier().aggregatorFactory(mode, sumChannels),
+                new SumLongAggregatorFunctionSupplier(-1, -2, "").aggregatorFactory(mode, sumChannels),
                 new MaxLongAggregatorFunctionSupplier().aggregatorFactory(mode, maxChannels)
             ),
             mode

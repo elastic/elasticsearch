@@ -9,13 +9,24 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link SumLongAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SumLongAggregatorFunctionSupplier() {
+  int warningsLineNumber;
+
+  int warningsColumnNumber;
+
+  String warningsSourceText;
+
+  public SumLongAggregatorFunctionSupplier(int warningsLineNumber, int warningsColumnNumber,
+      String warningsSourceText) {
+    this.warningsLineNumber = warningsLineNumber;
+    this.warningsColumnNumber = warningsColumnNumber;
+    this.warningsSourceText = warningsSourceText;
   }
 
   @Override
@@ -30,13 +41,15 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
 
   @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
-    return SumLongAggregatorFunction.create(driverContext, channels);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsLineNumber, warningsColumnNumber, warningsSourceText);
+    return SumLongAggregatorFunction.create(warnings, driverContext, channels);
   }
 
   @Override
   public SumLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
       List<Integer> channels) {
-    return SumLongGroupingAggregatorFunction.create(channels, driverContext);
+    var warnings = Warnings.createWarnings(driverContext.warningsMode(), warningsLineNumber, warningsColumnNumber, warningsSourceText);
+    return SumLongGroupingAggregatorFunction.create(warnings, channels, driverContext);
   }
 
   @Override

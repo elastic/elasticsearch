@@ -1924,6 +1924,11 @@ public class EsqlCapabilities {
         FIX_AGG_ON_NULL_BY_REPLACING_WITH_EVAL,
 
         /**
+         * Makes SUM(long) agg return null+warning instead of a 500 overflow.
+         */
+        FIX_SUM_AGG_LONG_OVERFLOW,
+
+        /**
          * Support for requesting the "_tier" metadata field.
          */
         METADATA_TIER_FIELD(Build.current().isSnapshot()),

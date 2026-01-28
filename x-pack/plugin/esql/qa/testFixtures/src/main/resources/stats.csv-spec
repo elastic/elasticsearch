@@ -3805,3 +3805,143 @@ SUM(salary_change):double   | salary_change:double
 14.69                       | 1.92           
 6.000000000000001           | 1.98           
 ;
+
+sumWithOverflow
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = SUM(x), underflow = SUM(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+warning:Line 5:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | count:long | group:integer
+null          | null           | 6          | 0
+null          | null           | 9          | 1
+;
+
+sumWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = SUM(x), underflow = SUM(-x)
+;
+warning:Line 3:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long
+null          | null
+;
+
+sumWithOverflowGroupingRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = SUM(x), underflow = SUM(-x) by group
+| SORT group
+;
+warning:Line 4:20: evaluation of [SUM(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [SUM(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:long | underflow:long | group:integer
+null          | null           | 0
+null          | null           | 1
+;
+
+sumAsSurrogateWithOverflow
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| WHERE languages == 1
+| LIMIT 2
+| EVAL x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+warning:Line 5:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+sumAsSurrogateWithOverflowGrouping
+required_capability: fix_sum_agg_long_overflow
+FROM employees
+| SORT emp_no
+| WHERE languages == 1
+| EVAL group = emp_no % 2, x = languages * 9223372036854775807
+| STATS overflow = AVG(x), underflow = AVG(-x), count = COUNT(*) by group
+| SORT group
+| LIMIT 2
+;
+warning:Line 5:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:20: java.lang.ArithmeticException: long overflow
+warning:Line 5:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double | count:long | group:integer
+null            | null             | 6          | 0
+null            | null             | 9          | 1
+;
+
+sumAsSurrogateWithOverflowRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807]
+| MV_EXPAND x
+| STATS overflow = AVG(x), underflow = AVG(-x)
+;
+warning:Line 3:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:20: java.lang.ArithmeticException: long overflow
+warning:Line 3:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 3:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double
+null            | null
+;
+
+sumAsSurrogateWithOverflowGroupingRow
+required_capability: fix_sum_agg_long_overflow
+ROW x = [9223372036854775807, 9223372036854775807], group = [0, 1]
+| MV_EXPAND x
+| MV_EXPAND group
+| STATS overflow = AVG(x), underflow = AVG(-x) by group
+| SORT group
+;
+warning:Line 4:20: evaluation of [AVG(x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:20: java.lang.ArithmeticException: long overflow
+warning:Line 4:40: evaluation of [AVG(-x)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 4:40: java.lang.ArithmeticException: long overflow
+
+overflow:double | underflow:double | group:integer
+null            | null             | 0
+null            | null             | 1
+;

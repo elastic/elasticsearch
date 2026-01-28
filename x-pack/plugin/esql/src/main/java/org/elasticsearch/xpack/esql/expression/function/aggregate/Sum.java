@@ -6,15 +6,19 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LossySumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumOverflowingLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.HistogramBlock;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -36,6 +40,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -48,10 +53,19 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 /**
  * Sum all values of a field in matching documents.
  */
-public class Sum extends NumericAggregate implements SurrogateExpression, AggregateMetricDoubleNativeSupport {
+public class Sum extends NumericAggregate implements SurrogateExpression, TransportVersionAware, AggregateMetricDoubleNativeSupport {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Sum", Sum::new);
 
+    private static final TransportVersion ESQL_SUM_LONG_OVERFLOW_FIX = TransportVersion.fromName("esql_sum_long_overflow_fix");
+
     private final Expression summationMode;
+    /**
+     * True to use the old, overflowing aggregator. False to use the current, fixed implementation.
+     * <p>
+     *     Do not set directly; it's automatically set for backwards compatibility at planning time, and defaults to {@code false}.
+     * </p>
+     */
+    private final boolean useOverflowingLongSupplier;
 
     @FunctionInfo(
         returnType = { "long", "double" },
@@ -78,8 +92,20 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
     }
 
     public Sum(Source source, Expression field, Expression filter, Expression window, Expression summationMode) {
+        this(source, field, filter, window, summationMode, false);
+    }
+
+    public Sum(
+        Source source,
+        Expression field,
+        Expression filter,
+        Expression window,
+        Expression summationMode,
+        boolean useOverflowingLongSupplier
+    ) {
         super(source, field, filter, window, List.of(summationMode));
         this.summationMode = summationMode;
+        this.useOverflowingLongSupplier = useOverflowingLongSupplier;
     }
 
     private Sum(StreamInput in) throws IOException {
@@ -88,8 +114,17 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
             in.readNamedWriteable(Expression.class),
             in.readNamedWriteable(Expression.class),
             readWindow(in),
-            readSummationMode(in)
+            readSummationMode(in),
+            in.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX) ? in.readBoolean() : true
         );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        if (out.getTransportVersion().supports(ESQL_SUM_LONG_OVERFLOW_FIX)) {
+            out.writeBoolean(useOverflowingLongSupplier);
+        }
     }
 
     private static Expression readSummationMode(StreamInput in) throws IOException {
@@ -104,17 +139,24 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected NodeInfo<? extends Sum> info() {
-        return NodeInfo.create(this, Sum::new, field(), filter(), window(), summationMode);
+        return NodeInfo.create(this, Sum::new, field(), filter(), window(), summationMode, useOverflowingLongSupplier);
     }
 
     @Override
     public Sum replaceChildren(List<Expression> newChildren) {
-        return new Sum(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
+        return new Sum(
+            source(),
+            newChildren.get(0),
+            newChildren.get(1),
+            newChildren.get(2),
+            newChildren.get(3),
+            useOverflowingLongSupplier
+        );
     }
 
     @Override
     public Sum withFilter(Expression filter) {
-        return new Sum(source(), field(), filter, window(), summationMode);
+        return new Sum(source(), field(), filter, window(), summationMode, useOverflowingLongSupplier);
     }
 
     @Override
@@ -125,7 +167,14 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     @Override
     protected AggregatorFunctionSupplier longSupplier() {
-        return new SumLongAggregatorFunctionSupplier();
+        if (useOverflowingLongSupplier) {
+            return new SumOverflowingLongAggregatorFunctionSupplier();
+        }
+        return new SumLongAggregatorFunctionSupplier(
+            source().source().getLineNumber(),
+            source().source().getColumnNumber(),
+            source().text()
+        );
     }
 
     @Override
@@ -144,6 +193,10 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
 
     public Expression summationMode() {
         return summationMode;
+    }
+
+    public boolean useOverflowingLongSupplier() {
+        return useOverflowingLongSupplier;
     }
 
     @Override
@@ -184,7 +237,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
                 FromAggregateMetricDouble.withMetric(source(), field, AggregateMetricDoubleBlockBuilder.Metric.SUM),
                 filter(),
                 window(),
-                summationMode
+                summationMode,
+                useOverflowingLongSupplier
             );
         }
         if (field.dataType() == EXPONENTIAL_HISTOGRAM || field.dataType() == DataType.TDIGEST) {
@@ -193,7 +247,8 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
                 ExtractHistogramComponent.create(source(), field, HistogramBlock.Component.SUM),
                 filter(),
                 window(),
-                summationMode
+                summationMode,
+                useOverflowingLongSupplier
             );
         }
 
@@ -201,5 +256,30 @@ public class Sum extends NumericAggregate implements SurrogateExpression, Aggreg
         return field.foldable()
             ? new Mul(s, new MvSum(s, field), new Count(s, Literal.keyword(s, StringUtils.WILDCARD), filter(), window()))
             : null;
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(ESQL_SUM_LONG_OVERFLOW_FIX) == false) {
+            return new Sum(source(), field(), filter(), window(), summationMode, true);
+        }
+        return null;
+    }
+
+    @Override
+    public int hashCode() {
+        // NB: the hashcode is currently used for key generation so
+        // to avoid clashes between aggs with the same arguments, add the class name as variation
+        return Objects.hash(getClass(), children(), useOverflowingLongSupplier);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj)) {
+            Sum other = (Sum) obj;
+            return Objects.equals(other.children(), children())
+                && Objects.equals(other.useOverflowingLongSupplier, useOverflowingLongSupplier);
+        }
+        return false;
     }
 }

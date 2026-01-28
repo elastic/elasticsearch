@@ -62,7 +62,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             mode,
             List.of(
-                new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumChannels),
+                new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(mode, sumChannels),
                 new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
             ),
             randomPageSize(),
@@ -118,7 +118,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
                 mode,
                 List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                    new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
@@ -195,7 +195,7 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, true, 3))),
                 mode,
                 List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels),
+                    new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(mode, aggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
@@ -274,14 +274,14 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
         // Supplier of operators to ensure that they're identical, simulating a datanode/coordinator connection
         Function<AggregatorMode, Operator> makeAggWithMode = (mode) -> {
-            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2) : List.of(1);
-            var maxAggregatorChannels = mode.isInputPartial() ? List.of(3, 4) : List.of(1);
+            var sumAggregatorChannels = mode.isInputPartial() ? List.of(1, 2, 3) : List.of(1);
+            var maxAggregatorChannels = mode.isInputPartial() ? List.of(4, 5) : List.of(1);
 
             return new HashAggregationOperator.HashAggregationOperatorFactory(
                 List.of(new BlockHash.GroupSpec(groupChannel, ElementType.LONG, null, new BlockHash.TopNDef(0, ascOrder, false, 3))),
                 mode,
                 List.of(
-                    new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, sumAggregatorChannels),
+                    new SumLongAggregatorFunctionSupplier(-1, -2, "").groupingAggregatorFactory(mode, sumAggregatorChannels),
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
                 ),
                 randomPageSize(),

@@ -11,7 +11,6 @@ package org.elasticsearch.health.node;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.health.HealthStatus;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 

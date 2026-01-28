@@ -10,12 +10,12 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthInfo;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import static org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker.DESCRIPTION_LENGTH_LIMIT_KEY;
+import static org.elasticsearch.health.node.tracker.FileSettingsHealthTracker.DESCRIPTION_LENGTH_LIMIT_KEY;
 import static org.elasticsearch.reservedstate.service.FileSettingsServiceTests.NOOP_PUBLISHER;
 
 /**

@@ -11,11 +11,12 @@ package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthTracker;
+import org.elasticsearch.health.node.FileSettingsHealthInfo;
+import org.elasticsearch.health.node.tracker.FileSettingsHealthTracker;
 
 /**
  * Used by {@link FileSettingsHealthTracker} to send health info to the health node.
  */
 public interface FileSettingsHealthIndicatorPublisher {
-    void publish(FileSettingsService.FileSettingsHealthInfo info, ActionListener<AcknowledgedResponse> actionListener);
+    void publish(FileSettingsHealthInfo info, ActionListener<AcknowledgedResponse> actionListener);
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.health.node.action.TransportHealthNodeAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,14 +52,14 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         @Nullable
         private final RepositoriesHealthInfo repositoriesHealthInfo;
         @Nullable
-        private final FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo;
+        private final FileSettingsHealthInfo fileSettingsHealthInfo;
 
         public Request(
             String nodeId,
             DiskHealthInfo diskHealthInfo,
             DataStreamLifecycleHealthInfo dslHealthInfo,
             RepositoriesHealthInfo repositoriesHealthInfo,
-            @Nullable FileSettingsService.FileSettingsHealthInfo fileSettingsHealthInfo
+            @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
         ) {
             this.nodeId = nodeId;
             this.diskHealthInfo = diskHealthInfo;
@@ -77,7 +76,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.fileSettingsHealthInfo = null;
         }
 
-        public Request(String nodeId, FileSettingsService.FileSettingsHealthInfo info) {
+        public Request(String nodeId, FileSettingsHealthInfo info) {
             this.nodeId = nodeId;
             this.diskHealthInfo = null;
             this.repositoriesHealthInfo = null;
@@ -92,7 +91,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             this.dslHealthInfo = in.readOptionalWriteable(DataStreamLifecycleHealthInfo::new);
             this.repositoriesHealthInfo = in.readOptionalWriteable(RepositoriesHealthInfo::new);
             this.fileSettingsHealthInfo = in.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
-                ? in.readOptionalWriteable(FileSettingsService.FileSettingsHealthInfo::new)
+                ? in.readOptionalWriteable(FileSettingsHealthInfo::new)
                 : null;
         }
 
@@ -113,7 +112,7 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
         }
 
         @Nullable
-        public FileSettingsService.FileSettingsHealthInfo getFileSettingsHealthInfo() {
+        public FileSettingsHealthInfo getFileSettingsHealthInfo() {
             return fileSettingsHealthInfo;
         }
 

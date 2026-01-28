@@ -172,7 +172,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -4230,7 +4229,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // but then passed to the BlobStoreSnapshotMetrics as a millisecond value. This is because converting each read
                 // to milliseconds introduces small errors made bigger when compounded over N reads, and since we don't require
                 // nanosecond precision on our charts, we're happy to take the small hit of a single, rounding error at the end.
-                LongAdder totalTimeSpendReadingInNanos = new LongAdder();
+                AtomicLong totalTimeSpendReadingInNanos = new AtomicLong();
 
                 // Make reads abortable by mutating the snapshotStatus object
                 final InputStream inputStream = new FilterInputStream(
@@ -4241,7 +4240,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         checkAborted();
                         final long beforeReadNanos = System.nanoTime();
                         int value = super.read();
-                        totalTimeSpendReadingInNanos.add(System.nanoTime() - beforeReadNanos);
+                        totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return value;
                     }
 
@@ -4250,7 +4249,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         checkAborted();
                         final long beforeReadNanos = System.nanoTime();
                         int amountRead = super.read(b, off, len);
-                        totalTimeSpendReadingInNanos.add(System.nanoTime() - beforeReadNanos);
+                        totalTimeSpendReadingInNanos.addAndGet(System.nanoTime() - beforeReadNanos);
                         return amountRead;
                     }
 

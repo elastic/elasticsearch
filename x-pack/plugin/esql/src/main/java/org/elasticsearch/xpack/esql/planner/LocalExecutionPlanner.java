@@ -505,9 +505,10 @@ public class LocalExecutionPlanner {
                 order.nullsPosition().equals(Order.NullsPosition.FIRST)
             );
         }).toList();
-        List<Integer> groupKeys = topNExec.groupings().stream().map(grouping ->
-            getAttributeChannel(grouping, layout, "expression in LIMIT PER must be an attribute")
-        ).toList();
+        List<Integer> groupKeys = topNExec.groupings()
+            .stream()
+            .map(grouping -> getAttributeChannel(grouping, layout, "expression in LIMIT PER must be an attribute"))
+            .toList();
 
         int limit;
         if (topNExec.limit() instanceof Literal literal) {

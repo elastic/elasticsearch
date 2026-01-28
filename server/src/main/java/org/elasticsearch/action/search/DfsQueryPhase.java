@@ -162,6 +162,7 @@ class DfsQueryPhase extends SearchPhase {
         int i = 0;
         for (DfsKnnResults dfsKnnResults : knnResults) {
             List<ScoreDoc> scoreDocs = new ArrayList<>();
+            // identify all docs for the specific shard from the combined result set
             for (ScoreDoc scoreDoc : dfsKnnResults.scoreDocs()) {
                 if (scoreDoc.shardIndex == request.shardRequestIndex()) {
                     scoreDocs.add(scoreDoc);
@@ -192,6 +193,29 @@ class DfsQueryPhase extends SearchPhase {
         return request;
     }
 
+    public static class RescorableScoreDoc extends ScoreDoc {
+
+        private final boolean shouldRescore;
+
+        RescorableScoreDoc(int doc, float score, int shardIndex, boolean shouldRescore) {
+            super(doc, score, shardIndex);
+            this.shouldRescore = shouldRescore;
+        }
+    }
+
+    private static class RescorableTopDocs extends TopDocs {
+
+        /**
+         * Constructs a TopDocs.
+         *
+         * @param totalHits
+         * @param scoreDocs
+         */
+        RescorableTopDocs(TotalHits totalHits, RescorableScoreDoc[] scoreDocs) {
+            super(totalHits, scoreDocs);
+        }
+    }
+
     private static List<DfsKnnResults> mergeKnnResults(SearchRequest request, List<DfsSearchResult> dfsSearchResults) {
         if (request.hasKnnSearch() == false) {
             return null;
@@ -204,26 +228,46 @@ class DfsQueryPhase extends SearchPhase {
             nestedPath.add(new SetOnce<>());
         }
         Float[] oversampling = new Float[source.knnSearch().size()];
+        Integer[] k = new Integer[source.knnSearch().size()];
         for (DfsSearchResult dfsSearchResult : dfsSearchResults) {
             if (dfsSearchResult.knnResults() != null) {
                 for (int i = 0; i < dfsSearchResult.knnResults().size(); i++) {
                     DfsKnnResults knnResults = dfsSearchResult.knnResults().get(i);
                     ScoreDoc[] scoreDocs = knnResults.scoreDocs();
+                    RescorableScoreDoc[] rescorableScoreDocs = new RescorableScoreDoc[scoreDocs.length];
+                    for (int j = 0; j < scoreDocs.length; j++) {
+                        rescorableScoreDocs[j] = new RescorableScoreDoc(
+                            scoreDocs[j].doc,
+                            scoreDocs[j].score,
+                            scoreDocs[j].shardIndex,
+                            knnResults.oversample() != null
+                        );
+                    }
                     TotalHits totalHits = new TotalHits(scoreDocs.length, TotalHits.Relation.EQUAL_TO);
+                    // TopDocs shardTopDocs = new TopDocs(totalHits, rescorableScoreDocs);
                     TopDocs shardTopDocs = new TopDocs(totalHits, scoreDocs);
                     SearchPhaseController.setShardIndex(shardTopDocs, dfsSearchResult.getShardIndex());
                     topDocsLists.get(i).add(shardTopDocs);
                     nestedPath.get(i).trySet(knnResults.getNestedPath());
-                    oversampling[i] = knnResults.oversample();
+                    // a knn result will spawn across multiple shards. however,
+                    // some shards may not support oversampling as they might be on older nodes
+                    // during this period we want to ensure that we will only account the first value if not null
+                    // and do not do any rescoring for these results.
+                    // However, this has the caveat that some scores will be complete, while other might not
+                    // in addition to the fact that some shards will return k results, while other k * oversample
+                    oversampling[i] = knnResults.oversample() != null ? knnResults.oversample() : null;
+                    k[i] = knnResults.k() != null ? knnResults.k() : null;
                 }
             }
         }
 
         List<DfsKnnResults> mergedResults = new ArrayList<>(source.knnSearch().size());
         for (int i = 0; i < source.knnSearch().size(); i++) {
-            int k = source.knnSearch().get(i).k();
-            TopDocs mergedTopDocs = TopDocs.merge(k, topDocsLists.get(i).toArray(new TopDocs[0]));
-            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], k));
+            int localK = k[i] != null ? k[i] : source.knnSearch().get(i).k();
+            // keep k results as specified by DFSSearchResult (i.e. account for potential oversampling) otherwise
+            // ask knn-search from the request
+            TopDocs mergedTopDocs = TopDocs.merge(localK, topDocsLists.get(i).toArray(new TopDocs[0]));
+            mergedResults.add(new DfsKnnResults(nestedPath.get(i).get(), mergedTopDocs.scoreDocs, oversampling[i], k[i]));
         }
         return mergedResults;
     }

@@ -19,7 +19,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -36,7 +35,6 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryProfilerProvider;
-import org.elasticsearch.search.vectors.RescoreVectorBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -203,12 +201,14 @@ public class DfsPhase {
         var opsListener = context.indexShard().getSearchOperationListener();
         opsListener.onPreQueryPhase(context);
         try {
-            for (int i = 0; i < knnSearch.size(); i++) {
-                String knnField = knnQueries.get(i).getFieldName();
+            for (int i = 0; i < knnQueries.size(); i++) {
+                KnnVectorQueryBuilder knnQuery = knnQueries.get(i);
+                String knnField = knnQuery.getFieldName();
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
-                Query knnQuery = searchExecutionContext.toQuery(knnQueries.get(i)).query();
-                int k = knnQueries.get(i).k();
-                knnResults.add(singleKnnSearch(knnQuery, k, oversample, context.getProfilers(), context.searcher(), knnNestedPath));
+                Query query = searchExecutionContext.toQuery(knnQuery).query();
+                int k = knnSearch.get(i).k();
+                float oversampling = knnSearch.get(i).getOversampleFactor(searchExecutionContext);
+                knnResults.add(singleKnnSearch(query, k, oversampling, context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
             opsListener.onQueryPhase(context, afterQueryTime - beforeQueryTime);
@@ -229,9 +229,8 @@ public class DfsPhase {
         ContextIndexSearcher searcher,
         String nestedPath
     ) throws IOException {
-        var localK = oversample > 1 ? k * oversample : k;
         CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
-            Math.round(localK),
+            k,
             null,
             Integer.MAX_VALUE
         );

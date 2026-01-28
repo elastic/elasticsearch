@@ -52,11 +52,11 @@ public class DfsKnnResults implements Writeable {
         return scoreDocs;
     }
 
-    public float oversample() {
+    public Float oversample() {
         return oversample;
     }
 
-    public int k() {
+    public Integer k() {
         return k;
     }
 

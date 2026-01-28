@@ -24,8 +24,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
-
 public class RescoreVectorBuilder implements Writeable, ToXContentObject {
 
     public static final ParseField OVERSAMPLE_FIELD = new ParseField("oversample");
@@ -41,9 +39,6 @@ public class RescoreVectorBuilder implements Writeable, ToXContentObject {
     }
 
     public static final TransportVersion RESCORE_VECTOR_ALLOW_ZERO = TransportVersion.fromName("rescore_vector_allow_zero");
-
-    public static final RescoreVectorBuilder DEFAULT_RESCORE_VECTOR_BUILDER = new RescoreVectorBuilder(DEFAULT_OVERSAMPLE);
-    public static final RescoreVectorBuilder DISABLE_RESCORE_VECTOR_BUILDER = new RescoreVectorBuilder(0f);
 
     // Oversample is required as of now as it is the only field in the rescore vector
     private final float oversample;

@@ -133,6 +133,8 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
     InnerHitBuilder innerHitBuilder;
     private final RescoreVectorBuilder rescoreVectorBuilder;
 
+    private static final RescoreVectorBuilder NO_RESCORING = new RescoreVectorBuilder(0);
+
     /**
      * Defines a kNN search.
      *
@@ -477,13 +479,19 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        float oversample = rescoreVectorBuilder != null
-            ? rescoreVectorBuilder.oversample()
-            : getDefaultOversampleForField(field, searchExecutionContext);
-        float localK = oversample > 1 ? k * oversample : k;
-        return new KnnVectorQueryBuilder(field, queryVector, (int) Math.ceil(localK), numCands, visitPercentage, null, similarity).boost(boost)
+        float oversample = getOversampleFactor(searchExecutionContext);
+        int localK = oversample == 0 ? k : (int) Math.ceil(k * oversample);
+        int localNumcands = oversample == 0 ? numCands : Math.max(localK, numCands);;
+        return new KnnVectorQueryBuilder(field, queryVector, localK, localNumcands, visitPercentage, NO_RESCORING, similarity)
+            .boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);
+    }
+
+    public float getOversampleFactor(SearchExecutionContext searchExecutionContext) {
+        return rescoreVectorBuilder != null
+            ? rescoreVectorBuilder.oversample()
+            : getDefaultOversampleForField(field, searchExecutionContext);
     }
 
     private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
@@ -494,7 +502,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
             ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
             : null;
-        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 1f;
+        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 0f;
 
     }
 

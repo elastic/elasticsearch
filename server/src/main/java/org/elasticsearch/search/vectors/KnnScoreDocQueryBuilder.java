@@ -185,13 +185,13 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int localK = k == null ? scoreDocs.length : k;
             var similarityFunction = fieldType.getSimilarity()
                 .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
-            var adjustedK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
+            var rescoreK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
             return RescoreKnnVectorQuery.fromInnerQuery(
                 fieldName,
                 queryVector.asFloatVector(),
                 similarityFunction,
                 localK,
-                adjustedK,
+                rescoreK,
                 query
             );
         }

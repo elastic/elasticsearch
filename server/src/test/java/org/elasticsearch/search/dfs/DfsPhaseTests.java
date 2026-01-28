@@ -196,12 +196,12 @@ public class DfsPhaseTests extends IndexShardTestCase {
 
             int k = 10;
             // run without profiling enabled
-            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 0f, null, searcher, null);
+            DfsKnnResults dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, null, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
 
             // run with profiling enabled
             Profilers profilers = new Profilers(searcher);
-            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 0f, profilers, searcher, null);
+            dfsKnnResults = DfsPhase.singleKnnSearch(query, k, 1f, profilers, searcher, null);
             assertEquals(k, dfsKnnResults.scoreDocs().length);
             SearchProfileDfsPhaseResult searchProfileDfsPhaseResult = profilers.getDfsProfiler().buildDfsPhaseResults();
             List<QueryProfileShardResult> queryProfileShardResult = searchProfileDfsPhaseResult.getQueryProfileShardResult();

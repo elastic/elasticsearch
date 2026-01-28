@@ -1275,7 +1275,7 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
-        if (useSyntheticId && version.before(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID)) {
+        if (useSyntheticId && version.before(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID)) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,

@@ -54,7 +54,9 @@ public class QuerySettings {
     @Param(
         name = "time_zone",
         type = { "keyword" },
-        description = "The default timezone to be used in the query, by the functions and commands that require it. Defaults to UTC"
+        since = "9.4+",
+        description = "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. "
+            + "See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones)."
     )
     @Example(file = "tbucket", tag = "set-timezone-example")
     public static final QuerySettingDef<ZoneId> TIME_ZONE = new QuerySettingDef<>(
@@ -62,7 +64,7 @@ public class QuerySettings {
         DataType.KEYWORD,
         false,
         true,
-        true,
+        false,
         (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");
             try {

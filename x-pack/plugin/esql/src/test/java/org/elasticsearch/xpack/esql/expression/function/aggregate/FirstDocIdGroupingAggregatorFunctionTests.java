@@ -37,7 +37,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
 
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     public void testSimple() {

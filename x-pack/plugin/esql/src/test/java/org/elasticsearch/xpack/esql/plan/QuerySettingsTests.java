@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -21,9 +24,13 @@ import org.junit.AfterClass;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomizeCase;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,14 +48,14 @@ public class QuerySettingsTests extends ESTestCase {
     public void testValidate_NonExistingSetting() {
         String settingName = "non_existing";
 
-        assertInvalid(settingName, Literal.keyword(Source.EMPTY, "12"), "Unknown setting [" + settingName + "]");
+        assertInvalid(settingName, of("12"), "Unknown setting [" + settingName + "]");
     }
 
     public void testValidate_ProjectRouting() {
         var setting = QuerySettings.PROJECT_ROUTING;
 
         assertDefault(setting, nullValue());
-        assertValid(setting, Literal.keyword(Source.EMPTY, "my-project"), equalTo("my-project"));
+        assertValid(setting, of("my-project"), equalTo("my-project"));
 
         assertInvalid(
             setting.name(),
@@ -63,7 +70,7 @@ public class QuerySettingsTests extends ESTestCase {
         assertInvalid(
             setting.name(),
             SNAPSHOT_CTX_WITH_CPS_DISABLED,
-            Literal.keyword(Source.EMPTY, "my-project"),
+            of("my-project"),
             "Error validating setting [project_routing]: cross-project search not enabled"
         );
     }
@@ -73,28 +80,59 @@ public class QuerySettingsTests extends ESTestCase {
 
         assertDefault(setting, both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
 
-        assertValid(setting, Literal.keyword(Source.EMPTY, "UTC"), equalTo(ZoneId.of("UTC")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05:00"), equalTo(ZoneId.of("+05:00")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+05"), equalTo(ZoneId.of("+05")));
-        assertValid(setting, Literal.keyword(Source.EMPTY, "+07:15"), equalTo(ZoneId.of("+07:15")));
+        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")));
+        assertValid(setting, of("Z"), both(equalTo(ZoneId.of("Z"))).and(equalTo(ZoneOffset.UTC)));
+        assertValid(setting, of("Europe/Madrid"), equalTo(ZoneId.of("Europe/Madrid")));
+        assertValid(setting, of("+05:00"), equalTo(ZoneId.of("+05:00")));
+        assertValid(setting, of("+05"), equalTo(ZoneId.of("+05")));
+        assertValid(setting, of("+07:15"), equalTo(ZoneId.of("+07:15")));
 
         assertInvalid(setting.name(), Literal.integer(Source.EMPTY, 12), "Setting [" + setting.name() + "] must be of type KEYWORD");
         assertInvalid(
             setting.name(),
-            Literal.keyword(Source.EMPTY, "Europe/New York"),
+            of("Europe/New York"),
             "Error validating setting [" + setting.name() + "]: Invalid time zone [Europe/New York]"
         );
     }
 
-    public void testValidate_TimeZone_nonSnapshot() {
+    public void testValidate_TimeZone_techPreview() {
         var setting = QuerySettings.TIME_ZONE;
+        assertValid(setting, of("UTC"), equalTo(ZoneId.of("UTC")), NON_SNAPSHOT_CTX_WITH_CPS_ENABLED);
+    }
+
+    public void testValidate_UnmappedFields_techPreview() {
+        assumeFalse("Requires no snapshot", Build.current().isSnapshot());
+
+        validateUnmappedFields("FAIL", "NULLIFY");
+        var settingName = QuerySettings.UNMAPPED_FIELDS.name();
+        assertInvalid(
+            settingName,
+            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
+            of("UNKNOWN"),
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of [FAIL, NULLIFY]"
+        );
+    }
+
+    public void testValidate_UnmappedFields_allValues() {
+        assumeTrue("Requires unmapped fields", EsqlCapabilities.Cap.OPTIONAL_FIELDS.isEnabled());
+        validateUnmappedFields("FAIL", "NULLIFY", "LOAD");
+    }
+
+    private void validateUnmappedFields(String... values) {
+        var setting = QuerySettings.UNMAPPED_FIELDS;
+
+        assertDefault(setting, equalTo(UnmappedResolution.FAIL));
+
+        for (String value : values) {
+            assertValid(setting, of(randomizeCase(value)), equalTo(UnmappedResolution.valueOf(value)));
+        }
+
+        assertInvalid(setting.name(), of(12), "Setting [" + setting.name() + "] must be of type KEYWORD");
         assertInvalid(
             setting.name(),
-            NON_SNAPSHOT_CTX_WITH_CPS_ENABLED,
-            Literal.keyword(Source.EMPTY, "UTC"),
-            "Setting [" + setting.name() + "] is only available in snapshot builds"
+            of("UNKNOWN"),
+            "Error validating setting [unmapped_fields]: Invalid unmapped_fields resolution [UNKNOWN], must be one of "
+                + Arrays.toString(values)
         );
     }
 
@@ -201,7 +239,16 @@ public class QuerySettingsTests extends ESTestCase {
 
     @AfterClass
     public static void generateDocs() throws Exception {
-        for (QuerySettings.QuerySettingDef<?> def : QuerySettings.SETTINGS_BY_NAME.values()) {
+        List<QuerySettings.QuerySettingDef<?>> settings = QuerySettings.SETTINGS_BY_NAME.values()
+            .stream()
+            // TODO this is non-snapshot, but we don't want to expose it yet
+            .filter(def -> def != QuerySettings.PROJECT_ROUTING)
+            // TODO: This filter wil be removed in the next PR adding all the docs for time_zone
+            .filter(def -> def != QuerySettings.TIME_ZONE)
+            .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
+            .toList();
+
+        for (QuerySettings.QuerySettingDef<?> def : settings) {
             DocsV3Support.SettingsDocsSupport settingsDocsSupport = new DocsV3Support.SettingsDocsSupport(
                 def,
                 QuerySettingsTests.class,
@@ -209,5 +256,12 @@ public class QuerySettingsTests extends ESTestCase {
             );
             settingsDocsSupport.renderDocs();
         }
+
+        DocsV3Support.SettingsTocDocsSupport toc = new DocsV3Support.SettingsTocDocsSupport(
+            settings,
+            QuerySettingsTests.class,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
+        toc.renderDocs();
     }
 }

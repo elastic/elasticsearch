@@ -66,6 +66,10 @@ public class PlannerSettings {
      * in conjunction with {@link #PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD}, helps mitigate these costs by
      * only triggering early emission when a significant number of keys have been collected and most are unique,
      * thus lowering the probability of re-emitting the same keys.
+     * <p>
+     * NOTE that the defaults are chosen somewhat arbitrarily but are partially based on other systems.
+     * Other systems sometimes default to a lower threshold (e.g., 10,000) without a uniqueness threshold.
+     * We may lower these defaults after benchmarking more use cases.
      */
     public static final Setting<Integer> PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD = Setting.intSetting(
         "esql.partial_agg_emit_keys_threshold",

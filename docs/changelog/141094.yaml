@@ -1,0 +1,6 @@
+pr: 141094
+summary: Optimize TopNOperator to avoid resorting when input is already sorted
+area: ES|QL
+type: enhancement
+issues:
+ - 131221

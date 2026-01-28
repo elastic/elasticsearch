@@ -13,12 +13,17 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
+
+import static org.elasticsearch.common.xcontent.XContentElasticsearchExtension.DEFAULT_FORMATTER;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
 
@@ -65,6 +70,38 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
     @Override
     protected boolean supportsUnknownFields() {
         return true;
+    }
+
+    public void testHumanReadableOutput() {
+        long startTime = System.currentTimeMillis();
+        long time = randomLongBetween(0, 100_000L);
+        SnapshotStats stats = new SnapshotStats(startTime, time, 10, 54, 11, 2754, 43725830L, 568453L);
+
+        String startTimeFormatted = DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTime));
+        String timeFormatted = TimeValue.timeValueMillis(time).toString();
+        String expected = Strings.format("""
+            {
+              "incremental" : {
+                "file_count" : 10,
+                "size" : "2.6kb",
+                "size_in_bytes" : 2754
+              },
+              "processed" : {
+                "file_count" : 11,
+                "size" : "555.1kb",
+                "size_in_bytes" : 568453
+              },
+              "total" : {
+                "file_count" : 54,
+                "size" : "41.7mb",
+                "size_in_bytes" : 43725830
+              },
+              "start_time" : "%s",
+              "start_time_in_millis" : %d,
+              "time" : "%s",
+              "time_in_millis" : %d
+            }""", startTimeFormatted, startTime, timeFormatted, time);
+        assertEquals(expected, org.elasticsearch.common.Strings.toString(stats, true, true));
     }
 
     public void testMissingStats() throws IOException {

@@ -71,12 +71,12 @@ public class UriParts extends CompoundOutputEval<UriParts> {
     }
 
     @Override
-    protected int configOptionsHashCode() {
+    protected int innerHashCode() {
         return 0;
     }
 
     @Override
-    protected boolean configOptionsEqual(CompoundOutputEval<?> other) {
+    protected boolean innerEquals(CompoundOutputEval<?> other) {
         return other instanceof UriParts;
     }
 
@@ -95,7 +95,7 @@ public class UriParts extends CompoundOutputEval<UriParts> {
         if (input.resolved()) {
             DataType type = input.dataType();
             if (DataType.isString(type) == false) {
-                failures.add(fail(input, "Input for URI_PARTS must be of type [String] but is [{}]", type.typeName()));
+                failures.add(fail(input, "Input for URI_PARTS must be of type [string] but is [{}]", type.typeName()));
             }
         }
     }

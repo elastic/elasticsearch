@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -3231,7 +3230,7 @@ public class FieldNameUtilsTests extends ESTestCase {
     }
 
     public void testUriPartsResolvesOnlyInput() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         assertFieldNames("""
             from employees
             | uri_parts_🐔 u = first_name

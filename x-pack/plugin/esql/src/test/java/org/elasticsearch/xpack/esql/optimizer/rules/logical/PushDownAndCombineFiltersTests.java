@@ -2406,7 +2406,7 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     }
 
     public void testPushDownFilterPastUriParts() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         String query = """
             FROM test
             | WHERE emp_no > 10000

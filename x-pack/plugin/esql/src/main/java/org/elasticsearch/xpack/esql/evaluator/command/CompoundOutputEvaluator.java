@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
@@ -53,8 +52,6 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
      * @param row row index in the input
      * @param target the output column blocks
      * @param spare the {@link BytesRef} to use for value retrieval
-     * @throws EsqlIllegalArgumentException if the {@code target} array does not have the correct size or its elements do not match the
-     *                                      expected output fields
      */
     @Override
     public void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare) {
@@ -64,7 +61,7 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
                 BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
                 String inputAsString = getInputAsString(bytes, inputType);
                 evaluated = outputFieldsCollector.evaluate(inputAsString, target);
-            } catch (RuntimeException e) {
+            } catch (IllegalArgumentException e) {
                 warnings.registerException(e);
             }
         }

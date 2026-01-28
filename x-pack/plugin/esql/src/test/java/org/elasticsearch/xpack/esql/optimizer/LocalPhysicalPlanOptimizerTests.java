@@ -28,6 +28,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -2174,7 +2175,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testConstantFieldUriPartsFilter() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         String query = """
             FROM test
             | uri_parts_🐔 u = `constant_keyword-foo`

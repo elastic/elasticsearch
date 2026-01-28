@@ -4500,7 +4500,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testUriPartsCommand() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         LogicalPlan cmd = processingCommand("uri_parts_🐔 p = a");
         UriParts parts = as(cmd, UriParts.class);
         assertEqualsIgnoringIds(attribute("a"), parts.getInput());

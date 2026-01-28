@@ -11160,7 +11160,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownSampleAndLimitThroughUriParts() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         var query = "FROM test | URI_PARTS_🐔 parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";
         var optimized = optimizedPlan(query);
         // UriParts should be above Sample and Limit
@@ -11172,7 +11172,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testPushDownUriPartsPastProject() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         String query = """
             from test
             | rename first_name as x
@@ -11194,7 +11194,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testCombineOrderByThroughUriParts() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         String query = """
             from test
             | sort emp_no

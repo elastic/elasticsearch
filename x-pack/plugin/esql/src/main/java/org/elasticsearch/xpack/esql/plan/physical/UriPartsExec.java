@@ -75,12 +75,12 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     @Override
-    protected boolean configOptionsEqual(CompoundOutputEvalExec other) {
+    protected boolean innerEquals(CompoundOutputEvalExec other) {
         return other instanceof UriPartsExec;
     }
 
     @Override
-    protected int configOptionsHashCode() {
+    protected int innerHashCode() {
         return 0;
     }
 }

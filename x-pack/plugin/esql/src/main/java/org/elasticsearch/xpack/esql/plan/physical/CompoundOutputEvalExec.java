@@ -139,7 +139,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         return NodeInfo.create(this, this::createNewInstance, child(), input, outputFieldNames, outputFieldAttributes);
     }
 
-    protected abstract boolean configOptionsEqual(CompoundOutputEvalExec other);
+    protected abstract boolean innerEquals(CompoundOutputEvalExec other);
 
     @Override
     public boolean equals(Object o) {
@@ -156,13 +156,13 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         return Objects.equals(input, that.input)
             && Objects.equals(outputFieldNames, that.outputFieldNames)
             && Objects.equals(outputFieldAttributes, that.outputFieldAttributes)
-            && configOptionsEqual(that);
+            && innerEquals(that);
     }
 
-    protected abstract int configOptionsHashCode();
+    protected abstract int innerHashCode();
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, outputFieldNames, outputFieldAttributes, configOptionsHashCode());
+        return Objects.hash(super.hashCode(), input, outputFieldNames, outputFieldAttributes, innerHashCode());
     }
 }

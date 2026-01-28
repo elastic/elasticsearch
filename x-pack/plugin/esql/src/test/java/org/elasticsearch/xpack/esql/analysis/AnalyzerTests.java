@@ -1657,7 +1657,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInUriParts() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
@@ -5951,7 +5951,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUriParts() {
-        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.COMPOUND_OUTPUT_EVAL.isEnabled());
         LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts_🐔 p = uri");
 
         Limit limit = as(plan, Limit.class);
@@ -5962,9 +5962,9 @@ public class AnalyzerTests extends ESTestCase {
         // verify that the attributes list is unmodifiable
         assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
         assertEquals(expectedColumns.size(), attributes.size());
-        expectedColumns.entrySet().iterator().forEachRemaining(entry -> {
-            String expectedName = "p." + entry.getKey();
-            DataType expectedType = DataType.fromJavaType(entry.getValue());
+        expectedColumns.forEach((key, value) -> {
+            String expectedName = "p." + key;
+            DataType expectedType = DataType.fromJavaType(value);
             Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
             assertNotNull("Expected attribute " + expectedName + " not found", attr);
             assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
@@ -5972,7 +5972,7 @@ public class AnalyzerTests extends ESTestCase {
 
         // Test invalid input type
         VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts_🐔 p = uri"));
-        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [String] but is [integer]"));
+        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

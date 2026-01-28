@@ -230,14 +230,14 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
         return NodeInfo.create(this, this::createNewInstance, child(), input, outputFieldNames, outputFieldAttributes);
     }
 
-    protected abstract int configOptionsHashCode();
+    protected abstract int innerHashCode();
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), input, configOptionsHashCode(), outputFieldNames, outputFieldAttributes, getClass());
+        return Objects.hash(super.hashCode(), input, innerHashCode(), outputFieldNames, outputFieldAttributes, getClass());
     }
 
-    protected abstract boolean configOptionsEqual(CompoundOutputEval<?> other);
+    protected abstract boolean innerEquals(CompoundOutputEval<?> other);
 
     @Override
     public boolean equals(Object obj) {
@@ -252,6 +252,6 @@ public abstract class CompoundOutputEval<T extends CompoundOutputEval<T>> extend
             && Objects.equals(outputFieldNames, other.outputFieldNames)
             && Objects.equals(outputFieldAttributes, other.outputFieldAttributes)
             && Objects.equals(this.getClass(), other.getClass())
-            && configOptionsEqual(other);
+            && innerEquals(other);
     }
 }

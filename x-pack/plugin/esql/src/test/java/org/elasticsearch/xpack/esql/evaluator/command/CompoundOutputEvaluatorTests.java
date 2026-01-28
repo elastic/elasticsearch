@@ -93,11 +93,15 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
         @Override
         protected boolean evaluate(String input) {
             Map<String, Object> evaluationFunctionOutput = testFunction(input);
-            fieldA((String) evaluationFunctionOutput.get("field_a"));
-            Object valueB = evaluationFunctionOutput.get("field_b");
-            valueB = valueB == null ? -1 : ((Number) valueB).intValue();
-            fieldB((Integer) valueB);
-            fieldC((String) evaluationFunctionOutput.get("field_c"));
+            try {
+                fieldA((String) evaluationFunctionOutput.get("field_a"));
+                Object valueB = evaluationFunctionOutput.get("field_b");
+                valueB = valueB == null ? -1 : ((Number) valueB).intValue();
+                fieldB((Integer) valueB);
+                fieldC((String) evaluationFunctionOutput.get("field_c"));
+            } catch (Exception e) {
+                throw new IllegalArgumentException("Invalid input: " + input, e);
+            }
             return true;
         }
     }
@@ -115,10 +119,17 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testPartialFieldsRequested() {
+    public void testPartialFieldsRequested_1() {
         List<String> requestedFields = List.of("field_a", "field_b");
         String input = "field_a:valueA-field_b:2-field_c:valueC";
         Object[] expectedRowComputationOutput = new Object[] { "valueA", 2 };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testPartialFieldsRequested_2() {
+        List<String> requestedFields = List.of("field_b");
+        String input = "field_a:valueA-field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { 2 };
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
@@ -129,10 +140,24 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testMissingField() {
+    public void testMissingField_1() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
         String input = "field_b:2-field_c:valueC";
         Object[] expectedRowComputationOutput = new Object[] { null, 2, "valueC" };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testMissingField_2() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "foo:1-field_b:2-bar:3";
+        Object[] expectedRowComputationOutput = new Object[] { null, 2, null };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testMissingField_3() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "foo:1-bar:2-field_b:3-baz:4-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { null, 3, "valueC" };
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
@@ -143,10 +168,24 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 
-    public void testUnknownField() {
+    public void testWrongFieldType() {
+        List<String> requestedFields = List.of("field_a", "field_b", "field_c");
+        String input = "field_a:1-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { null, null, null };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testKnownAndUnknownFields() {
         List<String> requestedFields = List.of("field_a", "field_b", "unknown_field");
         String input = "field_a:valueA-field_b:2-field_c:valueC";
         Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, null };
+        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+    }
+
+    public void testOnlyUnknownFields() {
+        List<String> requestedFields = List.of("unknown_field_a", "unknown_field_b");
+        String input = "field_a:valueA-field_b:2-field_c:valueC";
+        Object[] expectedRowComputationOutput = new Object[] { null, null };
         evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
     }
 

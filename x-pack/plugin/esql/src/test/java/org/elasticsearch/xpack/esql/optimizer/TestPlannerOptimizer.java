@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
+import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -60,6 +62,21 @@ public class TestPlannerOptimizer {
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer) {
         return plan(query, stats, analyzer, null);
+    }
+
+    public PhysicalPlan planWithMinimumTransportVersion(
+        String query,
+        SearchStats stats,
+        Analyzer analyzer,
+        TransportVersion minimumVersion
+    ) {
+        if (analyzer.context() instanceof MutableAnalyzerContext mutableContext) {
+            try (var restore = mutableContext.setTemporaryTransportVersionOnOrAfter(minimumVersion)) {
+                return plan(query, stats, analyzer, null);
+            }
+        } else {
+            throw new UnsupportedOperationException("Analyzer Context is not mutable");
+        }
     }
 
     public PhysicalPlan plan(String query, SearchStats stats, Analyzer analyzer, @Nullable QueryBuilder esFilter) {

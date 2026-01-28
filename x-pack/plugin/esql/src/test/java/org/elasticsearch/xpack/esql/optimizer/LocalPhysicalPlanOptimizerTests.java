@@ -116,6 +116,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.indexWithDateDateNanosUnionType;
 import static org.elasticsearch.xpack.esql.core.querydsl.query.Query.unscore;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DataTypesTransportVersions.ESQL_DENSE_VECTOR_CREATED_VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.util.TestUtils.getFieldAttribute;
@@ -1289,7 +1290,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | limit 50
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(query, IS_SV_STATS, analyzer, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1313,7 +1314,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | limit 10
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(query, IS_SV_STATS, analyzer, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1329,7 +1330,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | limit 10
             """;
         var analyzer = makeAnalyzer("mapping-all-types.json");
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, analyzer);
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(query, IS_SV_STATS, analyzer, ESQL_DENSE_VECTOR_CREATED_VERSION);
 
         AtomicReference<String> planStr = new AtomicReference<>();
         plan.forEachDown(EsQueryExec.class, result -> planStr.set(result.query().toString()));
@@ -1755,7 +1756,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1788,7 +1794,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where integer > 10
             | where keyword == "test"
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1821,7 +1832,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1857,7 +1873,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) and NOT integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1893,7 +1914,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where knn(dense_vector, [0, 1, 2]) or integer > 10
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1928,7 +1954,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where ((knn(dense_vector, [0, 1, 2]) AND integer > 10) and ((keyword == "test") or length(text) > 10))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -1961,7 +1992,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | where ((knn(dense_vector, [0, 1, 2]) or NOT integer > 10)
               and NOT ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);
@@ -2008,7 +2044,12 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             from test
             | where ((knn(dense_vector, [0, 1, 2]) or integer > 10) and ((keyword == "test") or knn(dense_vector, [4, 5, 6])))
             """;
-        var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
+        var plan = plannerOptimizer.planWithMinimumTransportVersion(
+            query,
+            IS_SV_STATS,
+            makeAnalyzer("mapping-all-types.json"),
+            ESQL_DENSE_VECTOR_CREATED_VERSION
+        );
 
         var limit = as(plan, LimitExec.class);
         var exchange = as(limit.child(), ExchangeExec.class);

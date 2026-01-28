@@ -14,11 +14,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -471,13 +473,29 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return this;
     }
 
-    public KnnVectorQueryBuilder toQueryBuilder() {
+    public KnnVectorQueryBuilder toQueryBuilder(SearchExecutionContext searchExecutionContext) {
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, k, numCands, visitPercentage, null, similarity).boost(boost)
+        float oversample = rescoreVectorBuilder != null
+            ? rescoreVectorBuilder.oversample()
+            : getDefaultOversampleForField(field, searchExecutionContext);
+        float localK = oversample > 1 ? k * oversample : k;
+        return new KnnVectorQueryBuilder(field, queryVector, (int) Math.ceil(localK), numCands, visitPercentage, null, similarity).boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);
+    }
+
+    private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
+        var fieldType = searchExecutionContext.getFieldType(fieldName);
+        var indexOptions = fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType
+            ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
+            : null;
+        var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
+            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
+            : null;
+        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 1f;
+
     }
 
     public Float getSimilarity() {

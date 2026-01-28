@@ -188,7 +188,7 @@ public class DfsPhase {
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
         List<KnnSearchBuilder> knnSearch = source.knnSearch();
         // KnnSearchBuilder::toQueryBuilder will disable rescoring for the underlying KnnVectorQueryBuilder
-        List<KnnVectorQueryBuilder> knnQueries = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        List<KnnVectorQueryBuilder> knnQueries = knnSearch.stream().map(knn -> knn.toQueryBuilder(searchExecutionContext)).toList();
         // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
         knnQueries.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
@@ -208,10 +208,6 @@ public class DfsPhase {
                 String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
                 Query knnQuery = searchExecutionContext.toQuery(knnQueries.get(i)).query();
                 int k = knnQueries.get(i).k();
-                RescoreVectorBuilder rescoreVectorBuilder = knnSearch.get(i).getRescoreVectorBuilder();
-                float oversample = rescoreVectorBuilder != null
-                    ? rescoreVectorBuilder.oversample()
-                    : getDefaultOversampleForField(knnField, searchExecutionContext);
                 knnResults.add(singleKnnSearch(knnQuery, k, oversample, context.getProfilers(), context.searcher(), knnNestedPath));
             }
             afterQueryTime = System.nanoTime();
@@ -223,18 +219,6 @@ public class DfsPhase {
             }
         }
         context.dfsResult().knnResults(knnResults);
-    }
-
-    private static float getDefaultOversampleForField(String fieldName, SearchExecutionContext searchExecutionContext) {
-        var fieldType = searchExecutionContext.getFieldType(fieldName);
-        var indexOptions = fieldType instanceof DenseVectorFieldMapper.DenseVectorFieldType
-            ? ((DenseVectorFieldMapper.DenseVectorFieldType) fieldType).getIndexOptions()
-            : null;
-        var quantizedIndexOptions = indexOptions instanceof DenseVectorFieldMapper.QuantizedIndexOptions
-            ? ((DenseVectorFieldMapper.QuantizedIndexOptions) indexOptions).getRescoreVector()
-            : null;
-        return quantizedIndexOptions != null ? quantizedIndexOptions.oversample() : 1f;
-
     }
 
     static DfsKnnResults singleKnnSearch(

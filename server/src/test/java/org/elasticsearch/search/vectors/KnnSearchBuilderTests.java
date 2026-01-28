@@ -265,7 +265,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             rescoreVectorBuilder,
             similarity
         ).addFilterQueries(filterQueries).boost(boost);
-        assertEquals(expected, builder.toQueryBuilder());
+        assertEquals(expected, builder.toQueryBuilder(searchExecutionContext));
     }
 
     public void testNumCandsLessThanK() {

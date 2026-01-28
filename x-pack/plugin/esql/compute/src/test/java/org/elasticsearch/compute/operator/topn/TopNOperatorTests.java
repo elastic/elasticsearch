@@ -629,16 +629,20 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
+            groupKeys(),
             randomPageSize()
         );
-        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
-            .stream()
-            .collect(Collectors.joining(", "));
+        String sorts = String.join(
+            ", ",
+            List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+        );
         String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[UTF8TopNEncoder, FixedLengthTopNEncoder["
             + fixedLength
             + "]], sortOrders=["
             + sorts
-            + "]]";
+            + "]"
+            + (groupKeys().isEmpty() ? "" : ", groupKeys=" + groupKeys())
+            + "]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
         try (Operator operator = factory.get(driverContext())) {
             assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));

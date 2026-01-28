@@ -115,20 +115,7 @@ public class TopNOperator implements Operator, Accountable {
         List<Integer> groupKeys,
         int maxPageSize
     ) implements OperatorFactory {
-        // FIXME(gal, NOCOMMIT) Remove this
-        public TopNOperatorFactory(
-            int topCount,
-            List<ElementType> elementTypes,
-            List<TopNEncoder> encoders,
-            List<SortOrder> sortOrders,
-            int maxPageSize
-        ) {
-            this(topCount, elementTypes, encoders, sortOrders, List.of(), maxPageSize);
-        }
-
-        public TopNOperatorFactory
-
-        {
+        public TopNOperatorFactory {
             for (ElementType e : elementTypes) {
                 if (e == null) {
                     throw new IllegalArgumentException("ElementType not known");

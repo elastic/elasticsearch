@@ -192,6 +192,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
                 List.of(LONG),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, true, false)),
+                groupKeys(),
                 pageSize
             ).get(context)
         ) {

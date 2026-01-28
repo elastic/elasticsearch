@@ -799,14 +799,15 @@ public class IndexMetadataTests extends ESTestCase {
         );
     }
 
-    public void testVerificationOfSyntheticIdSetting_happyPath() {
+    public void testVerificationOfSyntheticIdSettingValid() {
         IndexMode mode = IndexMode.TIME_SERIES;
         IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
-        String codec = CodecService.DEFAULT_CODEC;
+        String codec = randomBoolean() ? CodecService.DEFAULT_CODEC : null;
         try {
             Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
                 .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
                 .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")
                 .build();
             IndexMetadata.builder("test").settings(settings).build();
         } catch (IllegalArgumentException e) {
@@ -814,7 +815,7 @@ public class IndexMetadataTests extends ESTestCase {
         }
     }
 
-    public void testVerificationOfSyntheticIdSetting_badVersion() {
+    public void testVerificationOfSyntheticIdSettingBadVersion() {
         IndexMode mode = IndexMode.TIME_SERIES;
         IndexVersion badVersion = IndexVersionUtils.randomPreviousCompatibleVersion(
             IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID
@@ -823,7 +824,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertThrowsOnUseSyntheticIdWithBadConfig(badVersion, mode, codec);
     }
 
-    public void testVerificationOfSyntheticIdSetting_badCodec() {
+    public void testVerificationOfSyntheticIdSettingBadCodec() {
         IndexMode mode = IndexMode.TIME_SERIES;
         IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
         String badCodec = randomFrom(
@@ -835,22 +836,18 @@ public class IndexMetadataTests extends ESTestCase {
         assertThrowsOnUseSyntheticIdWithBadConfig(version, mode, badCodec);
     }
 
-    public void testVerificationOfSyntheticIdSetting_badMode() {
-        IndexMode[] badIndexModes = Arrays.stream(IndexMode.values())
-            .filter(mode -> mode.equals(IndexMode.TIME_SERIES) == false)
-            .toArray(IndexMode[]::new);
-        IndexMode badMode = randomFrom(badIndexModes);
+    public void testVerificationOfSyntheticIdSettingBadMode() {
+        IndexMode badMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
         IndexVersion version = IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID;
         String codec = CodecService.DEFAULT_CODEC;
         assertThrowsOnUseSyntheticIdWithBadConfig(version, badMode, codec);
     }
 
-    // todo missing verification of feature flag. Figure out how to do that!
-
     private static void assertThrowsOnUseSyntheticIdWithBadConfig(IndexVersion version, IndexMode mode, String codec) {
         Settings settings = indexSettings(version, 1, 0).put(IndexSettings.MODE.getKey(), mode)
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codec)
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some-path")
             .build();
         assertThrows(IllegalArgumentException.class, () -> IndexMetadata.builder("test").settings(settings).build());
     }

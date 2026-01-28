@@ -492,7 +492,7 @@ The full list of recovery types is defined in [RecoverySource.Type][]. The vario
 order of complexity. Some modes build on others; for example, snapshot recovery sets up a local data store by copying
 files from a snapshot source and then uses local store recovery. Similarly, if there is any local data, then
 peer recovery starts by using local store recovery to bring the local shard as close to up to date as it can, and then
-finishes synchronizing the shard through RPCs to an active source shard.
+finishes synchronizing the shard through RPCs (Remote Procedure Calls) to an active source shard.
 
 (How is the translog involved in recovery?)
 

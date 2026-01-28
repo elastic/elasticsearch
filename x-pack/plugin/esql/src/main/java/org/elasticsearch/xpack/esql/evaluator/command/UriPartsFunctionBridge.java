@@ -177,7 +177,7 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
         }
 
         @Override
-        public boolean evaluate(String input) throws Exception {
+        public boolean evaluate(String input) {
             return getUriParts(input, this);
         }
     }
@@ -197,13 +197,13 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
     static final String USERNAME = "username";
     static final String PASSWORD = "password";
 
-    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
     private static Map<String, Object> getUriParts(String urlString) {
         var uriParts = new HashMap<String, Object>();
         getUriParts(urlString, new UriPartsMapCollector(uriParts));
         return uriParts;
     }
 
+    @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
     private static boolean getUriParts(String urlString, UriPartsCollector uriPartsMapCollector) {
         URI uri = null;
         URL fallbackUrl = null;

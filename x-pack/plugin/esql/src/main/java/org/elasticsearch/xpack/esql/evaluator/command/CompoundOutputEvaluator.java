@@ -64,7 +64,7 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
                 BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
                 String inputAsString = getInputAsString(bytes, inputType);
                 evaluated = outputFieldsCollector.evaluate(inputAsString, target);
-            } catch (Exception e) {
+            } catch (RuntimeException e) {
                 warnings.registerException(e);
             }
         }
@@ -116,9 +116,8 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
          * @param input the input string to evaluate the function on
          * @param target the output column blocks
          * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
-         * @throws Exception if thrown by the evaluation logic, the implementation must guarantee that NO field was evaluated
          */
-        boolean evaluate(final String input, final Block.Builder[] target) throws Exception {
+        boolean evaluate(final String input, final Block.Builder[] target) {
             boolean evaluated;
             try {
                 blocksBearer.accept(target);
@@ -138,13 +137,13 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
         /**
          * IMPORTANT: the implementing method must ensure that the entire evaluation is completed in full before writing values
          * to the output fields. The returned value should indicate whether ALL fields were evaluated or NONE were evaluated.
+         * Similarly, the implementing method must ensure that if it throws an exception, NO field is written.
          * The best practice is to accumulate all output values in local variables/structures, and only write to the output fields at the
          * end of the method.
          * @param input the input string to evaluate the function on
          * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
-         * @throws Exception if thrown by the evaluation logic, the implementation must guarantee that NO field was evaluated
          */
-        protected abstract boolean evaluate(String input) throws Exception;
+        protected abstract boolean evaluate(String input);
     }
 
     /**

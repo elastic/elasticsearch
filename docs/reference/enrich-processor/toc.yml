@@ -4,6 +4,7 @@ toc:
   - file: attachment.md
   - file: bytes-processor.md
   - file: ingest-circle-processor.md
+  - file: cef-processor.md
   - file: community-id-processor.md
   - file: convert-processor.md
   - file: csv-processor.md

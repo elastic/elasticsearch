@@ -147,6 +147,24 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
                     )
             )
         );
+        cases.add(
+            new TestCaseSupplier(
+                List.of(DataType.KEYWORD, DataType.KEYWORD),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(new BytesRef("yyyy-MM-dd"), DataType.KEYWORD, "first"),
+                        new TestCaseSupplier.TypedData(new BytesRef("2026-02-29"), DataType.KEYWORD, "second")
+
+                    ),
+                    startsWith("DateParseEvaluator[val=Attribute[channel=1], formatter=Attribute[channel=0], zoneId="),
+                    DataType.DATETIME,
+                    is(nullValue())
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: java.lang.IllegalArgumentException: " + "Invalid date 'February 29' as '2026' is not a leap year"
+                    )
+            )
+        );
         cases = anyNullIsNull(true, cases);
 
         for (DataType dateType : List.of(DataType.KEYWORD, DataType.TEXT)) {

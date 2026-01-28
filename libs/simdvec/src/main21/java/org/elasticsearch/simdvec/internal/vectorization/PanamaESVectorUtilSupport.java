@@ -19,6 +19,7 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.internal.Similarities;
@@ -62,14 +63,14 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public float dotProduct(float[] a, float[] b) {
         return SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.dotProductFloat32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            ? Similarities.dotProductF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.dotProduct(a, b);
     }
 
     @Override
     public float squareDistance(float[] a, float[] b) {
         return SUPPORTS_HEAP_SEGMENTS
-            ? Similarities.squareDistanceFloat32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
+            ? Similarities.squareDistanceF32(MemorySegment.ofArray(a), MemorySegment.ofArray(b), a.length)
             : VectorUtil.squareDistance(a, b);
     }
 
@@ -1159,5 +1160,33 @@ public final class PanamaESVectorUtilSupport implements ESVectorUtilSupport {
             }
         }
         return -1;
+    }
+
+    @Override
+    public int codePointCount(final BytesRef bytesRef) {
+        // SWAR logic is faster for lengths below approximately 54
+        if (bytesRef.length < 54) {
+            return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        }
+
+        int continuations = 0;
+        int highBits = 0xC0;
+        int continuationByte = 0x80; // continuation bytes have first bit set and second bit unset
+        final ByteVector highBitsVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) highBits);
+        final ByteVector continuationVec = ByteVector.broadcast(PREFERRED_BYTE_SPECIES, (byte) continuationByte);
+        final int loopBound = PREFERRED_BYTE_SPECIES.loopBound(bytesRef.length);
+        int i = 0;
+        for (; i < loopBound; i += PREFERRED_BYTE_SPECIES.length()) {
+            ByteVector chunk = ByteVector.fromArray(PREFERRED_BYTE_SPECIES, bytesRef.bytes, bytesRef.offset + i);
+            VectorMask<Byte> mask = chunk.and(highBitsVec).eq(continuationVec);
+            continuations += mask.trueCount();
+        }
+
+        // tail
+        for (int pos = bytesRef.offset + loopBound; pos < bytesRef.offset + bytesRef.length; pos++) {
+            continuations += (bytesRef.bytes[pos] & highBits) == continuationByte ? 1 : 0;
+        }
+
+        return bytesRef.length - continuations;
     }
 }

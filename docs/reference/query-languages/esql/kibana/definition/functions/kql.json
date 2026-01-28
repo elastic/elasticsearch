@@ -27,7 +27,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.'}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.'}, {name='default_field', values=[*, logs.*, title], description='Default field to search if no field is provided in the query string. Supports wildcards (*).'}",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.', type=[float]}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.', type=[keyword]}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.', type=[boolean]}, {name='default_field', values=[*, logs.*, title], description='Default field to search if no field is provided in the query string. Supports wildcards (*).', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>. Available in stack version 9.3.0 and later."
         }
@@ -58,7 +58,7 @@
         {
           "name" : "options",
           "type" : "function_named_parameters",
-          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.'}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.'}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.'}, {name='default_field', values=[*, logs.*, title], description='Default field to search if no field is provided in the query string. Supports wildcards (*).'}",
+          "mapParams" : "{name='boost', values=[2.5], description='Floating point number used to decrease or increase the relevance scores of the query. Defaults to 1.0.', type=[float]}, {name='time_zone', values=[UTC, Europe/Paris, America/New_York], description='UTC offset or IANA time zone used to interpret date literals in the query string.', type=[keyword]}, {name='case_insensitive', values=[true, false], description='If true, performs case-insensitive matching for keyword fields. Defaults to false.', type=[boolean]}, {name='default_field', values=[*, logs.*, title], description='Default field to search if no field is provided in the query string. Supports wildcards (*).', type=[keyword]}",
           "optional" : true,
           "description" : "(Optional) KQL additional options as <<esql-function-named-params,function named parameters>>. Available in stack version 9.3.0 and later."
         }

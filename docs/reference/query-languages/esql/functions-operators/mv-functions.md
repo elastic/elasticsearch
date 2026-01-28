@@ -68,6 +68,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/mv_sum.md
 :::
 
+:::{include} ../_snippets/functions/layout/mv_union.md
+:::
+
 :::{include} ../_snippets/functions/layout/mv_zip.md
 :::
 

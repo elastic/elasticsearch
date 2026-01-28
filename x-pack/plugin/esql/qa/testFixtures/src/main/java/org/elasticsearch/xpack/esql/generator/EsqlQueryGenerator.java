@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.SampleGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.TimeSeriesStatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.WhereGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
 import java.util.List;
 import java.util.Set;
@@ -75,8 +77,7 @@ public class EsqlQueryGenerator {
         LookupJoinGenerator.INSTANCE,
         MvExpandGenerator.INSTANCE,
         RenameGenerator.INSTANCE,
-        // awaits fix for https://github.com/elastic/elasticsearch/issues/135336
-        // SampleGenerator.INSTANCE,
+        SampleGenerator.INSTANCE,
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         WhereGenerator.INSTANCE
@@ -199,10 +200,18 @@ public class EsqlQueryGenerator {
         if (result == null) {
             return null;
         }
+        // If the raw name needs quoting (contains special characters), we must quote it
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
         if (randomBoolean() && result.contains("*") == false) {
-            result = "`" + result + "`";
+            return quote(result);
         }
         return result;
+    }
+
+    public static boolean needsQuoting(String rawName) {
+        return rawName.contains("`") || rawName.contains("-");
     }
 
     /**
@@ -227,7 +236,11 @@ public class EsqlQueryGenerator {
         if (candidates.isEmpty()) {
             return null;
         }
-        return randomFrom(candidates).name();
+        String result = randomFrom(candidates).name();
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static boolean groupable(Column col) {
@@ -248,7 +261,11 @@ public class EsqlQueryGenerator {
         if (candidates.isEmpty()) {
             return null;
         }
-        return randomFrom(candidates).name();
+        String result = randomFrom(candidates).name();
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static boolean sortable(Column col) {
@@ -406,7 +423,11 @@ public class EsqlQueryGenerator {
         if (items.isEmpty()) {
             return null;
         }
-        return items.get(randomIntBetween(0, items.size() - 1));
+        String result = items.get(randomIntBetween(0, items.size() - 1));
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     public static String randomCounterField(List<Column> previousOutput) {
@@ -431,7 +452,11 @@ public class EsqlQueryGenerator {
         if (items.size() == 0) {
             return null;
         }
-        return items.get(randomIntBetween(0, items.size() - 1));
+        String result = items.get(randomIntBetween(0, items.size() - 1));
+        if (needsQuoting(result)) {
+            return quote(result);
+        }
+        return result;
     }
 
     /**
@@ -546,9 +571,13 @@ public class EsqlQueryGenerator {
             || field.originalTypes().stream().anyMatch(x -> x.contains("vector"))) == false;
     }
 
+    public static String quote(String rawName) {
+        return ParserUtils.quoteIdString(rawName);
+    }
+
     public static String unquote(String colName) {
-        if (colName.startsWith("`") && colName.endsWith("`")) {
-            return colName.substring(1, colName.length() - 1);
+        if (colName.length() >= 2 && colName.startsWith("`") && colName.endsWith("`")) {
+            return ParserUtils.unquoteIdString(colName);
         }
         return colName;
     }

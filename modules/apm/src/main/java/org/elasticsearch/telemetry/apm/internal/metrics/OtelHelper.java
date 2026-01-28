@@ -27,12 +27,12 @@ import java.util.function.Supplier;
 class OtelHelper {
     private static final Logger logger = LogManager.getLogger(OtelHelper.class);
 
-    static Attributes fromMap(Map<String, Object> attributes) {
+    static Attributes fromMap(String metricName, Map<String, Object> attributes) {
         if (attributes == null || attributes.isEmpty()) {
             return Attributes.empty();
         }
 
-        MetricValidator.assertValidAttributeNames(attributes);
+        MetricValidator.assertValidAttributeNames(metricName, attributes);
 
         var builder = Attributes.builder();
         attributes.forEach((k, v) -> {
@@ -59,7 +59,10 @@ class OtelHelper {
         return builder.build();
     }
 
-    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(Supplier<Collection<DoubleWithAttributes>> observer) {
+    static Consumer<ObservableDoubleMeasurement> doubleMeasurementCallback(
+        String metricName,
+        Supplier<Collection<DoubleWithAttributes>> observer
+    ) {
         return measurement -> {
             Collection<DoubleWithAttributes> observations;
             try {
@@ -74,13 +77,16 @@ class OtelHelper {
             }
             for (DoubleWithAttributes observation : observations) {
                 if (observation != null) {
-                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
                 }
             }
         };
     }
 
-    static Consumer<ObservableLongMeasurement> longMeasurementCallback(Supplier<Collection<LongWithAttributes>> observer) {
+    static Consumer<ObservableLongMeasurement> longMeasurementCallback(
+        String metricName,
+        Supplier<Collection<LongWithAttributes>> observer
+    ) {
         return measurement -> {
             Collection<LongWithAttributes> observations;
             try {
@@ -95,7 +101,7 @@ class OtelHelper {
             }
             for (LongWithAttributes observation : observations) {
                 if (observation != null) {
-                    measurement.record(observation.value(), OtelHelper.fromMap(observation.attributes()));
+                    measurement.record(observation.value(), OtelHelper.fromMap(metricName, observation.attributes()));
                 }
             }
         };

@@ -219,7 +219,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                   "stored" : 2
                 }
               }
-            }""", Strings.toString(mappingStats, true, true));
+            }""", mappingStatsString);
     }
 
     public void testToXContentWithSomeSharedMappings() {
@@ -573,7 +573,7 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
     public void testWriteTo() throws IOException {
         MappingStats instance = createTestInstance();
         BytesStreamOutput out = new BytesStreamOutput();
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         out.setTransportVersion(version);
         instance.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);

@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -33,7 +33,7 @@ import org.elasticsearch.core.ReleasableIterator;
  */
 final class BytesRefBlockHash extends BlockHash {
     private final int channel;
-    final BytesRefHash hash;
+    final BytesRefHashTable hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -47,7 +47,7 @@ final class BytesRefBlockHash extends BlockHash {
     BytesRefBlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newBytesRefHash(blockFactory);
     }
 
     @Override
@@ -229,7 +229,7 @@ final class BytesRefBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
     }
 
     @Override

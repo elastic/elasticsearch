@@ -29,6 +29,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         BytesRefBlock,
         AggregateMetricDoubleBlock,
         ExponentialHistogramBlock,
+        LongRangeBlock,
         TDigestBlock {
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantNullBlock.class);
@@ -118,6 +119,16 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     @Override
     public ConstantNullBlock expand() {
         incRef();
+        return this;
+    }
+
+    @Override
+    public LongBlock getFromBlock() {
+        return this;
+    }
+
+    @Override
+    public LongBlock getToBlock() {
         return this;
     }
 

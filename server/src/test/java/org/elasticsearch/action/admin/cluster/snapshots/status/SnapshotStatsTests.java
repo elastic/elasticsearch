@@ -10,20 +10,27 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentElasticsearchExtension.DEFAULT_FORMATTER;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> {
 
@@ -72,36 +79,50 @@ public class SnapshotStatsTests extends AbstractXContentTestCase<SnapshotStats> 
         return true;
     }
 
-    public void testHumanReadableOutput() {
+    public void testHumanReadableOutput() throws IOException {
         long startTime = System.currentTimeMillis();
-        long time = randomLongBetween(0, 100_000L);
-        SnapshotStats stats = new SnapshotStats(startTime, time, 10, 54, 11, 2754, 43725830L, 568453L);
+        long time = randomLongBetween(0, Duration.ofHours(1).toMillis());
+        int incrementalFileCount = randomIntBetween(0, 100);
+        int totalFileCount = randomIntBetween(incrementalFileCount, 200);
+        int processedFileCount = randomIntBetween(0, incrementalFileCount);
+        long incrementalSize = randomLongBetween(0, ByteSizeValue.ofMb(1).getBytes());
+        long totalSize = randomLongBetween(incrementalSize, ByteSizeValue.ofMb(3).getBytes());
+        long processedSize = randomLongBetween(0, incrementalSize);
+        SnapshotStats stats = new SnapshotStats(
+            startTime,
+            time,
+            incrementalFileCount,
+            totalFileCount,
+            processedFileCount,
+            incrementalSize,
+            totalSize,
+            processedSize
+        );
 
-        String startTimeFormatted = DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTime));
-        String timeFormatted = TimeValue.timeValueMillis(time).toString();
-        String expected = Strings.format("""
-            {
-              "incremental" : {
-                "file_count" : 10,
-                "size" : "2.6kb",
-                "size_in_bytes" : 2754
-              },
-              "processed" : {
-                "file_count" : 11,
-                "size" : "555.1kb",
-                "size_in_bytes" : 568453
-              },
-              "total" : {
-                "file_count" : 54,
-                "size" : "41.7mb",
-                "size_in_bytes" : 43725830
-              },
-              "start_time" : "%s",
-              "start_time_in_millis" : %d,
-              "time" : "%s",
-              "time_in_millis" : %d
-            }""", startTimeFormatted, startTime, timeFormatted, time);
-        assertEquals(expected, org.elasticsearch.common.Strings.toString(stats, true, true));
+        final ObjectPath statsObjectPath;
+        final var xContent = randomFrom(XContentType.values()).xContent();
+        try (var builder = XContentBuilder.builder(xContent)) {
+            builder.humanReadable(true);
+            stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            statsObjectPath = ObjectPath.createFromXContent(xContent, BytesReference.bytes(builder));
+        }
+
+        assertThat(statsObjectPath.evaluate("incremental.file_count"), equalTo(incrementalFileCount));
+        assertEquals(ByteSizeValue.ofBytes(incrementalSize).toString(), statsObjectPath.evaluate("incremental.size"));
+        assertThat(statsObjectPath.evaluate("incremental.size_in_bytes"), equalTo((int) incrementalSize));
+
+        assertThat(statsObjectPath.evaluate("processed.file_count"), equalTo(processedFileCount));
+        assertEquals(ByteSizeValue.ofBytes(processedSize).toString(), statsObjectPath.evaluate("processed.size"));
+        assertThat(statsObjectPath.evaluate("processed.size_in_bytes"), equalTo((int) processedSize));
+
+        assertThat(statsObjectPath.evaluate("total.file_count"), equalTo(totalFileCount));
+        assertEquals(ByteSizeValue.ofBytes(totalSize).toString(), statsObjectPath.evaluate("total.size"));
+        assertThat(statsObjectPath.evaluate("total.size_in_bytes"), equalTo((int) totalSize));
+
+        assertEquals(DEFAULT_FORMATTER.format(Instant.ofEpochMilli(startTime)), statsObjectPath.evaluate("start_time"));
+        assertThat(statsObjectPath.evaluate("start_time_in_millis"), equalTo(startTime));
+        assertEquals(TimeValue.timeValueMillis(time).toString(), statsObjectPath.evaluate("time"));
+        assertThat(statsObjectPath.evaluate("time_in_millis"), equalTo((int) time));
     }
 
     public void testMissingStats() throws IOException {

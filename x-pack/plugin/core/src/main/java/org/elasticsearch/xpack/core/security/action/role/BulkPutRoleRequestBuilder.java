@@ -48,13 +48,17 @@ public class BulkPutRoleRequestBuilder extends ActionRequestBuilder<BulkPutRoles
     }
 
     public BulkPutRoleRequestBuilder content(BytesReference content, XContentType xContentType) throws IOException {
-        XContentParser parser = XContentHelper.createParserNotCompressed(
+        try (XContentParser parser = XContentHelper.createParserNotCompressed(
             LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
             content,
             xContentType
-        );
-        List<RoleDescriptor> roles = PARSER.parse(parser, null);
-        request.setRoles(roles);
+        )) {
+            List<RoleDescriptor> roles = PARSER.parse(parser, null);
+            if (roles == null || roles.isEmpty()) {
+                throw new IllegalArgumentException("request body is required: [roles]");
+            }
+            request.setRoles(roles);
+        }
         return this;
     }
 

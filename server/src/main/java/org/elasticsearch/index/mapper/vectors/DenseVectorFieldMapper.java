@@ -2866,91 +2866,106 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private VectorData decodeQueryVector(String encoded) {
-            byte[] hexBytes = null;
-            try {
-                hexBytes = HexFormat.of().parseHex(encoded);
-            } catch (IllegalArgumentException e) {
-                // Fall back to base64 below.
+            byte[] hexBytes = tryParseHex(encoded);
+            byte[] base64Bytes = tryParseBase64(encoded);
+
+            if (hexBytes == null && base64Bytes == null) {
+                throw invalidEncodedVector();
             }
 
+            // Prefer hex if it matches expected dimensions
+            if (hexBytes != null && matchesExpectedHexLength(hexBytes.length)) {
+                return VectorData.fromBytes(hexBytes);
+            }
+
+            // Try base64 if it matches expected dimensions for the element type
+            if (base64Bytes != null && matchesExpectedBase64Length(base64Bytes.length)) {
+                return decodeBase64Vector(base64Bytes);
+            }
+
+            // Fall back to hex if available (downstream will handle dimension mismatch)
             if (hexBytes != null) {
                 return VectorData.fromBytes(hexBytes);
             }
 
-            IllegalArgumentException base64Exception = null;
-            byte[] base64Bytes = null;
+            // base64 was parsed but doesn't match dimensions
+            throw invalidBase64Length(base64Bytes.length);
+        }
+
+        private static byte[] tryParseHex(String encoded) {
             try {
-                base64Bytes = Base64.getDecoder().decode(encoded);
+                return HexFormat.of().parseHex(encoded);
             } catch (IllegalArgumentException e) {
-                base64Exception = e;
-            }
-
-            if (base64Bytes == null) {
-                throw invalidEncodedVector(base64Exception);
-            }
-
-            switch (element.elementType()) {
-                case BYTE, BIT -> {
-                    if (dims != null && base64Bytes.length != element.getNumBytes(dims)) {
-                        throw invalidBase64Length(base64Bytes.length, "[query_vector] must contain a valid Base64-encoded byte vector");
-                    }
-                    return VectorData.fromBytes(base64Bytes);
-                }
-                case FLOAT -> {
-                    if (dims != null) {
-                        if (base64Bytes.length == dims * Float.BYTES) {
-                            return decodeFloatVector(base64Bytes);
-                        }
-                        throw invalidBase64Length(base64Bytes.length, "[query_vector] must contain a valid Base64-encoded float vector");
-                    }
-                    if (base64Bytes.length % Float.BYTES == 0) {
-                        return decodeFloatVector(base64Bytes);
-                    }
-                    throw invalidBase64Length(base64Bytes.length, "[query_vector] must contain a valid Base64-encoded float vector");
-                }
-                case BFLOAT16 -> {
-                    if (dims != null) {
-                        if (base64Bytes.length == dims * BFloat16.BYTES) {
-                            return decodeBFloat16Vector(base64Bytes);
-                        }
-                        if (base64Bytes.length == dims * Float.BYTES) {
-                            return decodeFloatVector(base64Bytes);
-                        }
-                        throw invalidBase64Length(
-                            base64Bytes.length,
-                            "[query_vector] must contain a valid Base64-encoded float or bfloat16 vector"
-                        );
-                    }
-                    if (base64Bytes.length % Float.BYTES == 0) {
-                        return decodeFloatVector(base64Bytes);
-                    }
-                    if (base64Bytes.length % BFloat16.BYTES == 0) {
-                        return decodeBFloat16Vector(base64Bytes);
-                    }
-                    throw invalidBase64Length(
-                        base64Bytes.length,
-                        "[query_vector] must contain a valid Base64-encoded float or bfloat16 vector"
-                    );
-                }
-                default -> throw new IllegalStateException("Unsupported element type [" + element.elementType() + "]");
+                return null;
             }
         }
 
-        private static IllegalArgumentException invalidEncodedVector(IllegalArgumentException base64Exception) {
-            IllegalArgumentException error = new IllegalArgumentException(
+        private static byte[] tryParseBase64(String encoded) {
+            try {
+                return Base64.getDecoder().decode(encoded);
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        private boolean matchesExpectedHexLength(int length) {
+            return dims == null || length == element.getNumBytes(dims);
+        }
+
+        private boolean matchesExpectedBase64Length(int length) {
+            if (dims == null) {
+                return switch (element.elementType()) {
+                    case BYTE, BIT -> true;
+                    case FLOAT -> length % Float.BYTES == 0;
+                    case BFLOAT16 -> length % Float.BYTES == 0 || length % BFloat16.BYTES == 0;
+                };
+            }
+            return switch (element.elementType()) {
+                case BYTE, BIT -> length == element.getNumBytes(dims);
+                case FLOAT -> length == dims * Float.BYTES;
+                case BFLOAT16 -> length == dims * Float.BYTES || length == dims * BFloat16.BYTES;
+            };
+        }
+
+        private VectorData decodeBase64Vector(byte[] base64Bytes) {
+            return switch (element.elementType()) {
+                case BYTE, BIT -> VectorData.fromBytes(base64Bytes);
+                case FLOAT -> decodeFloatVector(base64Bytes);
+                case BFLOAT16 -> decodeBase64BFloat16Vector(base64Bytes);
+            };
+        }
+
+        private VectorData decodeBase64BFloat16Vector(byte[] base64Bytes) {
+            // When dims is known, prefer bfloat16 if it matches exactly, otherwise float
+            if (dims != null) {
+                return base64Bytes.length == dims * BFloat16.BYTES
+                    ? decodeBFloat16Vector(base64Bytes)
+                    : decodeFloatVector(base64Bytes);
+            }
+            // When dims is unknown, prefer float encoding if compatible
+            // Avoiding accidentally interpreting BFloat16 data as Float.
+            return base64Bytes.length % Float.BYTES == 0
+                ? decodeFloatVector(base64Bytes)
+                : decodeBFloat16Vector(base64Bytes);
+        }
+
+        private static IllegalArgumentException invalidEncodedVector() {
+            return new IllegalArgumentException(
                 "failed to parse field [query_vector]: [query_vector] must be a valid base64 or hex string"
             );
-            if (base64Exception != null) {
-                error.addSuppressed(base64Exception);
-            }
-            return error;
         }
 
-        private static IllegalArgumentException invalidBase64Length(int length, String prefix) {
+        private IllegalArgumentException invalidBase64Length(int length) {
+            String expectedType = switch (element.elementType()) {
+                case BYTE, BIT -> "byte";
+                case FLOAT -> "float";
+                case BFLOAT16 -> "float or bfloat16";
+            };
             return new IllegalArgumentException(
                 "failed to parse field [query_vector]: "
-                    + prefix
-                    + ", but the decoded bytes length ["
+                    + "[query_vector] must contain a valid Base64-encoded "
+                    + expectedType
+                    + " vector, but the decoded bytes length ["
                     + length
                     + "] is not compatible with the expected vector length"
             );

@@ -110,27 +110,25 @@ public record VectorData(float[] floatVector, byte[] byteVector, String stringVe
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalFloatArray(floatVector);
         if (out.getTransportVersion().supports(QUERY_VECTOR_BASE64)) {
-            out.writeOptionalFloatArray(floatVector);
             out.writeOptionalByteArray(byteVector);
             out.writeOptionalString(stringVector);
             return;
         }
         if (stringVector != null) {
             try {
-                out.writeOptionalFloatArray(floatVector);
                 out.writeOptionalByteArray(HexFormat.of().parseHex(stringVector));
-                return;
             } catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException(
-                    "query_vector contains base64 but transport version ["
+                    "failed to parse field [query_vector]: query_vector is not a valid hex string and transport version ["
                         + out.getTransportVersion()
-                        + "] does not support base64 query vectors",
+                        + "] only supports hex-encoded vectors",
                     e
                 );
             }
+            return;
         }
-        out.writeOptionalFloatArray(floatVector);
         out.writeOptionalByteArray(byteVector);
     }
 

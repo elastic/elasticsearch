@@ -134,7 +134,7 @@ setup:
 "Knn search with hex string for byte field - cannot decode string" :
   # '40af20a' is garbage :)
   - do:
-      catch: /failed to parse field \[query_vector\]|valid base64 or hex string|decoded bytes length|does not support base64 query vectors(\s+transport version \[\d+\])?/
+      catch: /failed to parse field \[query_vector\]/
       search:
         index: knn_hex_vector_index
         body:

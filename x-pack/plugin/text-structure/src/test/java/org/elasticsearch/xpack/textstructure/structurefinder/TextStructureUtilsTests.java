@@ -728,7 +728,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      * {
      *  "hosts": [
      *      [{"id": 1, "name": "host1"}],
-     *      [{"id": 1, "name": "host1"}],
+     *      [[[{"id": 1, "name": "host1"}]]],
      *      [{"id": 1, "name": "host1"}]
      *  ],
      *  "timestamp": "1478261151445"
@@ -740,7 +740,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         nestedObject.put("name", "host1");
 
         Map<String, Object> input = new LinkedHashMap<>();
-        input.put("host", List.of(List.of(nestedObject), List.of(nestedObject), List.of(nestedObject)));
+        input.put("host", List.of(List.of(nestedObject), List.of(List.of(nestedObject)), List.of(nestedObject)));
         input.put("timestamp", "1478261151445");
 
         Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
@@ -750,8 +750,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
             Map<String, Object> mappings = mappingsAndFieldStats.v1();
             assertNotNull(mappings);
 
-            // No support for list of lists
-            assertKeyAndMappedType(mappings, "host", "object");
+            assertKeyAndMappedType(mappings, "host.id", "long");
+            assertKeyAndMappedType(mappings, "host.name", "keyword");
             assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
         };
 
@@ -827,7 +827,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": 42}} ]
      * }
      */
-    public void testGuessMappingRecursiveWithNestedListOfObjectsConsistentTypes() {
+    public void testGuessMappingRecursiveWithListOfDifferentObjects1() {
         var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", 42)));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);
@@ -852,7 +852,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": "a"}} ]
      * }
      */
-    public void testGuessMappingRecursiveWithNestedListOfObjectsMixedPrimitiveTypes() {
+    public void testGuessMappingRecursiveWithListOfDifferentObjects2() {
         var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", "a")));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);
@@ -877,7 +877,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": {"w": 1}}} ]
      * }
      */
-    public void testGuessMappingRecursiveWithNestedListOfObjectsMixedObjectAndPrimitive() {
+    public void testGuessMappingRecursiveWithListOfDifferentObjects3() {
         var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", Map.of("w", 1))));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);

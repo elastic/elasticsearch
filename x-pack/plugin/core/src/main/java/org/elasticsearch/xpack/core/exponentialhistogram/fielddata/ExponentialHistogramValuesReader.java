@@ -56,5 +56,15 @@ public interface ExponentialHistogramValuesReader {
      */
     double minValue() throws IOException;
 
+    /**
+     * A shortcut for invoking {@link ExponentialHistogram#max()} on the return value of {@link #histogramValue()}.
+     * This method is more performant because it avoids loading the unnecessary parts of the histogram.
+     * Must be called only after a successful call to {@link #advanceExact(int)}.
+     * If the histogram is empty, this will return {@code Double.NEGATIVE_INFINITY}.
+     *
+     * @return the maximum of the values in the histogram for the current document
+     */
+    double maxValue() throws IOException;
+
     // TODO: add accessors for min/max/sum which don't load the entire histogram
 }

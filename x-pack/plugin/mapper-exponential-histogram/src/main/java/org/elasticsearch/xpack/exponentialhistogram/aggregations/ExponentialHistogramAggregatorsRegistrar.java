@@ -8,12 +8,14 @@ package org.elasticsearch.xpack.exponentialhistogram.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.bucket.histogram.ExponentialHistogramBackedHistogramAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramAvgAggregator;
+import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMaxAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramMinAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramSumAggregator;
 import org.elasticsearch.xpack.exponentialhistogram.aggregations.metrics.ExponentialHistogramValueCountAggregator;
@@ -65,6 +67,15 @@ public class ExponentialHistogramAggregatorsRegistrar {
             MinAggregationBuilder.REGISTRY_KEY,
             ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
             ExponentialHistogramMinAggregator::new,
+            true
+        );
+    }
+
+    public static void registerMaxAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            MaxAggregationBuilder.REGISTRY_KEY,
+            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM,
+            ExponentialHistogramMaxAggregator::new,
             true
         );
     }

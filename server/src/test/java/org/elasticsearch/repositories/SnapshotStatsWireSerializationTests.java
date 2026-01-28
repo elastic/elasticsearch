@@ -47,7 +47,9 @@ public class SnapshotStatsWireSerializationTests extends AbstractWireSerializing
      * statistics to older nodes without breaking wire compatibility.</p>
      */
     public void testSerializationWithTransportVersionBeforeExtendedSnapshotStatsInNodeInfo() throws IOException {
-        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(RepositoriesStats.SnapshotStats.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO);
+        final TransportVersion oldVersion = TransportVersionUtils.getPreviousVersion(
+            RepositoriesStats.SnapshotStats.EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO
+        );
         final RepositoriesStats.SnapshotStats instance = randomSnapshotStats();
         final RepositoriesStats.SnapshotStats deserialized = copyInstance(instance, oldVersion);
 
@@ -64,9 +66,9 @@ public class SnapshotStatsWireSerializationTests extends AbstractWireSerializing
     }
 
     public static RepositoriesStats.SnapshotStats randomSnapshotStats() {
-        return randomBoolean() ?
-            RepositoriesStats.SnapshotStats.ZERO :
-            new RepositoriesStats.SnapshotStats(
+        return randomBoolean()
+            ? RepositoriesStats.SnapshotStats.ZERO
+            : new RepositoriesStats.SnapshotStats(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
@@ -79,4 +81,3 @@ public class SnapshotStatsWireSerializationTests extends AbstractWireSerializing
             );
     }
 }
-

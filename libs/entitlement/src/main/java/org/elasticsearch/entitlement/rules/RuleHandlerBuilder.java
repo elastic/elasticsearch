@@ -19,7 +19,7 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         super(clazz, methodKey, checkMethod);
     }
 
-    public ClassMethodBuilder<T> orElseReturn(R defaultValue) {
+    public ClassMethodBuilder<T> elseReturn(R defaultValue) {
         EntitlementRules.registerRule(
             new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue))
         );

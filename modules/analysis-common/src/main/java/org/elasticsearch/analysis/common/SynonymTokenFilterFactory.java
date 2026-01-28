@@ -272,30 +272,30 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Function<String[], Long> estimateSize = a -> {
             long estimatedSize = 0;
             for (String s : a) {
-                estimatedSize += s.getBytes(StandardCharsets.UTF_8).length;
+                estimatedSize += s.trim().getBytes(StandardCharsets.UTF_8).length;;
             }
 
             return estimatedSize;
         };
 
         long totalEstimatedSize = 0;
-        try (BufferedReader bufferedReader = new BufferedReader(rules.reader)) {
+        try {
+            // Don't close the buffered reader because that also closes the underlying rules reader
+            BufferedReader bufferedReader = new BufferedReader(rules.reader);
             String line = bufferedReader.readLine();
             while (line != null) {
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue; // Ignore empty lines and comments
-                }
-
-                String[] inputAndOutput = line.split("=>", 2);
-                totalEstimatedSize += estimateSize.apply(inputAndOutput[0].split(","));
-                if (inputAndOutput.length == 2) {
-                    // Explicit synonym
-                    totalEstimatedSize += estimateSize.apply(inputAndOutput[1].split(","));
+                // Ignore empty lines and comments
+                if (line.isEmpty() == false && line.startsWith("#") == false) {
+                    String[] inputAndOutput = line.split("=>", 2);
+                    totalEstimatedSize += estimateSize.apply(inputAndOutput[0].split(","));
+                    if (inputAndOutput.length == 2) {
+                        // Explicit synonym
+                        totalEstimatedSize += estimateSize.apply(inputAndOutput[1].split(","));
+                    }
                 }
 
                 line = bufferedReader.readLine();
             }
-
         } finally {
             rules.reader.reset();
         }

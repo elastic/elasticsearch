@@ -55,8 +55,11 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
     @Optional
     public abstract RegularFileProperty getAlternateUpperBoundFile();
 
-    protected abstract void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds, boolean onReleaseBranch)
-        throws IOException;
+    protected abstract void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException;
 
     protected abstract Set<String> getTargetUpperBoundNames(
         TransportVersionResourcesService resources,

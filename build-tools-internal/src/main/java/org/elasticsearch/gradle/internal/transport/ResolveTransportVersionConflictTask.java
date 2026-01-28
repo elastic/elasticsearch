@@ -17,8 +17,11 @@ import java.util.Set;
 public abstract class ResolveTransportVersionConflictTask extends AbstractGenerateTransportVersionDefinitionTask {
 
     @Override
-    protected void runGeneration(TransportVersionResourcesService resources, List<TransportVersionUpperBound> upstreamUpperBounds, boolean onReleaseBranch)
-        throws IOException {
+    protected void runGeneration(
+        TransportVersionResourcesService resources,
+        List<TransportVersionUpperBound> upstreamUpperBounds,
+        boolean onReleaseBranch
+    ) throws IOException {
 
         if (onReleaseBranch) {
             if (resources.hasCherryPickConflicts()) {

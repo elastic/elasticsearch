@@ -137,6 +137,7 @@ public class EsqlQueryGenerator {
 
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
             // do a dummy query to get available fields first
+            // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
             String index = promQLGenerator.generateIndices(schema);
             var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
             executor.run(FromGenerator.INSTANCE, fromDesc);

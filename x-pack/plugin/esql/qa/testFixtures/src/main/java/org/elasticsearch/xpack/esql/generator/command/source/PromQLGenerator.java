@@ -113,6 +113,7 @@ public class PromQLGenerator implements CommandGenerator {
         String fieldLabels = generateLabels();
 
         // generate fieldName and innerAgg and modify the above booleans to avoid certain invalid queries
+        // TODO: add support for more inner aggregations https://github.com/elastic/elasticsearch/issues/141412
         switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 // input can be gauges (including aggregate_metric_double)
@@ -189,6 +190,7 @@ public class PromQLGenerator implements CommandGenerator {
     }
 
     private String generateOuterAgg() {
+        // TODO: add support for more outer aggregations https://github.com/elastic/elasticsearch/issues/141412
         List<String> outerAggs = List.of("max", "min", "sum", "count", "avg");
         return outerAggs.get(randomIntBetween(0, outerAggs.size() - 1));
     }

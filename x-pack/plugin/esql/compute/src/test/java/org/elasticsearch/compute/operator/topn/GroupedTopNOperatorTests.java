@@ -307,7 +307,40 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
         List<List<Object>> topNExpectedValues = computeTopN(randomBlocksResult.expectedValues, groupKeys, uniqueOrders, topCount);
 
-        assertThat(actualValues, equalTo(topNExpectedValues));
+        Comparator<List<Object>> rowComparator = rowComparator(uniqueOrders, randomBlocksResult.expectedValues.get(0).size());
+        assertThat(actualValues.stream().sorted(rowComparator).toList(), equalTo(topNExpectedValues.stream().sorted(rowComparator).toList()));
+    }
+
+    private static Comparator<List<Object>> rowComparator(List<SortOrder> sortOrders, int columns) {
+        return (row1, row2) -> {
+            for (SortOrder order : sortOrders) {
+                int cmp = compareValues(row1.get(order.channel()), row2.get(order.channel()), order.asc(), order.nullsFirst());
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+            for (int i = 0; i < columns; i++) {
+                int cmp = compareValues(row1.get(i), row2.get(i), true, true);
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+            return 0;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int compareValues(Object v1, Object v2, boolean asc, boolean nullsFirst) {
+        boolean firstIsNull = v1 == null;
+        boolean secondIsNull = v2 == null;
+        if (firstIsNull || secondIsNull) {
+            return Boolean.compare(firstIsNull, secondIsNull) * (nullsFirst ? -1 : 1);
+        }
+        int cmp = ((Comparable<Object>) v1).compareTo(v2);
+        if (cmp == 0) {
+            return 0;
+        }
+        return asc ? cmp : -cmp;
     }
 
     private static List<Tuple<Long, Long>> computeTopN(List<Tuple<Long, Long>> inputValues, int limit, boolean ascendingOrder) {

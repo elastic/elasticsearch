@@ -42,51 +42,51 @@ public class SystemInstrumentation implements InstrumentationConfig {
     @Override
     public void init() {
         EntitlementRules.on(Runtime.class)
-            .calling(Runtime::exit, Integer.class)
+            .callingVoid(Runtime::exit, Integer.class)
             .enforce(Policies::exitVM)
             .elseThrowNotEntitled()
-            .calling(Runtime::halt, Integer.class)
+            .callingVoid(Runtime::halt, Integer.class)
             .enforce(Policies::exitVM)
             .elseThrowNotEntitled()
-            .calling(Runtime::addShutdownHook, Thread.class)
+            .callingVoid(Runtime::addShutdownHook, Thread.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .calling(Runtime::removeShutdownHook, Thread.class)
+            .callingVoid(Runtime::removeShutdownHook, Thread.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .calling(Runtime::load, String.class)
+            .callingVoid(Runtime::load, String.class)
             .enforce((_, path) -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
             .elseThrowNotEntitled()
-            .calling(Runtime::loadLibrary, String.class)
+            .callingVoid(Runtime::loadLibrary, String.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
         EntitlementRules.on(System.class)
-            .callingStatic(System::exit, Integer.class)
+            .callingVoidStatic(System::exit, Integer.class)
             .enforce(Policies::exitVM)
             .elseThrowNotEntitled()
-            .callingStatic(System::setProperty, String.class, String.class)
+            .callingVoidStatic(System::setProperty, String.class, String.class)
             .enforce(Policies::writeProperty)
             .elseThrowNotEntitled()
-            .callingStatic(System::setProperties, Properties.class)
+            .callingVoidStatic(System::setProperties, Properties.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(System::clearProperty, String.class)
+            .callingVoidStatic(System::clearProperty, String.class)
             .enforce(Policies::writeProperty)
             .elseThrowNotEntitled()
-            .callingStatic(System::setIn, InputStream.class)
+            .callingVoidStatic(System::setIn, InputStream.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(System::setOut, PrintStream.class)
+            .callingVoidStatic(System::setOut, PrintStream.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(System::setErr, PrintStream.class)
+            .callingVoidStatic(System::setErr, PrintStream.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(System::load, String.class)
+            .callingVoidStatic(System::load, String.class)
             .enforce(path -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
             .elseThrowNotEntitled()
-            .callingStatic(System::loadLibrary, String.class)
+            .callingVoidStatic(System::loadLibrary, String.class)
             .enforce(Policies::loadingNativeLibraries)
             .elseThrowNotEntitled();
 
@@ -111,12 +111,12 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .elseThrowNotEntitled();
 
         EntitlementRules.on(Services.class);
-//            .callingStatic(Services::load, new TypeToken<Class<?>>() {})
-//            .enforce(Policies::changeJvmGlobalState)
-//            .elseThrowNotEntitled()
-//            .callingStatic(Services::loadSingle, new TypeToken<Class<?>>() {}, TypeToken.of(Boolean.class))
-//            .enforce(Policies::changeJvmGlobalState)
-//            .elseThrowNotEntitled();
+        // .callingStatic(Services::load, new TypeToken<Class<?>>() {})
+        // .enforce(Policies::changeJvmGlobalState)
+        // .elseThrowNotEntitled()
+        // .callingStatic(Services::loadSingle, new TypeToken<Class<?>>() {}, TypeToken.of(Boolean.class))
+        // .enforce(Policies::changeJvmGlobalState)
+        // .elseThrowNotEntitled();
 
         EntitlementRules.on(VirtualMachineManagerImpl.class)
             .callingStatic(VirtualMachineManagerImpl::virtualMachineManager)
@@ -181,7 +181,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             .elseThrowNotEntitled();
 
         EntitlementRules.on(ModuleLayer.Controller.class)
-            .calling(ModuleLayer.Controller::enableNativeAccess, Module.class)
+            .callingVoid(ModuleLayer.Controller::enableNativeAccess, Module.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
     }

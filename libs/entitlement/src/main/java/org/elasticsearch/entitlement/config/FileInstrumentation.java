@@ -11,12 +11,11 @@ package org.elasticsearch.entitlement.config;
 
 import jdk.nio.Channels;
 import sun.net.www.protocol.file.FileURLConnection;
+import sun.net.www.protocol.jar.JarURLConnection;
 
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
-
-import sun.net.www.protocol.jar.JarURLConnection;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -78,7 +77,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .calling(File::delete)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
-            .calling(File::deleteOnExit)
+            .callingVoid(File::deleteOnExit)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
             .calling(File::exists)
@@ -229,7 +228,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .callingStatic(Files::createLink, Path.class, Path.class)
             .enforce(Policies::createLink)
             .elseThrowNotEntitled()
-            .callingStatic(Files::delete, Path.class)
+            .callingVoidStatic(Files::delete, Path.class)
             .enforce(Policies::fileWrite)
             .elseThrowNotEntitled()
             .callingStatic(Files::deleteIfExists, Path.class)
@@ -652,7 +651,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .callingStatic(FileHandler::new, String.class, Long.class, Integer.class, Boolean.class)
             .enforce(Policies::loggingFileHandler)
             .elseThrowNotEntitled()
-            .calling(FileHandler::close)
+            .callingVoid(FileHandler::close)
             .enforce(Policies::loggingFileHandler)
             .elseThrowNotEntitled();
 
@@ -683,7 +682,7 @@ public class FileInstrumentation implements InstrumentationConfig {
         EntitlementRules.on(FileSystemProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
         EntitlementRules.on(FileURLConnection.class)
-            .calling(FileURLConnection::connect)
+            .callingVoid(FileURLConnection::connect)
             .enforce(fuc -> Policies.urlFileRead(fuc.getURL()))
             .elseThrowNotEntitled()
             .calling(FileURLConnection::getHeaderFields)
@@ -712,7 +711,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             .elseThrowNotEntitled();
 
         EntitlementRules.on(JarURLConnection.class)
-            .calling(JarURLConnection::connect)
+            .callingVoid(JarURLConnection::connect)
             .enforce(Policies::jarURLAccess)
             .elseThrowNotEntitled()
             .calling(JarURLConnection::getHeaderFields)

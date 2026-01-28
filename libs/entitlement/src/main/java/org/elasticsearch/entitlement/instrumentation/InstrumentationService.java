@@ -9,11 +9,13 @@
 
 package org.elasticsearch.entitlement.instrumentation;
 
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
+
 import java.util.Map;
 
 /**
  * The SPI service entry point for instrumentation.
  */
 public interface InstrumentationService {
-    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, String> methods);
+    Instrumenter newInstrumenter(Class<?> clazz, Map<MethodKey, InstrumentationInfo> methods);
 }

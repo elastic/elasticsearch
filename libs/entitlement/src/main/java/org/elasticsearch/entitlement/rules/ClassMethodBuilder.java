@@ -9,6 +9,14 @@
 
 package org.elasticsearch.entitlement.rules;
 
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.rules.function.Call0;
+import org.elasticsearch.entitlement.rules.function.Call1;
+import org.elasticsearch.entitlement.rules.function.Call2;
+import org.elasticsearch.entitlement.rules.function.Call3;
+import org.elasticsearch.entitlement.rules.function.Call4;
+import org.elasticsearch.entitlement.rules.function.Call5;
+import org.elasticsearch.entitlement.rules.function.Call6;
 import org.elasticsearch.entitlement.rules.function.VoidCall0;
 import org.elasticsearch.entitlement.rules.function.VoidCall1;
 import org.elasticsearch.entitlement.rules.function.VoidCall2;
@@ -16,7 +24,6 @@ import org.elasticsearch.entitlement.rules.function.VoidCall3;
 import org.elasticsearch.entitlement.rules.function.VoidCall4;
 import org.elasticsearch.entitlement.rules.function.VoidCall5;
 import org.elasticsearch.entitlement.rules.function.VoidCall6;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.lang.invoke.SerializedLambda;
 import java.lang.reflect.Method;
@@ -29,48 +36,95 @@ public class ClassMethodBuilder<T> {
         this.clazz = clazz;
     }
 
-    public MethodRuleBuilder<T> protectedCtor() {
+    public VoidMethodRuleBuilder<T> protectedCtor() {
         MethodKey methodKey = getConstructorMethodKey();
-        return new MethodRuleBuilder<>(clazz, methodKey);
+        return new VoidMethodRuleBuilder<>(clazz, methodKey);
     }
 
-    public <A> MethodRuleBuilder.MethodRuleBuilder1<T, A> protectedCtor(Class<A> arg0) {
+    public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, A> protectedCtor(Class<A> arg0) {
         MethodKey methodKey = getConstructorMethodKey(arg0);
-        return new MethodRuleBuilder.MethodRuleBuilder1<>(clazz, methodKey);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(clazz, methodKey);
     }
 
-    public <A, B> MethodRuleBuilder.MethodRuleBuilder2<T, A, B> protectedCtor(Class<A> arg0, Class<B> arg1) {
+    public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, A, B> protectedCtor(Class<A> arg0, Class<B> arg1) {
         MethodKey methodKey = getConstructorMethodKey(arg0, arg1);
-        return new MethodRuleBuilder.MethodRuleBuilder2<>(clazz, methodKey);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(clazz, methodKey);
     }
 
-    public MethodRuleBuilder.MethodRuleBuilder1<T, T> calling(VoidCall1<T> call) {
+    public VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, T> callingVoid(VoidCall1<T> call) {
+        MethodKey methodKey = resolveMethodReference(clazz, call);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(clazz, methodKey);
+    }
+
+    public <R> MethodRuleBuilder.MethodRuleBuilder1<T, R, T> calling(Call1<R, T> call) {
         MethodKey methodKey = resolveMethodReference(clazz, call);
         return new MethodRuleBuilder.MethodRuleBuilder1<>(clazz, methodKey);
     }
 
-    public <A> MethodRuleBuilder.MethodRuleBuilder2<T, T, A> calling(VoidCall2<T, A> call, Class<A> arg0) {
+    public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, T, A> callingVoid(VoidCall2<T, A> call, Class<A> arg0) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(clazz, methodKey);
+    }
+
+    public <R, A> MethodRuleBuilder.MethodRuleBuilder2<T, R, T, A> calling(Call2<R, T, A> call, Class<A> arg0) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0);
         return new MethodRuleBuilder.MethodRuleBuilder2<>(clazz, methodKey);
     }
 
-    public <A> MethodRuleBuilder.MethodRuleBuilder2<T, T, A> calling(VoidCall2<T, A> call, TypeToken<A> arg0) {
+    public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, T, A> callingVoid(VoidCall2<T, A> call, TypeToken<A> arg0) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(clazz, methodKey);
+    }
+
+    public <R, A> MethodRuleBuilder.MethodRuleBuilder2<T, R, T, A> calling(Call2<R, T, A> call, TypeToken<A> arg0) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType());
         return new MethodRuleBuilder.MethodRuleBuilder2<>(clazz, methodKey);
     }
 
-    public <A, B> MethodRuleBuilder.MethodRuleBuilder3<T, T, A, B> calling(VoidCall3<T, A, B> call, Class<A> arg0, Class<B> arg1) {
+    public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder3<T, T, A, B> callingVoid(
+        VoidCall3<T, A, B> call,
+        Class<A> arg0,
+        Class<B> arg1
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder3<>(clazz, methodKey);
+    }
+
+    public <R, A, B> MethodRuleBuilder.MethodRuleBuilder3<T, R, T, A, B> calling(Call3<R, T, A, B> call, Class<A> arg0, Class<B> arg1) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1);
         return new MethodRuleBuilder.MethodRuleBuilder3<>(clazz, methodKey);
     }
 
-    public <A, B> MethodRuleBuilder.MethodRuleBuilder3<T, T, A, B> calling(VoidCall3<T, A, B> call, TypeToken<A> arg0, TypeToken<B> arg1) {
+    public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder3<T, T, A, B> callingVoid(
+        VoidCall3<T, A, B> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder3<>(clazz, methodKey);
+    }
+
+    public <R, A, B> MethodRuleBuilder.MethodRuleBuilder3<T, R, T, A, B> calling(
+        Call3<R, T, A, B> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1
+    ) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType());
         return new MethodRuleBuilder.MethodRuleBuilder3<>(clazz, methodKey);
     }
 
-    public <A, B, C> MethodRuleBuilder.MethodRuleBuilder4<T, T, A, B, C> calling(
+    public <A, B, C> VoidMethodRuleBuilder.VoidMethodRuleBuilder4<T, T, A, B, C> callingVoid(
         VoidCall4<T, A, B, C> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder4<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C> MethodRuleBuilder.MethodRuleBuilder4<T, R, T, A, B, C> calling(
+        Call4<R, T, A, B, C> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2
@@ -79,8 +133,18 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder4<>(clazz, methodKey);
     }
 
-    public <A, B, C> MethodRuleBuilder.MethodRuleBuilder4<T, T, A, B, C> calling(
+    public <A, B, C> VoidMethodRuleBuilder.VoidMethodRuleBuilder4<T, T, A, B, C> callingVoid(
         VoidCall4<T, A, B, C> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType(), arg2.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder4<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C> MethodRuleBuilder.MethodRuleBuilder4<T, R, T, A, B, C> calling(
+        Call4<R, T, A, B, C> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2
@@ -89,8 +153,19 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder4<>(clazz, methodKey);
     }
 
-    public <A, B, C, D> MethodRuleBuilder.MethodRuleBuilder5<T, T, A, B, C, D> calling(
+    public <A, B, C, D> VoidMethodRuleBuilder.VoidMethodRuleBuilder5<T, T, A, B, C, D> callingVoid(
         VoidCall5<T, A, B, C, D> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2,
+        Class<D> arg3
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2, arg3);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder5<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D> MethodRuleBuilder.MethodRuleBuilder5<T, R, T, A, B, C, D> calling(
+        Call5<R, T, A, B, C, D> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2,
@@ -100,8 +175,26 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder5<>(clazz, methodKey);
     }
 
-    public <A, B, C, D> MethodRuleBuilder.MethodRuleBuilder5<T, T, A, B, C, D> calling(
+    public <A, B, C, D> VoidMethodRuleBuilder.VoidMethodRuleBuilder5<T, T, A, B, C, D> callingVoid(
         VoidCall5<T, A, B, C, D> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2,
+        TypeToken<D> arg3
+    ) {
+        MethodKey methodKey = resolveMethodReference(
+            clazz,
+            call,
+            arg0.getRawType(),
+            arg1.getRawType(),
+            arg2.getRawType(),
+            arg3.getRawType()
+        );
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder5<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D> MethodRuleBuilder.MethodRuleBuilder5<T, R, T, A, B, C, D> calling(
+        Call5<R, T, A, B, C, D> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2,
@@ -118,8 +211,20 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder5<>(clazz, methodKey);
     }
 
-    public <A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder6<T, T, A, B, C, D, E> calling(
+    public <A, B, C, D, E> VoidMethodRuleBuilder.VoidMethodRuleBuilder6<T, T, A, B, C, D, E> callingVoid(
         VoidCall6<T, A, B, C, D, E> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2,
+        Class<D> arg3,
+        Class<E> arg4
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2, arg3, arg4);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder6<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder6<T, R, T, A, B, C, D, E> calling(
+        Call6<R, T, A, B, C, D, E> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2,
@@ -130,8 +235,28 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder6<>(clazz, methodKey);
     }
 
-    public <A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder6<T, T, A, B, C, D, E> calling(
+    public <A, B, C, D, E> VoidMethodRuleBuilder.VoidMethodRuleBuilder6<T, T, A, B, C, D, E> callingVoid(
         VoidCall6<T, A, B, C, D, E> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2,
+        TypeToken<D> arg3,
+        TypeToken<E> arg4
+    ) {
+        MethodKey methodKey = resolveMethodReference(
+            clazz,
+            call,
+            arg0.getRawType(),
+            arg1.getRawType(),
+            arg2.getRawType(),
+            arg3.getRawType(),
+            arg4.getRawType()
+        );
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder6<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder6<T, R, T, A, B, C, D, E> calling(
+        Call6<R, T, A, B, C, D, E> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2,
@@ -150,33 +275,80 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder6<>(clazz, methodKey);
     }
 
-    public MethodRuleBuilder<T> callingStatic(VoidCall0 call) {
+    public VoidMethodRuleBuilder<T> callingVoidStatic(VoidCall0 call) {
+        MethodKey methodKey = resolveMethodReference(clazz, call);
+        return new VoidMethodRuleBuilder<>(clazz, methodKey);
+    }
+
+    public <R> MethodRuleBuilder<T, R> callingStatic(Call0<R> call) {
         MethodKey methodKey = resolveMethodReference(clazz, call);
         return new MethodRuleBuilder<>(clazz, methodKey);
     }
 
-    public <A> MethodRuleBuilder.MethodRuleBuilder1<T, A> callingStatic(VoidCall1<A> call, Class<A> arg0) {
+    public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, A> callingVoidStatic(VoidCall1<A> call, Class<A> arg0) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(clazz, methodKey);
+    }
+
+    public <R, A> MethodRuleBuilder.MethodRuleBuilder1<T, R, A> callingStatic(Call1<R, A> call, Class<A> arg0) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0);
         return new MethodRuleBuilder.MethodRuleBuilder1<>(clazz, methodKey);
     }
 
-    public <A> MethodRuleBuilder.MethodRuleBuilder1<T, A> callingStatic(VoidCall1<A> call, TypeToken<A> arg0) {
+    public <A> VoidMethodRuleBuilder.VoidMethodRuleBuilder1<T, A> callingVoidStatic(VoidCall1<A> call, TypeToken<A> arg0) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder1<>(clazz, methodKey);
+    }
+
+    public <R, A> MethodRuleBuilder.MethodRuleBuilder1<T, R, A> callingStatic(Call1<R, A> call, TypeToken<A> arg0) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType());
         return new MethodRuleBuilder.MethodRuleBuilder1<>(clazz, methodKey);
     }
 
-    public <A, B> MethodRuleBuilder.MethodRuleBuilder2<T, A, B> callingStatic(VoidCall2<A, B> call, Class<A> arg0, Class<B> arg1) {
+    public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, A, B> callingVoidStatic(
+        VoidCall2<A, B> call,
+        Class<A> arg0,
+        Class<B> arg1
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(clazz, methodKey);
+    }
+
+    public <R, A, B> MethodRuleBuilder.MethodRuleBuilder2<T, R, A, B> callingStatic(Call2<R, A, B> call, Class<A> arg0, Class<B> arg1) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1);
         return new MethodRuleBuilder.MethodRuleBuilder2<>(clazz, methodKey);
     }
 
-    public <A, B> MethodRuleBuilder.MethodRuleBuilder2<T, A, B> callingStatic(VoidCall2<A, B> call, TypeToken<A> arg0, TypeToken<B> arg1) {
+    public <A, B> VoidMethodRuleBuilder.VoidMethodRuleBuilder2<T, A, B> callingVoidStatic(
+        VoidCall2<A, B> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder2<>(clazz, methodKey);
+    }
+
+    public <R, A, B> MethodRuleBuilder.MethodRuleBuilder2<T, R, A, B> callingStatic(
+        Call2<R, A, B> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1
+    ) {
         MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType());
         return new MethodRuleBuilder.MethodRuleBuilder2<>(clazz, methodKey);
     }
 
-    public <A, B, C> MethodRuleBuilder.MethodRuleBuilder3<T, A, B, C> callingStatic(
+    public <A, B, C> VoidMethodRuleBuilder.VoidMethodRuleBuilder3<T, A, B, C> callingVoidStatic(
         VoidCall3<A, B, C> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder3<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C> MethodRuleBuilder.MethodRuleBuilder3<T, R, A, B, C> callingStatic(
+        Call3<R, A, B, C> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2
@@ -185,8 +357,18 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder3<>(clazz, methodKey);
     }
 
-    public <A, B, C> MethodRuleBuilder.MethodRuleBuilder3<T, A, B, C> callingStatic(
+    public <A, B, C> VoidMethodRuleBuilder.VoidMethodRuleBuilder3<T, A, B, C> callingVoidStatic(
         VoidCall3<A, B, C> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0.getRawType(), arg1.getRawType(), arg2.getRawType());
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder3<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C> MethodRuleBuilder.MethodRuleBuilder3<T, R, A, B, C> callingStatic(
+        Call3<R, A, B, C> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2
@@ -195,8 +377,19 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder3<>(clazz, methodKey);
     }
 
-    public <A, B, C, D> MethodRuleBuilder.MethodRuleBuilder4<T, A, B, C, D> callingStatic(
+    public <A, B, C, D> VoidMethodRuleBuilder.VoidMethodRuleBuilder4<T, A, B, C, D> callingVoidStatic(
         VoidCall4<A, B, C, D> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2,
+        Class<D> arg3
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2, arg3);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder4<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D> MethodRuleBuilder.MethodRuleBuilder4<T, R, A, B, C, D> callingStatic(
+        Call4<R, A, B, C, D> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2,
@@ -206,8 +399,26 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder4<>(clazz, methodKey);
     }
 
-    public <A, B, C, D> MethodRuleBuilder.MethodRuleBuilder4<T, A, B, C, D> callingStatic(
+    public <A, B, C, D> VoidMethodRuleBuilder.VoidMethodRuleBuilder4<T, A, B, C, D> callingVoidStatic(
         VoidCall4<A, B, C, D> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2,
+        TypeToken<D> arg3
+    ) {
+        MethodKey methodKey = resolveMethodReference(
+            clazz,
+            call,
+            arg0.getRawType(),
+            arg1.getRawType(),
+            arg2.getRawType(),
+            arg3.getRawType()
+        );
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder4<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D> MethodRuleBuilder.MethodRuleBuilder4<T, R, A, B, C, D> callingStatic(
+        Call4<R, A, B, C, D> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2,
@@ -224,8 +435,20 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder4<>(clazz, methodKey);
     }
 
-    public <A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder5<T, A, B, C, D, E> callingStatic(
+    public <A, B, C, D, E> VoidMethodRuleBuilder.VoidMethodRuleBuilder5<T, A, B, C, D, E> callingVoidStatic(
         VoidCall5<A, B, C, D, E> call,
+        Class<A> arg0,
+        Class<B> arg1,
+        Class<C> arg2,
+        Class<D> arg3,
+        Class<E> arg4
+    ) {
+        MethodKey methodKey = resolveMethodReference(clazz, call, arg0, arg1, arg2, arg3, arg4);
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder5<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder5<T, R, A, B, C, D, E> callingStatic(
+        Call5<R, A, B, C, D, E> call,
         Class<A> arg0,
         Class<B> arg1,
         Class<C> arg2,
@@ -236,8 +459,28 @@ public class ClassMethodBuilder<T> {
         return new MethodRuleBuilder.MethodRuleBuilder5<>(clazz, methodKey);
     }
 
-    public <A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder5<T, A, B, C, D, E> callingStatic(
+    public <A, B, C, D, E> VoidMethodRuleBuilder.VoidMethodRuleBuilder5<T, A, B, C, D, E> callingVoidStatic(
         VoidCall5<A, B, C, D, E> call,
+        TypeToken<A> arg0,
+        TypeToken<B> arg1,
+        TypeToken<C> arg2,
+        TypeToken<D> arg3,
+        TypeToken<E> arg4
+    ) {
+        MethodKey methodKey = resolveMethodReference(
+            clazz,
+            call,
+            arg0.getRawType(),
+            arg1.getRawType(),
+            arg2.getRawType(),
+            arg3.getRawType(),
+            arg4.getRawType()
+        );
+        return new VoidMethodRuleBuilder.VoidMethodRuleBuilder5<>(clazz, methodKey);
+    }
+
+    public <R, A, B, C, D, E> MethodRuleBuilder.MethodRuleBuilder5<T, R, A, B, C, D, E> callingStatic(
+        Call5<R, A, B, C, D, E> call,
         TypeToken<A> arg0,
         TypeToken<B> arg1,
         TypeToken<C> arg2,

@@ -29,7 +29,7 @@ import java.util.spi.LocaleNameProvider;
 import java.util.spi.LocaleServiceProvider;
 import java.util.spi.TimeZoneNameProvider;
 
-public class L10nInstrumentation implements InstrumentationConfig{
+public class L10nInstrumentation implements InstrumentationConfig {
     @Override
     public void init() {
         EntitlementRules.on(LogManager.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
@@ -49,7 +49,7 @@ public class L10nInstrumentation implements InstrumentationConfig{
         EntitlementRules.on(CharsetProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
         EntitlementRules.on(TimeZone.class)
-            .callingStatic(TimeZone::setDefault, TimeZone.class)
+            .callingVoidStatic(TimeZone::setDefault, TimeZone.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
@@ -69,10 +69,10 @@ public class L10nInstrumentation implements InstrumentationConfig{
         EntitlementRules.on(NumberFormatProvider.class).protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
 
         EntitlementRules.on(Locale.class)
-            .callingStatic(Locale::setDefault, Locale.Category.class, Locale.class)
+            .callingVoidStatic(Locale::setDefault, Locale.Category.class, Locale.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(Locale::setDefault, Locale.class)
+            .callingVoidStatic(Locale::setDefault, Locale.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
     }

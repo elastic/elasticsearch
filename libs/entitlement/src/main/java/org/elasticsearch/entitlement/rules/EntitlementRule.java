@@ -9,8 +9,8 @@
 
 package org.elasticsearch.entitlement.rules;
 
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
-public record EntitlementRule(MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {}
+public record EntitlementRule(MethodKey methodKey, VarargCall<CheckMethod> checkMethod, EntitlementHandler handler) {}

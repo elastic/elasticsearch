@@ -9,23 +9,20 @@
 
 package org.elasticsearch.entitlement.rules;
 
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.rules.function.CheckMethod;
 import org.elasticsearch.entitlement.rules.function.VarargCall;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
-public class RuleHandlerBuilder<T> {
-    private final Class<? extends T> clazz;
-    private final MethodKey methodKey;
-    private final VarargCall<CheckMethod> checkMethod;
+public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
 
     public RuleHandlerBuilder(Class<? extends T> clazz, MethodKey methodKey, VarargCall<CheckMethod> checkMethod) {
-        this.clazz = clazz;
-        this.methodKey = methodKey;
-        this.checkMethod = checkMethod;
+        super(clazz, methodKey, checkMethod);
     }
 
-    public ClassMethodBuilder<T> elseThrowNotEntitled() {
-        EntitlementRules.registerRule(new EntitlementRule(methodKey, checkMethod));
+    public ClassMethodBuilder<T> orElseReturn(R defaultValue) {
+        EntitlementRules.registerRule(
+            new EntitlementRule(methodKey, checkMethod, new EntitlementHandler.DefaultValueEntitlementHandler<>(defaultValue))
+        );
         return new ClassMethodBuilder<>(clazz);
     }
 }

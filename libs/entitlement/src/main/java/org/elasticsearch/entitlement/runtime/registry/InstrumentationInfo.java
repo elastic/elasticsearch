@@ -9,11 +9,4 @@
 
 package org.elasticsearch.entitlement.runtime.registry;
 
-import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
-
-import java.util.Map;
-
-public interface InternalInstrumentationRegistry extends InstrumentationRegistry {
-    Map<MethodKey, InstrumentationInfo> getInstrumentedMethods();
-}
+public record InstrumentationInfo(String instrumentationId) {}

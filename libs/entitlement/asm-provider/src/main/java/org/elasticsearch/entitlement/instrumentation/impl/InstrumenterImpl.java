@@ -13,6 +13,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.runtime.registry.InstrumentationInfo;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.objectweb.asm.AnnotationVisitor;
@@ -49,13 +50,13 @@ public final class InstrumenterImpl implements Instrumenter {
      * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
     private final String classNameSuffix;
-    private final Map<MethodKey, String> checkMethods;
+    private final Map<MethodKey, InstrumentationInfo> checkMethods;
 
     InstrumenterImpl(
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, String> checkMethods
+        Map<MethodKey, InstrumentationInfo> checkMethods
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
@@ -63,7 +64,7 @@ public final class InstrumenterImpl implements Instrumenter {
         this.checkMethods = checkMethods;
     }
 
-    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, String> checkMethods) {
+    public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, InstrumentationInfo> checkMethods) {
 
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
@@ -207,7 +208,14 @@ public final class InstrumenterImpl implements Instrumenter {
                 var instrumentationMethod = checkMethods.get(key);
                 if (instrumentationMethod != null) {
                     logger.debug("Will instrument {}", key);
-                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
+                    return new EntitlementMethodVisitor(
+                        Opcodes.ASM9,
+                        mv,
+                        isStatic,
+                        isCtor,
+                        descriptor,
+                        instrumentationMethod.instrumentationId()
+                    );
                 } else {
                     logger.trace("Will not instrument {}", key);
                 }

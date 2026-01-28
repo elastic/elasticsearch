@@ -18,38 +18,38 @@ public class ThreadInstrumentation implements InstrumentationConfig {
     @Override
     public void init() {
         EntitlementRules.on(Thread.class)
-            .calling(Thread::start)
+            .callingVoid(Thread::start)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .calling(Thread::setPriority, Integer.class)
+            .callingVoid(Thread::setPriority, Integer.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .calling(Thread::setName, String.class)
+            .callingVoid(Thread::setName, String.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .callingStatic(Thread::setDefaultUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
+            .callingVoidStatic(Thread::setDefaultUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .calling(Thread::setDaemon, Boolean.class)
+            .callingVoid(Thread::setDaemon, Boolean.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .calling(Thread::setUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
+            .callingVoid(Thread::setUncaughtExceptionHandler, Thread.UncaughtExceptionHandler.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
         EntitlementRules.on(ThreadGroup.class)
-            .calling(ThreadGroup::setMaxPriority, Integer.class)
+            .callingVoid(ThreadGroup::setMaxPriority, Integer.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .calling(ThreadGroup::setDaemon, Boolean.class)
+            .callingVoid(ThreadGroup::setDaemon, Boolean.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
 
         EntitlementRules.on(ForkJoinPool.class)
-            .calling(ForkJoinPool::execute, Runnable.class)
+            .callingVoid(ForkJoinPool::execute, Runnable.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled()
-            .calling(ForkJoinPool::setParallelism, Integer.class)
+            .callingVoid(ForkJoinPool::setParallelism, Integer.class)
             .enforce(Policies::manageThreads)
             .elseThrowNotEntitled();
     }

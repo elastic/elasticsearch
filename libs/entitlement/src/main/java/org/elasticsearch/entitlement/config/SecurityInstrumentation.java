@@ -27,18 +27,18 @@ public class SecurityInstrumentation implements InstrumentationConfig {
     @Override
     public void init() {
         EntitlementRules.on(SSLContext.class)
-            .callingStatic(SSLContext::setDefault, SSLContext.class)
+            .callingVoidStatic(SSLContext::setDefault, SSLContext.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled();
 
         EntitlementRules.on(HttpsURLConnection.class)
-            .callingStatic(HttpsURLConnection::setDefaultSSLSocketFactory, SSLSocketFactory.class)
+            .callingVoidStatic(HttpsURLConnection::setDefaultSSLSocketFactory, SSLSocketFactory.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .callingStatic(HttpsURLConnection::setDefaultHostnameVerifier, HostnameVerifier.class)
+            .callingVoidStatic(HttpsURLConnection::setDefaultHostnameVerifier, HostnameVerifier.class)
             .enforce(Policies::changeJvmGlobalState)
             .elseThrowNotEntitled()
-            .calling(HttpsURLConnection::setSSLSocketFactory, SSLSocketFactory.class)
+            .callingVoid(HttpsURLConnection::setSSLSocketFactory, SSLSocketFactory.class)
             .enforce(Policies::setHttpsConnectionProperties)
             .elseThrowNotEntitled();
 

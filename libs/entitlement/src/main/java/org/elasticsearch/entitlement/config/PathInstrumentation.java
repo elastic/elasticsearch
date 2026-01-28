@@ -9,10 +9,11 @@
 
 package org.elasticsearch.entitlement.config;
 
+import org.elasticsearch.entitlement.instrumentation.MethodKey;
+import org.elasticsearch.entitlement.rules.EntitlementHandler;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
 import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.rules.Policies;
-import org.elasticsearch.entitlement.instrumentation.MethodKey;
 
 import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
@@ -63,7 +64,7 @@ public class PathInstrumentation implements InstrumentationConfig {
                     }
                 }
                 return Policies.fileReadWithLinks(path, followLinks);
-            })
+            }, new EntitlementHandler.NotEntitledEntitlementHandler())
         );
 
         EntitlementRules.registerRule(
@@ -72,7 +73,8 @@ public class PathInstrumentation implements InstrumentationConfig {
                 args -> {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);
-                }
+                },
+                new EntitlementHandler.NotEntitledEntitlementHandler()
             )
         );
 
@@ -86,7 +88,8 @@ public class PathInstrumentation implements InstrumentationConfig {
                 args -> {
                     Path path = (Path) args[0];
                     return Policies.fileRead(path);
-                }
+                },
+                new EntitlementHandler.NotEntitledEntitlementHandler()
             )
         );
     }

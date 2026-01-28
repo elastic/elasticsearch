@@ -333,7 +333,7 @@ ROW a=1.8
 
 // tag::sinh-result[]
 a:double | sinh:double
-     1.8 | 2.9421742880
+     1.8 | 2.9421742881
 // end::sinh-result[]
 ;
 

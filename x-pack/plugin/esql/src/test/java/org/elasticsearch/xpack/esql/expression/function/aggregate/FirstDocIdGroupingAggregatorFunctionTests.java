@@ -81,6 +81,8 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
                 randomIntBetween(1, 1024),
                 randomBoolean()
             ),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();

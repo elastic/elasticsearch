@@ -213,6 +213,10 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
     @Override
     public Preconditioner getPreconditioner(FieldInfo fieldInfo) throws IOException {
         final FieldEntry fieldEntry = fields.get(fieldInfo.number);
+        // only seems possible in tests
+        if (fieldEntry == null) {
+            return null;
+        }
         long preconditionerOffset = ((NextFieldEntry) fieldEntry).preconditionerOffset();
         long preconditionerLength = ((NextFieldEntry) fieldEntry).preconditionerLength();
         if (preconditionerLength > 0) {

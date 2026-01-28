@@ -243,8 +243,6 @@ public class QuerySettingsTests extends ESTestCase {
             .stream()
             // TODO this is non-snapshot, but we don't want to expose it yet
             .filter(def -> def != QuerySettings.PROJECT_ROUTING)
-            // TODO: This filter wil be removed in the next PR adding all the docs for time_zone
-            .filter(def -> def != QuerySettings.TIME_ZONE)
             .sorted(Comparator.comparing(QuerySettings.QuerySettingDef::name))
             .toList();
 

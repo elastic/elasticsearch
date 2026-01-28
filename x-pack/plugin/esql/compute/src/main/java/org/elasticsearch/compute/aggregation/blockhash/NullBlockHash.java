@@ -65,6 +65,11 @@ final class NullBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return seenNull ? 1 : 0;
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         BitArray seen = new BitArray(1, bigArrays);
         if (seenNull) {

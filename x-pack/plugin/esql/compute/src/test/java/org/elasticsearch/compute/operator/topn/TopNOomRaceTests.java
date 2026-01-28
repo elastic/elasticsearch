@@ -129,7 +129,7 @@ public class TopNOomRaceTests extends ESTestCase {
                 Collections.nCopies(repeats, ElementType.INT),
                 Collections.nCopies(repeats, TopNEncoder.DEFAULT_SORTABLE),
                 List.of(new TopNOperator.SortOrder(0, false, false)),
-                List.of(), // FIXME(gal, NOCOMMIT) maybe we do want to test groupkeys here?
+                new int[0], // FIXME(gal, NOCOMMIT) maybe we do want to test groupkeys here?
                 Integer.MAX_VALUE
 
             );

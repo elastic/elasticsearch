@@ -189,7 +189,7 @@ public class GroupedQueueTests extends ESTestCase {
                 List.of(ElementType.INT, ElementType.INT, ElementType.INT),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
                 List.of(SORT_ORDER),
-                List.of(0),
+                new int[] { 0 },
                 new Page(groupKeyBlock, keyBlock, valueBlock)
             );
             filler.writeKey(0, row);

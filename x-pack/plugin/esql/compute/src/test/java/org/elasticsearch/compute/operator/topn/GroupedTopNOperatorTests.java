@@ -56,8 +56,8 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
     private static final int TOP_COUNT = 4;
 
     @Override
-    protected List<Integer> groupKeys() {
-        return List.of(0);
+    protected int[] groupKeys() {
+        return new int[] { 0 };
     }
 
     @Override
@@ -71,7 +71,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             limit,
             List.of(DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new SortOrder(0, asc, false)),
-            List.of(1)
+            new int[] { 1 }
         );
 
         assertThat(outputValues, equalTo(expectedValues));
@@ -79,7 +79,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
 
     @Override
     protected List<List<Object>> expectedTopRowOriented(List<List<Object>> rowOriented, List<SortOrder> sortOrders, int topCount) {
-        return computeTopN(rowOriented, groupKeys(), sortOrders, topCount);
+        return computeTopN(rowOriented, IntStream.of(groupKeys()).boxed().toList(), sortOrders, topCount);
     }
 
     public void testBasicTopN() {
@@ -237,7 +237,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
             limit,
             List.of(new DocVectorEncoder(shardRefCounters), DEFAULT_UNSORTABLE, DEFAULT_UNSORTABLE),
             List.of(new SortOrder(1, true, false)),
-            List.of(2)
+            new int[] { 2 }
         );
         try {
             refCountedList.forEach(RefCounted::decRef);
@@ -293,7 +293,7 @@ public class GroupedTopNOperatorTests extends TopNOperatorTests {
                 randomBlocksResult.elementTypes,
                 randomBlocksResult.encoders,
                 uniqueOrders.stream().toList(),
-                groupKeys,
+                groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                 rows
             ),
             List.of(new Page(randomBlocksResult.blocks.toArray(Block[]::new))).iterator(),

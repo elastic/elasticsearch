@@ -56,8 +56,8 @@ import static org.hamcrest.number.OrderingComparison.lessThanOrEqualTo;
 
 public class UngroupedTopNOperatorTests extends TopNOperatorTests {
     @Override
-    protected List<Integer> groupKeys() {
-        return List.of();
+    protected int[] groupKeys() {
+        return new int[0];
     }
 
     @Override
@@ -133,7 +133,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
-            groupKeys(),
+            IntStream.of(groupKeys()).boxed().toList(),
             pageSize
         );
     }
@@ -192,7 +192,7 @@ public class UngroupedTopNOperatorTests extends TopNOperatorTests {
                 List.of(LONG),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, true, false)),
-                groupKeys(),
+                IntStream.of(groupKeys()).boxed().toList(),
                 pageSize
             ).get(context)
         ) {

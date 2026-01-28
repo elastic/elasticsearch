@@ -82,7 +82,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public abstract class TopNOperatorTests extends OperatorTestCase {
-    private static final List<Integer> NO_GROUP_KEYS = List.of();
+    private static final int[] NO_GROUP_KEYS = new int[0];
     protected final int pageSize = randomPageSize();
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
     private static final List<String> VERSIONS = List.of(
@@ -124,7 +124,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         "1.2.3-rc1"
     );
 
-    protected abstract List<Integer> groupKeys();
+    protected abstract int[] groupKeys();
 
     public void testRandomTopN() {
         for (boolean asc : List.of(true, false)) {
@@ -540,7 +540,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders,
-        List<Integer> groupKeys
+        int[] groupKeys
     ) {
         var pages = topNMultipleColumns(
             driverContext,
@@ -563,7 +563,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
         int limit,
         List<TopNEncoder> encoder,
         List<TopNOperator.SortOrder> sortOrders,
-        List<Integer> groupKeys
+        int[] groupKeys
     ) {
         var pages = new ArrayList<Page>();
         boolean success = false;
@@ -629,7 +629,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             List.of(BYTES_REF, BYTES_REF),
             List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
             List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
-            groupKeys(),
+            IntStream.of(groupKeys()).boxed().toList(),
             randomPageSize()
         );
         String sorts = String.join(
@@ -641,7 +641,7 @@ public abstract class TopNOperatorTests extends OperatorTestCase {
             + "]], sortOrders=["
             + sorts
             + "]"
-            + (groupKeys().isEmpty() ? "" : ", groupKeys=" + groupKeys())
+            + (groupKeys().length == 0 ? "" : ", groupKeys=" + Arrays.toString(groupKeys()))
             + "]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
         try (Operator operator = factory.get(driverContext())) {

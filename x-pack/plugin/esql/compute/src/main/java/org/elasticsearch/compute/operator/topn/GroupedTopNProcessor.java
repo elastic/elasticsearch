@@ -14,9 +14,9 @@ import org.elasticsearch.compute.data.Page;
 import java.util.List;
 
 class GroupedTopNProcessor implements TopNProcessor {
-    private final List<Integer> groupChannels;
+    private final int[] groupChannels;
 
-    GroupedTopNProcessor(List<Integer> groupChannels) {
+    GroupedTopNProcessor(int[] groupChannels) {
         this.groupChannels = groupChannels;
     }
 

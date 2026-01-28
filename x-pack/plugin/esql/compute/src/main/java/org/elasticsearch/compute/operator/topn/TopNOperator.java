@@ -132,7 +132,7 @@ public class TopNOperator implements Operator, Accountable {
                 elementTypes,
                 encoders,
                 sortOrders,
-                groupKeys,
+                groupKeys.stream().mapToInt(Integer::intValue).toArray(),
                 maxPageSize
             );
         }
@@ -160,12 +160,10 @@ public class TopNOperator implements Operator, Accountable {
     private final List<ElementType> elementTypes;
     private final List<TopNEncoder> encoders;
     private final List<SortOrder> sortOrders;
-    private final List<Integer> groupKeys;
+    private final int[] groupKeys;
 
     private TopNQueue inputQueue;
     private Row spare;
-    private int spareValuesPreAllocSize = 0;
-    private int spareKeysPreAllocSize = 0;
 
     private ReleasableIterator<Page> output;
 
@@ -199,7 +197,7 @@ public class TopNOperator implements Operator, Accountable {
         List<ElementType> elementTypes,
         List<TopNEncoder> encoders,
         List<SortOrder> sortOrders,
-        List<Integer> groupKeys, // FIXME(gal, NOCOMMIT) Use BitSet? Or int[]?
+        int[] groupKeys,
         int maxPageSize
     ) {
         this.blockFactory = blockFactory;
@@ -209,7 +207,7 @@ public class TopNOperator implements Operator, Accountable {
         this.encoders = encoders;
         this.sortOrders = sortOrders;
         this.groupKeys = groupKeys;
-        this.processor = groupKeys.isEmpty() ? new UngroupedTopNProcessor() : new GroupedTopNProcessor(groupKeys);
+        this.processor = groupKeys.length == 0 ? new UngroupedTopNProcessor() : new GroupedTopNProcessor(groupKeys);
         this.inputQueue = processor.queue(breaker, topCount);
     }
 
@@ -354,7 +352,7 @@ public class TopNOperator implements Operator, Accountable {
     }
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TopNOperator.class) + RamUsageEstimator
-        .shallowSizeOfInstance(List.class) * 4;
+        .shallowSizeOfInstance(List.class) * 3;
 
     @Override
     public long ramBytesUsed() {
@@ -366,9 +364,8 @@ public class TopNOperator implements Operator, Accountable {
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * elementTypes.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * encoders.size());
         size += RamUsageEstimator.alignObjectSize(arrHeader + ref * sortOrders.size());
-        size += RamUsageEstimator.alignObjectSize(arrHeader + ref * groupKeys.size());
+        size += RamUsageEstimator.sizeOf(groupKeys);
         size += sortOrders.size() * SortOrder.SHALLOW_SIZE;
-        size += groupKeys.size() * RamUsageEstimator.sizeOf(42);
         if (inputQueue != null) {
             size += inputQueue.ramBytesUsed();
         }
@@ -399,7 +396,7 @@ public class TopNOperator implements Operator, Accountable {
             + encoders
             + ", sortOrders="
             + sortOrders
-            + (groupKeys.isEmpty() ? "" : ", groupKeys=" + groupKeys)
+            + (groupKeys.length == 0 ? "" : ", groupKeys=" + Arrays.toString(groupKeys))
             + "]";
     }
 

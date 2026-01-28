@@ -119,6 +119,7 @@ public class TopNBenchmark {
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
+        int[] groupKeys = new int[0];
         return new TopNOperator(
             blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),

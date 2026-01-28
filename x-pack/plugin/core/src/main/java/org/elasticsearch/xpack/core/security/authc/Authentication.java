@@ -233,13 +233,6 @@ public final class Authentication implements ToXContentObject {
         return authenticatingSubject;
     }
 
-    public Authentication copyWithMetadataField(String key, Object value) {
-        Objects.requireNonNull(key);
-        Map<String, Object> newMetadata = new HashMap<>(authenticatingSubject.getMetadata());
-        newMetadata.put(key, value);
-        return copyWithMetadata(Collections.unmodifiableMap(newMetadata));
-    }
-
     /**
      * Get the {@link Subject} that the authentication effectively represents. It may not be the authenticating subject
      * because the authentication subject can run-as another subject.

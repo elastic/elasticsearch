@@ -1,0 +1,5 @@
+area: Machine Learning
+issues: []
+pr: 141519
+summary: Reduce locking when persisting ML job statistics
+type: bug

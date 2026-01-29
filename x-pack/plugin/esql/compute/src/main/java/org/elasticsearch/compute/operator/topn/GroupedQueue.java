@@ -95,7 +95,8 @@ class GroupedQueue implements TopNQueue {
                 iterator.remove();
             }
         }
-        // TODO this sorts all rows across all groups. We *might* want to sort only within each group.
+        // TODO this sorts all rows across all groups using the main sort key, ignoring the individual groups. We *might* want to sort only
+        // within each group.
         allRows.sort((r1, r2) -> -TopNOperator.compareRows(r1, r2));
         return allRows;
     }

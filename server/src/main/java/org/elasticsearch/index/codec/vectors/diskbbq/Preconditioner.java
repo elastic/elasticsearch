@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -132,7 +132,7 @@ public class Preconditioner {
         int dim = out.length;
         // TODO: write Panama version of this to do all multiplications in one pass
         for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
+            out[i] = ESVectorUtil.dotProduct(m[i], x);
         }
     }
 

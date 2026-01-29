@@ -169,7 +169,7 @@ public class Similarities {
         }
     }
 
-    static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
+    public static float dotProductF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) DOT_PRODUCT_F32.invokeExact(a, b, length);
         } catch (Throwable e) {
@@ -201,7 +201,7 @@ public class Similarities {
         }
     }
 
-    static float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
+    public static float squareDistanceF32(MemorySegment a, MemorySegment b, int length) {
         try {
             return (float) SQUARE_DISTANCE_F32.invokeExact(a, b, length);
         } catch (Throwable e) {

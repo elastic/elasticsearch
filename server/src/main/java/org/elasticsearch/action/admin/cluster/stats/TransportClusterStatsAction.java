@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
@@ -90,6 +91,35 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     ClusterStatsNodeResponse,
     SubscribableListener<TransportClusterStatsAction.AdditionalStats>> {
 
+    public static final Setting<Integer> SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_nudge",
+        11250,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_CLUSTER_WARN_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_warn",
+        13500,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_critical",
+        14700,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // To Do: Merge with server/src/main/java/org/elasticsearch/ElasticsearchException.java setting.
+    public static final Setting<Integer> SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT = Setting.intSetting(
+        "cluster.indices_per_project_block",
+        15000,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
 
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
@@ -117,6 +147,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
     private final RemoteClusterService remoteClusterService;
+    private volatile int nudgeThreshold;
+    private volatile int warnThreshold;
+    private volatile int criticalThreshold;
+    private volatile int blockThreshold;
 
     @Inject
     public TransportClusterStatsAction(
@@ -153,6 +187,31 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
 
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT, v -> nudgeThreshold = v);
+        } else {
+            nudgeThreshold = SETTING_CLUSTER_NUDGE_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_WARN_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_WARN_INDICES_PER_PROJECT, v -> warnThreshold = v);
+        } else {
+            warnThreshold = SETTING_CLUSTER_WARN_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings()
+                .initializeAndWatch(SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT, v -> criticalThreshold = v);
+        } else {
+            criticalThreshold = SETTING_CLUSTER_CRITICAL_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
+        if (clusterService.getClusterSettings().isDynamicSetting(SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT.getKey())) {
+            clusterService.getClusterSettings().initializeAndWatch(SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT, v -> blockThreshold = v);
+        } else {
+            blockThreshold = SETTING_CLUSTER_BLOCK_INDICES_PER_PROJECT.get(clusterService.getSettings());
+        }
+
         // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
         new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
     }
@@ -187,6 +246,13 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT);
 
+        var totalUserIndices = clusterService.state()
+            .projectState(projectResolver.getProjectId())
+            .metadata()
+            .stream()
+            .filter(indexMetadata -> indexMetadata.isSystem() == false)
+            .count();
+
         additionalStatsListener.andThenApply(
             additionalStats -> request.isRemoteStats()
                 // Return stripped down stats for remote clusters
@@ -201,7 +267,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     null,
                     null,
                     Map.of(),
-                    false
+                    false,
+                    ClusterStatsResponse.IndexLimitTier.parse(
+                        (int) totalUserIndices,
+                        nudgeThreshold,
+                        warnThreshold,
+                        criticalThreshold,
+                        blockThreshold
+                    )
                 )
                 : new ClusterStatsResponse(
                     System.currentTimeMillis(),
@@ -214,7 +287,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<
                     VersionStats.of(clusterService.state().metadata(), responses),
                     additionalStats.clusterSnapshotStats(),
                     additionalStats.getRemoteStats(),
-                    request.isCPS()
+                    request.isCPS(),
+                    ClusterStatsResponse.IndexLimitTier.parse(
+                        (int) totalUserIndices,
+                        nudgeThreshold,
+                        warnThreshold,
+                        criticalThreshold,
+                        blockThreshold
+                    )
                 )
         ).addListener(listener);
     }
@@ -517,5 +597,4 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             return remoteClustersStats;
         }
     }
-
 }

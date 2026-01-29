@@ -435,7 +435,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             VersionStats.of(metadata, singletonList(mockNodeResponse)),
             ClusterSnapshotStats.EMPTY,
             null,
-            false
+            false,
+            ClusterStatsResponse.IndexLimitTier.PASS
         );
 
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
@@ -793,7 +794,8 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "clients": {
                         },
                         "clusters": {}
-                    }
+                    },
+                    "index_count_guardrail":{"message":""}
                   }
             """;
 

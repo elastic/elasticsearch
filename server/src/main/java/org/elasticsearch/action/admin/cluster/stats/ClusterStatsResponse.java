@@ -40,6 +40,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final CCSTelemetrySnapshot esqlMetrics;
     final long timestamp;
     final String clusterUUID;
+    final IndexLimitTier indexLimitTier;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
 
     public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
@@ -56,7 +57,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         VersionStats versionStats,
         ClusterSnapshotStats clusterSnapshotStats,
         Map<String, RemoteClusterStats> remoteClustersStats,
-        boolean skipMRT
+        boolean skipMRT,
+        IndexLimitTier indexLimitTier
     ) {
         super(clusterName, nodes, failures);
         this.clusterUUID = clusterUUID;
@@ -88,6 +90,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             .findAny()
             .orElse(RepositoryUsageStats.EMPTY);
         this.remoteClustersStats = remoteClustersStats;
+        this.indexLimitTier = indexLimitTier;
     }
 
     public String getClusterUUID() {
@@ -167,6 +170,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.endObject();
         }
 
+        indexLimitTier.toXContent(builder, params);
         builder.endObject();
 
         return builder;
@@ -245,6 +249,63 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
             builder.humanReadableField("indices_total_size_in_bytes", "indices_total_size", ByteSizeValue.ofBytes(indicesBytes));
             builder.humanReadableField("max_heap_in_bytes", "max_heap", ByteSizeValue.ofBytes(heapBytes));
             builder.humanReadableField("mem_total_in_bytes", "mem_total", ByteSizeValue.ofBytes(memBytes));
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    static final class Fields {
+        static final String INDEX_COUNT_GUARDRAIL = "index_count_guardrail";
+        static final String INDEX_COUNT_GUARDRAIL_MESSAGE = "message";
+    }
+
+    public enum IndexLimitTier implements ToXContentFragment {
+        PASS(""),
+        NUDGE(
+            "To ensure the best performance, we recommend grouping related data into fewer, "
+                + "larger indices. For time-based data, consider using a data stream."
+        ),
+        WARN(
+            "Your project is approaching an operational limit due to a high number of indices. "
+                + "To avoid service interruptions, please review your indexing strategy."
+        ),
+        CRITICAL(
+            "CRITICAL: Your project is about to reach its index limit. "
+                + "Further index creation may be blocked. You must reduce your number of indices immediately."
+        ),
+        BLOCK(
+            "Too Many Indices. Your project has reached its operational limit for the number of indices it can contain. "
+                + "Please consolidate smaller indices or delete unused ones."
+        );
+
+        private final String message;
+
+        IndexLimitTier(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return this.message;
+        }
+
+        public static IndexLimitTier parse(int totalUserIndices, int nudge, int warn, int critical, int block) {
+            if (totalUserIndices < nudge) {
+                return PASS;
+            } else if (totalUserIndices < warn) {
+                return NUDGE;
+            } else if (totalUserIndices < critical) {
+                return WARN;
+            } else if (totalUserIndices < block) {
+                return CRITICAL;
+            } else {
+                return BLOCK;
+            }
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(Fields.INDEX_COUNT_GUARDRAIL);
+            builder.field(Fields.INDEX_COUNT_GUARDRAIL_MESSAGE, message);
             builder.endObject();
             return builder;
         }

@@ -54,6 +54,7 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -93,13 +94,23 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
 
     @Override
     protected Set<IndexVersion> getSupportedVersions() {
-        return KnownIndexVersions.ALL_VERSIONS.tailSet(IndexVersions.NEW_SPARSE_VECTOR, true);
+        Set<IndexVersion> supported = new HashSet<>();
+        // versions 7.x are "supported" but deprecated
+        supported.addAll(KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_7_0_0, true, IndexVersions.V_8_0_0, false));
+        supported.addAll(KnownIndexVersions.ALL_VERSIONS.tailSet(IndexVersions.FIRST_DETACHED_INDEX_VERSION, true));
+        return supported;
     }
 
     @Override
     protected Set<IndexVersion> getUnsupportedVersions() {
-        // below V_8_0_0, a warning is logged, but no exception is thrown
-        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.NEW_SPARSE_VECTOR, false);
+        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.FIRST_DETACHED_INDEX_VERSION, false);
+    }
+
+    @Override
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        if (indexVersion.between(IndexVersions.V_7_0_0, IndexVersions.V_8_0_0)) {
+            assertWarnings(SparseVectorFieldMapper.ERROR_MESSAGE_7X);
+        }
     }
 
     @Override

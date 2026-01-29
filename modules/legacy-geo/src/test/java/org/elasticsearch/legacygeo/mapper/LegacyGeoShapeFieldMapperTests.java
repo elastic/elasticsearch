@@ -72,9 +72,8 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    public void testSupportedIndexVersions() throws IOException {
-        super.testSupportedIndexVersions();
-        assertWarnings("Parameter [strategy] is deprecated and will be removed in a future version");
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        assertWarnings(getParseMinimalWarnings());
     }
 
     @Override

@@ -127,9 +127,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
-     * When creating a mapper service on an index version in this set, no exceptions should be thrown and
-     * there should be no deprecation warnings. Default: all IndexVersions
-     * @returns a set of supported IndexVersions
+     * When creating a mapper service on an index version in this set, no exceptions should be thrown.
+     * Default: all IndexVersions
+     * @return a set of supported IndexVersions
      */
     protected Set<IndexVersion> getSupportedVersions() {
         return IndexVersionUtils.allReleasedVersions();
@@ -143,6 +143,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected Set<IndexVersion> getUnsupportedVersions() {
         return Set.of();
+    }
+
+    /**
+     * Test that we get expected warnings for a specific indexVersion. Default: no-op
+     * @param indexVersion to test
+     */
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        // no-op
     }
 
     /**
@@ -1746,20 +1754,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public void testSupportedIndexVersions() throws IOException {
         Set<IndexVersion> supportedVersions = getSupportedVersions();
         for (int i = 0; i < Math.min(supportedVersions.size(), 100); i++) {
-            IndexVersion indexVersion = IndexVersionUtils.randomVersionFrom(supportedVersions);
+            IndexVersion indexVersion = randomFrom(supportedVersions);
             MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            assertWarningsForIndexVersion(indexVersion);
         }
     }
 
     public void testUnsupportedIndexVersions() {
-        // we're expecting throws of a very specific type...
-        // do we want to separately support expects deprecation warnings?
-
         Set<IndexVersion> unsupportedVersions = getUnsupportedVersions();
         for (int i = 0; i < Math.min(unsupportedVersions.size(), 100); i++) {
-            IndexVersion indexVersion = IndexVersionUtils.randomVersionFrom(unsupportedVersions);
+            IndexVersion indexVersion = randomFrom(unsupportedVersions);
 
-            expectThrows(MapperParsingException.class, () -> {
+            expectThrows(MapperException.class, () -> {
                 MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
             });
         }

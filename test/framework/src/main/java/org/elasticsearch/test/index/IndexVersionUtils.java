@@ -55,11 +55,6 @@ public class IndexVersionUtils {
         return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(v -> ignore.contains(v) == false).collect(Collectors.toList()));
     }
 
-    /** Returns a random {@link IndexVersion} from the include set */
-    public static IndexVersion randomVersionFrom(Set<IndexVersion> include) {
-        return ESTestCase.randomFrom(ALL_VERSIONS.stream().filter(include::contains).collect(Collectors.toList()));
-    }
-
     /** Returns a random {@link IndexVersion} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static IndexVersion randomVersionBetween(@Nullable IndexVersion minVersion, @Nullable IndexVersion maxVersion) {
         if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {

@@ -262,6 +262,15 @@ public class RestShardsAction extends AbstractCatAction {
             "alias:svc,sparseVectorCount;default:false;text-align:right;desc:number of indexed sparse vectors in shard"
         );
 
+        table.addCell(
+            "tier_preference",
+            "alias:tp,tierPreference;default:false;desc:index tier preference for shard allocation"
+        );
+        table.addCell(
+            "node.role",
+            "alias:r,role,nodeRole;default:false;desc:node roles"
+        );
+
         table.endHeaders();
         return table;
     }
@@ -430,6 +439,22 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(getOrNull(commonStats, CommonStats::getDenseVectorStats, DenseVectorStats::getValueCount));
             table.addCell(getOrNull(commonStats, CommonStats::getSparseVectorStats, SparseVectorStats::getValueCount));
+
+            // Add tier_preference from index settings
+            String tierPreference = state.getState()
+                .metadata()
+                .index(shard.index())
+                .getSettings()
+                .get("index.routing.allocation.include._tier_preference");
+            table.addCell(tierPreference);
+
+            // Add node.role abbreviation
+            if (shard.assignedToNode()) {
+                String nodeRoles = state.getState().nodes().get(shard.currentNodeId()).getRoleAbbreviationString();
+                table.addCell(nodeRoles);
+            } else {
+                table.addCell(null);
+            }
 
             table.endRow();
         }

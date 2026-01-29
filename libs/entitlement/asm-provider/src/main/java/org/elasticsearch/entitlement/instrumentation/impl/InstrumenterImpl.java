@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
@@ -32,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.security.AccessControlException;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -57,27 +57,23 @@ public final class InstrumenterImpl implements Instrumenter {
     private final String classNameSuffix;
     private final Map<MethodKey, CheckMethod> checkMethods;
 
-    private final Class<?> notEntitledExceptionClass;
-
     InstrumenterImpl(
         String handleClass,
         String getCheckerClassMethodDescriptor,
         String classNameSuffix,
-        Map<MethodKey, CheckMethod> checkMethods,
-        Class<?> notEntitledExceptionClass
+        Map<MethodKey, CheckMethod> checkMethods
     ) {
         this.handleClass = handleClass;
         this.getCheckerClassMethodDescriptor = getCheckerClassMethodDescriptor;
         this.classNameSuffix = classNameSuffix;
         this.checkMethods = checkMethods;
-        this.notEntitledExceptionClass = notEntitledExceptionClass;
     }
 
     public static InstrumenterImpl create(Class<?> checkerClass, Map<MethodKey, CheckMethod> checkMethods) {
         Type checkerClassType = Type.getType(checkerClass);
         String handleClass = checkerClassType.getInternalName() + "Handle";
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(checkerClassType);
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, AccessControlException.class);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
     static ClassFileInfo getClassFileInfo(Class<?> clazz) throws IOException {
@@ -348,7 +344,7 @@ public final class InstrumenterImpl implements Instrumenter {
             Label tryEnd = new Label();
             Label catchStart = new Label();
             Label catchEnd = new Label();
-            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, Type.getType(notEntitledExceptionClass).getInternalName());
+            mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, Type.getType(NotEntitledException.class).getInternalName());
             mv.visitLabel(tryStart);
             invokeInstrumentationMethod();
             mv.visitLabel(tryEnd);
@@ -412,10 +408,10 @@ public final class InstrumenterImpl implements Instrumenter {
                     || constant instanceof Short
                     || constant instanceof Byte
                     || constant instanceof Boolean) {
-                        mv.visitInsn(Opcodes.IRETURN);
-                    } else {
-                        throw new IllegalStateException("unexpected check method constant [" + checkMethod.constant() + "]");
-                    }
+                    mv.visitInsn(Opcodes.IRETURN);
+                } else {
+                    throw new IllegalStateException("unexpected check method constant [" + checkMethod.constant() + "]");
+                }
             }
         }
 

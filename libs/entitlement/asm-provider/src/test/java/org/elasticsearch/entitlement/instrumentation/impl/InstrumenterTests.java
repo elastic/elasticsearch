@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.instrumentation.CheckMethod;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.ClassFileInfo;
@@ -158,7 +159,7 @@ public class InstrumenterTests extends ESTestCase {
 
         private void throwIfActive() {
             if (isActive) {
-                throw new TestException();
+                throw new NotEntitledException("entitled");
             }
         }
 
@@ -327,7 +328,7 @@ public class InstrumenterTests extends ESTestCase {
         String handleClass = Type.getInternalName(InstrumenterTests.TestEntitlementCheckerHolder.class);
         String getCheckerClassMethodDescriptor = Type.getMethodDescriptor(Type.getObjectType(checkerClass));
 
-        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods, TestException.class);
+        return new InstrumenterImpl(handleClass, getCheckerClassMethodDescriptor, "", checkMethods);
     }
 
     private static TestLoader instrumentTestClass(InstrumenterImpl instrumenter) throws IOException {

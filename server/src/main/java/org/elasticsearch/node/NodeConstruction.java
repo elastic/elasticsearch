@@ -62,6 +62,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -110,13 +111,13 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.SlowLogContext;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.DefaultRootObjectMapperNamespaceValidator;
@@ -782,9 +783,13 @@ class NodeConstruction {
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client
@@ -826,7 +831,7 @@ class NodeConstruction {
 
         clusterInfoService.addListener(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 rerouteService,
@@ -873,16 +878,18 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        List<? extends ActionLoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+            ActionLoggingFieldsProvider.class
+        );
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
         // because the responses may change dynamically at runtime
-        SlowLogFieldProvider slowLogFieldProvider = new SlowLogFieldProvider() {
-            public SlowLogFields create(SlowLogContext context) {
-                final List<SlowLogFields> fields = new ArrayList<>();
+        ActionLoggingFieldsProvider loggingFieldsProvider = new ActionLoggingFieldsProvider() {
+            public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+                final List<ActionLoggingFields> fields = new ArrayList<>();
                 for (var provider : slowLogFieldProviders) {
                     fields.add(provider.create(context));
                 }
-                return new SlowLogFields(context) {
+                return new ActionLoggingFields(context) {
                     @Override
                     public Map<String, String> logFields() {
                         return fields.stream()
@@ -915,7 +922,7 @@ class NodeConstruction {
             .mapperMetrics(mapperMetrics)
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
-            .slowLogFieldProvider(slowLogFieldProvider)
+            .loggingFieldsProvider(loggingFieldsProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1024,7 +1031,7 @@ class NodeConstruction {
             documentParsingProvider,
             taskManager,
             projectResolver,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             indexingLimits,
             linkedProjectConfigService,
             projectRoutingResolver,

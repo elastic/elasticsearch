@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateSettingsFilterProvider;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
@@ -252,8 +251,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             indexSettingProviders,
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
         );
     }
 

@@ -87,19 +87,25 @@ public class TemplateUtilsTests extends ESTestCase {
     }
 
     public void testValidateNullSource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(null));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> TemplateUtils.validate(null, "version", false)
+        );
         assertThat(exception.getMessage(), is("Template must not be null"));
     }
 
     public void testValidateEmptySource() {
-        ElasticsearchParseException exception = expectThrows(ElasticsearchParseException.class, () -> TemplateUtils.validate(""));
+        ElasticsearchParseException exception = expectThrows(
+            ElasticsearchParseException.class,
+            () -> TemplateUtils.validate("", "version", false)
+        );
         assertThat(exception.getMessage(), is("Template must not be empty"));
     }
 
     public void testValidateInvalidSource() {
         ElasticsearchParseException exception = expectThrows(
             ElasticsearchParseException.class,
-            () -> TemplateUtils.validate("{\"foo\": \"bar")
+            () -> TemplateUtils.validate("{\"foo\": \"bar", "version", false)
         );
         assertThat(exception.getMessage(), is("Invalid template"));
     }
@@ -108,7 +114,7 @@ public class TemplateUtilsTests extends ESTestCase {
         String resource = Strings.format(SIMPLE_TEST_TEMPLATE, "test");
         try (InputStream is = TemplateUtilsTests.class.getResourceAsStream(resource)) {
             assert is != null;
-            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8));
+            TemplateUtils.validate(new String(is.readAllBytes(), StandardCharsets.UTF_8), "version", false);
         }
     }
 

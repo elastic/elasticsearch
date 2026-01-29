@@ -49,9 +49,9 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.MetadataIndexTemplateSettingsFilterProvider;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -711,6 +711,8 @@ class NodeConstruction {
 
         modules.bindToInstance(Tracer.class, telemetryProvider.getTracer());
 
+        TemplateDecoratorProvider.init(pluginsService.loadServiceProviders(TemplateDecoratorProvider.class));
+
         RootObjectMapperNamespaceValidator namespaceValidator = pluginsService.loadSingletonServiceProvider(
             RootObjectMapperNamespaceValidator.class,
             () -> new DefaultRootObjectMapperNamespaceValidator()
@@ -963,10 +965,6 @@ class NodeConstruction {
             indexSettingProviders
         );
 
-        final MetadataIndexTemplateSettingsFilterProvider templateSettingsFilterProvider = pluginsService.loadSingletonServiceProvider(
-            MetadataIndexTemplateSettingsFilterProvider.class,
-            MetadataIndexTemplateSettingsFilterProvider::defaultProvider
-        );
         final MetadataIndexTemplateService metadataIndexTemplateService = new MetadataIndexTemplateService(
             clusterService,
             metadataCreateIndexService,
@@ -975,8 +973,7 @@ class NodeConstruction {
             xContentRegistry,
             systemIndices,
             indexSettingProviders,
-            dataStreamGlobalRetentionSettings,
-            templateSettingsFilterProvider
+            dataStreamGlobalRetentionSettings
         );
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);

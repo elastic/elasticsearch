@@ -93,7 +93,7 @@ public class ProfilingDataStreamManagerTests extends ESTestCase {
                 return indexTemplateVersion;
             }
         };
-        datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver) {
+        datastreamManager = new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver, null) {
             @Override
             protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
                 return templatesCreated.get();

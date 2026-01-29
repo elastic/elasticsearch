@@ -36,7 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
@@ -142,7 +141,6 @@ public class MetadataIndexTemplateService {
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
     private final InstantSource instantSource;
-    private final MetadataIndexTemplateSettingsFilterProvider templateSettingsFilterProvider;
 
     /**
      * This is the cluster state task executor for all template-based actions.
@@ -198,8 +196,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings,
-        MetadataIndexTemplateSettingsFilterProvider templateSettingsFilterProvider
+        DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
         this(
             clusterService,
@@ -210,8 +207,7 @@ public class MetadataIndexTemplateService {
             systemIndices,
             indexSettingProviders,
             globalRetentionSettings,
-            Instant::now,
-            templateSettingsFilterProvider
+            Instant::now
         );
     }
 
@@ -225,8 +221,7 @@ public class MetadataIndexTemplateService {
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
         DataStreamGlobalRetentionSettings globalRetentionSettings,
-        InstantSource instantSource,
-        MetadataIndexTemplateSettingsFilterProvider templateSettingsFilterProvider
+        InstantSource instantSource
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("index-templates", Priority.URGENT, TEMPLATE_TASK_EXECUTOR);
@@ -238,7 +233,6 @@ public class MetadataIndexTemplateService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.globalRetentionSettings = globalRetentionSettings;
         this.instantSource = instantSource;
-        this.templateSettingsFilterProvider = templateSettingsFilterProvider;
     }
 
     public void removeTemplates(
@@ -425,7 +419,7 @@ public class MetadataIndexTemplateService {
         // Normalize the index settings if necessary
         Settings prefixedSettings = null;
         if (template.settings() != null) {
-            prefixedSettings = maybeNormalizeAndFilterSettings(template.settings());
+            prefixedSettings = template.settings().maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         }
         // TODO: theoretically, we could avoid parsing the mappings once by combining this wrapping with the mapping validation later on,
         // but that refactoring will be non-trivial as we currently don't seem to have methods available to merge already-parsed mappings;
@@ -446,23 +440,6 @@ public class MetadataIndexTemplateService {
             componentTemplate.createdDateMillis().orElse(null),
             componentTemplate.modifiedDateMillis().orElse(null)
         );
-    }
-
-    private Settings maybeNormalizeAndFilterSettings(Settings settings) {
-        Settings normalized = settings.maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
-        Predicate<String> filter = templateSettingsFilterProvider.getFilter();
-        if (Predicates.always().equals(filter)) {
-            return normalized;
-        }
-
-        var filteredSettings = normalized.filter(filter);
-        if (logger.isDebugEnabled()) {
-            Set<String> diff = Sets.difference(normalized.keySet(), filteredSettings.keySet());
-            if (diff.isEmpty() == false) {
-                logger.debug("Settings removed due to settings filter: {}", diff);
-            }
-        }
-        return filteredSettings;
     }
 
     /**
@@ -735,7 +712,7 @@ public class MetadataIndexTemplateService {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
-                finalSettings = maybeNormalizeAndFilterSettings(finalSettings);
+                finalSettings = finalSettings.maybeNormalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
             }
             // If an inner template was specified, its mappings may need to be
             // adjusted (to add _doc) and it should be validated
@@ -1775,8 +1752,6 @@ public class MetadataIndexTemplateService {
         componentSettings.forEach(templateSettings::put);
         // Add the actual index template's settings to the end, since it takes the highest precedence.
         Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
-
-        // FIXME here?
         return templateSettings.build();
     }
 

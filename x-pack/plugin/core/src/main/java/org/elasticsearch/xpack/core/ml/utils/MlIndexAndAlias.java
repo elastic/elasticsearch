@@ -38,8 +38,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexDescriptor;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
@@ -427,9 +425,9 @@ public final class MlIndexAndAlias {
         }
 
         TransportPutComposableIndexTemplateAction.Request request;
-        try (var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, templateConfig.loadBytes())) {
+        try {
             request = new TransportPutComposableIndexTemplateAction.Request(templateConfig.getTemplateName()).indexTemplate(
-                ComposableIndexTemplate.parse(parser)
+                templateConfig.load(ComposableIndexTemplate::parse)
             ).masterNodeTimeout(masterTimeout);
         } catch (IOException e) {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);

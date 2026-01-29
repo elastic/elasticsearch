@@ -44,18 +44,21 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     protected final ThreadPool threadPool;
     protected final Client client;
     private final IndexStateResolver indexStateResolver;
+    private final ProfilingIndexTemplateRegistry templateRegistry;
     private volatile boolean templatesEnabled;
 
     AbstractProfilingPersistenceManager(
         ThreadPool threadPool,
         Client client,
         ClusterService clusterService,
-        IndexStateResolver indexStateResolver
+        IndexStateResolver indexStateResolver,
+        ProfilingIndexTemplateRegistry templateRegistry
     ) {
         this.threadPool = threadPool;
         this.client = client;
         this.clusterService = clusterService;
         this.indexStateResolver = indexStateResolver;
+        this.templateRegistry = templateRegistry;
     }
 
     public void initialize() {
@@ -117,7 +120,7 @@ abstract class AbstractProfilingPersistenceManager<T extends ProfilingIndexAbstr
     }
 
     protected boolean areAllIndexTemplatesCreated(ClusterChangedEvent event, Settings settings) {
-        return ProfilingIndexTemplateRegistry.isAllResourcesCreated(event.state(), settings);
+        return templateRegistry.isAllResourcesCreated(event.state(), settings);
     }
 
     /**

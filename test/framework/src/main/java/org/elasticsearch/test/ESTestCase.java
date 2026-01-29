@@ -64,6 +64,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorProvider;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -594,6 +595,16 @@ public abstract class ESTestCase extends LuceneTestCase {
             // log level might not have been captured if suite was skipped
             LoggerFactory.provider().setRootLevel(capturedLogLevel);
             capturedLogLevel = null;
+        }
+    }
+
+    @BeforeClass
+    public static void initTemplateDecoratorProvider() {
+        // the static nastiness makes this a major pain for testing
+        // there's no isolation between tests in the same JVM
+        // skip initialization if we're running internal cluster tests to allow initialization per local cluster
+        if (System.getProperty("tests.task", "").endsWith(":test")) {
+            TemplateDecoratorProvider.init(List.of());
         }
     }
 

@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Template.NamedTemplateDecorator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,7 +74,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ComposableIndexTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "index_template",
         false,
         a -> ComposableIndexTemplate.builder()
@@ -138,7 +139,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
     }
 
     public static ComposableIndexTemplate parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        return PARSER.parse(parser, NamedTemplateDecorator.DEFAULT);
+    }
+
+    public static ComposableIndexTemplate parse(XContentParser parser, String templateName, Template.TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
     }
 
     public static Builder builder() {
@@ -507,7 +512,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
-        public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
+        static final ConstructingObjectParser<DataStreamTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
             args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])

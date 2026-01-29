@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Template.NamedTemplateDecorator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +46,7 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     private static final ParseField MODIFIED_DATE_MILLIS = new ParseField("modified_date_millis");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ComponentTemplate, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<ComponentTemplate, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "component_template",
         false,
         a -> new ComponentTemplate((Template) a[0], (Long) a[1], (Map<String, Object>) a[2], (Boolean) a[3], (Long) a[4], (Long) a[5])
@@ -79,7 +80,11 @@ public class ComponentTemplate implements SimpleDiffable<ComponentTemplate>, ToX
     }
 
     public static ComponentTemplate parse(XContentParser parser) {
-        return PARSER.apply(parser, null);
+        return PARSER.apply(parser, NamedTemplateDecorator.DEFAULT);
+    }
+
+    public static ComponentTemplate parse(XContentParser parser, String templateName, Template.TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
     }
 
     public ComponentTemplate(Template template, @Nullable Long version, @Nullable Map<String, Object> metadata) {

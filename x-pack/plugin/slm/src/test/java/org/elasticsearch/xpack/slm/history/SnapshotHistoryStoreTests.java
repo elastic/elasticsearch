@@ -14,6 +14,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -50,7 +52,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
     private ClusterService clusterService;
 
     @Before
-    public void setup() {
+    public void setup() throws IOException {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new SnapshotLifecycleTemplateRegistryTests.VerifyingClient(threadPool);
         ClusterSettings settings = new ClusterSettings(
@@ -60,7 +62,12 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool, settings);
         ClusterState state = clusterService.state();
         Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata())
-            .indexTemplates(SnapshotLifecycleTemplateRegistry.COMPOSABLE_INDEX_TEMPLATE_CONFIGS);
+            .indexTemplates(
+                Map.of(
+                    SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_CONFIG.getTemplateName(),
+                    SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_CONFIG.load(ComposableIndexTemplate::parse)
+                )
+            );
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
         historyStore = new SnapshotHistoryStore(client, clusterService);
     }

@@ -123,6 +123,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -144,6 +145,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig,
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -166,6 +168,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -188,6 +191,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -214,6 +218,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -241,6 +246,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -268,6 +274,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -311,6 +318,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -345,6 +353,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -382,6 +391,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -396,6 +406,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -414,6 +425,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -428,6 +440,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -462,6 +475,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -486,6 +500,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -527,6 +542,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -565,6 +581,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,
@@ -603,6 +620,7 @@ public class DataExtractorFactoryTests extends ESTestCase {
         DataExtractorFactory.create(
             client,
             datafeedConfig.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter,

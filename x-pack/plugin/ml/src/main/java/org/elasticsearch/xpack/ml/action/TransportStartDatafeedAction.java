@@ -41,6 +41,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -106,6 +107,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
     private final ProjectResolver projectResolver;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -142,6 +144,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.projectResolver = projectResolver;
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
     }
 
     static void validate(
@@ -339,9 +342,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
+        // Apply cross-project search mode to IndicesOptions before creating the factory
+        DatafeedConfig effectiveDatafeed = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider);
+
         DataExtractorFactory.create(
             new ParentTaskAssigningClient(client, clusterService.localNode(), task),
-            datafeed,
+            effectiveDatafeed,
+            null,
             job,
             xContentRegistry,
             // Fake DatafeedTimingStatsReporter that does not have access to results index

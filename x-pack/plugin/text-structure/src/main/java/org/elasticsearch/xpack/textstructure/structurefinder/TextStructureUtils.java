@@ -20,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -396,15 +397,16 @@ public final class TextStructureUtils {
      * For example, {"host": {"id": 1}, "name": "test", "tags": [{"tag": "dev" }, { "tag": "test" }]}
      * becomes {"host.id": 1, "name": "test", "tags.tag": ["dev", "test"]}
      *
-     * @param record         The record with potentially nested objects.
+     * @param record The record with potentially nested objects.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
-     * @param maxDepth       The max recursion depth.
+     * @param maxDepth The max recursion depth.
      * @return A flattened map with dot-notation keys.
      */
     private static Map<String, Object> flattenRecord(Object record, TimeoutChecker timeoutChecker, int maxDepth) {
         Map<String, Object> flattened = new LinkedHashMap<>();
+        Set<String> keyHasChildrenObjects = new HashSet<>();
         List<String> keyParts = new ArrayList<>();
-        flattenRecordRecursive(keyParts, record, flattened, timeoutChecker, maxDepth);
+        flattenRecordRecursive(keyParts, record, flattened, keyHasChildrenObjects, timeoutChecker, maxDepth);
         return flattened;
     }
 
@@ -412,49 +414,120 @@ public final class TextStructureUtils {
         List<String> keyParts,
         Object record,
         Map<String, Object> flattenedResult,
+        Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
         timeoutChecker.check("record flattening");
         if (record instanceof Map) {
+            // prolly can prune early here if keyHasChildrenObjects(keyParts)?
             @SuppressWarnings("unchecked")
             Map<String, ?> nestedMap = (Map<String, ?>) record;
-            flattenMap(keyParts, nestedMap, flattenedResult, timeoutChecker, remainingDepth);
+            flattenMap(keyParts, nestedMap, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth);
         } else if (record instanceof List) {
             @SuppressWarnings("unchecked")
             List<Object> list = (List<Object>) record;
-            flattenList(keyParts, list, flattenedResult, timeoutChecker, remainingDepth);
+            flattenList(keyParts, list, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth);
         } else { // concrete value
-            addConcreteRecordToResultMap(keyParts, record, flattenedResult);
+            tryAddConcreteValueToResultMap(keyParts, record, flattenedResult, keyHasChildrenObjects);
         }
 
     }
 
     /**
-     * Adds a record to the result map in a way that if the key already exists, the value is converted to a
-     * List and the record is added to it.
+     * Adds a concrete value to the result map in a way that if the key already exists, the value is converted to a
+     * List and the value is added to it.
      * @param keyParts The current key parts.
-     * @param record The record to add.
-     * @param flattenedResult The result map to add the record to.
+     * @param value The concrete value to add.
+     * @param flattenedResult The result map to add the value to.
+     * @param keyHasChildrenObjects Set tracking which keys have been used as object parents and can't be used for concrete values anymore.
      */
-    private static void addConcreteRecordToResultMap(List<String> keyParts, Object record, Map<String, Object> flattenedResult) {
+    private static void tryAddConcreteValueToResultMap(
+        List<String> keyParts,
+        Object value,
+        Map<String, Object> flattenedResult,
+        Set<String> keyHasChildrenObjects
+    ) {
         String key = String.join(DOT_DELIMITER, keyParts);
+        if (keyHasChildrenObjects.contains(key)) {
+            throw new IllegalArgumentException(
+                "Field [" + key + "] has both object and non-object values - this is not supported by Elasticsearch"
+            );
+        }
+        validateParentKeysAndMarkThemAsTaken(flattenedResult, keyParts, keyHasChildrenObjects);
+
         if (flattenedResult.containsKey(key)) {
             var oldValue = flattenedResult.get(key);
             if (oldValue instanceof List) {
                 @SuppressWarnings("unchecked")
                 List<Object> oldList = (List<Object>) oldValue;
-                oldList.add(record);
-            }
-            else {
+                validateNewElement(keyParts, oldList, value); // not needed anymore? - needed. I'll change it to list always though, to reduce the number of risky casts
+                oldList.add(value);
+            } else {
+                validateNewElement(keyParts, oldValue, value); // not needed anymore?
                 var arr = new ArrayList<>();
                 arr.add(oldValue);
-                arr.add(record);
+                arr.add(value);
                 flattenedResult.put(key, arr);
             }
+        } else {
+            flattenedResult.put(key, value);
+        }
+    }
+
+    /**
+     * Checks if any parent has a concrete value, which would be a conflict.
+     * Alos marks all parent keys of the given key as having children.
+     * For keyParts ["a", "b", "c"], marks "a" and "a.b" as having children.
+     * This effectively means that "a" and "a.b" can't accommodate concrete values anymore,
+     * only other nested objects.
+     */
+    private static void validateParentKeysAndMarkThemAsTaken(
+        Map<String, Object> flattenedResult,
+        List<String> keyParts,
+        Set<String> keyHasChildrenObjects
+    ) {
+        for (int i = keyParts.size() - 1; i >= 1; i--) {
+            String parentKey = String.join(DOT_DELIMITER, keyParts.subList(0, i));
+
+            if (flattenedResult.containsKey(parentKey) ) {
+                throw new IllegalArgumentException(
+                    "Field [" + parentKey + "] has both object and non-object values - this is not supported by Elasticsearch"
+                );
+            }
+
+            if (keyHasChildrenObjects.add(parentKey) == false) {
+                // The parents that follow should already be marked
+                break;
+            }
+        }
+    }
+
+    /**
+     * Validates that we don't have a mix of objects and non-objects in the same key.
+     * @param keyParts
+     * @param oldValue
+     * @param newElement
+     */
+    private static void validateNewElement(List<String> keyParts, Object oldValue, Object newElement) {
+        Object oldElement;
+        if (oldValue instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> oldList = (List<Object>) oldValue;
+            oldElement = oldList.getFirst();
         }
         else {
-            flattenedResult.put(key, record);
+            oldElement = oldValue;
+        }
+
+        boolean oldElementIsObject = oldElement instanceof Map;
+        boolean newElementIsObject = newElement instanceof Map;
+
+        if (oldElementIsObject ^ newElementIsObject) {
+            String key = String.join(DOT_DELIMITER, keyParts);
+            throw new IllegalArgumentException(
+                "Field [" + key + "] has both object and non-object values - this is not supported by Elasticsearch"
+            );
         }
     }
 
@@ -462,6 +535,7 @@ public final class TextStructureUtils {
         List<String> keyParts,
         Map<String, ?> record,
         Map<String, Object> flattenedResult,
+        Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -469,15 +543,14 @@ public final class TextStructureUtils {
 
         if (record.isEmpty() || remainingDepth <= 0) {
             // Empty nested objects or max depth reached - will be mapped as "object" type
-            String key = String.join(DOT_DELIMITER, keyParts);
-            flattenedResult.put(key, Collections.emptyMap());
+            tryAddConcreteValueToResultMap(keyParts, Collections.emptyMap(), flattenedResult, keyHasChildrenObjects);
             return;
         }
 
         for (Map.Entry<String, ?> entry : record.entrySet()) {
             keyParts.add(entry.getKey());
             var recordValue = (Object) entry.getValue();
-            flattenRecordRecursive(keyParts, recordValue, flattenedResult, timeoutChecker, remainingDepth - 1);
+            flattenRecordRecursive(keyParts, recordValue, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth - 1);
             keyParts.removeLast();
         }
     }
@@ -486,6 +559,7 @@ public final class TextStructureUtils {
         List<String> keyParts,
         List<Object> list,
         Map<String, Object> flattenedResult,
+        Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth
     ) {
@@ -498,29 +572,8 @@ public final class TextStructureUtils {
             return;
         }
 
-        boolean hasObjects = false;
-        boolean hasConcreteValues = false;
-        for (Object item : list) {
-            if (item instanceof Map) {
-                hasObjects = true;
-            }
-            else if (item instanceof List == false && item != null) {
-                hasConcreteValues = true;
-            }
-            if (hasObjects && hasConcreteValues) {
-                break;
-            }
-        }
-
-        if (hasObjects && hasConcreteValues) {
-            String key = String.join(DOT_DELIMITER, keyParts);
-            throw new IllegalArgumentException(
-                "Field [" + key + "] has both object and non-object values - this is not supported by Elasticsearch"
-            );
-        }
-
         for (Object record : list) {
-            flattenRecordRecursive(keyParts, record, flattenedResult, timeoutChecker, remainingDepth - 1);
+            flattenRecordRecursive(keyParts, record, flattenedResult, keyHasChildrenObjects, timeoutChecker, remainingDepth - 1);
         }
     }
 

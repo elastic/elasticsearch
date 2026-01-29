@@ -11,13 +11,13 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 

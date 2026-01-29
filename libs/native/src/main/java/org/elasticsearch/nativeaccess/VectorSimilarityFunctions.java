@@ -45,7 +45,13 @@ public interface VectorSimilarityFunctions {
          * <p>
          * Checks are special-cased, so {@link #bytes()} is not called
          */
-        I1I4(Byte.BYTES);
+        I1I4(Byte.BYTES),
+        /**
+         * 2-bit data, 4-bit queries. Single vector score returns results as a long.
+         * <p>
+         * Checks are special-cased, so {@link #bytes()} is not called
+         */
+        I2I4(Byte.BYTES);
 
         private final int bytes;
 

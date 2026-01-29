@@ -9,6 +9,9 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
@@ -17,21 +20,51 @@ import org.junit.BeforeClass;
 
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.ToIntBiFunction;
+import java.util.stream.Stream;
 
 import static java.lang.foreign.ValueLayout.JAVA_FLOAT_UNALIGNED;
 import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
-    private final byte indexBits = 1;
+    private final VectorSimilarityFunctions.DataType type;
+    private final byte indexBits;
     private static final byte queryBits = 4;
 
-    private final byte maxQueryValue = (1 << queryBits) - 1;
-    private final byte maxIndexValue = (1 << indexBits) - 1;
+    private final byte maxQueryValue;
+    private final byte maxIndexValue;
 
-    public JDKVectorLibraryInt4Tests(VectorSimilarityFunctions.Function function, int size) {
+    public JDKVectorLibraryInt4Tests(
+        VectorSimilarityFunctions.DataType type,
+        byte indexBits,
+        VectorSimilarityFunctions.Function function,
+        int size
+    ) {
         super(function, size);
+        this.type = type;
+        this.indexBits = indexBits;
+        this.maxQueryValue = (1 << queryBits) - 1;
+        this.maxIndexValue = (byte) ((1 << indexBits) - 1);
+    }
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        List<Object[]> baseParams = CollectionUtils.iterableAsArrayList(VectorSimilarityFunctionsTests.parametersFactory());
+        // BBQ only with dimensions a multiple of 8
+        baseParams.removeIf(os -> (Integer) os[1] % 8 != 0);
+        // remove all square distance (not implemented yet)
+        baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
+
+        // duplicate for int1 & int2
+        return () -> Stream.concat(
+            baseParams.stream()
+                .map(os -> CollectionUtils.concatLists(List.of(VectorSimilarityFunctions.DataType.I1I4, (byte) 1), Arrays.asList(os))),
+            baseParams.stream()
+                .map(os -> CollectionUtils.concatLists(List.of(VectorSimilarityFunctions.DataType.I2I4, (byte) 2), Arrays.asList(os)))
+        ).map(List::toArray).iterator();
     }
 
     @BeforeClass
@@ -49,10 +82,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
 
-        int discretizedDimensions = discretizedDimensions(dims, indexBits);
-        final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
-
-        final int queryVectorBytes = indexVectorBytes * (queryBits / indexBits);
+        final int indexVectorBytes = numBytes(dims, indexBits);
+        final int queryVectorBytes = numBytes(dims, queryBits);
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVectors = new byte[numVecs][dims];
@@ -60,16 +91,16 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         var indexVectors = new byte[numVecs][indexVectorBytes];
         var queryVectors = new byte[numVecs][queryVectorBytes];
 
-        var querySegment = arena.allocate((long) queryVectorBytes * numVecs);
         var indexSegment = arena.allocate((long) indexVectorBytes * numVecs);
+        var querySegment = arena.allocate((long) queryVectorBytes * numVecs);
 
         for (int i = 0; i < numVecs; i++) {
 
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
             randomBytesBetween(unpackedQueryVectors[i], (byte) 0, maxQueryValue);
 
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
-            pack(unpackedQueryVectors[i], queryVectors[i], queryBits, indexVectorBytes);
+            pack(unpackedIndexVectors[i], indexVectors[i], indexBits);
+            pack(unpackedQueryVectors[i], queryVectors[i], queryBits);
 
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexVectorBytes, indexVectorBytes);
             MemorySegment.copy(queryVectors[i], 0, querySegment, ValueLayout.JAVA_BYTE, (long) i * queryVectorBytes, queryVectorBytes);
@@ -84,6 +115,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
 
             int expected = scalarSimilarity(unpackedQueryVectors[queryIndex], unpackedIndexVectors[indexIndex]);
             assertEquals(expected, nativeSimilarity(indexSlice, querySlice, indexVectorBytes));
+
             if (supportsHeapSegments()) {
                 var queryHeapSegment = MemorySegment.ofArray(queryVectors[queryIndex]);
                 var indexHeapSegment = MemorySegment.ofArray(indexVectors[indexIndex]);
@@ -126,10 +158,8 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         final byte maxQueryValue = (1 << queryBits) - 1;
         final byte maxIndexValue = (byte) ((1 << indexBits) - 1);
 
-        int discretizedDimensions = discretizedDimensions(dims, indexBits);
-        final int indexVectorBytes = getPackedLength(discretizedDimensions, indexBits);
-
-        final int queryVectorBytes = indexVectorBytes * (queryBits / indexBits);
+        final int indexVectorBytes = numBytes(dims, indexBits);
+        final int queryVectorBytes = numBytes(dims, queryBits);
 
         var unpackedIndexVectors = new byte[numVecs][dims];
         var unpackedQueryVector = new byte[dims];
@@ -140,16 +170,16 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         // Mimics extra data at the end
         var indexLineLength = indexVectorBytes + extraData;
 
-        var querySegment = arena.allocate(queryVectorBytes);
         var indexSegment = arena.allocate(indexLineLength * numVecs);
+        var querySegment = arena.allocate(queryVectorBytes);
 
         randomBytesBetween(unpackedQueryVector, (byte) 0, maxQueryValue);
-        pack(unpackedQueryVector, queryVector, queryBits, indexVectorBytes);
+        pack(unpackedQueryVector, queryVector, queryBits);
         MemorySegment.copy(queryVector, 0, querySegment, ValueLayout.JAVA_BYTE, 0L, queryVectorBytes);
 
         for (int i = 0; i < numVecs; i++) {
             randomBytesBetween(unpackedIndexVectors[i], (byte) 0, maxIndexValue);
-            pack(unpackedIndexVectors[i], indexVectors[i], indexBits, indexVectorBytes);
+            pack(unpackedIndexVectors[i], indexVectors[i], indexBits);
             MemorySegment.copy(indexVectors[i], 0, indexSegment, ValueLayout.JAVA_BYTE, (long) i * indexLineLength, indexVectorBytes);
         }
 
@@ -300,7 +330,7 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
     }
 
-    private static void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits, int pitch) {
+    private static void pack(byte[] unpackedVector, byte[] packedVector, byte elementBits) {
         for (int i = 0; i < unpackedVector.length; i++) {
             var value = unpackedVector[i];
             var packedIndex = i / 8;
@@ -310,52 +340,29 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
                 int v = value & 0x1;
                 int shifted = v << packedBitPosition;
                 value >>= 1;
-                packedVector[packedIndex + j * pitch] += (byte) shifted;
+                packedVector[packedIndex + j * (packedVector.length / elementBits)] |= (byte) shifted;
             }
         }
     }
 
-    private static int discretizedDimensions(int dimensions, int indexBits) {
-        if (queryBits == indexBits) {
-            int totalBits = dimensions * indexBits;
-            return (totalBits + 7) / 8 * 8 / indexBits;
-        }
-        int queryDiscretized = (dimensions * queryBits + 7) / 8 * 8 / queryBits;
-        int docDiscretized = (dimensions * indexBits + 7) / 8 * 8 / indexBits;
-        int maxDiscretized = Math.max(queryDiscretized, docDiscretized);
-        assert maxDiscretized % (8.0 / queryBits) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-        assert maxDiscretized % (8.0 / indexBits) == 0 : "bad discretized=" + maxDiscretized + " for dim=" + dimensions;
-        return maxDiscretized;
-    }
-
     // Returns how many bytes do we need to store the quantized vector
-    private static int getPackedLength(int discretizedDimensions, int bits) {
-        int totalBits = discretizedDimensions * bits;
-        return (totalBits + 7) / 8;
+    private static int numBytes(int dimensions, int bits) {
+        assert dimensions % 8 == 0;
+        return dimensions / (8 / bits);
     }
 
     long nativeSimilarity(MemorySegment a, MemorySegment b, int length) {
-        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
-            "square distance not implemented"
-        );
         try {
-            return (long) getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.I1I4,
-                VectorSimilarityFunctions.Operation.SINGLE
-            ).invokeExact(a, b, length);
+            return (long) getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.SINGLE)
+                .invokeExact(a, b, length);
         } catch (Throwable t) {
             throw rethrow(t);
         }
     }
 
     void nativeSimilarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
-        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
-            "square distance not implemented"
-        );
         try {
-            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.I1I4, VectorSimilarityFunctions.Operation.BULK)
-                .invokeExact(a, b, dims, count, result);
+            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK).invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -370,15 +377,9 @@ public class JDKVectorLibraryInt4Tests extends VectorSimilarityFunctionsTests {
         int count,
         MemorySegment result
     ) {
-        if (function == VectorSimilarityFunctions.Function.SQUARE_DISTANCE) throw new AssumptionViolatedException(
-            "square distance not implemented"
-        );
         try {
-            getVectorDistance().getHandle(
-                function,
-                VectorSimilarityFunctions.DataType.I1I4,
-                VectorSimilarityFunctions.Operation.BULK_OFFSETS
-            ).invokeExact(a, b, dims, pitch, offsets, count, result);
+            getVectorDistance().getHandle(function, type, VectorSimilarityFunctions.Operation.BULK_OFFSETS)
+                .invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

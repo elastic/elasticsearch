@@ -375,6 +375,16 @@ EXPORT int64_t vec_dot_int1_int4_2(const int8_t* a, const int8_t* query, const i
     return dot_int1_int4_inner(a, query, length);
 }
 
+EXPORT int64_t vec_dot_int2_int4_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length
+) {
+    int64_t lower = dot_int1_int4_inner(a, query, length/2);
+    int64_t upper = dot_int1_int4_inner(a + length/2, query, length/2);
+    return lower + (upper << 1);
+}
+
 template <int64_t(*mapper)(const int32_t, const int32_t*)>
 static inline void dot_int1_int4_inner_bulk(
     const int8_t* a,
@@ -393,7 +403,7 @@ static inline void dot_int1_int4_inner_bulk(
     const int8_t* a2 = safe_mapper_offset<int8_t, 2, mapper>(a, pitch, offsets, count);
     const int8_t* a3 = safe_mapper_offset<int8_t, 3, mapper>(a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // Process a batch of 4 vectors at a time, after instructing the CPU to
     // prefetch the next batch.
     // Prefetching multiple memory locations while computing keeps the CPU
     // execution units busy.
@@ -444,6 +454,67 @@ EXPORT void vec_dot_int1_int4_bulk_offsets_2(
     const int32_t count,
     f32_t* results) {
     dot_int1_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
+}
+
+template <int64_t(*mapper)(const int32_t, const int32_t*)>
+static inline void dot_int2_int4_inner_bulk(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results
+) {
+    const int lines_to_fetch = length / CACHE_LINE_SIZE + 1;
+    int c = 0;
+
+    const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
+    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
+
+    // Process a batch of 2 vectors at a time, after instructing the CPU to
+    // prefetch the next batch.
+    // Prefetching multiple memory locations while computing keeps the CPU
+    // execution units busy.
+    for (; c + 3 < count; c += 2) {
+        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
+        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a1, lines_to_fetch);
+
+        results[c + 0] = (f32_t)vec_dot_int2_int4_2(a0, query, length);
+        results[c + 1] = (f32_t)vec_dot_int2_int4_2(a1, query, length);
+
+        a0 = next_a0;
+        a1 = next_a1;
+    }
+
+    // Tail-handling: remaining vectors
+    for (; c < count; c++) {
+        const int8_t* a0 = a + mapper(c, offsets) * pitch;
+        results[c] = (f32_t)vec_dot_int2_int4_2(a0, query, length);
+    }
+}
+
+EXPORT void vec_dot_int2_int4_bulk_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<identity_mapper>(a, query, length, length, NULL, count, results);
+}
+
+EXPORT void vec_dot_int2_int4_bulk_offsets_2(
+    const int8_t* a,
+    const int8_t* query,
+    const int32_t length,
+    const int32_t pitch,
+    const int32_t* offsets,
+    const int32_t count,
+    f32_t* results) {
+    dot_int2_int4_inner_bulk<array_mapper>(a, query, length, pitch, offsets, count, results);
 }
 
 #ifdef __clang__

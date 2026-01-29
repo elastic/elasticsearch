@@ -428,22 +428,26 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     public void testCanRemainWhenAllocationIsAtThreshold() {
         setup(Settings.EMPTY, () -> Settings.EMPTY);
 
-        final var randomIndexNodeOneShard = randomFrom(
-            clusterState.getRoutingNodes().node(indexNodeOne.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-        );
         assertDecisionMatches(
             "No shards need to be moved when we're at the threshold",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, randomIndexNodeOneShard, routingIndexNodeOne, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(indexNodeOne),
+                routingIndexNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Node index shard allocation is under the threshold."
         );
 
-        final var randomSearchNodeOneShard = randomFrom(
-            clusterState.getRoutingNodes().node(searchNodeOne.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-        );
         assertDecisionMatches(
             "No shards need to be moved when we're at the threshold",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, randomSearchNodeOneShard, routingSearchNodeOne, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(searchNodeOne),
+                routingSearchNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Node index shard allocation is under the threshold."
         );
@@ -457,13 +461,14 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         // canRemain = YES when under the threshold (index tier)
         {
-            final var randomIndexNodeOneShard = randomFrom(
-                clusterState.getRoutingNodes().node(indexNodeOne.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-            );
-
             assertDecisionMatches(
                 "Shard is allowed to remain because node is under threshold.",
-                indexBalanceAllocationDecider.canRemain(indexMetadata, randomIndexNodeOneShard, routingIndexNodeOne, routingAllocation),
+                indexBalanceAllocationDecider.canRemain(
+                    indexMetadata,
+                    getRandomShardRouting(indexNodeOne),
+                    routingIndexNodeOne,
+                    routingAllocation
+                ),
                 Decision.Type.YES,
                 "Node index shard allocation is under the threshold."
             );
@@ -471,15 +476,16 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         // canRemain = NOT_PREFERRED when over the threshold (index tier)
         {
-            final var randomIndexNodeTwoShard = randomFrom(
-                clusterState.getRoutingNodes().node(indexNodeTwo.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-            );
-
             int idealShards = numberOfPrimaryShards / 2;
             int currentShards = numberOfPrimaryShards / 2 + 1;
             assertDecisionMatches(
                 "Shard cannot remain because node is over threshold.",
-                indexBalanceAllocationDecider.canRemain(indexMetadata, randomIndexNodeTwoShard, routingIndexNodeTwo, routingAllocation),
+                indexBalanceAllocationDecider.canRemain(
+                    indexMetadata,
+                    getRandomShardRouting(indexNodeTwo),
+                    routingIndexNodeTwo,
+                    routingAllocation
+                ),
                 Decision.Type.NOT_PREFERRED,
                 "There are [2] eligible nodes in the [index] tier for assignment of ["
                     + numberOfPrimaryShards
@@ -496,13 +502,14 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         // canRemain = YES when under the threshold (search tier)
         {
-            final var randomSearchNodeOneShard = randomFrom(
-                clusterState.getRoutingNodes().node(searchNodeOne.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-            );
-
             assertDecisionMatches(
                 "Shard is allowed to remain because node is under threshold.",
-                indexBalanceAllocationDecider.canRemain(indexMetadata, randomSearchNodeOneShard, routingSearchNodeOne, routingAllocation),
+                indexBalanceAllocationDecider.canRemain(
+                    indexMetadata,
+                    getRandomShardRouting(searchNodeOne),
+                    routingSearchNodeOne,
+                    routingAllocation
+                ),
                 Decision.Type.YES,
                 "Node index shard allocation is under the threshold."
             );
@@ -510,15 +517,16 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
 
         // canRemain = NOT_PREFERRED when over the threshold (search tier)
         {
-            final var randomSearchNodeTwoShard = randomFrom(
-                clusterState.getRoutingNodes().node(searchNodeTwo.getId()).shardsWithState(ShardRoutingState.STARTED).toList()
-            );
-
             int idealShards = numberOfPrimaryShards / 2;
             int currentShards = numberOfPrimaryShards / 2 + 1;
             assertDecisionMatches(
                 "Shard cannot remain because node is over threshold.",
-                indexBalanceAllocationDecider.canRemain(indexMetadata, randomSearchNodeTwoShard, routingSearchNodeTwo, routingAllocation),
+                indexBalanceAllocationDecider.canRemain(
+                    indexMetadata,
+                    getRandomShardRouting(searchNodeTwo),
+                    routingSearchNodeTwo,
+                    routingAllocation
+                ),
                 Decision.Type.NOT_PREFERRED,
                 "There are [2] eligible nodes in the [search] tier for assignment of ["
                     + numberOfPrimaryShards
@@ -537,7 +545,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
      * @param fromNode The node to move a shard from
      * @param toNode The node to move the shard to
      */
-    public void moveAShard(DiscoveryNode fromNode, DiscoveryNode toNode) {
+    private void moveAShard(DiscoveryNode fromNode, DiscoveryNode toNode) {
         final var fromRoutingNode = clusterState.getRoutingNodes().node(fromNode.getId());
         final var toRoutingNode = clusterState.getRoutingNodes().node(toNode.getId());
         final var shardToMove = randomFrom(fromRoutingNode.copyShards());
@@ -554,7 +562,11 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         refreshDerivedState();
     }
 
-    public Settings addRandomFilterSetting(Settings settings) {
+    private ShardRouting getRandomShardRouting(DiscoveryNode node) {
+        return randomFrom(clusterState.getRoutingNodes().node(node.getId()).copyShards());
+    }
+
+    private Settings addRandomFilterSetting(Settings settings) {
         String setting = randomFrom(
             CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX,
             CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX,
@@ -566,7 +578,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         return Settings.builder().put(settings).put(setting + "." + attribute, attribute.equals("name") ? name : ip).build();
     }
 
-    public Settings allowExcessShards(Settings settings) {
+    private Settings allowExcessShards(Settings settings) {
         int excessShards = randomIntBetween(1, 5);
 
         return Settings.builder()
@@ -575,7 +587,7 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
             .build();
     }
 
-    public Settings addRandomIndexRoutingFilters() {
+    private Settings addRandomIndexRoutingFilters() {
         String setting = randomFrom(
             INDEX_ROUTING_REQUIRE_GROUP_PREFIX,
             INDEX_ROUTING_INCLUDE_GROUP_PREFIX,

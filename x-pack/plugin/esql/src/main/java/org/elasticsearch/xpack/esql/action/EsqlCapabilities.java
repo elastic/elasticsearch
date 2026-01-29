@@ -281,6 +281,11 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
+         * support for MV_INTERSECTS function
+         */
+        FN_MV_INTERSECTS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1171,6 +1176,16 @@ public class EsqlCapabilities {
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Basic Views with no branching (do not need subqueries or FORK).
+         */
+        VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
+
+        /**
+         * Views with branching (requires subqueries/FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,
@@ -2001,6 +2016,11 @@ public class EsqlCapabilities {
          * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
          */
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
+
+        /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

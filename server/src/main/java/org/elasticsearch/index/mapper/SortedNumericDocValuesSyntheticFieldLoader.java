@@ -196,11 +196,21 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
         }
 
         @Override
-        public boolean advanceToDoc(int docId) throws IOException {
+        public boolean advanceToDoc(int docId) {
             idx++;
             if (docIdsInLeaf[idx] != docId) {
                 throw new IllegalArgumentException(
-                    "expected to be called with [" + docIdsInLeaf[idx] + "] but was called with " + docId + " instead"
+                    "Expected to be called with ["
+                        + docIdsInLeaf[idx]
+                        + "] but was called with "
+                        + docId
+                        + " instead (field: "
+                        + name
+                        + ", idx: "
+                        + idx
+                        + ", previous docID: "
+                        + docIdsInLeaf[idx]
+                        + ')'
                 );
             }
             return hasValue[idx];

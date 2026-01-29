@@ -508,6 +508,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         });
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
@@ -644,6 +652,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         });
         var clusterState = createInitialClusterState(3);
         var index = clusterState.metadata().getProject().index(TEST_INDEX).getIndex();
@@ -708,6 +724,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             @Override
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
+            }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
             }
         });
         var clusterState = createInitialClusterState(3);
@@ -1508,6 +1532,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
             }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
+            }
         }, TEST_ONLY_EXPLAINER);
 
         // simulate time lag between last convergence and computation start
@@ -2099,6 +2131,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             @Override
             public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 throw new AssertionError("only used for allocation explain");
+            }
+
+            @Override
+            public Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(
+                Set<ShardRouting> shards,
+                RoutingAllocation allocation
+            ) {
+                return Map.of();
             }
         });
     }

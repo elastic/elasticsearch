@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -278,19 +279,22 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // Get all shard explanations
-        var unmovableShards = currentState.getRoutingNodes()
+        Set<ShardRouting> shards = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
             .peek(s -> cancellableTask.ensureNotCancelled())
-            .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
-            // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
-            .filter(pair -> {
-                assert pair.v2().getMoveDecision().cannotRemain()
-                    : "shard [" + pair + "] can remain on node [" + nodeId + "], but that node is shutting down";
-                return pair.v2().getMoveDecision().cannotRemain();
-            })
-            // These shards will move as soon as possible
-            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            .collect(Collectors.toSet());
+        Map<ShardRouting, ShardAllocationDecision> shardAllocationDecisions = allocationService.explainShardsAllocations(
+            shards,
+            allocation
+        );
+        var unmovableShards = shardAllocationDecisions.entrySet().stream().filter(entry -> {
+            assert entry.getValue().getMoveDecision().cannotRemain()
+                : "shard [" + entry.getKey() + "] can remain on node [" + nodeId + "], but that node is shutting down";
+            return entry.getValue().getMoveDecision().cannotRemain();
+        })// These shards will move as soon as possible
+            .filter(entry -> entry.getValue().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            .map(entry -> Tuple.tuple(entry.getKey(), entry.getValue()))
             .toList();
 
         // If there's no relocating shards and shards still on this node, we need to figure out why

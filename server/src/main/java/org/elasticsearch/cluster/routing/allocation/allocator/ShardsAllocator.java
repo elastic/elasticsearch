@@ -18,6 +18,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 
+import java.util.Map;
+import java.util.Set;
+
 /**
  * <p>
  * A {@link ShardsAllocator} is the main entry point for shard allocation on nodes in the cluster.
@@ -81,4 +84,14 @@ public interface ShardsAllocator {
      * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
      */
     ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation);
+
+    /**
+     * Returns the decisions for where shards should reside in the cluster.  If a shard is unassigned,
+     * then its {@link AllocateUnassignedDecision} will be non-null.  If a shard is not in the unassigned
+     * state, then the {@link MoveDecision} will be non-null.
+     *
+     * If an implementation of this interface does not support explaining decisions for a single shard through
+     * the cluster explain API, then this method should throw a {@code UnsupportedOperationException}.
+     */
+    Map<ShardRouting, ShardAllocationDecision> explainShardsAllocations(Set<ShardRouting> shards, RoutingAllocation allocation);
 }

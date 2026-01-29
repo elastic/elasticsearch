@@ -1,7 +1,7 @@
 
 ```yaml {applies_to}
 serverless: ga
-stack: preview 9.2.0, ga 9.4.0
+stack: preview 9.2-9.3, ga 9.4.0+
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score

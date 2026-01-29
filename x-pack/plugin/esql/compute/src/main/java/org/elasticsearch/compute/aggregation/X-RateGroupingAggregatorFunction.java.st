@@ -533,6 +533,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
                 continue;
             }
+            // OVERLAP PATH - increment counter for diagnostics
+            state.overlapCount++;
             var val = values.get(top.next());
             if (val > prevValue) {
                 state.resets += val;
@@ -649,6 +651,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         long samples;
         double resets;
         Interval[] intervals = EMPTY_INTERVALS;
+        long overlapCount;  // Track overlapping segment encounters for diagnostics
 
         void appendInterval(Interval interval) {
             int currentSize = intervals.length;
@@ -679,6 +682,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         if (state.samples < 2) {
             return Double.NaN;
         }
+        // HACK: Return negative overlap count for diagnostics
+        // Negative rate values are normally impossible since counter deltas are non-negative
+        if (state.overlapCount > 0) {
+            return -state.overlapCount;
+        }
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
@@ -701,6 +709,11 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         boolean isRateOverTime,
         double dateFactor
     ) {
+        // HACK: Return negative overlap count for diagnostics
+        // Negative rate values are normally impossible since counter deltas are non-negative
+        if (state.overlapCount > 0) {
+            return -state.overlapCount;
+        }
         final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
         final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
         final double firstValue;

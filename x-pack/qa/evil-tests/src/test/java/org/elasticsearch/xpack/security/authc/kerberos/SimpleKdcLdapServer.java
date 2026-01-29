@@ -55,7 +55,7 @@ public class SimpleKdcLdapServer {
     // KDC properties
     private String transport = ESTestCase.randomFrom("TCP", "UDP");
     private int kdcPort = 0;
-    private String host;
+    private String host = InetAddress.getLoopbackAddress().getHostAddress();
     private String realm;
     private boolean krb5DebugBackupConfigValue;
 
@@ -144,7 +144,9 @@ public class SimpleKdcLdapServer {
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
             + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
-            + "host=127.0.0.1\n"
+            + "host="
+            + InetAddress.getLoopbackAddress().getHostAddress()
+            + "\n"
             + "port="
             + ldapPort
             + "\n"
@@ -267,16 +269,14 @@ public class SimpleKdcLdapServer {
 
     private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
-            try (
-                ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
-            ) {
+            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getLoopbackAddress())) {
                 serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {
                 throw new RuntimeException("Failed to get a TCP server socket point");
             }
         } else if (transport != null && transport.trim().equalsIgnoreCase("UDP")) {
-            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getByName("127.0.0.1"))) {
+            try (DatagramSocket socket = new DatagramSocket(0, InetAddress.getLoopbackAddress())) {
                 socket.setReuseAddress(true);
                 return socket.getLocalPort();
             } catch (Exception ex) {

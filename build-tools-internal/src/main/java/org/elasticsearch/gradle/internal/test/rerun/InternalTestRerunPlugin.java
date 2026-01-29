@@ -17,7 +17,6 @@ import org.elasticsearch.gradle.internal.test.rerun.model.TestCase;
 import org.elasticsearch.gradle.internal.test.rerun.model.WorkUnit;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.configuration.BuildFeatures;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -31,8 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import javax.inject.Inject;
 
 /**
  * Gradle plugin that implements smart test retries by filtering test execution based on
@@ -59,9 +56,6 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
      * This prevents potential DoS from malformed or malicious files.
      */
     private static final long MAX_JSON_FILE_SIZE = 10 * 1024 * 1024;
-
-    @Inject
-    protected abstract BuildFeatures getBuildFeatures();
 
     @Override
     public void apply(Project project) {

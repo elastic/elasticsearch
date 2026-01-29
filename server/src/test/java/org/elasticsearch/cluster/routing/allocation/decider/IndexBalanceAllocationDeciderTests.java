@@ -372,24 +372,26 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
     public void testCanRemainReturnsYesWhenIndexRoutingFiltersArePresent() {
         setup(Settings.EMPTY, this::addRandomIndexRoutingFilters);
 
-        final var currentIndexingNode = indexTier.stream()
-            .filter(rn -> rn.nodeId().equals(indexTierShardRouting.currentNodeId()))
-            .findFirst()
-            .orElseThrow();
         assertDecisionMatches(
             "Having index routing filters disables this decider",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, indexTierShardRouting, currentIndexingNode, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(indexNodeOne),
+                routingIndexNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Decider is disabled for index level allocation filters."
         );
 
-        final var currentSearchNode = searchTier.stream()
-            .filter(rn -> rn.nodeId().equals(searchTierShardRouting.currentNodeId()))
-            .findFirst()
-            .orElseThrow();
         assertDecisionMatches(
             "Having index routing filters disables this decider",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, searchTierShardRouting, currentSearchNode, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(searchNodeOne),
+                routingSearchNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Decider is disabled for index level allocation filters."
         );
@@ -402,24 +404,26 @@ public class IndexBalanceAllocationDeciderTests extends ESAllocationTestCase {
         }
         setup(clusterSettings, () -> Settings.EMPTY);
 
-        final var currentIndexingNode = indexTier.stream()
-            .filter(rn -> rn.nodeId().equals(indexTierShardRouting.currentNodeId()))
-            .findFirst()
-            .orElseThrow();
         assertDecisionMatches(
             "Having cluster routing filters disables this decider",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, indexTierShardRouting, currentIndexingNode, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(indexNodeOne),
+                routingIndexNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Decider is disabled."
         );
 
-        final var currentSearchNode = searchTier.stream()
-            .filter(rn -> rn.nodeId().equals(searchTierShardRouting.currentNodeId()))
-            .findFirst()
-            .orElseThrow();
         assertDecisionMatches(
             "Having cluster routing filters disables this decider",
-            indexBalanceAllocationDecider.canRemain(indexMetadata, searchTierShardRouting, currentSearchNode, routingAllocation),
+            indexBalanceAllocationDecider.canRemain(
+                indexMetadata,
+                getRandomShardRouting(searchNodeOne),
+                routingSearchNodeOne,
+                routingAllocation
+            ),
             Decision.Type.YES,
             "Decider is disabled."
         );

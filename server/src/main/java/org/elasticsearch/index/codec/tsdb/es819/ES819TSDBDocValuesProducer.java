@@ -820,6 +820,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     int doc = docs.get(i);
                     boolean advance = advanceExact(doc);
                     assert advance;
+                    // TODO: look into bulk appending lengths to builder if docs is dense
                     builder.appendInt(getLength());
                 }
                 return builder.build();

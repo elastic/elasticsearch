@@ -88,15 +88,13 @@ import java.util.List;
  *           └── EsRelation(*, mode=TIME_SERIES)
  * </pre>
  */
-public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.ParameterizedOptimizerRule<
-    PromqlCommand,
-    LogicalOptimizerContext> {
+public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
     public static final String STEP_COLUMN_NAME = "step";
 
-    public TranslatePromqlToTimeSeriesAggregate() {
+    public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
@@ -131,8 +129,10 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         } else {
             // Nested aggregations: wrap innermost to TimeSeriesAggregate then each outer in Aggregate node
             AcrossSeriesAggregate innermost = aggregateChain.getLast();
+            // TimeSeriesAggregate[expression]
             Expression innerValue = mapNode(promqlCommand, innermost.child(), labelFilterConditions, context, stepAttr);
             plan = addLabelFilters(promqlCommand, labelFilterConditions, plan);
+            // Function call
             Expression aggExpr = mapAggregateExpression(innermost, innerValue, stepAttr, promqlCommand);
             aggregatePlan = createEsqlTimeSeriesAggregate(promqlCommand, plan, stepBucketAlias, innermost.groupings(), aggExpr);
 
@@ -205,7 +205,7 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
      * PromQL: sum by (cluster) (rate(http_requests[5m]))
      *
      * Translated to:
-     *   TimeSeriesAggregate(groupBy=[step, cluster, _tsid], aggs=[sum(rate(value)), step, cluster])
+     *   TimeSeriesAggregate(groupBy=[step, cluster], aggs=[sum(rate(value)), step, cluster])
      *     └── child plan
      * </pre>
      */

@@ -17,6 +17,8 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 
 import java.io.IOException;
@@ -27,9 +29,10 @@ import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTok
 import static org.hamcrest.Matchers.containsString;
 
 public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("noop");
 
     public void testLenientParser() throws IOException, ParseException {
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             &,and
             come,advance,approach
@@ -46,7 +49,7 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
     public void testLenientParserWithSomeIncorrectLines() throws IOException, ParseException {
         CharArraySet stopSet = new CharArraySet(1, true);
         stopSet.add("bar");
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(stopSet));
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, true, new StandardAnalyzer(stopSet), NOOP_CIRCUIT_BREAKER);
         String rules = "foo,bar,baz";
         StringReader rulesReader = new StringReader(rules);
         parser.parse(rulesReader);
@@ -58,7 +61,7 @@ public class ESSolrSynonymParserTests extends ESTokenStreamTestCase {
     }
 
     public void testNonLenientParser() {
-        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer());
+        ESSolrSynonymParser parser = new ESSolrSynonymParser(true, false, false, new StandardAnalyzer(), NOOP_CIRCUIT_BREAKER);
         String rules = """
             &,and=>and
             come,advance,approach

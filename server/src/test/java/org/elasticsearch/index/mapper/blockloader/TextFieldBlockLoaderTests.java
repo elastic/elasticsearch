@@ -17,10 +17,7 @@ import org.elasticsearch.datageneration.FieldType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -179,21 +176,14 @@ public class TextFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    protected MapperService createMapperServiceForParams(XContentBuilder mappings) throws IOException {
+    protected Settings.Builder getSettingsForParams() {
+        var builder = Settings.builder();
         if (params.syntheticSource()) {
+            builder.put("index.mapping.source.mode", "synthetic");
             if (useBinaryDocValues) {
-                // enable time series doc values format whenever binary doc values are to be used. TextFieldMapper will switch to using
-                // binary doc values when this format is enabled
-                Settings settings = Settings.builder()
-                    .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true)
-                    .put("index.mapping.source.mode", "synthetic")
-                    .build();
-                return createMapperService(settings, mappings);
-            } else {
-                return createSytheticSourceMapperService(mappings);
+                builder.put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true);
             }
-        } else {
-            return createMapperService(mappings);
         }
+        return builder;
     }
 }

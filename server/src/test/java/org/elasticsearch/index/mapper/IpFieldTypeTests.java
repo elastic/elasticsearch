@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToDocValuesQuery;
+import static org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.convertToIndexOrDocValuesQuery;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
@@ -52,49 +53,28 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ftIndexAndDocValues = new IpFieldMapper.IpFieldType("field", true, true);
+        MappedFieldType ftOnlyIndex = new IpFieldMapper.IpFieldType("field", true, false);
+        MappedFieldType ftOnlyDocValues = new IpFieldMapper.IpFieldType("field", false, true);
 
         String ip = "2001:db8::2:1";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
+        Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
 
         ip = "192.168.1.7";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, MOCK_CONTEXT));
+        query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(ip, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(ip, MOCK_CONTEXT));
 
         ip = "2001:db8::2:1";
         String prefix = ip + "/64";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, MOCK_CONTEXT));
-
-        ip = "192.168.1.7";
-        prefix = ip + "/16";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, MOCK_CONTEXT));
-
-        ft = new IpFieldMapper.IpFieldType("field", false);
-
-        ip = "2001:db8::2:1";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
-            ft.termQuery(ip, MOCK_CONTEXT)
-        );
-
-        ip = "192.168.1.7";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip))),
-            ft.termQuery(ip, MOCK_CONTEXT)
-        );
-
-        ip = "2001:db8::2:1";
-        prefix = ip + "/64";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64)),
-            ft.termQuery(prefix, MOCK_CONTEXT)
-        );
-
-        ip = "192.168.1.7";
-        prefix = ip + "/16";
-        assertEquals(
-            convertToDocValuesQuery(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16)),
-            ft.termQuery(prefix, MOCK_CONTEXT)
-        );
+        query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
+        assertEquals(convertToIndexOrDocValuesQuery(query), ftIndexAndDocValues.termQuery(prefix, MOCK_CONTEXT));
+        assertEquals(query, ftOnlyIndex.termQuery(prefix, MOCK_CONTEXT));
+        assertEquals(convertToDocValuesQuery(query), ftOnlyDocValues.termQuery(prefix, MOCK_CONTEXT));
 
         MappedFieldType unsearchable = new IpFieldMapper.IpFieldType(
             "field",

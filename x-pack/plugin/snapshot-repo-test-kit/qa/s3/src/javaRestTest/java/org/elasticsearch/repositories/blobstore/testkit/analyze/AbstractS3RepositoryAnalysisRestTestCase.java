@@ -126,8 +126,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
 
         if (consistencyModel().hasConditionalWrites()) {
             if (randomBoolean()) {
-                // false is the default, but sometimes set it explicitly here:
-                settings.put("unsafely_incompatible_with_s3_conditional_writes", false);
+                // even if we have conditional writes (and thus weak MPU abort consistency) the MPU-based impl should still work
+                settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
             }
         } else {
             // if the storage doesn't support conditional writes we have to use the MPU-based impl

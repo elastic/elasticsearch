@@ -368,16 +368,11 @@ setField
     : identifier ASSIGN ( constant | mapExpression )
     ;
 
-mmrCommand
-    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
-    ;
-
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
     ;
 
-mmrOptionalQueryVector
-    : (mmrQueryVectorParams ON)?
+mmrCommand
+    : DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
-

@@ -29,8 +29,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.OVERSAMPLE_LIMIT;
-
 /**
  * A query that matches the provided docs with their scores. This query is used
  * when executing a kNN search during the search query phase, to include the documents
@@ -185,7 +183,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
             int localK = k == null ? scoreDocs.length : k;
             var similarityFunction = fieldType.getSimilarity()
                 .vectorSimilarityFunction(context.indexVersionCreated(), DenseVectorFieldMapper.ElementType.FLOAT);
-            var rescoreK = Math.min((int) Math.ceil(localK * oversample), OVERSAMPLE_LIMIT);
+            var rescoreK = scoreDocs.length;
             return RescoreKnnVectorQuery.fromInnerQuery(
                 fieldName,
                 queryVector.asFloatVector(),

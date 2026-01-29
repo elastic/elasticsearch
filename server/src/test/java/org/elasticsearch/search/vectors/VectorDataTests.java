@@ -35,7 +35,10 @@ public class VectorDataTests extends ESTestCase {
 
     public void testThrowsIfBothVectorsAreNull() {
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new VectorData(null, null, null));
-        assertThat(ex.getMessage(), containsString("please supply exactly one of a float vector, byte vector, or base64 vector"));
+        assertThat(
+            ex.getMessage(),
+            containsString("please supply exactly one of a float vector, byte vector, or encoded (hex/base64) vector")
+        );
     }
 
     public void testThrowsIfBothVectorsAreNonNull() {
@@ -43,7 +46,10 @@ public class VectorDataTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new VectorData(new float[] { 0f }, new byte[] { 1 }, null)
         );
-        assertThat(ex.getMessage(), containsString("please supply exactly one of a float vector, byte vector, or base64 vector"));
+        assertThat(
+            ex.getMessage(),
+            containsString("please supply exactly one of a float vector, byte vector, or encoded (hex/base64) vector")
+        );
     }
 
     public void testShouldCorrectlyConvertByteToFloatIfExplicitlyRequested() {

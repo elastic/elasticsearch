@@ -494,9 +494,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             QueryBuilder exactKnnQuery = new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity);
-            if (queryVector == null) {
-                throw new IllegalStateException("missing a rewriteAndFetch?");
-            }
             if (filterQueries.isEmpty()) {
                 return exactKnnQuery;
             } else {

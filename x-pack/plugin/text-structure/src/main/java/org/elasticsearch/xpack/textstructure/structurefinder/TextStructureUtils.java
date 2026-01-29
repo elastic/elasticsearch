@@ -357,7 +357,10 @@ public final class TextStructureUtils {
         Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
 
         for (String fieldName : uniqueFieldNames) {
-            List<Object> fieldValues = flattenedRecords.stream().map(record -> record.get(fieldName)).collect(Collectors.toList());
+            List<Object> fieldValues = flattenedRecords.stream()
+                .map(record -> record.get(fieldName))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
                 explanation,

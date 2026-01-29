@@ -177,6 +177,7 @@ public class ComputeService {
             projectResolver,
             searchService,
             transportService,
+            transportActionServices.client(),
             exchangeService,
             esqlExecutor
         );

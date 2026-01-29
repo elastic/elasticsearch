@@ -122,6 +122,49 @@ public class AnalysisLimitsTests extends AbstractXContentSerializingTestCase<Ana
         assertThat(limits.getModelMemoryLimit(), equalTo(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
     }
 
+    public void testMergeWithUpdatesGivenNullAnalysisLimits() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(10L, 20L);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(null);
+        assertEquals(analysisLimits, updatedLimits);
+    }
+
+    public void testMergeWithUpdatesGivenNullUpdateValues() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(10L, 20L);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(new AnalysisLimits(null, null));
+        assertEquals(analysisLimits, updatedLimits);
+    }
+
+    public void testMergeWithUpdatesGivenNullUpdateValuesAndNullOriginalValues() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(null, null);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(new AnalysisLimits(null, null));
+        assertEquals(analysisLimits, updatedLimits);
+    }
+
+    public void testMergeWithUpdatesGivenOnlyModelMemoryLimitUpdateValue() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(10L, 20L);
+        AnalysisLimits expectedUpdatedLimits = new AnalysisLimits(11L, 20L);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(
+            new AnalysisLimits(expectedUpdatedLimits.getModelMemoryLimit(), null)
+        );
+        assertEquals(expectedUpdatedLimits, updatedLimits);
+    }
+
+    public void testMergeWithUpdatesGivenOnlyCategorizationExamplesLimitUpdateValue() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(10L, 20L);
+        AnalysisLimits expectedUpdatedLimits = new AnalysisLimits(10L, 21L);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(
+            new AnalysisLimits(null, expectedUpdatedLimits.getCategorizationExamplesLimit())
+        );
+        assertEquals(expectedUpdatedLimits, updatedLimits);
+    }
+
+    public void testMergeWithUpdatesGivenAllUpdateValues() {
+        AnalysisLimits analysisLimits = new AnalysisLimits(10L, 20L);
+        AnalysisLimits expectedUpdatedLimits = new AnalysisLimits(11L, 21L);
+        AnalysisLimits updatedLimits = analysisLimits.mergeWithUpdates(expectedUpdatedLimits);
+        assertEquals(expectedUpdatedLimits, updatedLimits);
+    }
+
     public void testEquals_GivenEqual() {
         AnalysisLimits analysisLimits1 = new AnalysisLimits(10L, 20L);
         AnalysisLimits analysisLimits2 = new AnalysisLimits(10L, 20L);

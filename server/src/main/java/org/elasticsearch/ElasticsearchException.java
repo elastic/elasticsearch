@@ -79,6 +79,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter.NO_MATCHING_PROJECT_EXCEPTION_VERSION;
@@ -2047,7 +2048,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             IndexLimitExceededException.class,
             IndexLimitExceededException::new,
             186,
-            TransportVersion.minimumCompatible()
+            INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

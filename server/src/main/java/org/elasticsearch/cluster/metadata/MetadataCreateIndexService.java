@@ -126,6 +126,7 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
  * Service responsible for submitting create index requests
  */
 public class MetadataCreateIndexService {
+    public static TransportVersion INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION = TransportVersion.fromName("index_limit_exceeded_exception");
 
     // Deliberately not registered so it can only be set in tests/plugins.
     public static final Setting<Priority> CREATE_INDEX_PRIORITY_SETTING = Setting.enumSetting(

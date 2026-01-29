@@ -102,4 +102,10 @@ public interface VectorSimilarityFunctions {
     }
 
     MethodHandle getHandle(Function function, DataType dataType, Operation operation);
+
+    MethodHandle scoreEuclideanBulk();
+
+    MethodHandle scoreMaxInnerProductBulk();
+
+    MethodHandle scoreDotProductBulk();
 }

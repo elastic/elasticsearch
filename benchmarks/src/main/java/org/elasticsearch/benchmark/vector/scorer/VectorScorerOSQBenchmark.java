@@ -78,6 +78,9 @@ public class VectorScorerOSQBenchmark {
     @Param
     public DirectoryType directoryType;
 
+    @Param
+    public VectorSimilarityFunction similarityFunction;
+
     public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
     int numQueries = 10;
 
@@ -221,7 +224,7 @@ public class VectorScorerOSQBenchmark {
                     result.upperInterval(),
                     result.quantizedComponentSum(),
                     result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    similarityFunction,
                     centroidDp,
                     scratchScores
                 );

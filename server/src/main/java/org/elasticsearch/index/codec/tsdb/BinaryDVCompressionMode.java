@@ -46,18 +46,23 @@ public enum BinaryDVCompressionMode {
         return compressionMode;
     }
 
-    public record BlockHeader(boolean isCompressed) {
+    public record BlockHeader(boolean isCompressed, boolean allSameLength) {
         static final byte IS_COMPRESSED = 0x1;
+        static final byte ALL_SAME_LENGTH = 0x2;
 
         public static BlockHeader fromByte(byte header) {
             boolean isCompressed = (header & IS_COMPRESSED) != 0;
-            return new BlockHeader(isCompressed);
+            boolean allSameLength = (header & ALL_SAME_LENGTH) != 0;
+            return new BlockHeader(isCompressed, allSameLength);
         }
 
         public byte toByte() {
             byte header = 0;
             if (isCompressed) {
                 header |= IS_COMPRESSED;
+            }
+            if (allSameLength) {
+                header |= ALL_SAME_LENGTH;
             }
             return header;
         }

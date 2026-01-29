@@ -1,0 +1,6 @@
+pr: 140325
+summary: Binary doc value compression only needs to serialize length once if all lengths
+  are equal
+area: Codec
+type: enhancement
+issues: []

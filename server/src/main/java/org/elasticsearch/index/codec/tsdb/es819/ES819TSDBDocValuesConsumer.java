@@ -531,7 +531,9 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
 
-        final int[] docOffsets = new int[BLOCK_COUNT_THRESHOLD + 1]; // start for each doc plus start of doc that would be after last
+        // This was originally an offset array with n+1 values which was delta encoded during serialization. It is easier to just
+        // store the deltas/lengths directly, but for bwc we still have n+1 values with the first always being an offset of 0.
+        final int[] docLengths = new int[BLOCK_COUNT_THRESHOLD + 1];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -556,7 +558,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             uncompressedBlockLength += v.length;
 
             numDocsInCurrentBlock++;
-            docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
+            docLengths[numDocsInCurrentBlock] = v.length;
 
             if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
                 flushData();
@@ -575,7 +577,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             // Data can be compressed or uncompressed on a per-block granularity, though is currently always compressed.
             // In the future will leave data uncompressed if compression does not reduce storage.
             final boolean shouldCompress = enablePerBlockCompression;
-            var header = new BinaryDVCompressionMode.BlockHeader(shouldCompress);
+            final boolean allValuesSameLength = areAllValuesAreSameLength();
+            var header = new BinaryDVCompressionMode.BlockHeader(shouldCompress, allValuesSameLength);
             data.writeByte(header.toByte());
 
             // write length of string data
@@ -584,7 +587,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
             maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
 
-            compressOffsets(data, numDocsInCurrentBlock);
+            if (allValuesSameLength) {
+                data.writeVInt(docLengths[1]);
+            } else {
+                compressOffsets(data, numDocsInCurrentBlock);
+            }
 
             if (shouldCompress) {
                 compress(block, uncompressedBlockLength, data);
@@ -597,13 +604,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             numDocsInCurrentBlock = uncompressedBlockLength = 0;
         }
 
+        boolean areAllValuesAreSameLength() {
+            // Element at index 0 is always an offset of 0, so only check that [1, n-1] are equal
+            for (int i = 1; i < numDocsInCurrentBlock; i++) {
+                if (docLengths[i] != docLengths[i + 1]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
             int numOffsets = numDocsInCurrentBlock + 1;
-            // delta encode
-            for (int i = numOffsets - 1; i > 0; i--) {
-                docOffsets[i] -= docOffsets[i - 1];
-            }
-            output.writeGroupVInts(docOffsets, numOffsets);
+            output.writeGroupVInts(docLengths, numOffsets);
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

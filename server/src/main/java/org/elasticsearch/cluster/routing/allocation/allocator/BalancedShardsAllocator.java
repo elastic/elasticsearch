@@ -692,7 +692,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             }
                             if (logger.isTraceEnabled()) {
                                 logger.trace(
-                                    "Stop balancing index [{}]  min_node [{}] weight: [{}] max_node [{}] weight: [{}] delta: [{}]",
+                                    "Stop balancing index [{}] max_node [{}] weight: [{}] min_node [{}] weight: [{}] delta: [{}]",
                                     index,
                                     maxNode.getNodeId(),
                                     weights[highIdx],
@@ -903,9 +903,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (moveDecision.isDecisionTaken() && moveDecision.cannotRemainAndCanMove()) {
                     if (notPreferredLogger.isDebugEnabled()) {
                         notPreferredLogger.debug(
-                            "Moving shard [{}] to [{}] from a NOT_PREFERRED allocation: {}",
+                            "Moving shard [{}] from [{}] to [{}]; current assignment is NOT_PREFERRED: {}",
                             shardRouting,
-                            moveDecision.getTargetNode().getName(),
+                            getNodeDescription(shardRouting.currentNodeId()),
+                            getNodeDescription(moveDecision.getTargetNode()),
                             moveDecision.getCanRemainDecision()
                         );
                     }
@@ -1659,6 +1660,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 () -> logger.error("Weight function returned invalid weight node={}, index={}, weight={}", modelNode, index, weight)
             );
             assert enableInvalidWeightsAssertion == false : "Weight function is returning invalid weights";
+        }
+
+        /**
+         * Return {nodeId}/{nodeName} for nodes still in the cluster, or just {nodeId} for nodes that have left
+         *
+         * @param nodeId The ID of the node
+         */
+        private String getNodeDescription(String nodeId) {
+            DiscoveryNode discoveryNode = allocation.getClusterState().nodes().get(nodeId);
+            return discoveryNode != null ? getNodeDescription(discoveryNode) : nodeId;
+        }
+
+        private String getNodeDescription(DiscoveryNode node) {
+            return node.getId() + "/" + node.getName();
         }
     }
 

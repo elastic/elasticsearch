@@ -59,7 +59,7 @@ public class MappingLookupTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, indexMode);
     }
 
     public void testOnlyRuntimeField() {

@@ -96,19 +96,19 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().newFloatBlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newFloatVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 if (group < values.size()) {
-                    valuesBuilder.appendFloat(values.get(group));
+                    valuesBuilder.appendFloat(i, values.get(group));
                 } else {
-                    valuesBuilder.appendFloat(0); // TODO can we just use null?
+                    valuesBuilder.appendFloat(i, 0); // TODO can we just use null?
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }

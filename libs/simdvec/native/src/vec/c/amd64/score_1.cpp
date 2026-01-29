@@ -31,11 +31,11 @@ static inline __m256 score_inner(
     const f32_t ay,
     const f32_t ly,
     const f32_t y1,
-    const f32_t dimensions
+    const f32_t dimensions,
+    const f32_t indexBitScale
 ) {
     __m256 ax = _mm256_loadu_ps(lowerInterval);
-    // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    __m256 lx = _mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax);
+    __m256 lx = _mm256_mul_ps(_mm256_sub_ps(_mm256_loadu_ps(upperInterval), ax), _mm256_set1_ps(indexBitScale));
     __m256 tcs = _mm256_cvtepi32_ps(
         _mm256_cvtepi16_epi32(
             _mm_lddqu_si128((const __m128i*)(targetComponentSum))
@@ -65,6 +65,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -88,7 +89,8 @@ EXPORT f32_t bbq_score_euclidean_bulk(
             ay,
             ly,
             y1,
-            dimensions
+            dimensions,
+            indexBitScale
         );
 
         // For euclidean, we need to invert the score and apply the additional correction, which is
@@ -110,6 +112,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),
@@ -133,6 +136,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -155,7 +159,8 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
             ay,
             ly,
             y1,
-            dimensions
+            dimensions,
+            indexBitScale
         );
 
         // For max inner product, we need to apply the additional correction, which is
@@ -185,6 +190,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),
@@ -208,6 +214,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -230,7 +237,8 @@ EXPORT f32_t bbq_score_dot_product_bulk(
             ay,
             ly,
             y1,
-            dimensions
+            dimensions,
+            indexBitScale
         );
 
         __m256 additionalCorrection = _mm256_loadu_ps(c.additionalCorrections + i);
@@ -258,6 +266,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),

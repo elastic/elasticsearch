@@ -39,11 +39,11 @@ static inline __m512 score_inner(
     const f32_t ay,
     const f32_t ly,
     const f32_t y1,
-    const f32_t dimensions
+    const f32_t dimensions,
+    const f32_t indexBitScale
 ) {
     __m512 ax = _mm512_loadu_ps(lowerInterval);
-    // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    __m512 lx = _mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax);
+    __m512 lx = _mm512_mul_ps(_mm512_sub_ps(_mm512_loadu_ps(upperInterval), ax), _mm512_set1_ps(indexBitScale));
     __m512 tcs = _mm512_cvtepi32_ps(
         _mm512_cvtepi16_epi32(
             _mm256_lddqu_si256((const __m256i*)(targetComponentSum))
@@ -73,6 +73,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -96,7 +97,8 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
             ay,
             ly,
             y1,
-            dimensions
+            dimensions,
+            indexBitScale
         );
 
         // For max inner product, we need to apply the additional correction, which is
@@ -126,6 +128,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk_2(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),

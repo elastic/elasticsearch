@@ -35,6 +35,7 @@ class ScoreAdjustments {
         int queryComponentSum,
         float queryAdditionalCorrection,
         float queryBitScale,
+        float indexBitScale,
         float centroidDp,
         MemorySegment scores
     ) {
@@ -49,6 +50,7 @@ class ScoreAdjustments {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );
@@ -61,6 +63,7 @@ class ScoreAdjustments {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );
@@ -73,6 +76,7 @@ class ScoreAdjustments {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );

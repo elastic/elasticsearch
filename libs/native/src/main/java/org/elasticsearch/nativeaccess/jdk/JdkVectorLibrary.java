@@ -155,6 +155,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     JAVA_INT, // queryComponentSum,
                     JAVA_FLOAT, // queryAdditionalCorrection,
                     JAVA_FLOAT, // queryBitScale,
+                    JAVA_FLOAT, // indexBitScale,
                     JAVA_FLOAT, // centroidDp,
                     ADDRESS // scores
                 );
@@ -387,6 +388,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int queryComponentSum,
             float queryAdditionalCorrection,
             float queryBitScale,
+            float indexBitScale,
             float centroidDp,
             MemorySegment scores
         ) {
@@ -400,6 +402,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );
@@ -417,6 +420,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int queryComponentSum,
             float queryAdditionalCorrection,
             float queryBitScale,
+            float indexBitScale,
             float centroidDp,
             MemorySegment scores
         ) {
@@ -430,6 +434,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );
@@ -447,6 +452,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
             int queryComponentSum,
             float queryAdditionalCorrection,
             float queryBitScale,
+            float indexBitScale,
             float centroidDp,
             MemorySegment scores
         ) {
@@ -460,6 +466,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     queryComponentSum,
                     queryAdditionalCorrection,
                     queryBitScale,
+                    indexBitScale,
                     centroidDp,
                     scores
                 );
@@ -638,6 +645,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                     float.class,
                     float.class,
                     int.class,
+                    float.class,
                     float.class,
                     float.class,
                     float.class,

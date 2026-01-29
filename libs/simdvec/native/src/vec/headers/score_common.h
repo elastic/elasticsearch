@@ -27,6 +27,7 @@ static inline f32_t score_euclidean_inner(
     int32_t queryComponentSum,
     f32_t queryAdditionalCorrection,
     f32_t queryBitScale,
+    f32_t indexBitScale,
     f32_t centroidDp,
     f32_t lowerInterval,
     f32_t upperInterval,
@@ -35,8 +36,7 @@ static inline f32_t score_euclidean_inner(
     f32_t qcDist
 ) {
     float ax = lowerInterval;
-    // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    float lx = (upperInterval - ax);
+    float lx = (upperInterval - ax) * indexBitScale;
     float ay = queryLowerInterval;
     float ly = (queryUpperInterval - ay) * queryBitScale;
     float y1 = queryComponentSum;
@@ -54,6 +54,7 @@ static inline f32_t score_maximum_inner_product_inner(
     int32_t queryComponentSum,
     f32_t queryAdditionalCorrection,
     f32_t queryBitScale,
+    f32_t indexBitScale,
     f32_t centroidDp,
     f32_t lowerInterval,
     f32_t upperInterval,
@@ -62,8 +63,7 @@ static inline f32_t score_maximum_inner_product_inner(
     f32_t qcDist
 ) {
     float ax = lowerInterval;
-    // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    float lx = (upperInterval - ax);
+    float lx = (upperInterval - ax) * indexBitScale;
     float ay = queryLowerInterval;
     float ly = (queryUpperInterval - ay) * queryBitScale;
     float y1 = queryComponentSum;
@@ -86,6 +86,7 @@ static inline f32_t score_dot_product_inner(
     int32_t queryComponentSum,
     f32_t queryAdditionalCorrection,
     f32_t queryBitScale,
+    f32_t indexBitScale,
     f32_t centroidDp,
     f32_t lowerInterval,
     f32_t upperInterval,
@@ -94,8 +95,7 @@ static inline f32_t score_dot_product_inner(
     f32_t qcDist
 ) {
     f32_t ax = lowerInterval;
-    // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-    f32_t lx = (upperInterval - ax);
+    f32_t lx = (upperInterval - ax) * indexBitScale;
     f32_t ay = queryLowerInterval;
     f32_t ly = (queryUpperInterval - ay) * queryBitScale;
     f32_t y1 = queryComponentSum;

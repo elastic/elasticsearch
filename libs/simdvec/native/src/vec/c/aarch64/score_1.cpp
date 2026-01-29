@@ -26,6 +26,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -42,6 +43,7 @@ EXPORT f32_t bbq_score_euclidean_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),
@@ -65,6 +67,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -81,6 +84,7 @@ EXPORT f32_t bbq_score_maximum_inner_product_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),
@@ -104,6 +108,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
         int32_t queryComponentSum,
         f32_t queryAdditionalCorrection,
         f32_t queryBitScale,
+        f32_t indexBitScale,
         f32_t centroidDp,
         f32_t* scores
 ) {
@@ -120,6 +125,7 @@ EXPORT f32_t bbq_score_dot_product_bulk(
             queryComponentSum,
             queryAdditionalCorrection,
             queryBitScale,
+            indexBitScale,
             centroidDp,
             *(c.lowerIntervals + i),
             *(c.upperIntervals + i),

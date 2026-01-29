@@ -218,7 +218,19 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         // 128 / 8 == 16
         if (length >= 16) {
             if (NATIVE_SUPPORTED) {
-                nativeQuantizeScoreBulk(q, count, scores);
+                if (SUPPORTS_HEAP_SEGMENTS) {
+                    var querySegment = MemorySegment.ofArray(q);
+                    var scoresSegment = MemorySegment.ofArray(scores);
+                    nativeQuantizeScoreBulk(querySegment, count, scoresSegment);
+                } else {
+                    try (var arena = Arena.ofConfined()) {
+                        var querySegment = arena.allocate(q.length, 32);
+                        var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
+                        MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
+                        nativeQuantizeScoreBulk(querySegment, count, scoresSegment);
+                        MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
+                    }
+                }
             } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, count, scores);
@@ -232,24 +244,13 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return false;
     }
 
-    private void nativeQuantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
+    private void nativeQuantizeScoreBulk(MemorySegment querySegment, int count, MemorySegment scoresSegment) throws IOException {
         long initialOffset = in.getFilePointer();
         var datasetLengthInBytes = (long) length * count;
         MemorySegment datasetSegment = memorySegment.asSlice(initialOffset, datasetLengthInBytes);
 
-        if (SUPPORTS_HEAP_SEGMENTS) {
-            var queryMemorySegment = MemorySegment.ofArray(q);
-            var scoresSegment = MemorySegment.ofArray(scores);
-            dotProductI1I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
-        } else {
-            try (var arena = Arena.ofConfined()) {
-                var queryMemorySegment = arena.allocate(q.length, 32);
-                var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
-                MemorySegment.copy(q, 0, queryMemorySegment, ValueLayout.JAVA_BYTE, 0, q.length);
-                dotProductI1I4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
-                MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
-            }
-        }
+        dotProductI1I4Bulk(datasetSegment, querySegment, length, count, scoresSegment);
+
         in.skipBytes(datasetLengthInBytes);
     }
 
@@ -404,17 +405,39 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         // 128 / 8 == 16
         if (length >= 16) {
             if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
-                if (NATIVE_SUPPORTED && SUPPORTS_HEAP_SEGMENTS) {
-                    nativeQuantizeScoreBulk(q, bulkSize, scores);
-                    return nativeScoreBulk(
-                        queryLowerInterval,
-                        queryUpperInterval,
-                        queryComponentSum,
-                        queryAdditionalCorrection,
-                        similarityFunction,
-                        centroidDp,
-                        scores
-                    );
+                if (NATIVE_SUPPORTED) {
+                    if (SUPPORTS_HEAP_SEGMENTS) {
+                        var querySegment = MemorySegment.ofArray(q);
+                        var scoresSegment = MemorySegment.ofArray(scores);
+                        nativeQuantizeScoreBulk(querySegment, bulkSize, scoresSegment);
+                        return nativeScoreBulk(
+                            queryLowerInterval,
+                            queryUpperInterval,
+                            queryComponentSum,
+                            queryAdditionalCorrection,
+                            similarityFunction,
+                            centroidDp,
+                            scoresSegment
+                        );
+                    } else {
+                        try (var arena = Arena.ofConfined()) {
+                            var querySegment = arena.allocate(q.length, 32);
+                            var scoresSegment = arena.allocate((long) scores.length * Float.BYTES, 32);
+                            MemorySegment.copy(q, 0, querySegment, ValueLayout.JAVA_BYTE, 0, q.length);
+                            nativeQuantizeScoreBulk(querySegment, bulkSize, scoresSegment);
+                            var maxScore = nativeScoreBulk(
+                                queryLowerInterval,
+                                queryUpperInterval,
+                                queryComponentSum,
+                                queryAdditionalCorrection,
+                                similarityFunction,
+                                centroidDp,
+                                scoresSegment
+                            );
+                            MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
+                            return maxScore;
+                        }
+                    }
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, bulkSize, scores);
                     return score256Bulk(
@@ -596,7 +619,7 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        MemorySegment scoresSegment
     ) throws IOException {
         long offset = in.getFilePointer();
 
@@ -610,8 +633,9 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
             queryComponentSum,
             queryAdditionalCorrection,
             FOUR_BIT_SCALE,
+            ONE_BIT_SCALE,
             centroidDp,
-            MemorySegment.ofArray(scores)
+            scoresSegment
         );
         in.seek(offset + 14L * bulkSize);
         return maxScore;

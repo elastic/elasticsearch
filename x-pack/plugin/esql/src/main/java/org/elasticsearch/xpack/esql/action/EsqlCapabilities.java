@@ -2003,6 +2003,11 @@ public class EsqlCapabilities {
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
 
         /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
+
+        /**
          * Supports a group of commands that result in a compound (multi-column) output as a result if a single evaluation operation (e.g.
          * {@code URI_PARTS}).
          */

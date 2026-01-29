@@ -875,17 +875,16 @@ public class LocalExecutionPlanner {
         );
         if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
             // Add scorer operator to add the filter expression scores to the overall scores
-            int scoreBlock = 0;
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.SCORE.equals(attribute.name())) {
-                    break;
-                }
-                scoreBlock++;
-            }
-            if (scoreBlock == filter.output().size()) {
-                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
-            }
+            Attribute scoreAttribute = null;
 
+            for (Attribute attribute : filter.output()) {
+                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                    scoreAttribute = attribute;
+                }
+            }
+            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
                 new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
                 filterOperation.layout

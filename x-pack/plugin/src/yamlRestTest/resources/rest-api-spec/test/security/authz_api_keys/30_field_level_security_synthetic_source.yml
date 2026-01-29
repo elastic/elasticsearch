@@ -624,3 +624,135 @@ Field with ignored_malformed:
   - is_false: "hits.hits.0._source.secret"
   - match: { hits.hits.1._source.name: B }
   - is_false: "hits.hits.1._source.secret"
+
+---
+Fields with copy_to, field level security and synthetic source:
+  - do:
+      indices.create:
+        index: test-fls-copy-to-synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              user:
+                type: keyword
+                copy_to: catch_all
+              domain:
+                type: keyword
+                copy_to: catch_all
+              catch_all:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-fls-copy-to-synthetic
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"user": "darth.vader", "domain": "empire.gov"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "test-fls-copy-to-synthetic" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "catch_all" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser
+  - do:
+      search:
+        index: test-fls-copy-to-synthetic
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.user: "darth.vader" }
+  - match: { hits.hits.0._source.domain: "empire.gov" }
+  - is_false: "hits.hits.0._source.catch_all"
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: test-fls-copy-to-synthetic
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.user: "darth.vader" }
+  - match: { hits.hits.0._source.domain: "empire.gov" }
+  - is_false: "hits.hits.0._source.catch_all"
+
+---
+Fields with copy_to and skip_ignored_source_read workaround:
+  # Setting skip_ignored_source_read skips _ignored_source during synthetic source reconstruction
+  - do:
+      indices.create:
+        index: test-fls-copy-to-skip-ignored
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              mapping.synthetic_source.skip_ignored_source_read: true
+          mappings:
+            properties:
+              user:
+                type: keyword
+                copy_to: catch_all
+              domain:
+                type: keyword
+                copy_to: catch_all
+              catch_all:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-fls-copy-to-skip-ignored
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"user": "luke.skywalker", "domain": "tatooine.org"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-skip-ignored"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "test-fls-copy-to-skip-ignored" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "catch_all" ]
+  - match: { name: "test-fls-skip-ignored" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: search succeeds but source may be incomplete since _ignored_source is skipped
+  - do:
+      search:
+        index: test-fls-copy-to-skip-ignored
+  - match: { hits.total.value: 1 }
+
+  # With FLS API Key: search succeeds without crash since _ignored_source VOID entries are not loaded
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: test-fls-copy-to-skip-ignored
+  - match: { hits.total.value: 1 }

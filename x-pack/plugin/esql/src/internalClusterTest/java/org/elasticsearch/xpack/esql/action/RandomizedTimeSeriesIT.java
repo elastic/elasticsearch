@@ -326,7 +326,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                     && timeseries.getFirst().v2().v1().toEpochMilli() % (secondsInWindow * 1000L) == 0
                     && offset > 0
                     && allTimeseries.get(offset - 1).isEmpty() == false) {
-                    // Value at lower boundary is present, check if there's one in the lower boundary to use.
+                    // Value at lower boundary is present, check if there's one in the previous window to use.
                     addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
                 }
                 if (timeseries.size() < 2) {

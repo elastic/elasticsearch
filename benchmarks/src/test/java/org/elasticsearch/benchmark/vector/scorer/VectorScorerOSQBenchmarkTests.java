@@ -11,13 +11,16 @@ package org.elasticsearch.benchmark.vector.scorer;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.stream.Stream;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
@@ -25,11 +28,18 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     private final int dims;
     private final int bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
+    private final VectorSimilarityFunction similarityFunction;
 
-    public VectorScorerOSQBenchmarkTests(int dims, int bits, VectorScorerOSQBenchmark.DirectoryType directoryType) {
+    public VectorScorerOSQBenchmarkTests(
+        int dims,
+        int bits,
+        VectorScorerOSQBenchmark.DirectoryType directoryType,
+        VectorSimilarityFunction similarityFunction
+    ) {
         this.dims = dims;
         this.bits = bits;
         this.directoryType = directoryType;
+        this.similarityFunction = similarityFunction;
     }
 
     @BeforeClass
@@ -48,6 +58,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
+                scalar.similarityFunction = similarityFunction;
                 scalar.setup(new Random(seed));
 
                 float[] expected = scalar.score();
@@ -56,6 +67,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
+                vectorized.similarityFunction = similarityFunction;
                 vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.score();
@@ -105,19 +117,19 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
         try {
             String[] dims = VectorScorerOSQBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
             String[] bits = VectorScorerOSQBenchmark.class.getField("bits").getAnnotationsByType(Param.class)[0].value();
-            var combinations = new ArrayList<Object[]>();
-            for (var dim : dims) {
-                var d = Integer.parseInt(dim);
-                for (var bit : bits) {
-                    var b = Integer.parseInt(bit);
-                    for (var directoryType : VectorScorerOSQBenchmark.DirectoryType.values()) {
-                        combinations.add(new Object[] { d, b, directoryType });
-                    }
-                }
-            }
-            return combinations;
+
+            return () -> Arrays.stream(dims)
+                .map(Integer::parseInt)
+                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.of(d, b)))
+                .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> concat(params, dir)))
+                .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> concat(params, f).toArray()))
+                .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static <T> List<Object> concat(List<T> params, Object another) {
+        return Stream.concat(params.stream(), Stream.of(another)).toList();
     }
 }

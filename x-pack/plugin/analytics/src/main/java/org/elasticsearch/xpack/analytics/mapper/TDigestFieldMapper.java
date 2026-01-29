@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DoublesBlockLoader;
@@ -91,6 +92,11 @@ public class TDigestFieldMapper extends FieldMapper {
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
         private final Parameter<TDigestExecutionHint> digestType;
         private final Parameter<Double> compression;
+        /**
+         * Parameter that marks this field as a time series metric defining its time series metric type.
+         * Only the metric type histogram is supported.
+         */
+        private final Parameter<TimeSeriesParams.MetricType> metric;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
             super(name);
@@ -122,18 +128,24 @@ public class TDigestFieldMapper extends FieldMapper {
                     );
                 }
             });
+            this.metric = TimeSeriesParams.metricParam(m -> toType(m).metricType, TimeSeriesParams.MetricType.HISTOGRAM);
+        }
+
+        public Builder metric(TimeSeriesParams.MetricType metric) {
+            this.metric.setValue(metric);
+            return this;
         }
 
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] { digestType, compression, ignoreMalformed, meta };
+            return new Parameter<?>[] { digestType, compression, ignoreMalformed, meta, metric };
         }
 
         @Override
         public TDigestFieldMapper build(MapperBuilderContext context) {
             return new TDigestFieldMapper(
                 leafName(),
-                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue()),
+                new TDigestFieldType(context.buildFullName(leafName()), meta.getValue(), this.metric.getValue()),
                 builderParams(this, context),
                 this
             );
@@ -149,6 +161,7 @@ public class TDigestFieldMapper extends FieldMapper {
     private final boolean ignoreMalformedByDefault;
     private final TDigestExecutionHint digestType;
     private final double compression;
+    private final TimeSeriesParams.MetricType metricType;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
         super(simpleName, mappedFieldType, builderParams);
@@ -156,6 +169,7 @@ public class TDigestFieldMapper extends FieldMapper {
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
         this.digestType = builder.digestType.getValue();
         this.compression = builder.compression.getValue();
+        this.metricType = builder.metric.get();
     }
 
     @Override
@@ -178,7 +192,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).metric(metricType).init(this);
     }
 
     @Override
@@ -187,14 +201,21 @@ public class TDigestFieldMapper extends FieldMapper {
     }
 
     public static class TDigestFieldType extends MappedFieldType {
+        private final TimeSeriesParams.MetricType metricType;
 
-        public TDigestFieldType(String name, Map<String, String> meta) {
+        public TDigestFieldType(String name, Map<String, String> meta, TimeSeriesParams.MetricType metricType) {
             super(name, IndexType.docValuesOnly(), false, meta);
+            this.metricType = metricType;
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TimeSeriesParams.MetricType getMetricType() {
+            return metricType;
         }
 
         @Override

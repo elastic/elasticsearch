@@ -409,10 +409,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean supportsTDigestField() {
         try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()))
+            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()))
                 && RestEsqlTestCase.hasCapabilities(
                     remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName())
+                    List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName())
                 );
         } catch (IOException e) {
             throw new RuntimeException(e);

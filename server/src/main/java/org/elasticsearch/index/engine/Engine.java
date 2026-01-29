@@ -1016,15 +1016,6 @@ public abstract class Engine implements Closeable {
         SearcherScope scope,
         SplitShardCountSummary splitShardCountSummary
     ) throws EngineException {
-        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
-    }
-
-    protected SearcherSupplier acquireSearcherSupplier(
-        Function<Searcher, Searcher> wrapper,
-        SearcherScope scope,
-        SplitShardCountSummary splitShardCountSummary,
-        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
-    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -1033,44 +1024,23 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
+            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            final DirectoryReader maybeWrappedDirectoryReader;
-            if (scope == SearcherScope.EXTERNAL) {
-                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
-            } else {
-                maybeWrappedDirectoryReader = acquire;
-            }
-            SearcherSupplier reader = new SearcherSupplier(wrapper) {
-                @Override
-                public Searcher acquireSearcherInternal(String source) {
-                    assert assertSearcherIsWarmedUp(source, scope);
-                    onSearcherCreation(source, scope);
-                    return new Searcher(
-                        source,
-                        maybeWrappedDirectoryReader,
-                        engineConfig.getSimilarity(),
-                        engineConfig.getQueryCache(),
-                        engineConfig.getQueryCachingPolicy(),
-                        () -> {}
-                    );
-                }
+            SearcherSupplier searcherSupplier = acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, acquire, () -> {
+                try {
 
-                @Override
-                protected void doClose() {
-                    try {
-                        referenceManager.release(acquire);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to close", e);
-                    } catch (AlreadyClosedException e) {
-                        // This means there's a bug somewhere: don't suppress it
-                        throw new AssertionError(e);
-                    } finally {
-                        store.decRef();
-                    }
+                    referenceManager.release(acquire);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("failed to close", e);
+                } catch (AlreadyClosedException e) {
+                    // This means there's a bug somewhere: don't suppress it
+                    throw new AssertionError(e);
+                } finally {
+                    store.decRef();
                 }
-            };
+            });
             releasable = null; // success - hand over the reference to the engine reader
-            return reader;
+            return searcherSupplier;
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
@@ -1081,6 +1051,41 @@ public abstract class Engine implements Closeable {
         } finally {
             Releasables.close(releasable);
         }
+    }
+
+    protected final SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        ElasticsearchDirectoryReader directoryReader,
+        Releasable onCloseSearchSupplier
+    ) throws EngineException, IOException {
+        final DirectoryReader maybeWrappedDirectoryReader;
+        if (scope == SearcherScope.EXTERNAL) {
+            maybeWrappedDirectoryReader = wrapExternalDirectoryReader(directoryReader, splitShardCountSummary);
+        } else {
+            maybeWrappedDirectoryReader = directoryReader;
+        }
+        return new SearcherSupplier(wrapper) {
+            @Override
+            public Searcher acquireSearcherInternal(String source) {
+                assert assertSearcherIsWarmedUp(source, scope);
+                onSearcherCreation(source, scope);
+                return new Searcher(
+                    source,
+                    maybeWrappedDirectoryReader,
+                    engineConfig.getSimilarity(),
+                    engineConfig.getQueryCache(),
+                    engineConfig.getQueryCachingPolicy(),
+                    () -> {}
+                );
+            }
+
+            @Override
+            protected void doClose() {
+                onCloseSearchSupplier.close();
+            }
+        };
     }
 
     public final Searcher acquireSearcher(String source) throws EngineException {

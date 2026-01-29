@@ -65,6 +65,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean supportsTDigestField() {
+        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
+    }
+
+    @Override
+    protected boolean supportsTDigestFieldAsMetric() {
         return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()));
     }
 

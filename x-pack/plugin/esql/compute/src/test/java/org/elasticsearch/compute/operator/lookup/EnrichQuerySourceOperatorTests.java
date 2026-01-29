@@ -37,6 +37,7 @@ import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -258,8 +259,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 assertTrue(queryOperator.isFinished());
             }
             assertWarnings(
-                "Line -1:-1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: multi-value found"
+                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
             );
         }
     }
@@ -270,7 +271,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, -1, -1, "test");
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

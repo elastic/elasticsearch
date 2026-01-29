@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -36,14 +37,19 @@ public class RestGetViewAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        GetViewAction.Request req = new GetViewAction.Request(
-            RestUtils.getMasterNodeTimeout(request),
-            Strings.splitStringByCommaToArray(request.param("name"))
-        );
+        GetViewAction.Request req = new GetViewAction.Request(RestUtils.getMasterNodeTimeout(request));
+        var requestedViews = Strings.splitStringByCommaToArray(request.param("name"));
+        req.indices(requestedViews.length == 0 ? new String[] { "*" } : requestedViews);
+
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
             GetViewAction.INSTANCE,
             req,
             new RestToXContentListener<>(channel)
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Set.of("view_index_abstraction");
     }
 }

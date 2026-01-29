@@ -13,14 +13,14 @@ import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.$Array$;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.$Type$Block;
+import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -28,47 +28,41 @@ import org.elasticsearch.core.Releasables;
 // end generated imports
 
 /**
- * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
+ * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
  * This class is generated. Edit `X-ValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {
         @IntermediateState(name = "timestamps", type = "LONG"),
-        @IntermediateState(name = "values", type = "$TYPE$"),
+        @IntermediateState(name = "values", type = "BOOLEAN"),
         @IntermediateState(name = "seen", type = "BOOLEAN") }
 )
 @GroupingAggregator(
-    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "$TYPE$_BLOCK") }
+    { @IntermediateState(name = "timestamps", type = "LONG_BLOCK"), @IntermediateState(name = "values", type = "BOOLEAN_BLOCK") }
 )
-public class $Occurrence$$Type$ByTimestampAggregator {
+public class LastBooleanByTimestampAggregator {
     public static String describe() {
-        return "$occurrence$_$type$_by_timestamp";
+        return "last_boolean_by_timestamp";
     }
 
-    public static Long$Type$State initSingle(DriverContext driverContext) {
-$if(BytesRef)$
-        return new LongBytesRefState(0, new BytesRef(), driverContext.breaker(), describe());
-$elseif(boolean)$
+    public static LongBooleanState initSingle(DriverContext driverContext) {
         // TODO is false a good init value?
-        return new Long$Type$State(0, false);
-$else$
-        return new Long$Type$State(0, 0);
-$endif$
+        return new LongBooleanState(0, false);
     }
 
-    public static void first(Long$Type$State current, $type$ value, long timestamp) {
+    public static void first(LongBooleanState current, boolean value, long timestamp) {
         current.v1(timestamp);
         current.v2(value);
     }
 
-    public static void combine(Long$Type$State current, $type$ value, long timestamp) {
-        if (timestamp $if(First)$<$else$>$endif$ current.v1()) {
+    public static void combine(LongBooleanState current, boolean value, long timestamp) {
+        if (timestamp > current.v1()) {
             current.v1(timestamp);
             current.v2(value);
         }
     }
 
-    public static void combineIntermediate(Long$Type$State current, long timestamp, $type$ value, boolean seen) {
+    public static void combineIntermediate(LongBooleanState current, long timestamp, boolean value, boolean seen) {
         if (seen) {
             if (current.seen()) {
                 combine(current, value, timestamp);
@@ -79,19 +73,15 @@ $endif$
         }
     }
 
-    public static Block evaluateFinal(Long$Type$State current, DriverContext ctx) {
-        return ctx.blockFactory().newConstant$Type$BlockWith(current.v2(), 1);
+    public static Block evaluateFinal(LongBooleanState current, DriverContext ctx) {
+        return ctx.blockFactory().newConstantBooleanBlockWith(current.v2(), 1);
     }
 
     public static GroupingState initGrouping(DriverContext driverContext) {
-        $if(BytesRef)$
-        return new GroupingState(driverContext.bigArrays(), driverContext.breaker());
-        $else$
         return new GroupingState(driverContext.bigArrays());
-        $endif$
     }
 
-    public static void combine(GroupingState current, int groupId, $type$ value, long timestamp) {
+    public static void combine(GroupingState current, int groupId, boolean value, long timestamp) {
         current.collectValue(groupId, timestamp, value);
     }
 
@@ -99,7 +89,7 @@ $endif$
         GroupingState current,
         int groupId,
         LongBlock timestamps, // stylecheck
-        $Type$Block values,
+        BooleanBlock values,
         int otherPosition
     ) {
         // TODO seen should probably be part of the intermediate representation
@@ -107,15 +97,8 @@ $endif$
         if (valueCount > 0) {
             long timestamp = timestamps.getLong(timestamps.getFirstValueIndex(otherPosition));
             int firstIndex = values.getFirstValueIndex(otherPosition);
-            $if(BytesRef)$
-            BytesRef bytesScratch = new BytesRef();
-            $endif$
             for (int i = 0; i < valueCount; i++) {
-                $if(BytesRef)$
-                current.collectValue(groupId, timestamp, values.getBytesRef(firstIndex + i, bytesScratch));
-                $else$
-                current.collectValue(groupId, timestamp, values.get$Type$(firstIndex + i));
-                $endif$
+                current.collectValue(groupId, timestamp, values.getBoolean(firstIndex + i));
             }
         }
     }
@@ -127,34 +110,18 @@ $endif$
     public static final class GroupingState extends AbstractArrayState {
         private final BigArrays bigArrays;
         private LongArray timestamps;
-        $if(BytesRef)$
-        private ObjectArray<BreakingBytesRefBuilder> values;
-        $else$
-        private $Array$ values;
-        $endif$
-        $if(BytesRef)$
-        private final CircuitBreaker breaker;
-        $endif$
+        private BitArray values;
         private int maxGroupId = -1;
 
-        GroupingState(BigArrays bigArrays$if(BytesRef)$, CircuitBreaker breaker$endif$) {
+        GroupingState(BigArrays bigArrays) {
             super(bigArrays);
             this.bigArrays = bigArrays;
             boolean success = false;
-            $if(BytesRef)$
-            this.breaker = breaker;
-            $endif$
             LongArray timestamps = null;
             try {
                 timestamps = bigArrays.newLongArray(1, false);
                 this.timestamps = timestamps;
-$if(BytesRef)$
-                this.values = bigArrays.newObjectArray(1);
-$elseif(boolean)$
                 this.values = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE);
-$else$
-                this.values = bigArrays.new$Type$Array(1, false);
-$endif$
                 /*
                  * Enable group id tracking because we use has hasValue in the
                  * collection itself to detect the when a value first arrives.
@@ -168,11 +135,11 @@ $endif$
             }
         }
 
-        void collectValue(int groupId, long timestamp, $type$ value) {
+        void collectValue(int groupId, long timestamp, boolean value) {
             boolean updated = false;
             if (groupId < timestamps.size()) {
                 // TODO: handle multiple values?
-                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) $if(Last)$<$else$>$endif$ timestamp) {
+                if (groupId > maxGroupId || hasValue(groupId) == false || timestamps.get(groupId) < timestamp) {
                     timestamps.set(groupId, timestamp);
                     updated = true;
                 }
@@ -182,19 +149,7 @@ $endif$
                 updated = true;
             }
             if (updated) {
-$if(!boolean)$
-                values = bigArrays.grow(values, groupId + 1);
-$endif$
-                $if(BytesRef)$
-                BreakingBytesRefBuilder builder = values.get(groupId);
-                if (builder == null) {
-                    builder = new BreakingBytesRefBuilder(breaker, "$Occurrence$", value.length);
-                }
-                builder.copyBytes(value);
-                values.set(groupId, builder);
-                $else$
                 values.set(groupId, value);
-                $endif$
             }
             maxGroupId = Math.max(maxGroupId, groupId);
             trackGroupId(groupId);
@@ -202,11 +157,6 @@ $endif$
 
         @Override
         public void close() {
-            $if(BytesRef)$
-            for (long i = 0; i < values.size(); i++) {
-                Releasables.close(values.get(i));
-            }
-            $endif$
             Releasables.close(timestamps, values, super::close);
         }
 
@@ -214,17 +164,13 @@ $endif$
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             try (
                 var timestampsBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-                var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())
+                var valuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
             ) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
                         timestampsBuilder.appendLong(timestamps.get(group));
-                        $if(BytesRef)$
-                        valuesBuilder.append$Type$(values.get(group).bytesRefView());
-                        $else$
-                        valuesBuilder.append$Type$(values.get(group));
-                        $endif$
+                        valuesBuilder.appendBoolean(values.get(group));
                     } else {
                         timestampsBuilder.appendNull();
                         valuesBuilder.appendNull();
@@ -236,15 +182,11 @@ $endif$
         }
 
         Block evaluateFinal(IntVector selected, GroupingAggregatorEvaluationContext evalContext) {
-            try (var builder = evalContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount())) {
+            try (var builder = evalContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())) {
                 for (int p = 0; p < selected.getPositionCount(); p++) {
                     int group = selected.getInt(p);
                     if (group < timestamps.size() && hasValue(group)) {
-                        $if(BytesRef)$
-                        builder.append$Type$(values.get(group).bytesRefView());
-                        $else$
-                        builder.append$Type$(values.get(group));
-                        $endif$
+                        builder.appendBoolean(values.get(group));
                     } else {
                         builder.appendNull();
                     }

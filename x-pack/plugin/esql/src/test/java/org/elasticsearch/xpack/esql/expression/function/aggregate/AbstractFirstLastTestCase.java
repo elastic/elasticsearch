@@ -18,6 +18,15 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier.unlimitedSuppliers;
 import static org.hamcrest.Matchers.anyOf;
 
@@ -27,10 +36,9 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
         int rows = 1000;
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        List<DataType> types = new ArrayList<>(List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE, DataType.KEYWORD, DataType.TEXT));
+        List<DataType> types = new ArrayList<>(List.of(INTEGER, LONG, DOUBLE, KEYWORD, TEXT, BOOLEAN, IP, DATETIME, DATE_NANOS));
 
         if (isNullable) {
-            types.add(DataType.IP);
             types.add(DataType.BOOLEAN);
         }
 

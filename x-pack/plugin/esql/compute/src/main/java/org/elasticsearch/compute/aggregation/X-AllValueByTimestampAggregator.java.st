@@ -14,7 +14,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 $if(!boolean)$
-import org.elasticsearch.common.util.$Type$Array;
+import org.elasticsearch.common.util.$Array$;
 $endif$
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -23,7 +23,7 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.$Type$Block;
+$if(!boolean)$import org.elasticsearch.compute.data.$Type$Block;$endif$
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -34,7 +34,7 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the $Occurrence$ occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {
@@ -52,20 +52,20 @@ import java.util.BitSet;
 )
 public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
     public static String describe() {
-        $if(BytesRef)$
+$if(BytesRef)$
         return "all_$occurrence$_bytesref_by_timestamp";
-        $else$
+$else$
         return "all_$occurrence$_$type$_by_timestamp";
-        $endif$
+$endif$
     }
 
     public static $Prefix$Long$Type$State initSingle(DriverContext driverContext) {
         return new $Prefix$Long$Type$State(driverContext.bigArrays());
     }
 
-    $if(long || int)$
+$if(long || int)$
     private static void overrideState($Prefix$Long$Type$State current, boolean timestampPresent, long timestamp, $Type$Block values, int position) {
-    $else$
+$else$
     private static void overrideState(
         $Prefix$Long$Type$State current,
         boolean timestampPresent,
@@ -73,7 +73,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         $Type$Block values,
         int position
     ) {
-    $endif$
+$endif$
         current.observed(true);
         current.v1(timestampPresent ? timestamp : -1L);
         current.v1Seen(timestampPresent);
@@ -83,32 +83,33 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         } else {
             int count = values.getValueCount(position);
             int offset = values.getFirstValueIndex(position);
-            $if(BytesRef)$
+$if(BytesRef)$
             BytesRefArray a = null;
-            $elseif(boolean)$
+$elseif(boolean)$
             ByteArray a = null;
-            $else$
+$else$
             $Type$Array a = null;
-            $endif$
+$endif$
             boolean success = false;
             try {
-                $if(BytesRef)$
+$if(BytesRef)$
+                // TODO check with someone about this '0', shouldn't it be count?
                 a = new BytesRefArray(0, current.bigArrays());
-                $elseif(boolean)$
+$elseif(boolean)$
                 a = current.bigArrays().newByteArray(count);
-                $else$
+$else$
                 a = current.bigArrays().new$Type$Array(count);
-                $endif$
+$endif$
                 for (int i = 0; i < count; ++i) {
-                    $if(BytesRef)$
+$if(BytesRef)$
                     BytesRef bytesScratch = new BytesRef();
                     values.getBytesRef(offset + i, bytesScratch);
                     a.append(bytesScratch);
-                    $elseif(boolean)$
+$elseif(boolean)$
                     a.set(i, (byte) (values.get$Type$(offset + i) ? 1 : 0));
-                    $else$
+$else$
                     a.set(i, values.get$Type$(offset + i));
-                    $endif$
+$endif$
                 }
                 success = true;
                 Releasables.close(current.v2());
@@ -128,11 +129,11 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         long result = timestamps.getLong(lo++);
 
         for (int i = lo; i < hi; i++) {
-            $if(First)$
+$if(First)$
             result = Math.min(result, timestamps.getLong(i));
-            $else$
+$else$
             result = Math.max(result, timestamps.getLong(i));
-            $endif$
+$endif$
         }
 
         return result;
@@ -234,7 +235,13 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
         /**
          * The group-indexed values
          */
-        private ObjectArray<$if(BytesRef)$BytesRefArray$elseif(boolean)$ByteArray$else$$Type$Array$endif$> values;
+$if(BytesRef)$
+        private ObjectArray<BytesRefArray> values;
+$elseif(boolean)$
+        private ObjectArray<ByteArray> values;
+$else$
+        private ObjectArray<$Array$> values;
+$endif$
 
         private int maxGroupId = -1;
 
@@ -262,11 +269,11 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                 this.timestamps = timestamps;
 
                 // Initialize values
-                $if(BytesRef)$
+$if(BytesRef)$
                 this.values = bigArrays.newObjectArray(1);
-                $else$
+$else$
                 this.values = bigArrays.newObjectArray(1);
-                $endif$
+$endif$
                 this.values.set(0, null);
 
                 // Enable group id tracking because we use has hasValue in the
@@ -309,7 +316,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                 hasTimestamp.set(group, (byte) (timestampPresent ? 1 : 0));
                 timestamps.set(group, timestamp);
                 boolean success = false;
-                $if(BytesRef)$
+$if(BytesRef)$
                 BytesRefArray groupValues = null;
                 try {
                     if (valuesBlock.isNull(position) == false) {
@@ -329,23 +336,27 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                         Releasables.close(groupValues);
                     }
                 }
-                $else$
-                $if(boolean)$ByteArray$else$$Type$Array$endif$ groupValues = null;
+$else$
+    $if(boolean)$
+                ByteArray groupValues = null;
+    $else$
+                $Array$ groupValues = null;
+    $endif$
                 try {
                     if (valuesBlock.isNull(position) == false) {
                         int count = valuesBlock.getValueCount(position);
                         int offset = valuesBlock.getFirstValueIndex(position);
-                        $if(boolean)$
+    $if(boolean)$
                         groupValues = BigArrays.NON_RECYCLING_INSTANCE.newByteArray(count);
                         for (int i = 0; i < count; ++i) {
                             groupValues.set(i, (byte) (valuesBlock.get$Type$(i + offset) ? 1 : 0));
                         }
-                        $else$
+    $else$
                         groupValues = bigArrays.new$Type$Array(count);
                         for (int i = 0; i < count; ++i) {
                             groupValues.set(i, valuesBlock.get$Type$(i + offset));
                         }
-                        $endif$
+    $endif$
                     }
                     success = true;
                     Releasables.close(values.get(group));
@@ -355,7 +366,7 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                         Releasables.close(groupValues);
                     }
                 }
-                $endif$
+$endif$
             }
             maxGroupId = Math.max(maxGroupId, group);
             trackGroupId(group);
@@ -417,33 +428,33 @@ public class $Prefix$$Occurrence$$Type$ByTimestampAggregator {
                     }
                     switch (count) {
                         case 0 -> valuesBuilder.appendNull();
-                        $if(BytesRef)$
+$if(BytesRef)$
                         case 1 -> {
                             BytesRef bytesScratch = new BytesRef();
                             values.get(group).get(0, bytesScratch);
                             valuesBuilder.appendBytesRef(bytesScratch);
                         }
-                        $else$
-                        $if(boolean)$
+$else$
+    $if(boolean)$
                         case 1 -> valuesBuilder.append$Type$(values.get(group).get(0) == 1);
-                        $else$
+    $else$
                         case 1 -> valuesBuilder.append$Type$(values.get(group).get(0));
-                        $endif$
-                        $endif$
+    $endif$
+$endif$
                         default -> {
                             valuesBuilder.beginPositionEntry();
                             for (int i = 0; i < count; ++i) {
-                                $if(BytesRef)$
+$if(BytesRef)$
                                 BytesRef bytesScratch = new BytesRef();
                                 values.get(group).get(i, bytesScratch);
                                 valuesBuilder.appendBytesRef(bytesScratch);
-                                $else$
-                                $if(boolean)$
+$else$
+    $if(boolean)$
                                 valuesBuilder.append$Type$(values.get(group).get(i) == 1);
-                                $else$
+    $else$
                                 valuesBuilder.append$Type$(values.get(group).get(i));
-                                $endif$
-                                $endif$
+    $endif$
+$endif$
                             }
                             valuesBuilder.endPositionEntry();
                         }

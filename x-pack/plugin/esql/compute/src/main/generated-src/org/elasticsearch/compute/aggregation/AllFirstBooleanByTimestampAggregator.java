@@ -20,7 +20,6 @@ import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -31,7 +30,7 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the First occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {
@@ -200,7 +199,6 @@ public class AllFirstBooleanByTimestampAggregator {
          * The group-indexed values
          */
         private ObjectArray<ByteArray> values;
-
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {

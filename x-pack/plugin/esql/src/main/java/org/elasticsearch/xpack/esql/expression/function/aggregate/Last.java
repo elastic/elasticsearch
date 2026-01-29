@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.LastBooleanByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastBytesRefByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastDoubleByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.LastFloatByTimestampAggregatorFunctionSupplier;
@@ -45,7 +46,7 @@ public class Last extends AggregateFunction implements ToAggregator {
     // TODO: support all types
     @FunctionInfo(
         type = FunctionType.AGGREGATE,
-        returnType = { "long", "integer", "double", "keyword" },
+        returnType = { "long", "integer", "double", "keyword", "ip", "boolean", "date", "date_nanos" },
         description = "Calculates the latest value of a field.",
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") },
         examples = @Example(file = "stats_last", tag = "last")
@@ -54,7 +55,7 @@ public class Last extends AggregateFunction implements ToAggregator {
         Source source,
         @Param(
             name = "value",
-            type = { "long", "integer", "double", "keyword", "text" },
+            type = { "long", "integer", "double", "keyword", "text", "ip", "boolean", "date", "date_nanos" },
             description = "Values to return"
         ) Expression field,
         @Param(name = "sort", type = { "date", "date_nanos" }, description = "Sort key") Expression sort
@@ -112,12 +113,15 @@ public class Last extends AggregateFunction implements ToAggregator {
             field(),
             dt -> dt == DataType.BOOLEAN
                 || dt == DataType.DATETIME
+                || dt == DataType.DATE_NANOS
+                || dt == DataType.IP
                 || DataType.isString(dt)
                 || (dt.isNumeric() && dt != DataType.UNSIGNED_LONG),
             sourceText(),
             FIRST,
             "boolean",
             "date",
+            "date_nanos",
             "ip",
             "string",
             "numeric except unsigned_long or counter types"
@@ -136,11 +140,12 @@ public class Last extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier() {
         final DataType type = field().dataType();
         return switch (type) {
-            case LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
+            case LONG, DATE_NANOS, DATETIME, UNSIGNED_LONG -> new LastLongByTimestampAggregatorFunctionSupplier();
             case INTEGER -> new LastIntByTimestampAggregatorFunctionSupplier();
             case DOUBLE -> new LastDoubleByTimestampAggregatorFunctionSupplier();
             case FLOAT -> new LastFloatByTimestampAggregatorFunctionSupplier();
-            case KEYWORD, TEXT -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case KEYWORD, TEXT, IP -> new LastBytesRefByTimestampAggregatorFunctionSupplier();
+            case BOOLEAN -> new LastBooleanByTimestampAggregatorFunctionSupplier();
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

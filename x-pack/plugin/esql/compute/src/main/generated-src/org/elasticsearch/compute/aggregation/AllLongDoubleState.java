@@ -8,11 +8,9 @@
 package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 // end generated imports
@@ -41,7 +39,7 @@ final class AllLongDoubleState implements AggregatorState {
     private boolean v1Seen;
 
     /**
-     * The value can be null, single valued of multivalued.
+     * The value can be null, single valued or multivalued.
      */
     private DoubleArray v2;
 

@@ -32,7 +32,7 @@ import java.util.BitSet;
 
 /**
  * A time-series aggregation function that collects the Last occurrence value of a time series in a specified interval.
- * This class is generated. Edit `X-AllValueByTimestafmpAggregator.java.st` instead.
+ * This class is generated. Edit `X-AllValueByTimestampAggregator.java.st` instead.
  */
 @Aggregator(
     {
@@ -76,6 +76,7 @@ public class AllLastBytesRefByTimestampAggregator {
             BytesRefArray a = null;
             boolean success = false;
             try {
+                // TODO check with someone about this '0', shouldn't it be count?
                 a = new BytesRefArray(0, current.bigArrays());
                 for (int i = 0; i < count; ++i) {
                     BytesRef bytesScratch = new BytesRef();
@@ -203,7 +204,6 @@ public class AllLastBytesRefByTimestampAggregator {
          * The group-indexed values
          */
         private ObjectArray<BytesRefArray> values;
-
         private int maxGroupId = -1;
 
         GroupingState(BigArrays bigArrays) {

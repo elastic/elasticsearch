@@ -16,7 +16,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.common.util.LongLongHash;
-import org.elasticsearch.common.util.$if(BytesRef)$Int$else$$Type$$endif$Array;
+import org.elasticsearch.common.util.$if(BytesRef)$IntArray$else$$Array$$endif$;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.ann.Aggregator;

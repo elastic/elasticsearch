@@ -8,6 +8,114 @@
       "params" : [
         {
           "name" : "value",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
           "type" : "double",
           "optional" : false,
           "description" : "Values to return"
@@ -75,6 +183,42 @@
       ],
       "variadic" : false,
       "returnType" : "integer"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "value",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Values to return"
+        },
+        {
+          "name" : "sort",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Sort key"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
     },
     {
       "params" : [

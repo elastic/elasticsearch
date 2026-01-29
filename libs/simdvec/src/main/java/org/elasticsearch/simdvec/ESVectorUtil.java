@@ -441,6 +441,28 @@ public class ESVectorUtil {
     }
 
     /**
+     * Multiplies a matrix with a vector and stores the result in the output vector.
+     *
+     * @param matrix, the matrix that will transform the vector; must have dimensions [out.length][vector.length]
+     * @param vector, input vector
+     * @param out, output vector
+     */
+    public static void matrixVectorMultiply(float[][] matrix, float[] vector, float[] out) {
+        if (matrix.length != out.length) {
+            throw new IllegalArgumentException("matrix rows and output vector dimensions differ: " + matrix.length + "!=" + out.length);
+        }
+        if (matrix.length > 0 && matrix[0].length != vector.length) {
+            throw new IllegalArgumentException(
+                "matrix columns and input vector dimensions differ: " + matrix[0].length + "!=" + vector.length
+            );
+        }
+        if (matrix.length == 0 || vector.length == 0) {
+            return;
+        }
+        IMPL.matrixVectorMultiply(matrix, vector, out);
+    }
+
+    /**
      * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
      * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
      * thrown, but invalid results will be returned.

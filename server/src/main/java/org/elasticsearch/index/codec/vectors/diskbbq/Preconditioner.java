@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -41,7 +41,7 @@ public class Preconditioner {
         assert vector.length == blockDim * (blocks.length - 1) + (blocks[blocks.length - 1].length);
 
         if (blocks.length == 1) {
-            matrixVectorMultiply(blocks[0], vector, out);
+            ESVectorUtil.matrixVectorMultiply(blocks[0], vector, out);
         } else {
             int blockIdx = 0;
             float[] x = new float[blockDim];
@@ -59,7 +59,7 @@ public class Preconditioner {
                     x[k] = vector[idx];
                 }
                 // TODO: can be optimized to do all blocks in one pass?
-                matrixVectorMultiply(block, x, blockOut);
+                ESVectorUtil.matrixVectorMultiply(block, x, blockOut);
                 System.arraycopy(blockOut, 0, out, blockIdx, blockDim);
                 blockIdx += blockDim;
             }
@@ -124,16 +124,6 @@ public class Preconditioner {
         }
 
         return blocks;
-    }
-
-    private static void matrixVectorMultiply(float[][] m, float[] x, float[] out) {
-        assert m.length == out.length;
-        assert m.length > 0 && m[0].length == x.length;
-        int dim = out.length;
-        // TODO: write Panama version of this to do all multiplications in one pass
-        for (int i = 0; i < dim; i++) {
-            out[i] = VectorUtil.dotProduct(m[i], x);
-        }
     }
 
     private static int[][] createPermutationMatrixRandomly(int dim, int[] dimBlocks, Random random) {

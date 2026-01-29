@@ -1,0 +1,7 @@
+pr: 140143
+summary: Add stats parameter support to Count API
+area: Search
+type: enhancement
+issues:
+ - 67528
+

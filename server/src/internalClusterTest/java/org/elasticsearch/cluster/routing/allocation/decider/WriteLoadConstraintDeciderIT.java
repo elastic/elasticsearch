@@ -94,11 +94,6 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
      * Leverages the {@link FilterAllocationDecider} to first start all shards on a Node1, and then eventually force the shards off of
      * Node1 while Node3 is hot-spotting, resulting in reassignment of all shards to Node2.
      */
-    @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator:TRACE"
-            + ",org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDecider:TRACE",
-        reason = "Help debug test failures"
-    )
     public void testHighNodeWriteLoadPreventsNewShardAllocation() {
         TestHarness harness = setUpThreeTestNodesAndAllIndexShardsOnFirstNode();
 

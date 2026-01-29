@@ -2003,6 +2003,11 @@ public class EsqlCapabilities {
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
 
         /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
+
+        /**
          * Support for configuring T-Digest elasticsearch field as a time series metric.
          */
         TDIGEST_TIME_SERIES_METRIC,

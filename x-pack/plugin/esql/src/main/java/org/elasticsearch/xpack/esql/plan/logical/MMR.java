@@ -180,7 +180,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
     }
 
-    private Float tryExtractLambdaFromOptions(Expression optionsInput) {
+    public static Float tryExtractLambdaFromOptions(Expression optionsInput) {
         if (optionsInput instanceof MapExpression optionsMap) {
             Map<String, Expression> optionsValues = new HashMap<>(optionsMap.keyFoldedMap());
             Expression lambdaValueExpression = optionsValues.getOrDefault(MMR.LAMBDA_OPTION_NAME, null);

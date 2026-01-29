@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,6 +27,8 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
     private final Attribute diversifyField;
     private final Expression limit;
     private final Expression queryVectorExpression;
+    private final Expression options;
+
     private final VectorData queryVector;
     private final Float lambda;
 
@@ -35,14 +38,16 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         Attribute diversifyField,
         Expression limit,
         @Nullable Expression queryVectorExpression,
-        @Nullable Float lambda
+        @Nullable Expression options
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
         this.queryVectorExpression = queryVectorExpression;
+        this.options = options;
+
         this.queryVector = extractQueryVectorData(queryVectorExpression);
-        this.lambda = lambda;
+        this.lambda = MMR.tryExtractLambdaFromOptions(options);
     }
 
     public Attribute diversifyField() {
@@ -63,12 +68,12 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new MMRExec(source(), newChild, diversifyField, limit, queryVectorExpression, lambda);
+        return new MMRExec(source(), newChild, diversifyField, limit, queryVectorExpression, options);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVectorExpression, lambda);
+        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVectorExpression, options);
     }
 
     @Override

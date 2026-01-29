@@ -124,7 +124,7 @@ public class MapperUtils {
         }
 
         if (p instanceof MMR mmr) {
-            return new MMRExec(mmr.source(), child, mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.lambdaValue());
+            return new MMRExec(mmr.source(), child, mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.options());
         }
 
         if (p instanceof MvExpand mvExpand) {

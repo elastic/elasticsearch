@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.gen;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.DenseVectorEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.MvEvaluator;
 
@@ -39,7 +40,12 @@ public class EvaluatorProcessor implements Processor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(Evaluator.class.getName(), MvEvaluator.class.getName(), ConvertEvaluator.class.getName());
+        return Set.of(
+            Evaluator.class.getName(),
+            MvEvaluator.class.getName(),
+            ConvertEvaluator.class.getName(),
+            DenseVectorEvaluator.class.getName()
+        );
     }
 
     @Override
@@ -68,7 +74,7 @@ public class EvaluatorProcessor implements Processor {
             for (Element evaluatorMethod : roundEnvironment.getElementsAnnotatedWith(ann)) {
                 var warnExceptionsTypes = Annotations.listAttributeValues(
                     evaluatorMethod,
-                    Set.of(Evaluator.class, MvEvaluator.class, ConvertEvaluator.class),
+                    Set.of(Evaluator.class, MvEvaluator.class, ConvertEvaluator.class, DenseVectorEvaluator.class),
                     "warnExceptions"
                 );
                 Evaluator evaluatorAnn = evaluatorMethod.getAnnotation(Evaluator.class);
@@ -125,6 +131,26 @@ public class EvaluatorProcessor implements Processor {
                                 env.getTypeUtils(),
                                 (ExecutableElement) evaluatorMethod,
                                 convertEvaluatorAnn.extraName(),
+                                warnExceptionsTypes
+                            ).sourceFile(),
+                            env
+                        );
+                    } catch (Exception e) {
+                        env.getMessager().printMessage(Diagnostic.Kind.ERROR, "failed to build " + evaluatorMethod.getEnclosingElement());
+                        throw e;
+                    }
+                }
+                DenseVectorEvaluator denseVectorEvaluatorAnn = evaluatorMethod.getAnnotation(DenseVectorEvaluator.class);
+                if (denseVectorEvaluatorAnn != null) {
+                    try {
+                        AggregatorProcessor.write(
+                            evaluatorMethod,
+                            "evaluator",
+                            new DenseVectorEvaluatorImplementer(
+                                env.getElementUtils(),
+                                env.getTypeUtils(),
+                                (ExecutableElement) evaluatorMethod,
+                                denseVectorEvaluatorAnn.extraName(),
                                 warnExceptionsTypes
                             ).sourceFile(),
                             env

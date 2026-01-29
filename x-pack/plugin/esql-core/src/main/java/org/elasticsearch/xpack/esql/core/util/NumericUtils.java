@@ -166,7 +166,7 @@ public abstract class NumericUtils {
      */
     public static float asFiniteNumber(float flt) {
         if (Double.isNaN(flt) || Double.isInfinite(flt)) {
-            throw new ArithmeticException("not a finite double number: " + flt);
+            throw new ArithmeticException("not a finite float number: " + flt);
         }
         return flt;
     }

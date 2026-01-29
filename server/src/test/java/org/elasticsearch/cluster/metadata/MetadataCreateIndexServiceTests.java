@@ -1412,6 +1412,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTransportVersion(), equalTo(TransportVersion.current()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {

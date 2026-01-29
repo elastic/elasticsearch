@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
@@ -183,7 +185,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testSyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5));
+        putDataStreamTemplate(dataStreamName, randomIntBetween(1, 5), 0);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -392,7 +394,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
     public void testGetFromTranslogBySyntheticId() throws Exception {
         assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
         final var dataStreamName = randomIdentifier();
-        putDataStreamTemplate(dataStreamName, 1);
+        putDataStreamTemplate(dataStreamName, 1, 0);
 
         final var docs = new HashMap<String, String>();
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
@@ -510,7 +512,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         final var dataStreamName = randomIdentifier();
         final int numShards = randomIntBetween(1, 10);
-        putDataStreamTemplate(dataStreamName, numShards);
+        putDataStreamTemplate(dataStreamName, numShards, 0);
 
         final var docsIndices = new HashSet<String>();
         final var docsIndicesById = new HashMap<String, String>();
@@ -629,7 +631,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         }
 
         // Randomly executes a flush, refresh or nothing. If no flush is executed, the peer-recovery that follows will recover operations
-        // from the source shard translog, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
+        // from the source shard index, which load the `_id` field from stored fields (see LuceneSyntheticSourceChangesSnapshot).
         final var operation = randomFrom(Operation.values());
         switch (operation) {
             case FLUSH:
@@ -714,6 +716,182 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
         randomDocIds = randomSubsetOf(deletedDocs);
         for (var docId : randomDocIds) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Found deleted doc: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(false));
+                assertThat(getResponse.getVersion(), equalTo(-1L));
+
+            } else {
+                assertHitCount(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId)))
+                        .setSize(0),
+                    0L
+                );
+            }
+        }
+    }
+
+    public void testRecoverOperationsFromLocalTranslog() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(
+            dataStreamName,
+            1,
+            0,
+            Settings.builder()
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.PB))
+                .build()
+        );
+
+        final var docsIndices = new HashSet<String>();
+        final var docsIndicesById = new HashMap<String, String>();
+        final var docsIdsBySeqNo = new HashMap<Long, String>();
+
+        var timestamp = Instant.now();
+        // Use `timestamp = Instant.ofEpochMilli(epoch)` to set the timestamp back to a specific value when reproducing a test failure
+        logger.info("--> timestamp is {} (epoch: {})", timestamp, timestamp.toEpochMilli());
+
+        final int nbDocs = randomIntBetween(1, 200);
+
+        var client = client();
+        var bulkRequest = client.prepareBulk();
+        for (int i = 0; i < nbDocs; i++) {
+            var doc = document(timestamp, randomFrom("vm-dev01", "vm-dev02", "vm-dev03", "vm-dev04"), "cpu-load", i);
+            bulkRequest.add(client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(doc));
+            timestamp = timestamp.plusMillis(1);
+        }
+        var bulkResponse = bulkRequest.get();
+        assertNoFailures(bulkResponse);
+
+        long maxSeqNo = -1L;
+
+        for (var result : bulkResponse.getItems()) {
+            assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+            assertThat(result.getVersion(), equalTo(1L));
+            assertThat(result.getResponse().getPrimaryTerm(), equalTo(1L));
+            var previous = docsIdsBySeqNo.put(result.getResponse().getSeqNo(), result.getId());
+            assertThat(previous, nullValue());
+            previous = docsIndicesById.put(result.getId(), result.getIndex());
+            assertThat(previous, nullValue());
+            docsIndices.add(result.getIndex());
+            maxSeqNo = Math.max(maxSeqNo, result.getResponse().getSeqNo());
+        }
+
+        // Delete some random docs
+        final List<String> deletedDocs = randomBoolean() ? randomNonEmptySubsetOf(docsIndicesById.keySet()) : List.of();
+        for (var deletedDocId : deletedDocs) {
+            var deletedDocIndex = docsIndicesById.get(deletedDocId);
+            assertThat(deletedDocIndex, notNullValue());
+
+            var deleteResponse = client().prepareDelete(deletedDocIndex, deletedDocId).get();
+            assertThat(deleteResponse.getId(), equalTo(deletedDocId));
+            assertThat(deleteResponse.getIndex(), equalTo(deletedDocIndex));
+            assertThat(deleteResponse.getResult(), equalTo(DocWriteResponse.Result.DELETED));
+            assertThat(deleteResponse.getVersion(), equalTo(2L));
+            assertThat(deleteResponse.getPrimaryTerm(), equalTo(1L));
+            var previous = docsIdsBySeqNo.put(deleteResponse.getSeqNo(), deletedDocId);
+            assertThat(previous, nullValue());
+            maxSeqNo = Math.max(maxSeqNo, deleteResponse.getSeqNo());
+        }
+
+        ensureGreen(dataStreamName);
+
+        // Find the primary shard
+        IndexShard primary = null;
+        for (IndicesService indicesService : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (IndexService indexService : indicesService) {
+                if (docsIndices.contains(indexService.index().getName())) {
+                    for (IndexShard indexShard : indexService) {
+                        assertThat(indexShard.routingEntry().primary(), equalTo(true));
+                        primary = indexShard;
+                        break;
+                    }
+                }
+            }
+        }
+
+        assertThat(primary, notNullValue());
+        IndexShard finalPrimary = primary;
+        long finalMaxSeqNo = maxSeqNo;
+        assertBusy(
+            () -> { assertThat(finalPrimary.withEngine(engine -> engine.getLastSyncedGlobalCheckpoint()), equalTo(finalMaxSeqNo)); }
+        );
+
+        // Check translog operations on primary shard
+        try (var translogSnapshot = getTranslog(primary).newSnapshot()) {
+            assertThat(translogSnapshot.totalOperations(), equalTo(docsIdsBySeqNo.size()));
+
+            Translog.Operation operation;
+            while ((operation = translogSnapshot.next()) != null) {
+                assertTranslogOperation(
+                    primary.shardId().getIndex().getName(),
+                    primary.mapperService().documentMapper(),
+                    operation,
+                    docsIdsBySeqNo::get,
+                    docsIndicesById::get
+                );
+            }
+        }
+
+        // Listener to wait for the primary shard to be failed on the master node
+        final var backingIndex = primary.shardId().getIndexName();
+        var waitForPrimaryShardFailed = ClusterServiceUtils.addMasterTemporaryStateListener(
+            state -> state.projectState(ProjectId.DEFAULT).routingTable().index(backingIndex).allPrimaryShardsUnassigned()
+        );
+
+        // Fail the primary shard
+        primary.failShard("failing on purpose", new IOException("failing on purpose"));
+
+        safeAwait(waitForPrimaryShardFailed);
+        ensureGreen(primary.shardId().getIndexName());
+
+        final long expectedRecoveredOperations = maxSeqNo + 1L;
+
+        // Check that operations were successfully recovered locally
+        var recoveryResponse = indicesAdmin().prepareRecoveries(backingIndex).get();
+        assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
+        for (var shardRecoveryState : recoveryResponse.shardRecoveryStates().get(backingIndex)) {
+            assertThat(shardRecoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+            assertThat(shardRecoveryState.getRecoverySource(), equalTo(RecoverySource.ExistingStoreRecoverySource.INSTANCE));
+            assertThat((long) shardRecoveryState.getTranslog().totalOperationsOnStart(), equalTo(expectedRecoveredOperations));
+            assertThat((long) shardRecoveryState.getTranslog().recoveredOperations(), equalTo(expectedRecoveredOperations));
+            assertThat((long) shardRecoveryState.getTranslog().totalOperations(), equalTo(expectedRecoveredOperations));
+        }
+
+        final var nonDeletedDocs = Sets.difference(docsIndicesById.keySet(), Set.copyOf(deletedDocs));
+        assertHitCount(client().prepareSearch(dataStreamName).setTrackTotalHits(true).setSize(0), nonDeletedDocs.size());
+
+        for (var docId : randomSubsetOf(nonDeletedDocs)) {
+            if (randomBoolean()) {
+                var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
+                    .setRealtime(randomBoolean())
+                    .setFetchSource(randomBoolean())
+                    .execute()
+                    .actionGet();
+                assertThat("Not found: " + docId + " " + Uid.encodeId(docId), getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1L));
+
+            } else {
+                assertCheckedResponse(
+                    client().prepareSearch(docsIndicesById.get(docId))
+                        .setSource(new SearchSourceBuilder().query(new TermQueryBuilder(IdFieldMapper.NAME, docId))),
+                    searchResponse -> {
+                        assertHitCount(searchResponse, 1L);
+                        assertThat(searchResponse.getHits().getHits(), arrayWithSize(1));
+                        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo(docId));
+                    }
+                );
+            }
+        }
+
+        for (var docId : randomSubsetOf(deletedDocs)) {
             if (randomBoolean()) {
                 var getResponse = client().prepareGet(docsIndicesById.get(docId), docId)
                     .setRealtime(randomBoolean())
@@ -824,7 +1002,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         // create index
         final var dataStreamName = randomIdentifier();
         int shards = randomIntBetween(1, 5);
-        putDataStreamTemplate(dataStreamName, shards);
+        putDataStreamTemplate(dataStreamName, shards, 0);
 
         final var unit = randomFrom(ChronoUnit.SECONDS, ChronoUnit.MINUTES);
         final var timestamp = Instant.now();
@@ -1026,11 +1204,21 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         return bulkResponse.getItems();
     }
 
-    private static void putDataStreamTemplate(String indexPattern, int shards) throws IOException {
-        final var settings = indexSettings(shards, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-            .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas) throws IOException {
+        putDataStreamTemplate(indexPattern, primaries, replicas, Settings.EMPTY);
+    }
+
+    private static void putDataStreamTemplate(String indexPattern, int primaries, int replicas, Settings extraSettings) throws IOException {
+        final var settings = indexSettings(primaries, replicas).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
             .put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true);
+        if (randomBoolean()) {
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
+            settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), randomBoolean());
+        } else if (rarely()) {
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED);
+        }
+        settings.put(extraSettings);
 
         final var mappings = """
             {

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.SequencedCollection;
 
 /**
  * Physical plan for the URI_PARTS command.
@@ -62,16 +60,8 @@ public class UriPartsExec extends CompoundOutputEvalExec {
     }
 
     @Override
-    public CompoundOutputEvaluator<?> createEvaluator(
-        Warnings warnings,
-        SequencedCollection<String> functionOutputFields,
-        CompoundOutputEvaluator.BlocksBearer blocksBearer
-    ) {
-        UriPartsFunctionBridge.UriPartsCollectorImpl uriPartsCollector = new UriPartsFunctionBridge.UriPartsCollectorImpl(
-            functionOutputFields,
-            blocksBearer
-        );
-        return new UriPartsFunctionBridge(input.dataType(), warnings, uriPartsCollector);
+    public CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector() {
+        return new UriPartsFunctionBridge.UriPartsCollectorImpl(outputFieldNames());
     }
 
     @Override

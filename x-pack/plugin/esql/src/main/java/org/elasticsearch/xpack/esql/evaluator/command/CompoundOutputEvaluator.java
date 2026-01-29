@@ -16,27 +16,23 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 import java.util.function.ObjIntConsumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 
 /**
  * The base evaluator that extracts compound output. Subclasses should implement the actual evaluation logic.
  */
-public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.OutputFieldsCollector>
-    implements
-        ColumnExtractOperator.Evaluator {
+public final class CompoundOutputEvaluator implements ColumnExtractOperator.Evaluator {
 
-    private final T outputFieldsCollector;
+    private final OutputFieldsCollector outputFieldsCollector;
     private final DataType inputType;
     private final Warnings warnings;
 
-    protected CompoundOutputEvaluator(DataType inputType, Warnings warnings, T outputFieldsCollector) {
+    public CompoundOutputEvaluator(DataType inputType, Warnings warnings, OutputFieldsCollector outputFieldsCollector) {
         this.inputType = inputType;
         this.warnings = warnings;
         this.outputFieldsCollector = outputFieldsCollector;
@@ -55,23 +51,22 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
      */
     @Override
     public void computeRow(BytesRefBlock input, int row, Block.Builder[] target, BytesRef spare) {
-        boolean evaluated = false;
-        if (input.isNull(row) == false) {
-            try {
-                BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
-                String inputAsString = getInputAsString(bytes, inputType);
-                evaluated = outputFieldsCollector.evaluate(inputAsString, target);
-            } catch (IllegalArgumentException e) {
-                warnings.registerException(e);
+        outputFieldsCollector.startRow(target);
+        try {
+            if (input.isNull(row) == false) {
+                try {
+                    BytesRef bytes = input.getBytesRef(input.getFirstValueIndex(row), spare);
+                    String inputAsString = getInputAsString(bytes, inputType);
+                    outputFieldsCollector.evaluate(inputAsString);
+                } catch (IllegalArgumentException e) {
+                    warnings.registerException(e);
+                }
             }
+        } finally {
+            // this takes care of missing fields, partial evaluation and null input
+            outputFieldsCollector.endRow();
         }
 
-        // if the input is null or invalid, we must return nulls for all output fields
-        if (evaluated == false) {
-            for (Block.Builder builder : target) {
-                builder.appendNull();
-            }
-        }
     }
 
     private static String getInputAsString(BytesRef input, DataType inputType) {
@@ -89,92 +84,85 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
      * Concrete collectors would implement interfaces that correspond to their corresponding evaluating function, in addition to
      * extending this class.
      */
-    abstract static class OutputFieldsCollector {
+    public abstract static class OutputFieldsCollector {
         /**
          * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+         * In addition, it tracks the status of the output fields for the current row.
          */
-        protected final BlocksBearer blocksBearer;
+        protected final RowOutput rowOutput;
 
-        /**
-         * Subclasses must fill this list with a null value collector for each unknown requested output field.
-         * Normally, we shouldn't encounter unknown fields. This should only happen in rare cases where the cluster contains nodes
-         * of different versions and the coordinating node's version supports a field that is not supported by the executing node.
-         */
-        protected final ArrayList<Consumer<Block.Builder[]>> unknownFieldCollectors;
-
-        protected OutputFieldsCollector(BlocksBearer blocksBearer) {
-            this.blocksBearer = blocksBearer;
-            this.unknownFieldCollectors = new ArrayList<>();
+        protected OutputFieldsCollector(int outputFieldCount) {
+            this.rowOutput = new RowOutput(outputFieldCount);
         }
 
         /**
-         * The main evaluation logic, dispatching actual evaluation to subclasses.
-         * The subclass {@link #evaluate(String)} method would apply the evaluation logic and fill the target blocks accordingly.
-         * @param input the input string to evaluate the function on
+         * initialize the row output state for a new row evaluation.
          * @param target the output column blocks
-         * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
          */
-        boolean evaluate(final String input, final Block.Builder[] target) {
-            boolean evaluated;
-            try {
-                blocksBearer.accept(target);
-                evaluated = evaluate(input);
-            } finally {
-                blocksBearer.accept(null);
-            }
-            if (evaluated && unknownFieldCollectors.isEmpty() == false) {
-                // noinspection ForLoopReplaceableByForEach
-                for (int i = 0; i < unknownFieldCollectors.size(); i++) {
-                    unknownFieldCollectors.get(i).accept(target);
-                }
-            }
-            return evaluated;
+        final void startRow(Block.Builder[] target) {
+            rowOutput.startRow(target);
+        }
+
+        final void endRow() {
+            rowOutput.fillMissingValues();
+            rowOutput.reset();
         }
 
         /**
-         * IMPORTANT: the implementing method must ensure that the entire evaluation is completed in full before writing values
-         * to the output fields. The returned value should indicate whether ALL fields were evaluated or NONE were evaluated.
-         * Similarly, the implementing method must ensure that if it throws an exception, NO field is written.
-         * The best practice is to accumulate all output values in local variables/structures, and only write to the output fields at the
-         * end of the method.
+         * Subclasses would apply the actual evaluation logic here and fill the target blocks accordingly.
          * @param input the input string to evaluate the function on
-         * @return {@code true} means that ALL fields were evaluated; {@code false} means that NONE were evaluated
          */
-        protected abstract boolean evaluate(String input);
+        protected abstract void evaluate(String input);
     }
 
     /**
      * A {@link Block.Builder[]} holder that is being set before each row evaluation.
+     * In addition, it tracks the status of the output fields for the current row.
      */
-    public static final class BlocksBearer implements Consumer<Block.Builder[]>, Supplier<Block.Builder[]> {
-        private Block.Builder[] blocks;
+    public static final class RowOutput {
+        final boolean[] valuesSet;
+        Block.Builder[] blocks;
 
-        @Override
-        public void accept(Block.Builder[] blocks) {
+        RowOutput(int size) {
+            valuesSet = new boolean[size];
+        }
+
+        void startRow(Block.Builder[] blocks) {
             this.blocks = blocks;
+            Arrays.fill(valuesSet, false);
         }
 
-        @Override
-        public Block.Builder[] get() {
-            return blocks;
-        }
-    }
-
-    protected static final BiConsumer<Block.Builder[], String> NOOP_STRING_COLLECTOR = (blocks, value) -> {/*no-op*/};
-    protected static final ObjIntConsumer<Block.Builder[]> NOOP_INT_COLLECTOR = (value, index) -> {/*no-op*/};
-
-    protected static Consumer<Block.Builder[]> nullValueCollector(final int index) {
-        return blocks -> blocks[index].appendNull();
-    }
-
-    protected static BiConsumer<Block.Builder[], String> stringValueCollector(final int index) {
-        return (blocks, value) -> {
-            if (value == null) {
-                blocks[index].appendNull();
-            } else {
+        void appendValue(String value, int index) {
+            if (value != null) {
                 ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(toBytesRef(value));
+                valuesSet[index] = true;
             }
-        };
+        }
+
+        void appendValue(int value, int index) {
+            ((IntBlock.Builder) blocks[index]).appendInt(value);
+            valuesSet[index] = true;
+        }
+
+        void fillMissingValues() {
+            for (int i = 0; i < valuesSet.length; i++) {
+                if (valuesSet[i] == false) {
+                    blocks[i].appendNull();
+                }
+            }
+        }
+
+        void reset() {
+            // avoid leaking blocks
+            blocks = null;
+        }
+    }
+
+    public static final BiConsumer<RowOutput, String> NOOP_STRING_COLLECTOR = (blocks, value) -> {/*no-op*/};
+    public static final ObjIntConsumer<RowOutput> NOOP_INT_COLLECTOR = (value, index) -> {/*no-op*/};
+
+    public static BiConsumer<RowOutput, String> stringValueCollector(final int index) {
+        return (rowOutput, value) -> rowOutput.appendValue(value, index);
     }
 
     /**
@@ -183,12 +171,10 @@ public abstract class CompoundOutputEvaluator<T extends CompoundOutputEvaluator.
      * @param predicate the predicate to apply on the int value to determine whether to append it or a null
      * @return a primitive int collector
      */
-    protected static ObjIntConsumer<Block.Builder[]> intValueCollector(final int index, final IntPredicate predicate) {
-        return (blocks, value) -> {
+    public static ObjIntConsumer<RowOutput> intValueCollector(final int index, final IntPredicate predicate) {
+        return (rowOutput, value) -> {
             if (predicate.test(value)) {
-                ((IntBlock.Builder) blocks[index]).appendInt(value);
-            } else {
-                blocks[index].appendNull();
+                rowOutput.appendValue(value, index);
             }
         };
     }

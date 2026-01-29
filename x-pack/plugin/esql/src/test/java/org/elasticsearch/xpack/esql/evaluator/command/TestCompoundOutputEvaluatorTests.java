@@ -7,10 +7,6 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,15 +18,13 @@ import java.util.function.ObjIntConsumer;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_INT_COLLECTOR;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_STRING_COLLECTOR;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.intValueCollector;
-import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.nullValueCollector;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.stringValueCollector;
 
 /**
  * Testing different scenarios where the coordinating node predefines a list of requested output fields and the actual execution occurs on
  * a data node with a different version, where the evaluating function produces outputs that may not fully match the predefined list.
  */
-public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEvaluatorTests<
-    TestCompoundOutputEvaluatorTests.TestFieldsCollector> {
+public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEvaluatorTests {
 
     private static Map<String, Object> testFunction(String input) {
         Map<String, Object> result = new HashMap<>();
@@ -52,8 +46,8 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
     }
 
     @Override
-    protected CompoundOutputEvaluator<TestFieldsCollector> createEvaluator(List<String> requestedFields, Warnings warnings) {
-        return new TestEvaluator(requestedFields, warnings);
+    protected CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields) {
+        return new TestFieldsCollector(requestedFields);
     }
 
     @Override
@@ -66,38 +60,37 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
     }
 
     protected static class TestFieldsCollector extends CompoundOutputEvaluator.OutputFieldsCollector {
-        private BiConsumer<Block.Builder[], String> fieldA = NOOP_STRING_COLLECTOR;
-        private ObjIntConsumer<Block.Builder[]> fieldB = NOOP_INT_COLLECTOR;
-        private BiConsumer<Block.Builder[], String> fieldC = NOOP_STRING_COLLECTOR;
+        private BiConsumer<CompoundOutputEvaluator.RowOutput, String> fieldA = NOOP_STRING_COLLECTOR;
+        private ObjIntConsumer<CompoundOutputEvaluator.RowOutput> fieldB = NOOP_INT_COLLECTOR;
+        private BiConsumer<CompoundOutputEvaluator.RowOutput, String> fieldC = NOOP_STRING_COLLECTOR;
 
-        TestFieldsCollector(SequencedCollection<String> outputFields, CompoundOutputEvaluator.BlocksBearer blocksBearer) {
-            super(blocksBearer);
+        TestFieldsCollector(SequencedCollection<String> outputFields) {
+            super(outputFields.size());
             int index = 0;
             for (String fieldName : outputFields) {
                 switch (fieldName) {
                     case "field_a" -> fieldA = stringValueCollector(index);
                     case "field_b" -> fieldB = intValueCollector(index, value -> value >= 0);
                     case "field_c" -> fieldC = stringValueCollector(index);
-                    default -> unknownFieldCollectors.add(nullValueCollector(index));
                 }
                 index++;
             }
         }
 
         public void fieldA(String value) {
-            fieldA.accept(blocksBearer.get(), value);
+            fieldA.accept(rowOutput, value);
         }
 
         public void fieldB(Integer value) {
-            fieldB.accept(blocksBearer.get(), value);
+            fieldB.accept(rowOutput, value);
         }
 
         public void fieldC(String value) {
-            fieldC.accept(blocksBearer.get(), value);
+            fieldC.accept(rowOutput, value);
         }
 
         @Override
-        protected boolean evaluate(String input) {
+        protected void evaluate(String input) {
             Map<String, Object> evaluationFunctionOutput = testFunction(input);
             try {
                 fieldA((String) evaluationFunctionOutput.get("field_a"));
@@ -108,13 +101,6 @@ public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEval
             } catch (Exception e) {
                 throw new IllegalArgumentException("Invalid input: " + input, e);
             }
-            return true;
-        }
-    }
-
-    private static class TestEvaluator extends CompoundOutputEvaluator<TestFieldsCollector> {
-        TestEvaluator(SequencedCollection<String> outputFields, Warnings warnings) {
-            super(DataType.TEXT, warnings, new TestFieldsCollector(outputFields, new BlocksBearer()));
         }
     }
 

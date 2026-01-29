@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -21,7 +20,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.SequencedCollection;
 
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
@@ -117,11 +115,7 @@ public abstract class CompoundOutputEvalExec extends UnaryExec implements Estima
         return outputFieldAttributes;
     }
 
-    public abstract CompoundOutputEvaluator<?> createEvaluator(
-        Warnings warnings,
-        SequencedCollection<String> functionOutputFields,
-        CompoundOutputEvaluator.BlocksBearer blocksBearer
-    );
+    public abstract CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector();
 
     @Override
     public PhysicalPlan estimateRowSize(State state) {

@@ -344,14 +344,13 @@ public class LocalExecutionPlanner {
             coe.source().text()
         );
 
-        final CompoundOutputEvaluator.BlocksBearer blocksBearer = new CompoundOutputEvaluator.BlocksBearer();
-        final List<String> outputFileNames = coe.outputFieldNames();
+        final CompoundOutputEvaluator.OutputFieldsCollector outputFieldsCollector = coe.createOutputFieldsCollector();
 
         source = source.with(
             new ColumnExtractOperator.Factory(
                 types,
                 EvalMapper.toEvaluator(context.foldCtx(), coe.input(), layout),
-                () -> coe.createEvaluator(warnings, outputFileNames, blocksBearer)
+                () -> new CompoundOutputEvaluator(coe.input().dataType(), warnings, outputFieldsCollector)
             ),
             layout
         );

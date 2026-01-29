@@ -16,17 +16,18 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public abstract class AbstractCompoundOutputEvaluatorTests<T extends CompoundOutputEvaluator.OutputFieldsCollector> extends ESTestCase {
+public abstract class AbstractCompoundOutputEvaluatorTests extends ESTestCase {
 
     private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
 
-    protected abstract CompoundOutputEvaluator<T> createEvaluator(List<String> requestedFields, Warnings warnings);
+    protected abstract CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields);
 
     protected abstract Map<String, Class<?>> getSupportedOutputFieldMappings();
 
@@ -40,7 +41,8 @@ public abstract class AbstractCompoundOutputEvaluatorTests<T extends CompoundOut
         List<Object[]> expectedRowComputationOutput,
         Warnings warnings
     ) {
-        CompoundOutputEvaluator<T> evaluator = createEvaluator(requestedFields, warnings);
+        CompoundOutputEvaluator.OutputFieldsCollector outputFieldsCollector = createOutputFieldsCollector(requestedFields);
+        CompoundOutputEvaluator evaluator = new CompoundOutputEvaluator(DataType.TEXT, warnings, outputFieldsCollector);
         Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
         try (BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(inputList.size())) {
             inputBuilder.beginPositionEntry();

@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
 import java.util.Map;
-import java.util.SequencedCollection;
 
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.DOMAIN;
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.EXTENSION;
@@ -26,20 +24,11 @@ import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBri
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USERNAME;
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USER_INFO;
 
-public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests<UriPartsFunctionBridge.UriPartsCollectorImpl> {
-
-    private static class TestUriPartsEvaluator extends UriPartsFunctionBridge {
-        TestUriPartsEvaluator(SequencedCollection<String> outputFields, Warnings warnings) {
-            super(DataType.TEXT, warnings, new UriPartsCollectorImpl(outputFields, new BlocksBearer()));
-        }
-    }
+public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests {
 
     @Override
-    protected CompoundOutputEvaluator<UriPartsFunctionBridge.UriPartsCollectorImpl> createEvaluator(
-        List<String> requestedFields,
-        Warnings warnings
-    ) {
-        return new UriPartsFunctionBridgeTests.TestUriPartsEvaluator(requestedFields, warnings);
+    protected CompoundOutputEvaluator.OutputFieldsCollector createOutputFieldsCollector(List<String> requestedFields) {
+        return new UriPartsFunctionBridge.UriPartsCollectorImpl(requestedFields);
     }
 
     @Override

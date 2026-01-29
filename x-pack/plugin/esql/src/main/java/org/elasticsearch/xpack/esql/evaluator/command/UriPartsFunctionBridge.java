@@ -7,10 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.net.MalformedURLException;
 import java.net.URI;
@@ -22,6 +19,11 @@ import java.util.Map;
 import java.util.SequencedCollection;
 import java.util.function.BiConsumer;
 import java.util.function.ObjIntConsumer;
+
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_INT_COLLECTOR;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.NOOP_STRING_COLLECTOR;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.intValueCollector;
+import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.stringValueCollector;
 
 /**
  * A bridge for the function that extracts parts from a URI string.
@@ -39,41 +41,37 @@ import java.util.function.ObjIntConsumer;
  *     <li>password</li>
  * </ul>
  */
-public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunctionBridge.UriPartsCollectorImpl> {
-
-    public UriPartsFunctionBridge(DataType inputType, Warnings warnings, UriPartsCollectorImpl uriPartsCollector) {
-        super(inputType, warnings, uriPartsCollector);
-    }
+public final class UriPartsFunctionBridge {
 
     public static LinkedHashMap<String, Class<?>> getAllOutputFields() {
         return uriPartsOutputFields();
     }
 
-    public static final class UriPartsCollectorImpl extends OutputFieldsCollector implements UriPartsCollector {
-        private final BiConsumer<Block.Builder[], String> domain;
-        private final BiConsumer<Block.Builder[], String> fragment;
-        private final BiConsumer<Block.Builder[], String> path;
-        private final BiConsumer<Block.Builder[], String> extension;
-        private final ObjIntConsumer<Block.Builder[]> port;
-        private final BiConsumer<Block.Builder[], String> query;
-        private final BiConsumer<Block.Builder[], String> scheme;
-        private final BiConsumer<Block.Builder[], String> userInfo;
-        private final BiConsumer<Block.Builder[], String> username;
-        private final BiConsumer<Block.Builder[], String> password;
+    public static final class UriPartsCollectorImpl extends CompoundOutputEvaluator.OutputFieldsCollector implements UriPartsCollector {
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> domain;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> fragment;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> path;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> extension;
+        private final ObjIntConsumer<CompoundOutputEvaluator.RowOutput> port;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> query;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> scheme;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> userInfo;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> username;
+        private final BiConsumer<CompoundOutputEvaluator.RowOutput, String> password;
 
-        public UriPartsCollectorImpl(SequencedCollection<String> outputFields, BlocksBearer blocksBearer) {
-            super(blocksBearer);
+        public UriPartsCollectorImpl(SequencedCollection<String> outputFields) {
+            super(outputFields.size());
 
-            BiConsumer<Block.Builder[], String> domain = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> fragment = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> path = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> extension = NOOP_STRING_COLLECTOR;
-            ObjIntConsumer<Block.Builder[]> port = NOOP_INT_COLLECTOR;
-            BiConsumer<Block.Builder[], String> query = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> scheme = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> userInfo = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> username = NOOP_STRING_COLLECTOR;
-            BiConsumer<Block.Builder[], String> password = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> domain = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> fragment = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> path = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> extension = NOOP_STRING_COLLECTOR;
+            ObjIntConsumer<CompoundOutputEvaluator.RowOutput> port = NOOP_INT_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> query = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> scheme = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> userInfo = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> username = NOOP_STRING_COLLECTOR;
+            BiConsumer<CompoundOutputEvaluator.RowOutput, String> password = NOOP_STRING_COLLECTOR;
 
             int index = 0;
             for (String outputField : outputFields) {
@@ -109,7 +107,8 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
                         password = stringValueCollector(index);
                         break;
                     default:
-                        unknownFieldCollectors.add(nullValueCollector(index));
+                        // we may be asked to collect an unknow field, which we only need to ignore and the corresponding block will be
+                        // filled with nulls
                 }
                 index++;
             }
@@ -128,57 +127,57 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
 
         @Override
         public void domain(String domain) {
-            this.domain.accept(blocksBearer.get(), domain);
+            this.domain.accept(rowOutput, domain);
         }
 
         @Override
         public void fragment(String fragment) {
-            this.fragment.accept(blocksBearer.get(), fragment);
+            this.fragment.accept(rowOutput, fragment);
         }
 
         @Override
         public void path(String path) {
-            this.path.accept(blocksBearer.get(), path);
+            this.path.accept(rowOutput, path);
         }
 
         @Override
         public void extension(String extension) {
-            this.extension.accept(blocksBearer.get(), extension);
+            this.extension.accept(rowOutput, extension);
         }
 
         @Override
         public void port(int port) {
-            this.port.accept(blocksBearer.get(), port);
+            this.port.accept(rowOutput, port);
         }
 
         @Override
         public void query(String query) {
-            this.query.accept(blocksBearer.get(), query);
+            this.query.accept(rowOutput, query);
         }
 
         @Override
         public void scheme(String scheme) {
-            this.scheme.accept(blocksBearer.get(), scheme);
+            this.scheme.accept(rowOutput, scheme);
         }
 
         @Override
         public void userInfo(String userInfo) {
-            this.userInfo.accept(blocksBearer.get(), userInfo);
+            this.userInfo.accept(rowOutput, userInfo);
         }
 
         @Override
         public void username(String username) {
-            this.username.accept(blocksBearer.get(), username);
+            this.username.accept(rowOutput, username);
         }
 
         @Override
         public void password(String password) {
-            this.password.accept(blocksBearer.get(), password);
+            this.password.accept(rowOutput, password);
         }
 
         @Override
-        public boolean evaluate(String input) {
-            return getUriParts(input, this);
+        public void evaluate(String input) {
+            getUriParts(input, this);
         }
     }
 
@@ -204,7 +203,7 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
     }
 
     @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")
-    private static boolean getUriParts(String urlString, UriPartsCollector uriPartsMapCollector) {
+    private static void getUriParts(String urlString, UriPartsCollector uriPartsCollector) {
         URI uri = null;
         URL fallbackUrl = null;
         try {
@@ -221,13 +220,10 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
         String domain;
         String fragment;
         String path;
-        String extension = null;
         int port;
         String query;
         String scheme;
         String userInfo;
-        String username = null;
-        String password = null;
 
         if (uri != null) {
             domain = uri.getHost();
@@ -250,7 +246,12 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
             throw new IllegalArgumentException("at least one argument must be non-null");
         }
 
+        uriPartsCollector.domain(domain);
+        if (fragment != null) {
+            uriPartsCollector.fragment(fragment);
+        }
         if (path != null) {
+            uriPartsCollector.path(path);
             // To avoid any issues with extracting the extension from a path that contains a dot, we explicitly extract the extension
             // from the last segment in the path.
             var lastSegmentIndex = path.lastIndexOf('/');
@@ -259,30 +260,25 @@ public class UriPartsFunctionBridge extends CompoundOutputEvaluator<UriPartsFunc
                 int periodIndex = lastSegment.lastIndexOf('.');
                 if (periodIndex >= 0) {
                     // Don't include the dot in the extension field.
-                    extension = lastSegment.substring(periodIndex + 1);
+                    uriPartsCollector.extension(lastSegment.substring(periodIndex + 1));
                 }
             }
         }
-
+        if (port != -1) {
+            uriPartsCollector.port(port);
+        }
+        if (query != null) {
+            uriPartsCollector.query(query);
+        }
+        uriPartsCollector.scheme(scheme);
         if (userInfo != null) {
+            uriPartsCollector.userInfo(userInfo);
             if (userInfo.contains(":")) {
                 int colonIndex = userInfo.indexOf(':');
-                username = userInfo.substring(0, colonIndex);
-                password = colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "";
+                uriPartsCollector.username(userInfo.substring(0, colonIndex));
+                uriPartsCollector.password(colonIndex < userInfo.length() ? userInfo.substring(colonIndex + 1) : "");
             }
         }
-
-        uriPartsMapCollector.domain(domain);
-        uriPartsMapCollector.fragment(fragment);
-        uriPartsMapCollector.path(path);
-        uriPartsMapCollector.extension(extension);
-        uriPartsMapCollector.port(port);
-        uriPartsMapCollector.query(query);
-        uriPartsMapCollector.scheme(scheme);
-        uriPartsMapCollector.userInfo(userInfo);
-        uriPartsMapCollector.username(username);
-        uriPartsMapCollector.password(password);
-        return true;
     }
 
     private static LinkedHashMap<String, Class<?>> uriPartsOutputFields() {

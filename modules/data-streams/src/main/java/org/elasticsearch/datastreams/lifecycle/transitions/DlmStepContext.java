@@ -9,14 +9,19 @@
 
 package org.elasticsearch.datastreams.lifecycle.transitions;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResultDeduplicator;
+import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.datastreams.lifecycle.ErrorRecordingActionListener;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.transport.TransportRequest;
+
+import java.util.function.BiConsumer;
 
 /**
  * Context and resources required for executing a DLM step.
@@ -42,5 +47,24 @@ public record DlmStepContext(
      */
     public ProjectId projectId() {
         return projectState.projectId();
+    }
+
+    public void executeDeduplicatedRequest(
+        TransportRequest request,
+        String failureMessage,
+        BiConsumer<Tuple<ProjectId, TransportRequest>, ActionListener<Void>> callback
+    ) {
+        transportActionsDeduplicator.executeOnce(
+            Tuple.tuple(projectId(), request),
+            new ErrorRecordingActionListener(
+                TransportAddIndexBlockAction.TYPE.name(),
+                projectId(),
+                indexName(),
+                errorStore,
+                failureMessage,
+                signallingErrorRetryThreshold
+            ),
+            callback
+        );
     }
 }

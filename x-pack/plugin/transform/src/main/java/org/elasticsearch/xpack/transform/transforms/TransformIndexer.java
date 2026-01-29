@@ -186,6 +186,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     abstract void validate(ActionListener<ValidateTransformAction.Response> listener);
 
+    abstract void prepareCrossProjectSearch(ActionListener<Void> listener);
+
     @Override
     protected String getJobId() {
         return transformConfig.getId();
@@ -311,40 +313,45 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             initializeFunction();
 
             if (initialRun()) {
-                createCheckpoint(ActionListener.wrap(cp -> {
-                    nextCheckpoint = cp;
-                    // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
-                    // Consequently, the idea of percent complete no longer makes sense.
-                    if (nextCheckpoint.getCheckpoint() > 1) {
-                        progress = new TransformProgress(null, 0L, 0L);
-                        finalListener.onResponse(null);
-                        return;
-                    }
-
-                    // get progress information
-                    SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
-                    SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-
-                    function.buildSearchQueryForInitialProgress(searchSourceBuilder);
-                    searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
-                    request.allowPartialSearchResults(false).source(searchSourceBuilder);
-
-                    doGetInitialProgress(request, ActionListener.wrap(response -> {
-                        function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
-                            logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
-                            progress = newProgress != null ? newProgress : new TransformProgress();
+                prepareCrossProjectSearch(ActionListener.wrap(ignored -> {
+                    createCheckpoint(ActionListener.wrap(cp -> {
+                        nextCheckpoint = cp;
+                        // If nextCheckpoint > 1, this means that we are now on the checkpoint AFTER the batch checkpoint
+                        // Consequently, the idea of percent complete no longer makes sense.
+                        if (nextCheckpoint.getCheckpoint() > 1) {
+                            progress = new TransformProgress(null, 0L, 0L);
                             finalListener.onResponse(null);
+                            return;
+                        }
+
+                        // get progress information
+                        SearchRequest request = new SearchRequest(transformConfig.getSource().getIndex());
+                        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+
+                        function.buildSearchQueryForInitialProgress(searchSourceBuilder);
+                        searchSourceBuilder.query(QueryBuilders.boolQuery().filter(buildFilterQuery()).filter(searchSourceBuilder.query()));
+                        request.allowPartialSearchResults(false).source(searchSourceBuilder);
+
+                        doGetInitialProgress(request, ActionListener.wrap(response -> {
+                            function.getInitialProgressFromResponse(response, ActionListener.wrap(newProgress -> {
+                                logger.trace("[{}] reset the progress from [{}] to [{}].", getJobId(), progress, newProgress);
+                                progress = newProgress != null ? newProgress : new TransformProgress();
+                                finalListener.onResponse(null);
+                            }, failure -> {
+                                progress = new TransformProgress();
+                                logger.warn(() -> "[" + getJobId() + "] unable to load progress information for task.", failure);
+                                finalListener.onResponse(null);
+                            }));
                         }, failure -> {
                             progress = new TransformProgress();
                             logger.warn(() -> "[" + getJobId() + "] unable to load progress information for task.", failure);
                             finalListener.onResponse(null);
                         }));
-                    }, failure -> {
-                        progress = new TransformProgress();
-                        logger.warn(() -> "[" + getJobId() + "] unable to load progress information for task.", failure);
-                        finalListener.onResponse(null);
-                    }));
+                    }, listener::onFailure));
+                    return;
+
                 }, listener::onFailure));
+
             } else {
                 finalListener.onResponse(null);
             }
@@ -1127,7 +1134,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(
+                IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            ); // TODO: make configurable
 
         changeCollector.buildChangesQuery(sourceBuilder, position != null ? position.getBucketsPosition() : null, context.getPageSize());
 
@@ -1190,7 +1201,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
-            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN); // TODO: make configurable
+            .indicesOptions(
+                IndicesOptions.builder(IndicesOptions.LENIENT_EXPAND_OPEN)
+                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                    .build()
+            ); // TODO: make configurable
     }
 
     /**

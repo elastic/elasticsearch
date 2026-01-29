@@ -139,6 +139,9 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        if (datafeed.getIndicesOptions().resolveCrossProjectIndexExpression()) {
+            fieldCapabilitiesRequest.includeResolvedTo(true);
+        }
 
         // Cannot get field caps on RT fields defined at search
         Set<String> runtimefields = datafeed.getRuntimeMappings().keySet();

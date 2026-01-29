@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -177,11 +178,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
+                QueryPragmas pragmas = context.queryPragmas();
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec, aggregateExec.estimatedRowSize()),
+                    pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                    pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold()),
                     analysisRegistry
                 );
             }

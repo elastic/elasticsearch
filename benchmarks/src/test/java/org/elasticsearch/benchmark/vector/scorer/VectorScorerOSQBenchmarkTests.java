@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -21,7 +20,6 @@ import org.openjdk.jmh.annotations.Param;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 

@@ -187,6 +187,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .put(ApiKeyService.DELETE_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5L))
             .put(ApiKeyService.DELETE_RETENTION_PERIOD.getKey(), TimeValue.timeValueDays(deleteRetentionPeriodDays))
             .put("xpack.security.crypto.thread_pool.queue_size", CRYPTO_THREAD_POOL_QUEUE_SIZE)
+            // Use PBKDF2 (slow hasher) to ensure crypto thread pool is used for hashing operations.
+            .put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), "pbkdf2")
             .build();
     }
 

@@ -2560,11 +2560,63 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Authentication authentication = AuthenticationTestHelper.builder().build();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
-        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        // Use a slow hasher (PBKDF2) so that computeHashForApiKey forks to the crypto thread pool
+        final Settings settings = Settings.builder().put(ApiKeyService.STORED_HASH_ALGO_SETTING.getKey(), "pbkdf2").build();
+        ApiKeyService service = createApiKeyService(settings);
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), future);
         final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
         assertThat(e, is(rejectedExecutionException));
+    }
+
+    public void testFastHashVerificationDoesNotUseCryptoThreadPool() throws Exception {
+        doTestHashVerificationThreadPoolUsage(Hasher.SSHA256, false);
+    }
+
+    public void testSlowHashVerificationUsesCryptoThreadPool() throws Exception {
+        doTestHashVerificationThreadPoolUsage(randomFrom(Hasher.PBKDF2_1000, Hasher.BCRYPT4), true);
+    }
+
+    private void doTestHashVerificationThreadPoolUsage(Hasher hasher, boolean expectCryptoThreadPoolUsed) throws Exception {
+        final String apiKey = randomAlphaOfLength(16);
+        final char[] hash = hasher.hash(new SecureString(apiKey.toCharArray()));
+        Map<String, Object> sourceMap = buildApiKeySourceDoc(hash);
+        final ApiKey.Type type = parseTypeFromSourceMap(sourceMap);
+        final ApiKeyCredentials creds = getApiKeyCredentials(randomAlphaOfLength(12), apiKey, type);
+        mockSourceDocument(creds.getId(), sourceMap);
+
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        doAnswer(invocationOnMock -> {
+            ((Runnable) invocationOnMock.getArguments()[0]).run();
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
+        service.tryAuthenticate(threadPool.getThreadContext(), creds, future);
+
+        final AuthenticationResult<User> authenticationResult = future.get();
+        assertEquals(AuthenticationResult.Status.SUCCESS, authenticationResult.getStatus());
+
+        verify(mockExecutorService, expectCryptoThreadPoolUsed ? times(1) : never()).execute(any(Runnable.class));
+    }
+
+    public void testIsUsingFastHashAlgorithm() {
+        for (String algorithmName : Hasher.getAvailableAlgoStoredSecureTokenHash()) {
+            Hasher hasher = Hasher.resolve(algorithmName);
+            boolean isFastHashAlgorithm = ApiKeyService.isUsingFastHashAlgorithm(hasher);
+
+            if (algorithmName.startsWith("pbkdf2") || algorithmName.startsWith("bcrypt")) {
+                assertFalse("Algorithm " + algorithmName + " should be classified as expensive", isFastHashAlgorithm);
+
+            } else if (algorithmName.equalsIgnoreCase("ssha256")) {
+                assertTrue("Algorithm " + algorithmName + " expected to be classified as fast", isFastHashAlgorithm);
+
+            } else {
+                fail("Algorithm " + algorithmName + " must explicitly be classified as fast or expensive");
+            }
+        }
     }
 
     public void testCreationFailsIfAuthenticationIsCloudApiKey() throws InterruptedException {

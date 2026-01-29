@@ -37,6 +37,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1540,20 +1541,38 @@ public class ApiKeyService implements Closeable {
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        if (isUsingFastHashAlgorithm(hasher)) {
+            ActionListener.completeWith(listener, () -> hasher.hash(apiKey));
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
+        }
     }
 
     // Protected instance method so this can be mocked
     protected void verifyKeyAgainstHash(String apiKeyHash, ApiKeyCredentials credentials, ActionListener<Boolean> listener) {
-        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> {
-            Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final Hasher hasher = Hasher.resolveFromHash(apiKeyHash.toCharArray());
+        final CheckedSupplier<Boolean, Exception> hashVerification = () -> {
             final char[] apiKeyHashChars = apiKeyHash.toCharArray();
             try {
                 return hasher.verify(credentials.getKey(), apiKeyHashChars);
             } finally {
                 Arrays.fill(apiKeyHashChars, (char) 0);
             }
-        }));
+        };
+        if (isUsingFastHashAlgorithm(hasher)) {
+            ActionListener.completeWith(listener, hashVerification);
+        } else {
+            threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, hashVerification));
+        }
+    }
+
+    /**
+     * Returns true if the hasher uses a computationally fast algorithm
+     * that can be directly executed without forking to the
+     * {@code security-crypto} thread pool.
+     */
+    static boolean isUsingFastHashAlgorithm(Hasher hasher) {
+        return hasher == Hasher.SSHA256;
     }
 
     private static Instant getApiKeyExpiration(Instant now, @Nullable TimeValue expiration) {

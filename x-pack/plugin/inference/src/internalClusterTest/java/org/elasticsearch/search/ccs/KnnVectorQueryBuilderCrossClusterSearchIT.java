@@ -57,9 +57,14 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         knnQueryBaseTestCases(true);
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2,
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
                 new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
-                10, 100, 10f, null),
+                10,
+                100,
+                10f,
+                null
+            ),
             QUERY_INDICES,
             List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(
@@ -75,9 +80,14 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
         knnQueryBaseTestCases(false);
         // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
         assertSearchResponse(
-            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2,
+            new KnnVectorQueryBuilder(
+                MIXED_TYPE_FIELD_2,
                 new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
-                10, 100, 10f, null),
+                10,
+                100,
+                10f,
+                null
+            ),
             QUERY_INDICES,
             List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
             new ClusterFailure(

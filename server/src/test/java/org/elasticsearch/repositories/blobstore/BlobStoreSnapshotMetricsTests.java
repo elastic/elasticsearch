@@ -8,6 +8,7 @@
  */
 
 package org.elasticsearch.repositories.blobstore;
+
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +33,19 @@ import static org.hamcrest.Matchers.equalTo;
  * Therefore, for completeness, all tests in this suite are run twice: once where the {@link ProjectId} is set, and once when it isn't.
  */
 public class BlobStoreSnapshotMetricsTests extends ESTestCase {
-    // TODO - Javadoc
+
+    /**
+     * Verifies that calling {@link BlobStoreSnapshotMetrics#incrementSnapshotRateLimitingTimeInNanos(long)}
+     * correctly accumulates write throttling time.
+     * <p>
+     * This test increments the snapshot rate-limiting counter multiple times and asserts that:
+     * <ul>
+     *     <li>The total write throttled time is the sum of all increments.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     * </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testIncrementSnapshotRateLimitingTimeInNanos() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             long firstSnapshotRateLimitingTimeInNanos = randomLongBetween(1_000L, 10_000L);
@@ -45,7 +58,10 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
             assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
             assertThat(stats.totalReadThrottledNanos(), equalTo(0L));
-            assertThat(stats.totalWriteThrottledNanos(), equalTo(firstSnapshotRateLimitingTimeInNanos + secondSnapshotRateLimitingTimeInNanos));
+            assertThat(
+                stats.totalWriteThrottledNanos(),
+                equalTo(firstSnapshotRateLimitingTimeInNanos + secondSnapshotRateLimitingTimeInNanos)
+            );
             assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
             assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
             assertThat(stats.totalUploadTimeInMillis(), equalTo(0L));
@@ -53,6 +69,18 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that calling {@link BlobStoreSnapshotMetrics#incrementRestoreRateLimitingTimeInNanos(long)}
+     * correctly accumulates read throttling time during restore operations.
+     * <p>
+     * This test ensures that:
+     * <ul>
+     *     <li>The total read throttled time reflects the sum of all increments.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     * </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testIncrementRestoreRateLimitingTimeInNanos() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             long firstRestoreRateLimitingTimeInNanos = randomLongBetween(1_000L, 10_000L);
@@ -64,7 +92,10 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
             assertThat(stats.shardSnapshotsStarted(), equalTo(0L));
             assertThat(stats.shardSnapshotsCompleted(), equalTo(0L));
             assertThat(stats.shardSnapshotsInProgress(), equalTo(0L));
-            assertThat(stats.totalReadThrottledNanos(), equalTo(firstRestoreRateLimitingTimeInNanos + secondRestoreRateLimitingTimeInNanos));
+            assertThat(
+                stats.totalReadThrottledNanos(),
+                equalTo(firstRestoreRateLimitingTimeInNanos + secondRestoreRateLimitingTimeInNanos)
+            );
             assertThat(stats.totalWriteThrottledNanos(), equalTo(0L));
             assertThat(stats.numberOfBlobsUploaded(), equalTo(0L));
             assertThat(stats.numberOfBytesUploaded(), equalTo(0L));
@@ -73,6 +104,19 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that part upload metrics are accumulated correctly when uploading snapshot data.
+     * <p>
+     * This test exercises {@link BlobStoreSnapshotMetrics#incrementCountersForPartUpload(long, long)}
+     * and asserts that:
+     * <ul>
+     *     <li>The total number of uploaded bytes is incremented by the part sizes.</li>
+     *     <li>The total upload time in milliseconds reflects the sum of the provided write times.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     *  </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testIncrementCountersForPartUploadUsesNanos() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             long firstPartSizeInBytes = randomLongBetween(1024L, 8 * 1024L);
@@ -96,6 +140,18 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that the blob upload counter is incremented correctly.
+     * <p>
+     * This test repeatedly calls {@link BlobStoreSnapshotMetrics#incrementNumberOfBlobsUploaded()}
+     * and asserts that:
+     * <ul>
+     *     <li>The number of uploaded blobs matches the number of increments.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     * </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testIncrementNumberOfBlobsUploaded() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             int numberOfBlobsUploaded = randomIntBetween(5, 15);
@@ -116,6 +172,19 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies correct tracking of shard snapshot lifecycle counters.
+     * <p>
+     * This test simulates shard snapshot start and completion events and asserts that:
+     * <ul>
+     *     <li>The started counter is incremented for each shard snapshot start.</li>
+     *     <li>The completed counter is incremented when snapshots complete.</li>
+     *     <li>The in-progress counter reflects the difference between started and completed shards.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     * </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testShardSnapshotLifecycleCounters() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             int numberOfShardsStarted = randomIntBetween(5, 15);
@@ -145,6 +214,18 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies that upload read time is accumulated correctly.
+     * <p>
+     * This test increments the upload read time multiple times via
+     * {@link BlobStoreSnapshotMetrics#incrementUploadReadTime(long)} and asserts that:
+     * <ul>
+     *     <li>The total upload read time reflects the sum of all increments.</li>
+     *     <li>No other snapshot-related counters are affected.</li>
+     * </ul>
+     * The test is executed for both configurations of {@link BlobStoreSnapshotMetrics}:
+     * with a {@link ProjectId} set and with a {@code null} {@link ProjectId}.
+     */
     public void testIncrementUploadReadTimeStoredAsNanosCounter() {
         for (BlobStoreSnapshotMetrics metrics : getMetrics()) {
             long firstUploadReadTime = randomLongBetween(1_000L, 10_000L);
@@ -165,22 +246,12 @@ public class BlobStoreSnapshotMetricsTests extends ESTestCase {
         }
     }
 
-    // TODO - Tests that test the value used for the metrics: millis versus nanos
-
     private List<BlobStoreSnapshotMetrics> getMetrics() {
         return List.of(getBlobStoreSnapshotMetrics(ProjectId.DEFAULT), getBlobStoreSnapshotMetrics(null));
     }
 
     private BlobStoreSnapshotMetrics getBlobStoreSnapshotMetrics(ProjectId projectId) {
-        RepositoryMetadata repoMetadata = new RepositoryMetadata(
-            "repo",
-            "type",
-            Settings.EMPTY
-        );
-        return new BlobStoreSnapshotMetrics(
-            projectId,
-            repoMetadata,
-            new SnapshotMetrics(new RecordingMeterRegistry())
-        );
+        RepositoryMetadata repoMetadata = new RepositoryMetadata("repo", "type", Settings.EMPTY);
+        return new BlobStoreSnapshotMetrics(projectId, repoMetadata, new SnapshotMetrics(new RecordingMeterRegistry()));
     }
 }

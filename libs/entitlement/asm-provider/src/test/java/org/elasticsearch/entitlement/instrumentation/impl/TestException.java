@@ -9,4 +9,4 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-final class TestException extends RuntimeException {}
+public final class TestException extends RuntimeException {}

@@ -14,14 +14,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockResponse;
-import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.cluster.ProjectState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.datastreams.lifecycle.ErrorRecordingActionListener;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
@@ -34,6 +29,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
+import static org.elasticsearch.action.support.master.MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
 /**
@@ -45,7 +41,7 @@ public class ReadOnlyStep implements DlmStep {
 
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
-        return projectState.blocks().hasIndexBlock(projectState.projectId(), index.getName(), IndexMetadata.APIBlock.WRITE.getBlock());
+        return projectState.blocks().hasIndexBlock(projectState.projectId(), index.getName(), WRITE.getBlock());
     }
 
     @Override
@@ -53,21 +49,15 @@ public class ReadOnlyStep implements DlmStep {
         ProjectId projectId = stepContext.projectId();
         String indexName = stepContext.indexName();
 
-        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(TimeValue.MAX_VALUE);
+        AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(WRITE, indexName).masterNodeTimeout(
+            INFINITE_MASTER_NODE_TIMEOUT
+        );
 
-        stepContext.transportActionsDeduplicator()
-            .executeOnce(
-                Tuple.tuple(projectId, addIndexBlockRequest),
-                new ErrorRecordingActionListener(
-                    TransportAddIndexBlockAction.TYPE.name(),
-                    projectId,
-                    indexName,
-                    stepContext.errorStore(),
-                    Strings.format("Data stream lifecycle service encountered an error trying to mark index [%s] as readonly", indexName),
-                    stepContext.signallingErrorRetryThreshold()
-                ),
-                (req, reqListener) -> addIndexBlock(projectId, addIndexBlockRequest, reqListener, stepContext)
-            );
+        stepContext.executeDeduplicatedRequest(
+            addIndexBlockRequest,
+            Strings.format("DLM service encountered an error trying to mark index [%s] as readonly", indexName),
+            (req, reqListener) -> addIndexBlock(projectId, addIndexBlockRequest, reqListener, stepContext)
+        );
     }
 
     private void addIndexBlock(
@@ -77,14 +67,10 @@ public class ReadOnlyStep implements DlmStep {
         DlmStepContext stepContext
     ) {
         assert addIndexBlockRequest.indices() != null && addIndexBlockRequest.indices().length == 1
-            : "Data stream lifecycle service updates the index block for one index at a time";
+            : "DLM should update the index block for one index at a time";
         // "saving" the index name here so we don't capture the entire request
         String targetIndex = addIndexBlockRequest.indices()[0];
-        logger.trace(
-            "Data stream lifecycle service issues request to add block [{}] for index [{}]",
-            addIndexBlockRequest.getBlock(),
-            targetIndex
-        );
+        logger.trace("DLM issuing request to add block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
         stepContext.client()
             .projectClient(projectId)
             .admin()
@@ -124,11 +110,7 @@ public class ReadOnlyStep implements DlmStep {
         @Override
         public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
             if (addIndexBlockResponse.isAcknowledged()) {
-                logger.info(
-                    "Data stream lifecycle service successfully added block [{}] for index index [{}]",
-                    addIndexBlockRequest.getBlock(),
-                    targetIndex
-                );
+                logger.info("DLM successfully added block [{}] for index index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
                 listener.onResponse(null);
             } else {
                 Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()
@@ -138,7 +120,7 @@ public class ReadOnlyStep implements DlmStep {
                 if (resultForTargetIndex.isEmpty()) {
                     // This really should not happen but, if it does, mark as a fail and retry next DLM run
                     logger.trace(
-                        "Data stream lifecycle service received an unacknowledged response when attempting to add the "
+                        "DLM received an unacknowledged response when attempting to add the "
                             + "read-only block to index [{}], but the response didn't contain an explicit result for the index.",
                         targetIndex
                     );

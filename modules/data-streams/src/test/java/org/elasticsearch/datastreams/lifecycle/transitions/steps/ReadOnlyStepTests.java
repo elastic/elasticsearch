@@ -147,7 +147,7 @@ public class ReadOnlyStepTests extends ESTestCase {
         AddIndexBlockResponse response = new AddIndexBlockResponse(true, true, List.of(new AddIndexBlockResponse.AddBlockResult(index)));
         capturedListener.get().onResponse(response);
 
-        // Error should be cleared
+        // Error should be empty
         assertThat(errorStore.getError(projectId, indexName), is(nullValue()));
     }
 

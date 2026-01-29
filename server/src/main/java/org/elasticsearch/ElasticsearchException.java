@@ -2043,12 +2043,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
         ),
-        STALE_REQUEST_EXCEPTION(
-            StaleRequestException.class,
-            StaleRequestException::new,
-            186,
-            TransportVersion.minimumCompatible()
-        );
+        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 186, TransportVersion.minimumCompatible());
 
         final Class<? extends ElasticsearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;

@@ -248,7 +248,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     ) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
-                        int lastDocId = docs.get(count - 1);
+                        int lastDocId = docs.get(docs.count() - 1);
                         doc = lastDocId;
 
                         if (binaryMultiValuedFormat) {
@@ -313,7 +313,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     ) throws IOException {
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
-                        int lastDocId = docs.get(count - 1);
+                        int lastDocId = docs.get(docs.count() - 1);
                         doc = lastDocId;
 
                         if (binaryMultiValuedFormat) {
@@ -454,7 +454,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 ) throws IOException {
                     int count = docs.count() - offset;
                     int firstDocId = docs.get(offset);
-                    int lastDocId = docs.get(count - 1);
+                    int lastDocId = docs.get(docs.count() - 1);
                     doc = lastDocId;
 
                     if (binaryMultiValuedFormat) {

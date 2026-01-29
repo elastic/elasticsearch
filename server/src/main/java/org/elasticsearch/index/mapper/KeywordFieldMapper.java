@@ -548,6 +548,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final FieldValues<String> scriptValues;
         private final boolean isDimension;
         private final boolean usesBinaryDocValues;
+        private final boolean usesBinaryDocValuesForIgnoredFields;
 
         public KeywordFieldType(
             String name,
@@ -577,6 +578,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = builder.scriptValues();
             this.isDimension = builder.dimension.getValue();
             this.usesBinaryDocValues = builder.usesBinaryDocValues();
+            this.usesBinaryDocValuesForIgnoredFields = builder.indexSettings.getIndexVersionCreated()
+                .onOrAfter(IndexVersions.STORE_IGNORED_KEYWORDS_IN_BINARY_DOC_VALUES);
         }
 
         public KeywordFieldType(String name) {
@@ -602,6 +605,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = usesBinaryDocValues;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public KeywordFieldType(String name, FieldType fieldType, boolean isSyntheticSource) {
@@ -621,6 +625,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = false;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -640,10 +645,15 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptValues = null;
             this.isDimension = false;
             this.usesBinaryDocValues = false;
+            this.usesBinaryDocValuesForIgnoredFields = false;
         }
 
         public boolean usesBinaryDocValues() {
             return usesBinaryDocValues;
+        }
+
+        public boolean usesBinaryDocValuesForIgnoredFields() {
+            return usesBinaryDocValuesForIgnoredFields;
         }
 
         @Override

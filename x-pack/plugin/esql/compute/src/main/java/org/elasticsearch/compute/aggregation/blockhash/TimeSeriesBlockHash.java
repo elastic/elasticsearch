@@ -213,6 +213,11 @@ public final class TimeSeriesBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        return Math.toIntExact(positionCount());
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new Range(0, positionCount()).seenGroupIds(bigArrays);
     }

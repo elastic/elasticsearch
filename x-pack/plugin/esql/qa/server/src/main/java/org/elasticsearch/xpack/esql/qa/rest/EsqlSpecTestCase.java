@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
@@ -359,19 +360,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest(String query) throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
-        if (preference != null) {
-            Settings settings = Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
-            builder.pragmas(settings).pragmasOk();
-        }
 
         if (query.toUpperCase(Locale.ROOT).contains("LOOKUP_\uD83D\uDC14")) {
             builder.tables(tables());
         }
 
         boolean checkTook = supportsTook() && rarely();
-
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
+
+        addPragmas(builder);
+
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),
@@ -401,6 +399,34 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             long took = ((Number) answer.get("took")).longValue();
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
+    }
+
+    private void addPragmas(RequestObjectBuilder builder) throws IOException {
+        MappedFieldType.FieldExtractPreference preference = fieldExtractPreference();
+        Settings.Builder pragmaBuilder = Settings.builder();
+        if (preference != null) {
+            Settings settings = Settings.builder().put(QueryPragmas.FIELD_EXTRACT_PREFERENCE.getKey(), preference.toString()).build();
+            builder.pragmas(settings).pragmasOk();
+        }
+        if (randomBoolean()) {
+            addRandomPragma(pragmaBuilder);
+        }
+        Settings pragma = pragmaBuilder.build();
+        if (pragma.isEmpty() == false) {
+            builder.pragmas(pragma);
+            builder.pragmasOk();
+        }
+
+    }
+
+    /**
+     * Add a random pragma to the request. Defaults to no-op
+     */
+    protected void addRandomPragma(Settings.Builder pragma) {
+        if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
+            pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
+                .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
         }
     }
 

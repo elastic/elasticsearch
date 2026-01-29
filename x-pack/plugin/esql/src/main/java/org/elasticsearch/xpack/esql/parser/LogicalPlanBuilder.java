@@ -1193,7 +1193,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(
                 inferenceId.source(),
                 "Option [{}] must be a valid string, found [{}]",
-                Completion.INFERENCE_ID_OPTION_NAME,
+                InferencePlan.INFERENCE_ID_OPTION_NAME,
                 inferenceId.source().text()
             );
         }

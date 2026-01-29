@@ -89,7 +89,6 @@ public class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperat
                 return new StreamingLookupFromIndexOperator(
                     matchFields,
                     sessionId,
-                    driverContext,
                     parentTask,
                     lookupService.apply(driverContext),
                     lookupIndexPattern,

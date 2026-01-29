@@ -104,7 +104,7 @@ public class BatchSortedExchangeSource implements Closeable {
         int pageIndex = batchPage.pageIndexInBatch();
         boolean isLast = batchPage.isLastPageInBatch();
 
-        logger.debug(
+        logger.trace(
             "[BatchSortedExchangeSource] Received page: batchId={}, pageIndex={}, isLast={}, positions={}",
             batchId,
             pageIndex,
@@ -130,7 +130,7 @@ public class BatchSortedExchangeSource implements Closeable {
             flushBufferedPages(state);
         } else if (pageIndex > state.nextExpectedIndex) {
             // Page arrived out of order - buffer it
-            logger.debug(
+            logger.trace(
                 "[BatchSortedExchangeSource] Buffering out-of-order page: batchId={}, pageIndex={}, expected={}",
                 batchId,
                 pageIndex,
@@ -167,7 +167,7 @@ public class BatchSortedExchangeSource implements Closeable {
                 BatchPage bufferedPage = state.bufferedPages.remove(nextKey);
                 outputQueue.add(bufferedPage);
                 state.nextExpectedIndex++;
-                logger.debug(
+                logger.trace(
                     "[BatchSortedExchangeSource] Flushed buffered page: batchId={}, pageIndex={}",
                     bufferedPage.batchId(),
                     bufferedPage.pageIndexInBatch()

@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.exchange.BatchPage;
@@ -38,8 +37,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -54,8 +53,13 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private static final Logger logger = LogManager.getLogger(StreamingLookupFromIndexOperator.class);
     private static final AtomicLong sessionIdGenerator = new AtomicLong(0);
 
+    /**
+     * Maximum number of batches that can be in flight at the same time.
+     * This enables pipelining - the client can send multiple batches without waiting for each to complete.
+     */
+    static final int MAX_CONCURRENT_BATCHES = 4;
+
     // Configuration
-    private final DriverContext driverContext;
     private final LookupFromIndexService lookupService;
     private final String sessionId;
     private final CancellableTask parentTask;
@@ -71,8 +75,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     // State
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
-    private final Deque<BatchState> pendingBatches = new ArrayDeque<>();
-    private BatchState currentBatch = null;
+    private final Map<Long, BatchState> activeBatches = new HashMap<>();
     private BidirectionalBatchExchangeClient client;
     private final SubscribableListener<BidirectionalBatchExchangeClient> clientReadyListener = new SubscribableListener<>();
     private final AtomicReference<Exception> failure = new AtomicReference<>();
@@ -101,14 +104,11 @@ public class StreamingLookupFromIndexOperator implements Operator {
      */
     private static class BatchState {
         final long batchId;
-        final Page inputPage;
         final RightChunkedLeftJoin join;
         boolean receivedLastPage = false;
-        Page trailingNulls = null;
 
         BatchState(long batchId, Page inputPage, int loadFieldCount) {
             this.batchId = batchId;
-            this.inputPage = inputPage;
             this.join = new RightChunkedLeftJoin(inputPage, loadFieldCount);
         }
     }
@@ -116,7 +116,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
     public StreamingLookupFromIndexOperator(
         List<MatchConfig> matchFields,
         String sessionId,
-        DriverContext driverContext,
         CancellableTask parentTask,
         LookupFromIndexService lookupService,
         String lookupIndexPattern,
@@ -128,7 +127,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
         int exchangeBufferSize,
         boolean profile
     ) {
-        this.driverContext = driverContext;
         this.lookupService = lookupService;
         this.sessionId = sessionId + "/streaming/" + sessionIdGenerator.incrementAndGet();
         this.parentTask = parentTask;
@@ -244,9 +242,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        // Don't accept new input if we already have a batch in flight
-        // This ensures we process one batch at a time for proper flow control
-        if (pendingBatches.isEmpty() == false || currentBatch != null) {
+        // Don't accept new input if we already have MAX_CONCURRENT_BATCHES in flight
+        if (activeBatches.size() >= MAX_CONCURRENT_BATCHES) {
             return false;
         }
         return finished == false && failure.get() == null && closed == false && client != null;
@@ -302,7 +299,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
 
         // Track batch for receiving results
         BatchState batch = new BatchState(batchId, page, loadFields.size());
-        pendingBatches.addLast(batch);
+        activeBatches.put(batchId, batch);
         pagesReceived++;
     }
 
@@ -321,7 +318,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
     public Page getOutput() {
         Exception ex = failure.get();
         if (ex != null) {
-            // Clean up resources before throwing - release currentBatch and pendingBatches
+            // Clean up resources before throwing - release activeBatches
             // This is necessary because the exception may have occurred on the server side,
             // and we're holding resources (like inputPage in RightChunkedLeftJoin) that need releasing
             cleanupBatchResources();
@@ -338,64 +335,58 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return null;
         }
 
-        if (currentBatch == null) {
-            currentBatch = pendingBatches.pollFirst();
-            if (currentBatch == null) {
-                return null;
-            }
-            logger.trace("getOutput: starting batch {}", currentBatch.batchId);
+        if (activeBatches.isEmpty()) {
+            return null;
         }
 
-        Page output = getOutputFromCurrentBatch();
+        Page output = getOutputFromActiveBatches();
         if (output != null) {
             totalOutputRows += output.getPositionCount();
         }
         return output;
     }
 
-    private Page getOutputFromCurrentBatch() {
-        // First, check if we have trailing nulls to emit
-        if (currentBatch.trailingNulls != null) {
-            Page output = currentBatch.trailingNulls;
-            currentBatch.trailingNulls = null;
-            completeBatch();
-            return output;
+    private Page getOutputFromActiveBatches() {
+        // First, check for batches that received all results and need trailing nulls computed
+        // We compute trailing nulls lazily - only when we're ready to output them
+        for (Long batchId : new ArrayList<>(activeBatches.keySet())) {
+            BatchState batch = activeBatches.get(batchId);
+            if (batch != null && batch.receivedLastPage) {
+                Optional<Page> trailingNulls = batch.join.noMoreRightHandPages();
+                if (trailingNulls.isPresent()) {
+                    Page output = trailingNulls.get();
+                    completeBatch(batch);
+                    return output;
+                } else {
+                    // No trailing nulls, just complete the batch
+                    completeBatch(batch);
+                    // Continue checking other batches - don't return null yet
+                }
+            }
         }
 
-        // If we already received last page, check for trailing nulls
-        if (currentBatch.receivedLastPage) {
-            Optional<Page> trailingNulls = safeNoMoreRightHandPages();
-            if (trailingNulls.isPresent()) {
-                Page output = trailingNulls.get();
-                completeBatch();
-                return output;
-            } else {
-                completeBatch();
-                return null;
-            }
+        // If all batches were just completed, return null
+        if (activeBatches.isEmpty()) {
+            return null;
         }
 
         // Try to poll a result page from the client
         BatchPage resultPage = client.pollPage();
         if (resultPage == null) {
-            // If the page cache is done (no more pages will arrive) but we haven't received
-            // the last page marker, treat it as if the batch is complete with no more results
+            // If the page cache is done (no more pages will arrive), mark all unfinished batches as received
             if (client.isPageCacheDone()) {
-                logger.debug("getOutput: pageCacheDone but no marker received for batchId={}, completing batch", currentBatch.batchId);
-                currentBatch.receivedLastPage = true;
-                Optional<Page> trailingNulls = safeNoMoreRightHandPages();
-                if (trailingNulls.isPresent()) {
-                    Page output = trailingNulls.get();
-                    completeBatch();
-                    return output;
-                } else {
-                    completeBatch();
-                    return null;
+                for (BatchState batch : activeBatches.values()) {
+                    if (batch.receivedLastPage == false) {
+                        logger.debug("getOutput: pageCacheDone but no marker received for batchId={}, marking as received", batch.batchId);
+                        batch.receivedLastPage = true;
+                    }
                 }
+                // Recursively call to process trailing nulls
+                return getOutputFromActiveBatches();
             }
             logger.trace(
-                "getOutput: pollPage returned null, batchId={}, pageCacheSize={}, pageCacheDone={}",
-                currentBatch.batchId,
+                "getOutput: pollPage returned null, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                activeBatches.size(),
                 client.pageCacheSize(),
                 client.isPageCacheDone()
             );
@@ -408,30 +399,21 @@ public class StreamingLookupFromIndexOperator implements Operator {
         // releasing them on this (client-side) driver thread
         resultPage.allowPassingToDifferentDriver();
 
-        if (resultPage.batchId() != currentBatch.batchId) {
-            logger.warn("Received result for unexpected batch: expected={}, got={}", currentBatch.batchId, resultPage.batchId());
+        // Look up the batch by ID
+        BatchState batch = activeBatches.get(resultPage.batchId());
+        if (batch == null) {
             resultPage.releaseBlocks();
-            return null;
+            throw new IllegalStateException("Received result for unknown batch: batchId=" + resultPage.batchId());
         }
 
         if (resultPage.isLastPageInBatch()) {
-            currentBatch.receivedLastPage = true;
+            batch.receivedLastPage = true;
         }
 
         // BatchPage extends Page, so we can use it directly
         if (resultPage.getPositionCount() == 0) {
             resultPage.releaseBlocks();
-            if (currentBatch.receivedLastPage) {
-                Optional<Page> trailingNulls = safeNoMoreRightHandPages();
-                if (trailingNulls.isPresent()) {
-                    Page output = trailingNulls.get();
-                    completeBatch();
-                    return output;
-                } else {
-                    completeBatch();
-                    return null;
-                }
-            }
+            // If this was the last page, trailing nulls will be computed on next getOutput() call
             return null;
         }
 
@@ -439,80 +421,41 @@ public class StreamingLookupFromIndexOperator implements Operator {
         // Use try-finally to ensure resultPage is always released, even if join() throws
         Page output;
         try {
-            output = currentBatch.join.join(resultPage);
+            output = batch.join.join(resultPage);
         } finally {
             resultPage.releaseBlocks();
-        }
-
-        // If this was the last page, save trailing nulls for next call
-        // Wrap in try-catch to release output if noMoreRightHandPages() throws
-        if (currentBatch.receivedLastPage) {
-            try {
-                Optional<Page> trailingNulls = safeNoMoreRightHandPages();
-                if (trailingNulls.isPresent()) {
-                    currentBatch.trailingNulls = trailingNulls.get();
-                } else {
-                    completeBatch();
-                }
-            } catch (RuntimeException e) {
-                // Release the output page before propagating the exception
-                output.releaseBlocks();
-                throw e;
-            }
         }
 
         return output;
     }
 
-    /**
-     * Wrapper for noMoreRightHandPages() - just calls the method directly.
-     * The RightChunkedLeftJoin handles its own internal cleanup on exceptions.
-     * If an exception propagates, the Driver will call close() which cleans up currentBatch.
-     */
-    private Optional<Page> safeNoMoreRightHandPages() {
-        return currentBatch.join.noMoreRightHandPages();
-    }
-
-    private void completeBatch() {
-        if (currentBatch != null) {
+    private void completeBatch(BatchState batch) {
+        if (batch != null) {
             if (client != null) {
-                logger.debug("completeBatch: batchId={}", currentBatch.batchId);
-                client.markBatchCompleted(currentBatch.batchId);
+                logger.debug("completeBatch: batchId={}", batch.batchId);
+                client.markBatchCompleted(batch.batchId);
             }
-            Releasables.closeExpectNoException(currentBatch.join);
-            currentBatch = null;
+            Releasables.closeExpectNoException(batch.join);
+            activeBatches.remove(batch.batchId);
             pagesCompleted++;
         }
     }
 
     /**
-     * Clean up all batch resources (currentBatch and pendingBatches).
+     * Clean up all batch resources (activeBatches).
      * Called when an error is detected to release resources before throwing.
      */
     private void cleanupBatchResources() {
-        if (currentBatch != null) {
-            logger.debug("cleanupBatchResources: cleaning currentBatch batchId={}", currentBatch.batchId);
-            if (currentBatch.trailingNulls != null) {
-                Releasables.closeExpectNoException(currentBatch.trailingNulls::releaseBlocks);
-                currentBatch.trailingNulls = null;
-            }
-            Releasables.closeExpectNoException(currentBatch.join);
-            currentBatch = null;
-        }
-        for (BatchState batch : pendingBatches) {
-            logger.debug("cleanupBatchResources: cleaning pendingBatch batchId={}", batch.batchId);
-            if (batch.trailingNulls != null) {
-                Releasables.closeExpectNoException(batch.trailingNulls::releaseBlocks);
-                batch.trailingNulls = null;
-            }
+        for (BatchState batch : activeBatches.values()) {
+            logger.debug("cleanupBatchResources: cleaning batch batchId={}", batch.batchId);
             Releasables.closeExpectNoException(batch.join);
         }
-        pendingBatches.clear();
+        activeBatches.clear();
     }
 
     @Override
     public void finish() {
-        logger.debug("finish() called, pendingBatches={}", pendingBatches.size());
+        logger.debug("finish() called, activeBatches={}", activeBatches.size());
         finished = true;
         if (client != null && clientFinishCalled == false) {
             clientFinishCalled = true;
@@ -530,15 +473,8 @@ public class StreamingLookupFromIndexOperator implements Operator {
         if (finished == false) {
             return false;
         }
-        if (pendingBatches.isEmpty() == false) {
-            return false;
-        }
-        if (currentBatch != null) {
-            logger.debug(
-                "isFinished: false (currentBatch not null), batchId={}, receivedLastPage={}",
-                currentBatch.batchId,
-                currentBatch.receivedLastPage
-            );
+        if (activeBatches.isEmpty() == false) {
+            logger.trace("isFinished: false (activeBatches not empty), size={}", activeBatches.size());
             return false;
         }
         // If no batches were ever sent, we're done immediately
@@ -558,24 +494,16 @@ public class StreamingLookupFromIndexOperator implements Operator {
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
         // Return true only if we have actual data ready to emit:
-        // 1. We have pending batches waiting to be processed (getOutput will start them)
-        // 2. We have a current batch with trailing nulls ready to emit
-        // 3. We have a current batch that received last page (need to emit trailing nulls)
-        // 4. We have pages in the cache ready to process
-        if (pendingBatches.isEmpty() == false) {
-            return true;
+        // 1. Any batch received last page (needs trailing nulls computed)
+        // 2. We have pages in the cache ready to process
+        for (BatchState batch : activeBatches.values()) {
+            if (batch.receivedLastPage) {
+                return true;
+            }
         }
-        if (currentBatch != null) {
-            if (currentBatch.trailingNulls != null) {
-                return true;
-            }
-            if (currentBatch.receivedLastPage) {
-                return true;
-            }
-            // Check if there are pages ready in the cache
-            if (client != null && client.pageCacheSize() > 0) {
-                return true;
-            }
+        // Check if there are pages ready in the cache
+        if (client != null && client.pageCacheSize() > 0) {
+            return true;
         }
         return false;
     }
@@ -594,13 +522,20 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return new IsBlockedResult(voidListener, "waiting for client");
         }
 
-        // If we have a current batch being processed, check if we need to wait for pages
-        if (currentBatch != null && currentBatch.receivedLastPage == false && currentBatch.trailingNulls == null) {
+        // If we have active batches waiting for results, check if we need to wait for pages
+        if (activeBatches.isEmpty() == false) {
+            // Check if any batch has received all results (ready for trailing nulls)
+            for (BatchState batch : activeBatches.values()) {
+                if (batch.receivedLastPage) {
+                    return NOT_BLOCKED; // Data ready to process (trailing nulls)
+                }
+            }
+            // No batch has data ready, wait for pages from client
             IsBlockedResult waitResult = client.waitForPage();
             if (waitResult.listener().isDone() == false) {
                 logger.trace(
-                    "isBlocked: waiting for page, batchId={}, pageCacheSize={}, pageCacheDone={}",
-                    currentBatch.batchId,
+                    "isBlocked: waiting for page, activeBatches={}, pageCacheSize={}, pageCacheDone={}",
+                    activeBatches.size(),
                     client.pageCacheSize(),
                     client.isPageCacheDone()
                 );
@@ -608,13 +543,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
             }
         }
 
-        // If we have pending batches but no current batch, we're not blocked
-        // getOutput() will move a batch from pending to current
-        // After that, we'll block waiting for pages on the next isBlocked() call
-
         // If we're done processing batches but waiting for server response, block on that
         // This ensures we don't complete until we know if the server succeeded or failed
-        if (finished && pendingBatches.isEmpty() && currentBatch == null && client != null) {
+        if (finished && activeBatches.isEmpty() && client != null) {
             if (client.isFinished() == false) {
                 logger.debug("isBlocked: waiting for server response");
                 return client.waitForServerResponse();
@@ -630,23 +561,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
         processEndNanos = System.nanoTime();
         closed = true;
 
-        if (currentBatch != null) {
-            if (currentBatch.trailingNulls != null) {
-                Releasables.closeExpectNoException(currentBatch.trailingNulls::releaseBlocks);
-                currentBatch.trailingNulls = null;
-            }
-            Releasables.closeExpectNoException(currentBatch.join);
-            currentBatch = null;
-        }
-
-        for (BatchState batch : pendingBatches) {
-            if (batch.trailingNulls != null) {
-                Releasables.closeExpectNoException(batch.trailingNulls::releaseBlocks);
-                batch.trailingNulls = null;
-            }
+        for (BatchState batch : activeBatches.values()) {
             Releasables.closeExpectNoException(batch.join);
         }
-        pendingBatches.clear();
+        activeBatches.clear();
 
         if (client != null) {
             // Wait for server setup to complete before closing client.

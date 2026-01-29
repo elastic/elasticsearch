@@ -21,6 +21,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.compute.operator.Operator.NOT_BLOCKED;
@@ -48,9 +49,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     private final SubscribableListener<Void> serverResponseListener = new SubscribableListener<>(); // Listener for server response
     private volatile boolean requestSent = false; // Track if batch exchange status request was sent
-    // Track batch IDs to ensure all batches complete before closing
-    private volatile long startedBatchId = -1; // Highest batch ID that has been sent
-    private volatile long completedBatchId = -1; // Highest batch ID that has been completed
+    // Track batch counts to ensure all batches complete before closing
+    private final AtomicInteger startedBatchCount = new AtomicInteger(0);
+    private final AtomicInteger completedBatchCount = new AtomicInteger(0);
 
     /**
      * Create a new BidirectionalBatchExchangeClient.
@@ -179,7 +180,9 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      */
     public boolean isFinished() {
         // If all sent batches have been completed and server responded, we're done.
-        if (startedBatchId >= 0 && completedBatchId >= startedBatchId && serverResponseListener.isDone()) {
+        int started = startedBatchCount.get();
+        int completed = completedBatchCount.get();
+        if (started > 0 && completed >= started && serverResponseListener.isDone()) {
             return true;
         }
         // Also check page cache for edge cases (e.g., no batches sent)
@@ -306,8 +309,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         + ")"
                 );
             }
-            // Track the highest batch ID that has been sent
-            startedBatchId = Math.max(startedBatchId, batchPage.batchId());
+            // Track the number of batches that have been sent
+            startedBatchCount.incrementAndGet();
             clientToServerSink.addPage(batchPage);
         }
     }
@@ -327,10 +330,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
 
     /**
      * Mark a batch as completed. Called by the consumer when it finishes processing a batch.
-     * @param batchId the completed batch ID
+     * @param batchId the completed batch ID (used for logging, not tracked)
      */
     public void markBatchCompleted(long batchId) {
-        completedBatchId = batchId;
+        completedBatchCount.incrementAndGet();
+        logger.trace("[LookupJoinClient] Batch {} completed, total completed={}", batchId, completedBatchCount.get());
     }
 
     /**
@@ -454,8 +458,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         }
 
         // Log incomplete batches for debugging (but don't wait - we're shutting down)
-        if (startedBatchId >= 0 && completedBatchId < startedBatchId) {
-            logger.warn("[LookupJoinClient] Closing with incomplete batches: started={}, completed={}", startedBatchId, completedBatchId);
+        int started = startedBatchCount.get();
+        int completed = completedBatchCount.get();
+        if (started > 0 && completed < started) {
+            logger.warn("[LookupJoinClient] Closing with incomplete batches: started={}, completed={}", started, completed);
         }
 
         // Finish the server-to-client source handler to signal completion

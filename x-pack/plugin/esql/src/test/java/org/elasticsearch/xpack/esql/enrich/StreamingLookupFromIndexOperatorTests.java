@@ -112,10 +112,10 @@ import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 
 @TestLogging(
-    value = "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:TRACE,"
-        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:TRACE,"
-        + "org.elasticsearch.compute.operator.exchange.BatchSortedExchangeSource:TRACE,"
-        + "org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator:TRACE",
+    value = "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient:DEBUG,"
+        + "org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeServer:DEBUG,"
+        + "org.elasticsearch.compute.operator.exchange.BatchSortedExchangeSource:DEBUG,"
+        + "org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator:DEBUG",
     reason = "debugging streaming lookup performance"
 )
 public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
@@ -300,7 +300,6 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 return new StreamingLookupFromIndexOperator(
                     finalMatchFields,
                     sessionId,
-                    driverContext,
                     parentTask,
                     service,
                     lookupIndex,
@@ -557,6 +556,124 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         assertThat(description, expectedDescriptionOfSimple());
         try (Operator op = factory.get(driverContext())) {
             assertTrue("Expected StreamingLookupFromIndexOperator instance", op instanceof StreamingLookupFromIndexOperator);
+        }
+    }
+
+    /**
+     * Verify the MAX_CONCURRENT_BATCHES constant is accessible and has a reasonable value.
+     */
+    public void testMaxConcurrentBatchesConstant() {
+        assertThat(
+            "MAX_CONCURRENT_BATCHES should be positive",
+            StreamingLookupFromIndexOperator.MAX_CONCURRENT_BATCHES,
+            greaterThanOrEqualTo(1)
+        );
+    }
+
+    /**
+     * Test that the operator accepts exactly MAX_CONCURRENT_BATCHES before blocking.
+     * This verifies that pipelining allows multiple batches in flight simultaneously.
+     */
+    public void testConcurrentBatchPipelining() {
+        // Only test with null operation (field-based join) or EQ to avoid timeout
+        if (operation != null && operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ) == false) {
+            return;
+        }
+
+        int maxBatches = StreamingLookupFromIndexOperator.MAX_CONCURRENT_BATCHES;
+        int numPages = maxBatches + 2; // More pages than max concurrent
+
+        DriverContext driverContext = driverContext();
+        BlockFactory blockFactory = driverContext.blockFactory();
+
+        // Create individual single-row pages so each page = one batch
+        List<Page> inputPages = new ArrayList<>();
+        for (int i = 0; i < numPages; i++) {
+            long value = i % LOOKUP_SIZE;
+            LongBlock block1 = blockFactory.newConstantLongBlockWith(value, 1);
+            if (numberOfJoinColumns == 1) {
+                inputPages.add(new Page(block1));
+            } else {
+                LongBlock block2 = blockFactory.newConstantLongBlockWith(value + 1, 1);
+                inputPages.add(new Page(block1, block2));
+            }
+        }
+
+        // Verify we created the expected number of single-row pages
+        assertThat("Should create " + numPages + " pages", inputPages.size(), equalTo(numPages));
+        for (Page p : inputPages) {
+            assertThat("Each page should have 1 row", p.getPositionCount(), equalTo(1));
+        }
+
+        Operator.OperatorFactory factory = simple();
+        Operator operator = factory.get(driverContext);
+        List<Page> results = new ArrayList<>();
+
+        try {
+            // Wait for client to be ready by polling isBlocked()
+            int maxWaitIterations = 1000;
+            int waitIterations = 0;
+            while (operator.isBlocked().listener().isDone() == false && waitIterations < maxWaitIterations) {
+                Thread.sleep(10);
+                waitIterations++;
+            }
+            assertTrue("Client should be ready within timeout", waitIterations < maxWaitIterations);
+
+            // Send pages one at a time and track how many are accepted before blocking
+            int pagesAccepted = 0;
+            int pageIndex = 0;
+
+            // Send up to MAX_CONCURRENT_BATCHES pages - all should be accepted
+            for (int i = 0; i < maxBatches && pageIndex < inputPages.size(); i++) {
+                assertTrue("Should accept batch " + i, operator.needsInput());
+                operator.addInput(inputPages.get(pageIndex++));
+                pagesAccepted++;
+            }
+
+            // Verify we accepted exactly MAX_CONCURRENT_BATCHES
+            assertThat("Should accept exactly MAX_CONCURRENT_BATCHES before blocking", pagesAccepted, equalTo(maxBatches));
+
+            // After MAX_CONCURRENT_BATCHES, needsInput should return false
+            assertFalse("Should NOT accept more than MAX_CONCURRENT_BATCHES in flight", operator.needsInput());
+
+            // Now drive the operator to completion, feeding remaining pages as space becomes available
+            while (operator.isFinished() == false) {
+                // Wait if blocked
+                while (operator.isBlocked().listener().isDone() == false) {
+                    Thread.sleep(1);
+                }
+
+                // Get output first to free up batch slots
+                Page output = operator.getOutput();
+                if (output != null) {
+                    results.add(output);
+                }
+
+                // Try to add remaining pages when operator needs input
+                while (pageIndex < inputPages.size() && operator.needsInput()) {
+                    operator.addInput(inputPages.get(pageIndex++));
+                }
+
+                // If all pages sent and operator needs input, finish
+                if (pageIndex >= inputPages.size() && operator.needsInput()) {
+                    operator.finish();
+                }
+            }
+
+            // Verify we got output for all input rows
+            int totalInputRows = inputPages.size(); // 1 row per page
+            int totalOutputRows = results.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat("All input rows should produce output", totalOutputRows, equalTo(totalInputRows));
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail("Test interrupted");
+        } finally {
+            // Cleanup
+            operator.close();
+            for (Page page : results) {
+                page.releaseBlocks();
+            }
         }
     }
 }

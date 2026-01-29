@@ -1491,6 +1491,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 );
                                 InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
                                 assertNestedTopHitsScore(terms, withScore);
+                                result.getAggregations().close();
                             }
 
                             {
@@ -1504,6 +1505,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                                 InternalNested nestedResult = result.getAggregations().get("nested");
                                 InternalMultiBucketAggregation<?, ?> terms = nestedResult.getAggregations().get("terms");
                                 assertNestedTopHitsScore(terms, withScore);
+                                result.getAggregations().close();
                             }
                         }
                     }

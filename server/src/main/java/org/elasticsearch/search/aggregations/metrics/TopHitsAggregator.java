@@ -233,8 +233,9 @@ class TopHitsAggregator extends MetricsAggregator {
         );
         // internalTopHits.incRef();
         fetchResult.hits().incRef();
+//        fetchResult.addAggregation(internalTopHits);
 
-        subSearchContext.addReleasable(internalTopHits);
+//        subSearchContext.addReleasable(internalTopHits);
         return internalTopHits;
     }
 
@@ -315,7 +316,7 @@ class TopHitsAggregator extends MetricsAggregator {
             metadata()
         );
         // internalTopHits.incRef();
-        subSearchContext.addReleasable(internalTopHits);
+//        subSearchContext.addReleasable(internalTopHits);
         return internalTopHits;
     }
 

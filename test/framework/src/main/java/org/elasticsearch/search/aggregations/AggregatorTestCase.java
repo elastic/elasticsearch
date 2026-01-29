@@ -614,6 +614,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 var agg = searchAndReduce(indexSettings, searcher, breakerService, aggTestConfig, this::createCancellingAggregationContext);
                 agg.close();
             } catch (TaskCancelledException e) {
+                e.printStackTrace();
                 // we don't want to expectThrows this because the randomizer might just never report cancellation,
                 // but it's also normal that it should throw here.
             }
@@ -791,6 +792,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
                 verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
             }
+            internalAggs.forEach(agg -> {agg.close();});
             return internalAgg;
         } catch (Exception e) {
             for (InternalAggregations aggs : internalAggs) {

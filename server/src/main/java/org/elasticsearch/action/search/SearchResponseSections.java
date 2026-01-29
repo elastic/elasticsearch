@@ -97,9 +97,9 @@ public class SearchResponseSections implements Releasable {
 
     @Override
     public void close() {
-        // if (aggregations != null) {
-        // aggregations.forEach(agg -> { agg.close(); });
-        // }
+         if (aggregations != null) {
+            aggregations.forEach(agg -> { agg.close(); });
+         }
         hits.decRef();
     }
 }

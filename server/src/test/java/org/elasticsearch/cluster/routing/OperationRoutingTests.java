@@ -522,6 +522,7 @@ public class OperationRoutingTests extends ESTestCase {
         var initialSearchShards = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
         assertEquals(shardCount, initialSearchShards.size());
+        initialSearchShards.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, initialSearchShards.get(i).shardId().id());
             assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShards.get(i).reshardSplitShardCountSummary());
@@ -532,6 +533,7 @@ public class OperationRoutingTests extends ESTestCase {
         var initialSearchShardsWithRouting = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
         assertEquals(shardCount, initialSearchShardsWithRouting.size());
+        initialSearchShardsWithRouting.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, initialSearchShardsWithRouting.get(i).shardId().id());
             assertEquals(SplitShardCountSummary.fromInt(shardCount), initialSearchShardsWithRouting.get(i).reshardSplitShardCountSummary());
@@ -569,6 +571,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardHandoff = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
         assertEquals(shardCount, searchShardsWithOneShardHandoff.size());
+        searchShardsWithOneShardHandoff.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardHandoff.get(i).shardId().id());
             assertEquals(
@@ -580,6 +583,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardHandoffAndRouting = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
         assertEquals(shardCount, searchShardsWithOneShardHandoffAndRouting.size());
+        searchShardsWithOneShardHandoffAndRouting.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardHandoffAndRouting.get(i).shardId().id());
             assertEquals(
@@ -623,6 +627,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardSplit = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
         assertEquals(shardCount + 1, searchShardsWithOneShardSplit.size());
+        searchShardsWithOneShardSplit.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardSplit.get(i).shardId().id());
         }
@@ -649,6 +654,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardSplitAndRouting = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
         assertEquals(shardCount + 1, searchShardsWithOneShardSplitAndRouting.size());
+        searchShardsWithOneShardSplitAndRouting.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardSplitAndRouting.get(i).shardId().id());
         }
@@ -701,6 +707,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardDone = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, null, null);
         assertEquals(shardCount + 1, searchShardsWithOneShardDone.size());
+        searchShardsWithOneShardDone.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardDone.get(i).shardId().id());
         }
@@ -727,6 +734,7 @@ public class OperationRoutingTests extends ESTestCase {
         var searchShardsWithOneShardDoneAndRouting = clusterService.operationRouting()
             .searchShards(clusterService.state().projectState(projectId), new String[] { indexName }, Map.of("other", Set.of("1")), null);
         assertEquals(shardCount + 1, searchShardsWithOneShardDoneAndRouting.size());
+        searchShardsWithOneShardDoneAndRouting.sort(null);
         for (int i = 0; i < shardCount; i++) {
             assertEquals(i, searchShardsWithOneShardDoneAndRouting.get(i).shardId().id());
         }

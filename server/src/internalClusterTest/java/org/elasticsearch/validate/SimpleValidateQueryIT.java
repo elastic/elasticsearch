@@ -357,10 +357,12 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
             .setRewrite(withRewrite)
             .setAllShards(allShards)
             .get();
-        assertThat(response.getQueryExplanation().size(), equalTo(matchers.size()));
+        var explanation = response.getQueryExplanation();
+        explanation.sort((a, b) -> { return Integer.compare(a.getShard(), b.getShard()); });
+        assertThat(explanation.size(), equalTo(matchers.size()));
         for (int i = 0; i < matchers.size(); i++) {
-            assertThat(response.getQueryExplanation().get(i).getError(), nullValue());
-            assertThat(response.getQueryExplanation().get(i).getExplanation(), matchers.get(i));
+            assertThat(explanation.get(i).getError(), nullValue());
+            assertThat(explanation.get(i).getExplanation(), matchers.get(i));
             assertThat(response.isValid(), equalTo(true));
         }
     }

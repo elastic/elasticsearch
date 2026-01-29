@@ -109,3 +109,86 @@
   - match: { aggregations.text_terms.buckets.2.doc_count: 1 }
   - match: { aggregations.text_terms.buckets.3.key: "value two" }
   - match: { aggregations.text_terms.buckets.3.doc_count: 1 }
+
+---
+"Indexing disabled":
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test_text_no_index_docvalues
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              text_field:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "1"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "2"
+        body: { "text_field": "foo bar" }
+
+  - do:
+      index:
+        index: test_text_no_index_docvalues
+        id: "3"
+        body: { "text_field": "baz qux" }
+
+  - do:
+      indices.refresh: {}
+
+  # Verify term query
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_text_no_index_docvalues
+        body:
+          query:
+            term:
+              text_field: "foo bar"
+
+  - match: { hits.total: 2 }
+
+  # Verify terms aggregation
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_text_no_index_docvalues
+        body:
+          size: 0
+          aggs:
+            text_terms:
+              terms:
+                field: text_field
+
+  - match: { hits.total: 3 }
+  - length: { aggregations.text_terms.buckets: 2 }
+  - match: { aggregations.text_terms.buckets.0.key: "foo bar" }
+  - match: { aggregations.text_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
+  - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
+
+  # Verify ES|QL
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test_text_no_index_docvalues | WHERE text_field == "foo bar" | KEEP text_field | SORT text_field'
+
+  - length: { values: 2 }
+  - match: { values.0.0: "foo bar" }
+  - match: { values.1.0: "foo bar" }
+
+    

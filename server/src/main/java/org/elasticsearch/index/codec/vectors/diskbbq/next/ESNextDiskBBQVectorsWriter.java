@@ -49,6 +49,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
 import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.NO_SOAR_ASSIGNMENT;
@@ -69,7 +70,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final int numMergeWorkers;
     private final int blockDimension;
     private final boolean doPrecondition;
-    private Preconditioner preconditioner;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -95,52 +95,58 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected void inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (doPrecondition && this.preconditioner == null) {
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        if (doPrecondition) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
-                    this.preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
-                    break;
+                    Preconditioner preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
+                    if (preconditioner != null) {
+                        return preconditioner;
+                    }
                 }
             }
-            if (this.preconditioner == null) {
-                createPreconditioner(fieldInfo.getVectorDimension());
-            }
+            // else
+            return createPreconditioner(fieldInfo.getVectorDimension());
+        }
+        return null;
+    }
+
+    @Override
+    protected Preconditioner createPreconditioner(int dimension) {
+        if (doPrecondition) {
+            return Preconditioner.createPreconditioner(dimension, blockDimension);
+        } else {
+            return null;
         }
     }
 
     @Override
-    protected void createPreconditioner(int dimension) {
-        if (doPrecondition && this.preconditioner == null) {
-            this.preconditioner = Preconditioner.createPreconditioner(dimension, blockDimension);
-        }
-    }
-
-    @Override
-    protected void writePreconditioner(IndexOutput out) throws IOException {
+    protected void writePreconditioner(Preconditioner preconditioner, IndexOutput out) throws IOException {
         if (preconditioner != null) {
             preconditioner.write(out);
         }
     }
 
     @Override
-    protected void preconditionVectors(List<float[]> vectors) {
-        if (doPrecondition == false || vectors.isEmpty()) {
-            return;
-        }
-        if (preconditioner == null) {
-            throw new IllegalStateException("preconditioner was not created but should be first");
-        }
-        float[] out = new float[vectors.getFirst().length];
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vector = vectors.get(i);
-            preconditioner.applyTransform(vector, out);
-            System.arraycopy(out, 0, vector, 0, vector.length);
-        }
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
+        return (vectors) -> {
+            if (doPrecondition == false || vectors.isEmpty()) {
+                return;
+            }
+            if (preconditioner == null) {
+                throw new IllegalStateException("preconditioner was not created but should be first");
+            }
+            float[] out = new float[vectors.getFirst().length];
+            for (int i = 0; i < vectors.size(); i++) {
+                float[] vector = vectors.get(i);
+                preconditioner.applyTransform(vector, out);
+                System.arraycopy(out, 0, vector, 0, vector.length);
+            }
+        };
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(FloatVectorValues vectors) {
+    protected FloatVectorValues preconditionVectors(Preconditioner preconditioner, FloatVectorValues vectors) {
         if (doPrecondition == false) {
             return vectors;
         }

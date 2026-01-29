@@ -9,4 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.registry;
 
-public record InstrumentationInfo(String instrumentationId) {}
+import org.elasticsearch.entitlement.rules.EntitlementHandler;
+
+public record InstrumentationInfo(String instrumentationId, EntitlementHandler handler) {}

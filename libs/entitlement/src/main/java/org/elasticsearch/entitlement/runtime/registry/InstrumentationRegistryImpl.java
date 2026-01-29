@@ -34,7 +34,7 @@ public class InstrumentationRegistryImpl implements InternalInstrumentationRegis
 
         for (EntitlementRule rule : rules) {
             String id = UUID.randomUUID().toString();
-            methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id));
+            methodToImplementationInfo.put(rule.methodKey(), new InstrumentationInfo(id, rule.handler()));
             implementationIdToHandler.put(id, rule.handler());
             implementationIdToProvider.put(id, rule.checkMethod());
         }

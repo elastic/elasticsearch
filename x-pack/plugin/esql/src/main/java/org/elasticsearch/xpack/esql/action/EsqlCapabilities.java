@@ -281,6 +281,11 @@ public class EsqlCapabilities {
         FN_MV_CONTAINS_V1,
 
         /**
+         * support for MV_INTERSECTS function
+         */
+        FN_MV_INTERSECTS,
+
+        /**
          * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
          */
         FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
@@ -1169,6 +1174,16 @@ public class EsqlCapabilities {
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Basic Views with no branching (do not need subqueries or FORK).
+         */
+        VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
+
+        /**
+         * Views with branching (requires subqueries/FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
 
         /**
          * Support for the {@code leading_zeros} named parameter.

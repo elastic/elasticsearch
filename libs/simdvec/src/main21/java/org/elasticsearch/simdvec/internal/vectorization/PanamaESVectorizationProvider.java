@@ -51,7 +51,8 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
                 return new MemorySegmentESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
             }
         }
-        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+        ES92Int7VectorsScorer int7Scorer = indexBits == 7 ? newES92Int7VectorsScorer(input, dimension, bulkSize) : null;
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int7Scorer);
     }
 
     @Override

@@ -325,18 +325,18 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     centroid
                 );
                 quantEncoding.pack(quantized, binary);
-                writeQuantizedValue(quantizedVectorsTemp, binary, result);
+                writeQuantizedValue(quantizedVectorsTemp, binary, result, quantEncoding.usesIntComponentSum());
                 if (overspill) {
                     int s = overspillAssignments[i];
                     // write the overspill vector as well
                     result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), centroidSupplier.centroid(s));
                     quantEncoding.pack(quantized, binary);
-                    writeQuantizedValue(quantizedVectorsTemp, binary, result);
+                    writeQuantizedValue(quantizedVectorsTemp, binary, result, quantEncoding.usesIntComponentSum());
                 } else {
                     // write a zero vector for the overspill
                     Arrays.fill(binary, (byte) 0);
                     OptimizedScalarQuantizer.QuantizationResult zeroResult = new OptimizedScalarQuantizer.QuantizationResult(0f, 0f, 0f, 0);
-                    writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult);
+                    writeQuantizedValue(quantizedVectorsTemp, binary, zeroResult, quantEncoding.usesIntComponentSum());
                 }
             }
         } catch (Throwable t) {
@@ -726,14 +726,22 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         return new CentroidAssignments(fieldInfo.getVectorDimension(), centroids, assignments, soarAssignments);
     }
 
-    static void writeQuantizedValue(IndexOutput indexOutput, byte[] binaryValue, OptimizedScalarQuantizer.QuantizationResult corrections)
-        throws IOException {
+    static void writeQuantizedValue(
+        IndexOutput indexOutput,
+        byte[] binaryValue,
+        OptimizedScalarQuantizer.QuantizationResult corrections,
+        boolean usesIntComponentSum
+    ) throws IOException {
         indexOutput.writeBytes(binaryValue, binaryValue.length);
         indexOutput.writeInt(Float.floatToIntBits(corrections.lowerInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.upperInterval()));
         indexOutput.writeInt(Float.floatToIntBits(corrections.additionalCorrection()));
-        assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
-        indexOutput.writeShort((short) corrections.quantizedComponentSum());
+        if (usesIntComponentSum) {
+            indexOutput.writeInt(corrections.quantizedComponentSum());
+        } else {
+            assert corrections.quantizedComponentSum() >= 0 && corrections.quantizedComponentSum() <= 0xffff;
+            indexOutput.writeShort((short) corrections.quantizedComponentSum());
+        }
     }
 
     static class OffHeapCentroidSupplier implements CentroidSupplier {
@@ -893,6 +901,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         private final byte[] binaryScratch;
         private final float[] corrections = new float[3];
 
+        private final int componentSumBytes;
         private final int vectorByteSize;
         private int bitSum;
         private int currOrd = -1;
@@ -903,7 +912,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         OffHeapQuantizedVectors(IndexInput quantizedVectorsInput, ESNextDiskBBQVectorsFormat.QuantEncoding encoding, int dimension) {
             this.quantizedVectorsInput = quantizedVectorsInput;
             this.binaryScratch = new byte[encoding.getDocPackedLength(dimension)];
-            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + Short.BYTES);
+            this.componentSumBytes = encoding.usesIntComponentSum() ? Integer.BYTES : Short.BYTES;
+            this.vectorByteSize = (binaryScratch.length + 3 * Float.BYTES + componentSumBytes);
         }
 
         private void reset(int count, IntToBooleanFunction isOverspill, IntToIntFunction ordTransformer) {
@@ -947,7 +957,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             quantizedVectorsInput.seek(offset);
             quantizedVectorsInput.readBytes(binaryScratch, 0, binaryScratch.length);
             quantizedVectorsInput.readFloats(corrections, 0, 3);
-            bitSum = Short.toUnsignedInt(quantizedVectorsInput.readShort());
+            if (componentSumBytes == Integer.BYTES) {
+                bitSum = quantizedVectorsInput.readInt();
+            } else {
+                bitSum = Short.toUnsignedInt(quantizedVectorsInput.readShort());
+            }
         }
     }
 }

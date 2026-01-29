@@ -9,11 +9,12 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.DocBlock;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.hamcrest.Matcher;
+import org.junit.Before;
 
 import java.util.BitSet;
 import java.util.List;
@@ -31,6 +32,13 @@ public class MMROperatorTests extends OperatorTestCase {
         new float[] { 0.05f, 0.05f, 0.05f, 0.05f }
     );
 
+    private int testLimitValue = 5;
+
+    @Before
+    public void beforeTest() {
+        testLimitValue = randomIntBetween(3, 8);
+    }
+
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new AbstractBlockSourceOperator(blockFactory, 8192) {
@@ -43,18 +51,12 @@ public class MMROperatorTests extends OperatorTestCase {
             @Override
             protected Page createPage(int positionOffset, int length) {
                 length = Integer.min(length, remaining());
-                var blocks = new Block[3];
-                DocBlock.Builder docBuilder = null;
+                var blocks = new Block[2];
                 float[] vectors = new float[length * 4];
                 int[] vectorPositions = new int[length + 1];
                 int vectorIndex = 0;
                 try {
-                    docBuilder = DocBlock.newBlockBuilder(blockFactory, length);
                     for (int i = 1; i <= length; i++) {
-                        docBuilder.appendDoc(i + positionOffset);
-                        docBuilder.appendShard(0);
-                        docBuilder.appendSegment(0);
-
                         // todo - use random vector of length
                         var thisVector = TEST_VECTORS.get(randomIntBetween(0, TEST_VECTORS.size() - 1));
                         for (int v = 0; v < 4; v++) {
@@ -65,23 +67,17 @@ public class MMROperatorTests extends OperatorTestCase {
                     }
                     vectorPositions[length] = vectorIndex;
 
-                    blocks[0] = docBuilder.build();
-
-                    blocks[1] = blockFactory.newFloatArrayBlock(vectors, length, vectorPositions, new BitSet(), Block.MvOrdering.UNORDERED);
+                    blocks[0] = blockFactory.newFloatArrayBlock(vectors, length, vectorPositions, new BitSet(), Block.MvOrdering.UNORDERED);
 
                     // score block
                     var scoreBlockBuilder = blockFactory.newDoubleBlockBuilder(length);
                     for (int i = 0; i < length; i++) {
                         scoreBlockBuilder.appendDouble(1.0);
                     }
-                    blocks[2] = scoreBlockBuilder.build();
+                    blocks[1] = scoreBlockBuilder.build();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
-                } finally {
-                    if (docBuilder != null) {
-                        docBuilder.close();
-                    }
-                }
+                } finally {}
 
                 finish();
                 return new Page(blocks);
@@ -91,25 +87,32 @@ public class MMROperatorTests extends OperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        var stopHere = true;
+        assertEquals(1, input.size());
+
+        int expectedLimit = Math.min(input.getFirst().getPositionCount(), testLimitValue);
+
+        var firstResultPage = results.getFirst();
+        assertEquals(expectedLimit, firstResultPage.getPositionCount());
+
+        assertEquals(2, firstResultPage.getBlockCount());
+
+        assertThat(firstResultPage.getBlock(0).elementType(), equalTo(ElementType.FLOAT));
+        assertThat(firstResultPage.getBlock(1).elementType(), equalTo(ElementType.DOUBLE));
     }
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        return new MMROperator.Factory(0, "vector_field", 1, 5, null, null, 2);
+        return new MMROperator.Factory("vector_field", 0, testLimitValue, null, null, 1);
     }
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
         String description = "MMROperator[diversificationField="
-            + "(docIDChannel="
-            + 0
-            + "), diversificationField="
             + "vector_field"
             + " (channel="
-            + 1
+            + 0
             + "), limit="
-            + 5
+            + testLimitValue
             + ", queryVector="
             + "null"
             + ", lambda="

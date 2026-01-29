@@ -12,11 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DocBlock;
-import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
@@ -43,11 +40,8 @@ import java.util.Map;
  */
 public class MMROperator extends CompleteInputCollectorOperator {
 
-    // TODO -- add Status
-
     /**
      * Factor creation for the MMR Operator
-     * @param docIdChannel the channel that holds the doc IDs
      * @param diversificationField the name of the diversification field
      * @param diversificationFieldChannel the channel of the diversification field
      * @param limit the total number of results to emit
@@ -56,7 +50,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
      * @param scoreChannel the (optional) channel that holds the document scores
      */
     public record Factory(
-        int docIdChannel,
         String diversificationField,
         int diversificationFieldChannel,
         int limit,
@@ -67,23 +60,12 @@ public class MMROperator extends CompleteInputCollectorOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MMROperator(
-                docIdChannel,
-                diversificationField,
-                diversificationFieldChannel,
-                limit,
-                queryVector,
-                lambda,
-                scoreChannel
-            );
+            return new MMROperator(diversificationField, diversificationFieldChannel, limit, queryVector, lambda, scoreChannel);
         }
 
         @Override
         public String describe() {
             return "MMROperator[diversificationField="
-                + "(docIDChannel="
-                + docIdChannel
-                + "), diversificationField="
                 + diversificationField
                 + " (channel="
                 + diversificationFieldChannel
@@ -99,7 +81,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
 
     public static Float DEFAULT_LAMBDA = 0.5f;
 
-    private final int docIdChannel;
     private final String diversifyField;
     private final int diversifyFieldChannel;
     private final Integer scoreChannel;
@@ -115,7 +96,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
     private long rowsEmitted = 0L;
 
     MMROperator(
-        int docIdChannel,
         String diversifyField,
         int diversifyFieldChannel,
         int limit,
@@ -124,7 +104,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
         Integer scoreChannel
     ) {
         super();
-        this.docIdChannel = docIdChannel;
         this.diversifyField = diversifyField;
         this.diversifyFieldChannel = diversifyFieldChannel;
         this.limit = limit;
@@ -211,19 +190,13 @@ public class MMROperator extends CompleteInputCollectorOperator {
     }
 
     private List<PagePositionDocVector> gatherAllDocsAndVectors() {
-        // TODO - ensure docs and vectors have the same number positions!
         List<PagePositionDocVector> docsAndVectors = new ArrayList<>();
         int pageIndex = 0;
         for (Page page : inputPages) {
-            Block pageDocIdBlock = page.getBlock(docIdChannel);
             Block diversificationFieldBlock = page.getBlock(diversifyFieldChannel);
             Block scoreBlock = scoreChannel == null ? null : page.getBlock(scoreChannel);
             // TODO - type checking
-            var interleaved = new InterleaveBlocks(
-                (DocBlock) pageDocIdBlock,
-                (FloatBlock) diversificationFieldBlock,
-                (DoubleBlock) scoreBlock
-            );
+            var interleaved = new InterleaveBlocks((FloatBlock) diversificationFieldBlock, (DoubleBlock) scoreBlock);
             int positionIndex = 0;
             for (Tuple<RankDoc, VectorData> docValues : interleaved) {
                 docsAndVectors.add(new PagePositionDocVector(pageIndex, positionIndex, docValues.v1(), docValues.v2()));
@@ -236,6 +209,7 @@ public class MMROperator extends CompleteInputCollectorOperator {
     }
 
     private void createOutputPagesFromResults(Map<Integer, List<Integer>> filtersByPagePosition) {
+        // output block types should be the same as the input
         // create our output pages filtered, in page order
         int pageCounter = 0;
         for (Page inputPage : inputPages) {
@@ -284,9 +258,6 @@ public class MMROperator extends CompleteInputCollectorOperator {
     @Override
     public String toString() {
         return "MMROperator[diversificationField="
-            + "(docIDChannel="
-            + docIdChannel
-            + "), diversificationField="
             + diversifyField
             + " (channel="
             + diversifyFieldChannel
@@ -354,46 +325,31 @@ public class MMROperator extends CompleteInputCollectorOperator {
 
     public static class InterleaveBlocks implements Iterable<Tuple<RankDoc, VectorData>> {
 
-        private final IntVector docIds;
-        private final IntVector shardIds;
-        private final FloatBlock floatBlock;
+        private final FloatBlock vectorBlock;
         private final DoubleBlock scoreBlock;
         private final int numPositions;
 
-        public InterleaveBlocks(DocBlock docBlock, FloatBlock floatBlock, DoubleBlock scoreBlock) {
-            DocVector docsVector = docBlock.asVector();
-            this.docIds = docsVector.docs();
-            this.shardIds = docsVector.shards();
-            this.floatBlock = floatBlock;
+        public InterleaveBlocks(FloatBlock vectorBlock, DoubleBlock scoreBlock) {
+            this.vectorBlock = vectorBlock;
             this.scoreBlock = scoreBlock;
-            this.numPositions = floatBlock.getPositionCount();
+            this.numPositions = vectorBlock.getPositionCount();
         }
 
         @Override
         public Iterator<Tuple<RankDoc, VectorData>> iterator() {
-            return new InterleaveBlocksIter(numPositions, docIds, shardIds, floatBlock, scoreBlock);
+            return new InterleaveBlocksIter(numPositions, vectorBlock, scoreBlock);
         }
     }
 
     public static class InterleaveBlocksIter implements Iterator<Tuple<RankDoc, VectorData>> {
 
-        private final IntVector docIds;
-        private final IntVector shardIds;
-        private final FloatBlock floatBlock;
+        private final FloatBlock vectorBlock;
         private final DoubleBlock scoreBlock;
         private final int numPositions;
         private int currentPosition = 0;
 
-        public InterleaveBlocksIter(
-            int numPositions,
-            IntVector docIds,
-            IntVector shardIds,
-            FloatBlock floatBlock,
-            @Nullable DoubleBlock scoreBlock
-        ) {
-            this.docIds = docIds;
-            this.shardIds = shardIds;
-            this.floatBlock = floatBlock;
+        public InterleaveBlocksIter(int numPositions, FloatBlock vectorBlock, @Nullable DoubleBlock scoreBlock) {
+            this.vectorBlock = vectorBlock;
             this.scoreBlock = scoreBlock;
             this.numPositions = numPositions;
         }
@@ -409,19 +365,19 @@ public class MMROperator extends CompleteInputCollectorOperator {
                 return null;
             }
 
-            int docId = docIds.getInt(currentPosition);
-            int shardId = shardIds.getInt(currentPosition);
             float docScore = this.scoreBlock == null ? 1.0f : (float) scoreBlock.getDouble(currentPosition);
 
-            var valueIndex = floatBlock.getFirstValueIndex(currentPosition);
-            var valueCount = floatBlock.getValueCount(currentPosition);
+            var valueIndex = vectorBlock.getFirstValueIndex(currentPosition);
+            var valueCount = vectorBlock.getValueCount(currentPosition);
             float[] vectorValues = new float[valueCount];
             for (int position = 0; position < valueCount; position++) {
-                vectorValues[position] = floatBlock.getFloat(valueIndex + position);
+                vectorValues[position] = vectorBlock.getFloat(valueIndex + position);
             }
 
             currentPosition++;
-            return new Tuple<>(new RankDoc(docId, docScore, shardId), new VectorData(vectorValues));
+
+            // create pseudo-doc to pass into MMR diversifier
+            return new Tuple<>(new RankDoc(currentPosition, docScore, 0), new VectorData(vectorValues));
         }
     }
 }

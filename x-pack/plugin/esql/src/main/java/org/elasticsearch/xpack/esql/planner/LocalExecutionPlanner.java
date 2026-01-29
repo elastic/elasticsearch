@@ -331,10 +331,13 @@ public class LocalExecutionPlanner {
 
         var diversifyField = mmr.diversifyField().qualifiedName();
         var limit = getMMRLimitValue(mmr.limit());
+        var lambdaValue = mmr.lambda();
+
         VectorData queryVector = null;
         if (mmr.queryVector() != null) {
             // we've already verified this is resolved and is a DENSE_VECTOR data type
-            var testValue = mmr.queryVector();
+            var queryVectorExpression = mmr.queryVector();
+
             // TODO -- get the realized query vector as VectorData
             // queryVector.dataType() != DataType.DENSE_VECTOR
         }
@@ -342,28 +345,19 @@ public class LocalExecutionPlanner {
         // TODO - we need to ensure the incoming data has at least a _doc and our diversify field channels
         // this means, we can't have a KEEP (or other field limiting operator) before without these as well
 
-        Integer docIdChannel = null;
-        Integer scoreChannel = null;
-        for (var input : mmr.inputSet()) {
-            if (input.name().equals("_doc") && input.dataType() == DataType.DOC_DATA_TYPE) {
-                docIdChannel = source.layout.get(input.id()).channel();
-                continue;
-            }
-
-            if (input.name().equals("_score") && input.dataType() == DataType.DOUBLE) {
-                scoreChannel = source.layout.get(input.id()).channel();
-                continue;
-            }
-        }
-
         int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();
 
-        if (docIdChannel == null) {
-            throw new EsqlIllegalArgumentException("Could not determine doc id channel for MMROperator");
+        // see if we have a score in the input we can use for the docs
+        Integer scoreChannel = null;
+        for (var input : mmr.inputSet()) {
+            if (input.name().equals("_score") && input.dataType() == DataType.DOUBLE) {
+                scoreChannel = source.layout.get(input.id()).channel();
+                break;
+            }
         }
 
         return source.with(
-            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, mmr.lambda(), scoreChannel),
+            new MMROperator.Factory(diversifyField, diversifyFieldChannel, limit, queryVector, lambdaValue, scoreChannel),
             source.layout
         );
     }

@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.Mode;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
@@ -378,6 +380,15 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         boolean checkTook = supportsTook() && rarely();
 
         Map<?, ?> prevTooks = checkTook ? tooks() : null;
+        if (randomBoolean()) {
+            Settings.Builder pragmaBuilder = Settings.builder();
+            addRandomPragma(pragmaBuilder);
+            Settings pragma = pragmaBuilder.build();
+            if (pragma.isEmpty() == false) {
+                builder.pragmas(pragma);
+                builder.pragmasOk();
+            }
+        }
         Map<String, Object> answer = RestEsqlTestCase.runEsql(
             builder.query(query),
             testCase.assertWarnings(deduplicateExactWarnings()),
@@ -407,6 +418,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             long took = ((Number) answer.get("took")).longValue();
             int prevTookHisto = ((Number) prevTooks.remove(tookKey(took))).intValue();
             assertMap(tooks(), matchesMap(prevTooks).entry(tookKey(took), prevTookHisto + 1));
+        }
+    }
+
+    /**
+     * Add a random pragma to the request. Defaults to no-op
+     */
+    protected void addRandomPragma(Settings.Builder pragma) {
+        if (randomBoolean() && hasCapabilities(client(), List.of("periodic_emit_partial_aggregation_results"))) {
+            pragma.put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), between(10, 1000))
+                .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), randomDoubleBetween(0.1, 1.0, true));
         }
     }
 

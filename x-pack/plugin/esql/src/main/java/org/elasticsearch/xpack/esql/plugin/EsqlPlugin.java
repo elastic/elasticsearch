@@ -262,7 +262,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
-                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
+                EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD,
+                PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+                PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD
             )
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {

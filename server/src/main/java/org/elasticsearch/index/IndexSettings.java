@@ -1275,8 +1275,19 @@ public final class IndexSettings {
         useEs812PostingsFormat = scopedSettings.get(USE_ES_812_POSTINGS_FORMAT);
         intraMergeParallelismEnabled = scopedSettings.get(INTRA_MERGE_PARALLELISM_ENABLED_SETTING);
         final var useSyntheticId = IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG && scopedSettings.get(USE_SYNTHETIC_ID);
+        if (useSyntheticId && version.before(IndexVersions.TIME_SERIES_USE_STORED_FIELDS_BLOOM_FILTER_FOR_ID)) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "The setting [%s] is unavailable on this cluster because some nodes are running older "
+                        + "versions that do not support it. Please upgrade all nodes to the latest version "
+                        + "and try again.",
+                    USE_SYNTHETIC_ID.getKey()
+                )
+            );
+        }
+        // Make sure logic in IndexMetadata doesn't deviate from this source of truth
         if (indexMetadata.useTimeSeriesSyntheticId() != useSyntheticId) {
-            assert false;
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -1287,15 +1298,7 @@ public final class IndexSettings {
                 )
             );
         }
-        if (useSyntheticId) {
-            assert TSDB_SYNTHETIC_ID_FEATURE_FLAG;
-            assert indexMetadata.useTimeSeriesSyntheticId();
-            assert indexMetadata.getIndexMode() == IndexMode.TIME_SERIES : indexMetadata.getIndexMode();
-            assert indexMetadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID);
-            useTimeSeriesSyntheticId = true;
-        } else {
-            useTimeSeriesSyntheticId = false;
-        }
+        useTimeSeriesSyntheticId = useSyntheticId;
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");

@@ -235,7 +235,7 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", "uri", 1024, false);
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", 1024, false);
             model.setURI(getUrl(webServer));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -293,7 +293,8 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", getUrl(webServer), null, false);
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", null, false);
+            model.setURI(getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -369,7 +370,8 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", getUrl(webServer), null, null);
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", null, null);
+            model.setURI(getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -447,7 +449,8 @@ public class MixedbreadServiceTests extends InferenceServiceTestCase {
 
         try (var service = new MixedbreadService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", getUrl(webServer), 3, true);
+            var model = MixedbreadRerankModelTests.createModel(MODEL_NAME_VALUE, "secret", 3, true);
+            model.setURI(getUrl(webServer));
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,

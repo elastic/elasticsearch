@@ -66,7 +66,7 @@ public class MixedbreadRerankRequestTests extends ESTestCase {
         @Nullable Integer topN,
         @Nullable Boolean returnDocuments
     ) {
-        var rerankModel = MixedbreadRerankModelTests.createModel(modelId, API_KEY, null, null, null);
+        var rerankModel = MixedbreadRerankModelTests.createModel(modelId, API_KEY, null, null);
         return new MixedbreadRerankRequest(query, List.of(input), returnDocuments, topN, rerankModel);
     }
 

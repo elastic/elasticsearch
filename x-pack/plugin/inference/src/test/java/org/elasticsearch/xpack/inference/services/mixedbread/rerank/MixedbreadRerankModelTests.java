@@ -26,23 +26,25 @@ public class MixedbreadRerankModelTests extends ESTestCase {
     public static final String API_KEY = "secret";
 
     public void testConstructor_usesDefaultUrlWhenNull() {
-        var model = createModel(MODEL_ID, API_KEY, null, null, null);
+        var model = createModel(MODEL_ID, API_KEY, null, null);
+        model.setURI(DEFAULT_URL);
         assertThat(model.uri().toString(), is(DEFAULT_URL));
     }
 
     public void testConstructor_usesUrlWhenSpecified() {
-        var model = createModel(MODEL_ID, API_KEY, CUSTOM_URL, null, null);
+        var model = createModel(MODEL_ID, API_KEY, null, null);
+        model.setURI(CUSTOM_URL);
         assertThat(model.uri().toString(), is(CUSTOM_URL));
     }
 
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
-        var model = createModel(MODEL_ID, API_KEY, null, 10, true);
+        var model = createModel(MODEL_ID, API_KEY, 10, true);
         var overriddenModel = MixedbreadRerankModel.of(model, Map.of());
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreNull() {
-        var model = createModel(MODEL_ID, API_KEY, null, 10, true);
+        var model = createModel(MODEL_ID, API_KEY, 10, true);
         var overriddenModel = MixedbreadRerankModel.of(model, null);
         assertThat(overriddenModel, sameInstance(model));
     }
@@ -50,32 +52,31 @@ public class MixedbreadRerankModelTests extends ESTestCase {
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEqual() {
         var topN = randomNonNegativeInt();
         var returnDocuments = randomBoolean();
-        var model = createModel(MODEL_ID, API_KEY, null, topN, returnDocuments);
+        var model = createModel(MODEL_ID, API_KEY, topN, returnDocuments);
         var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(topN, returnDocuments));
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOf_SetsTopN_FromRequestTaskSettings_OverridingStoredTaskSettings() {
-        var model = createModel(MODEL_ID, API_KEY, null, 15, null);
+        var model = createModel(MODEL_ID, API_KEY, 15, null);
         var topNFromRequest = 10;
         var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(topNFromRequest, null));
-        var expectedModel = createModel(MODEL_ID, API_KEY, null, topNFromRequest, null);
+        var expectedModel = createModel(MODEL_ID, API_KEY, topNFromRequest, null);
         assertThat(overriddenModel, is(expectedModel));
     }
 
     public void testOf_SetsReturnDocuments_FromRequestTaskSettings() {
         var topN = 15;
-        var model = createModel(MODEL_ID, API_KEY, null, topN, true);
+        var model = createModel(MODEL_ID, API_KEY, topN, true);
         var returnDocumentsFromRequest = false;
         var overriddenModel = MixedbreadRerankModel.of(model, getTaskSettingsMap(null, returnDocumentsFromRequest));
-        var expectedModel = createModel(MODEL_ID, API_KEY, null, topN, returnDocumentsFromRequest);
+        var expectedModel = createModel(MODEL_ID, API_KEY, topN, returnDocumentsFromRequest);
         assertThat(overriddenModel, is(expectedModel));
     }
 
     public static MixedbreadRerankModel createModel(
         String model,
         String apiKey,
-        String uri,
         @Nullable Integer topN,
         @Nullable Boolean returnDocuments
     ) {
@@ -83,8 +84,7 @@ public class MixedbreadRerankModelTests extends ESTestCase {
             model,
             new MixedbreadRerankServiceSettings(model, null, null),
             new MixedbreadRerankTaskSettings(topN, returnDocuments),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
-            uri
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 }

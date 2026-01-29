@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread;
 
+import org.apache.http.client.utils.URIBuilder;
+
 public class MixedbreadConstants {
+    public static final String HOST = "api.mixedbread.com";
     public static final String VERSION_1 = "v1";
     public static final String RERANK_PATH = "rerank";
+    public static URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https").setHost(MixedbreadConstants.HOST);
 
     // common service settings fields
     public static final String MODEL_FIELD = "model";

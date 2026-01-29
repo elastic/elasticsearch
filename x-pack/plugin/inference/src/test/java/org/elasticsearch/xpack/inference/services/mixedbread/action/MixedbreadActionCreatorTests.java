@@ -34,9 +34,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -71,21 +69,11 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
-        try (var sender = mock(Sender.class)) {
-            var thrownException = expectThrows(
-                IllegalArgumentException.class,
-                () -> createAction("model", "secret", "^^", null, null, sender)
-            );
-            MatcherAssert.assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
-        }
-    }
-
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction("model", "secret", getUrl(webServer), null, null, sender);
+        var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
         MatcherAssert.assertThat(thrownException.getMessage(), is("failed"));
@@ -101,7 +89,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction("model", "secret", getUrl(webServer), null, null, sender);
+        var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
         MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
@@ -117,7 +105,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction("model", "secret", null, null, null, sender);
+        var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
         MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
@@ -127,7 +115,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction("model", "secret", getUrl(webServer), null, null, sender);
+        var action = createAction("model", "secret", null, null, sender);
         ElasticsearchException thrownException = executeActionWithException(action);
 
         MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
@@ -137,7 +125,7 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction("model", "secret", null, null, null, sender);
+        var action = createAction("model", "secret", null, null, sender);
         var thrownException = executeActionWithException(action);
 
         MatcherAssert.assertThat(thrownException.getMessage(), is(EXPECTED_EXCEPTION));
@@ -149,16 +137,9 @@ public class MixedbreadActionCreatorTests extends ESTestCase {
         return expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
     }
 
-    private ExecutableAction createAction(
-        String modelName,
-        String apiKey,
-        String url,
-        Integer topN,
-        Boolean returnDocuments,
-        Sender sender
-    ) {
+    private ExecutableAction createAction(String modelName, String apiKey, Integer topN, Boolean returnDocuments, Sender sender) {
         var actionCreator = new MixedbreadActionCreator(sender, createWithEmptySettings(threadPool));
-        var model = MixedbreadRerankModelTests.createModel(modelName, apiKey, url, topN, returnDocuments);
+        var model = MixedbreadRerankModelTests.createModel(modelName, apiKey, topN, returnDocuments);
         return actionCreator.create(model, null);
     }
 }

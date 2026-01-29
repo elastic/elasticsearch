@@ -30,6 +30,8 @@ import static org.elasticsearch.search.fetch.StoredFieldsContext._NONE_;
 * A QueryVectorBuilder that looks up a vector from a document stored in an index
 */
 public class LookupQueryVectorBuilder implements QueryVectorBuilder {
+    public static final TransportVersion LOOKUP_QVB_TV = TransportVersion.fromName("lookup_query_vector_builder");
+
     private static final String NAME_STR = "lookup";
     public static final ParseField NAME = new ParseField(NAME_STR);
 
@@ -174,7 +176,7 @@ public class LookupQueryVectorBuilder implements QueryVectorBuilder {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
+        return LOOKUP_QVB_TV;
     }
 
     @Override

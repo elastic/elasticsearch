@@ -70,7 +70,7 @@ public class CloseToAssertion extends Assertion {
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] is close to [{}] with error [{}] (field [{}])", actualValue, expectedValue, error, getField());
         if ((expectedValue instanceof Number) == false) {
-            throw new AssertionError("Expected value should be a number, but was " + expectedValue + ", which is not a number");
+            throw new AssertionError("Expected value should be a number, but was [" + expectedValue + "], which is not a number");
         }
 
         if (actualValue instanceof Number actualValueNumber) {

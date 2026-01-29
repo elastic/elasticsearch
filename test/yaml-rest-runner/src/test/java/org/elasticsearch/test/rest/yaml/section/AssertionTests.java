@@ -186,7 +186,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         parser = createParser(YamlXContent.yamlXContent, "{ field: { value: \"foo\", error: 0.001 } }");
         CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
         exception = expectThrows(AssertionError.class, () -> closeToAssertion.doAssert(42, closeToAssertion.getExpectedValue()));
-        assertThat(exception.getMessage(), equalTo("Expected value should be a number, but was foo, which is not a number"));
+        assertThat(exception.getMessage(), equalTo("Expected value should be a number, but was [foo], which is not a number"));
     }
 
     public void testExists() throws IOException {

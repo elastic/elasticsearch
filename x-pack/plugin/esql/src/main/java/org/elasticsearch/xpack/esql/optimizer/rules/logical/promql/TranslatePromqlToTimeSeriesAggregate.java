@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLik
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -117,7 +118,9 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
         }
         plan = convertValueToDouble(promqlCommand, plan);
         // ensure we're returning exactly the same columns (including ids) and in the same order before and after optimization
-        return new Project(promqlCommand.source(), plan, promqlCommand.output());
+        plan = new Project(promqlCommand.source(), plan, promqlCommand.output());
+        plan = filterNulls(promqlCommand, plan);
+        return plan;
     }
 
     /**
@@ -189,6 +192,19 @@ public final class TranslatePromqlToTimeSeriesAggregate extends OptimizerRules.P
             groupings.add(grouping);
         }
         return new TimeSeriesAggregate(promqlCommand.promqlPlan().source(), plan, groupings, aggs, null, promqlCommand.timestamp());
+    }
+
+    /**
+     * Filter out rows with null values in any output column.
+     * This is necessary to match PromQL semantics where series with missing data are dropped.
+     * It avoids returning data where a metric or a label we group by is missing.
+     */
+    private static LogicalPlan filterNulls(PromqlCommand promqlCommand, LogicalPlan plan) {
+        return new Filter(
+            promqlCommand.source(),
+            plan,
+            Predicates.combineAnd(plan.output().stream().map(attr -> new IsNotNull(attr.source(), attr)).toList())
+        );
     }
 
     private static FieldAttribute getTimeSeriesGrouping(List<Attribute> groupings) {

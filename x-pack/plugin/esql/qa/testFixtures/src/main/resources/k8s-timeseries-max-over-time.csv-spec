@@ -695,8 +695,6 @@ PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:15:
 | SORT events DESC, step | LIMIT 10;
 
 events:double | step:datetime            | pod:keyword
-null          | 2024-05-10T00:12:00.000Z | one
-null          | 2024-05-10T00:13:00.000Z | two 
 20.0          | 2024-05-10T00:14:00.000Z | two
 18.0          | 2024-05-10T00:12:00.000Z | two
 17.0          | 2024-05-10T00:13:00.000Z | one
@@ -705,6 +703,8 @@ null          | 2024-05-10T00:13:00.000Z | two
 9.0           | 2024-05-10T00:11:00.000Z | one
 9.0           | 2024-05-10T00:13:00.000Z | three
 7.0           | 2024-05-10T00:10:00.000Z | two
+7.0           | 2024-05-10T00:12:00.000Z | three
+5.0           | 2024-05-10T00:11:00.000Z | two
 ;
 
 max_over_time_all_value_types

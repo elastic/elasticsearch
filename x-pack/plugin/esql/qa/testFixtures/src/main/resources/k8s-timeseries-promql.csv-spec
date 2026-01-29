@@ -520,3 +520,38 @@ bytes:double | step:datetime            | cluster:keyword
 931.0        | 2024-05-10T00:00:00.000Z | prod
 972.0        | 2024-05-10T00:00:00.000Z | qa
 ;
+
+unmapped_metric_instant_vector
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h result=(unmapped.metric);
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_label
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h result=(network.cost{unmapped.label="value"});
+
+result:double | step:datetime | _timeseries:keyword
+;
+
+unmapped_metric_cross_series
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h result=(sum by (cluster) (unmapped.metric));
+
+result:double | step:datetime | cluster:keyword
+;
+
+cross_series_grouping_on_unmapped_label
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h result=(sum by (unmapped.label) (network.cost));
+
+result:double | step:datetime | unmapped.label:null
+;
+
+unmapped_metric_within_series
+required_capability: promql_command_v0
+PROMQL index=k8s step=1h result=(rate(unmapped.metric[1h]));
+
+result:double | step:datetime | _timeseries:keyword
+;

@@ -367,3 +367,100 @@ row x = cidr_match(to_ip("127.0.0.1"), "127.0.1.0/16"), y = cidr_match(to_ip("12
 x:boolean | y:boolean  |  ip:ip     | z:boolean
 true      |false       |127.0.0.1   |true        
 ;
+
+// Test ROW field resolution - basic case
+rowFieldResolutionBasic
+ROW x = 4, y = 2, z = x + y;
+
+x:integer | y:integer | z:integer
+4         | 2         | 6
+;
+
+// Test ROW field resolution - multiple references
+rowFieldResolutionMultipleRefs
+ROW a = 10, b = a * 2, c = a + b, d = b - a;
+
+a:integer | b:integer | c:integer | d:integer
+10        | 20        | 30        | 10
+;
+
+// Test ROW field resolution - complex expressions
+rowFieldResolutionComplexExpr
+ROW x = 5, y = 3, z = x * y + 10, w = z / (x - y);
+
+x:integer | y:integer | z:integer | w:integer
+5         | 3         | 25        | 12
+;
+
+// Test ROW field resolution - with functions
+rowFieldResolutionWithFunctions
+ROW a = 10, b = 3, c = ROUND(a / b, 2), d = c * 2;
+
+a:integer | b:integer | c:integer | d:integer
+10        | 3         | 3         | 6
+;
+
+// Test ROW field resolution - string concatenation
+rowFieldResolutionStringConcat
+ROW a = "Hello", b = "World", greeting = CONCAT(a, b);
+
+a:keyword   | b:keyword | greeting:keyword
+"Hello"     | "World"  | "HelloWorld"
+;
+
+// Test ROW field resolution - nested arithmetic
+rowFieldResolutionNestedArithmetic
+ROW a = 2, b = 3, c = 4, result = (a + b) * c - a;
+
+a:integer | b:integer | c:integer | result:integer
+2         | 3         | 4         | 18
+;
+
+// Test ROW field resolution - with null
+rowFieldResolutionWithNull
+ROW x = 10, y = null, z = x + y;
+
+x:integer | y:null | z:integer
+10        | null   | null
+;
+
+// Test ROW field resolution - field shadowing
+rowFieldResolutionShadowing
+required_capability: unique_names
+ROW x = 5, y = x * 2, x = y + 1;
+
+y:integer | x:integer
+10        | 11
+;
+
+rowFieldResolutionShadowing2
+required_capability: unique_names
+ROW x = 5, x = x * 2;
+
+x:integer
+10        
+;
+
+// Test ROW field resolution - mixed types
+rowFieldResolutionMixedTypes
+ROW num = 42, text = "Answer", combined = CONCAT(text, ": ", TO_STRING(num));
+
+num:integer | text:keyword | combined:keyword
+42          | "Answer"     | "Answer: 42"
+;
+
+// Test ROW field resolution - boolean expressions
+rowFieldResolutionBoolean
+ROW a = 10, b = 20, is_greater = b > a, is_equal = a == b;
+
+a:integer | b:integer | is_greater:boolean | is_equal:boolean
+10        | 20        | true               | false
+;
+
+// Test ROW field resolution - chained references
+rowFieldResolutionChained
+ROW a = 1, b = a + 1, c = b + 1, d = c + 1, e = d + 1;
+
+a:integer | b:integer | c:integer | d:integer | e:integer
+1         | 2         | 3         | 4         | 5
+;

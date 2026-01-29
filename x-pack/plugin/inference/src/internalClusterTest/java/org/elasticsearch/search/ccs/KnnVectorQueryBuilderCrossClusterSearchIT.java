@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.LookupQueryVectorBuilder;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.core.ml.vectors.TextEmbeddingQueryVectorBuilder;
 import org.junit.Before;
@@ -49,6 +50,42 @@ public class KnnVectorQueryBuilderCrossClusterSearchIT extends AbstractSemanticC
             configureClusters();
             clustersConfigured = true;
         }
+    }
+
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsTrue() throws Exception {
+        knnQueryBaseTestCases(true);
+        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
+                10, 100, 10f, null),
+            QUERY_INDICES,
+            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            ),
+            null
+        );
+    }
+
+    // TODO is this what we want to test?
+    public void testKnnQueryLookupCcsMinimizeRoundTripsFalse() throws Exception {
+        knnQueryBaseTestCases(false);
+        // Check that omitting the inference ID when querying a remote dense vector field leads to the expected partial failure
+        assertSearchResponse(
+            new KnnVectorQueryBuilder(MIXED_TYPE_FIELD_2,
+                new LookupQueryVectorBuilder(getDocId(DENSE_VECTOR_FIELD), LOCAL_INDEX_NAME, DENSE_VECTOR_FIELD, null),
+                10, 100, 10f, null),
+            QUERY_INDICES,
+            List.of(new SearchResult(LOCAL_CLUSTER, LOCAL_INDEX_NAME, getDocId(MIXED_TYPE_FIELD_2))),
+            new ClusterFailure(
+                SearchResponse.Cluster.Status.SKIPPED,
+                Set.of(new FailureCause(IllegalArgumentException.class, "[model_id] must not be null."))
+            ),
+            null
+        );
     }
 
     public void testKnnQueryWithCcsMinimizeRoundTripsTrue() throws Exception {

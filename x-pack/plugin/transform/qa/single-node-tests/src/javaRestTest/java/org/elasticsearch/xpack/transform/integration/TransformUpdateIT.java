@@ -340,6 +340,9 @@ public class TransformUpdateIT extends TransformRestTestCase {
             Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformIdCloned);
             assertThat(XContentMapValues.extractValue("stats.documents_indexed", transformStatsAsMap), equalTo(27));
         }, 15, TimeUnit.SECONDS);
+
+        stopTransform(transformId, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
+        stopTransform(transformIdCloned, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1, true, false);
     }
 
     private void deleteUser(String user) throws IOException {

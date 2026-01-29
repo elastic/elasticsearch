@@ -266,6 +266,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitPerGroupKey}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitPerGroupKey(EsqlBaseParser.LimitPerGroupKeyContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#sortCommand}.
    * @param ctx the parse tree
    * @return the visitor result

@@ -49,7 +49,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
 
     @Override
     public LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
-        if (limit.child() instanceof Limit childLimit) {
+        if (limit.child() instanceof Limit childLimit && childLimit.groupings().isEmpty() && limit.groupings().isEmpty()) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
             if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
@@ -77,7 +77,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             // this applies for cases such as | limit 1 | sort field | limit 10
             else {
                 Limit descendantLimit = descendantLimit(unary);
-                if (descendantLimit != null) {
+                if (descendantLimit != null && descendantLimit.groupings().isEmpty()) {
                     var l1 = (int) limit.limit().fold(ctx.foldCtx());
                     var l2 = (int) descendantLimit.limit().fold(ctx.foldCtx());
                     if (l2 <= l1) {

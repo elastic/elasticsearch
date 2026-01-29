@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
@@ -45,6 +46,7 @@ public class DatafeedJobBuilder {
     private final JobResultsPersister jobResultsPersister;
     private final boolean remoteClusterClient;
     private final ClusterService clusterService;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
     private volatile long delayedDataCheckFreq;
 
@@ -67,6 +69,7 @@ public class DatafeedJobBuilder {
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.delayedDataCheckFreq = DELAYED_DATA_CHECK_FREQ.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
+        this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
     }
 
@@ -142,7 +145,7 @@ public class DatafeedJobBuilder {
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            datafeedConfig,
+            DatafeedConfig.withCrossProjectModeIfEnabled(datafeedConfig, crossProjectModeDecider),
             job,
             xContentRegistry,
             timingStatsReporter,

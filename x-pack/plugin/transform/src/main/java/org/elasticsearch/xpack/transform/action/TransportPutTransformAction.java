@@ -119,6 +119,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         TransformConfig config = request.getConfig().setCreateTime(Instant.now()).setVersion(TransformConfigVersion.CURRENT);
         config.setHeaders(getSecurityHeadersPreferringSecondary(threadPool, securityContext, clusterState));
 
+        logger.info("Transform config headers [{}]", config.getHeaders());
+
         String transformId = config.getId();
         // quick check whether a transform has already been created under that name
         if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, transformId) != null) {

@@ -2002,6 +2002,11 @@ public class EsqlCapabilities {
          */
         PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
 
+        /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

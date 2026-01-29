@@ -199,6 +199,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
         @Override
         public void apply(Settings value, Settings current, Settings previous) {
+            var context = Loggers.newContext();
             for (String key : value.keySet()) {
                 assert loggerPredicate.test(key);
                 String component = key.substring("logger.".length());
@@ -208,12 +209,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 if ("_root".equals(component)) {
                     final String rootLevel = value.get(key);
                     if (rootLevel == null) {
-                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings));
+                        Loggers.setLevel(LogManager.getRootLogger(), Loggers.LOG_DEFAULT_LEVEL_SETTING.get(settings), context);
                     } else {
-                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel);
+                        Loggers.setLevel(LogManager.getRootLogger(), rootLevel, context);
                     }
                 } else {
-                    Loggers.setLevel(LogManager.getLogger(component), value.get(key));
+                    Loggers.setLevel(LogManager.getLogger(component), value.get(key), context);
                 }
             }
         }

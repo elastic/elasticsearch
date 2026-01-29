@@ -27,6 +27,11 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
 
     private boolean closed;
 
+$if(boolean)$
+    private boolean seenFalse = false;
+    private boolean seenTrue = false;
+$endif$
+
     $Type$VectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);
@@ -37,12 +42,26 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
     @Override
     public $Type$VectorFixedBuilder append$Type$($type$ value) {
         values[nextIndex++] = value;
+$if(boolean)$
+        if (value) {
+            seenTrue = true;
+        } else {
+            seenFalse = true;
+        }
+$endif$
         return this;
     }
 
     @Override
     public $Type$VectorFixedBuilder append$Type$(int idx, $type$ value) {
         values[idx] = value;
+$if(boolean)$
+        if (value) {
+            seenTrue = true;
+        } else {
+            seenFalse = true;
+        }
+$endif$
         return this;
     }
 
@@ -66,12 +85,23 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         }
         closed = true;
         $Type$Vector vector;
+$if(boolean)$
+        if (seenFalse && seenTrue == false) {
+            vector = blockFactory.newConstant$Type$BlockWith(false, values.length, preAdjustedBytes).asVector();
+        } else if (seenTrue && seenFalse == false) {
+            vector = blockFactory.newConstant$Type$BlockWith(true, values.length, preAdjustedBytes).asVector();
+        } else {
+            vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
+            assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+        }
+$else$
         if (values.length == 1) {
             vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
         } else {
             vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
         }
         assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
+$endif$
         return vector;
     }
 

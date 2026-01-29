@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.aggregations.support;
+package org.elasticsearch.xpack.core.analytics.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;

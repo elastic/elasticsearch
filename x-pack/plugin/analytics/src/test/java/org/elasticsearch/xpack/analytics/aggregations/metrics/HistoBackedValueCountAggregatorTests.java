@@ -24,8 +24,8 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestBlockLoader;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -130,7 +130,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.IP,
-            AnalyticsValuesSourceType.HISTOGRAM
+            TDigestBlockLoader.AnalyticsValuesSourceType.HISTOGRAM
         );
     }
 

@@ -287,6 +287,6 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     }
 
     public void close() {
-        this.forEach(aggregation ->  {aggregation.close();});
+        this.forEach(aggregation -> { aggregation.close(); });
     }
 }

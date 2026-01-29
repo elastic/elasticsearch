@@ -792,7 +792,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             if (aggTestConfig.builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) {
                 verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?>) aggTestConfig.builder, internalAgg);
             }
-            internalAggs.forEach(agg -> {agg.close();});
+            internalAggs.forEach(agg -> { agg.close(); });
             return internalAgg;
         } catch (Exception e) {
             for (InternalAggregations aggs : internalAggs) {

@@ -79,7 +79,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         new IntermediateStateDesc("timestamps", ElementType.LONG),
         new IntermediateStateDesc("values", ElementType.INT),
         new IntermediateStateDesc("sampleCounts", ElementType.LONG),
-        new IntermediateStateDesc("resets", ElementType.DOUBLE)
+        new IntermediateStateDesc("resets", ElementType.DOUBLE),
+        new IntermediateStateDesc("overlapCounts", ElementType.LONG)
     );
 
     private final IntRawBuffer rawBuffer;
@@ -303,6 +304,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
         DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector overlapCounts = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -319,6 +321,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
             state.samples += sampleCount;
             state.resets += resets.getDouble(valuePosition);
+            state.overlapCount += overlapCounts.getLong(valuePosition);
         }
     }
 
@@ -332,6 +335,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
         DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector overlapCounts = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -354,6 +358,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                 state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
                 state.samples += sampleCount;
                 state.resets += resets.getDouble(valuePosition);
+                state.overlapCount += overlapCounts.getLong(valuePosition);
             }
         }
     }
@@ -367,7 +372,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.newIntBlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
-            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount);
+            var overlapCounts = blockFactory.newLongVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
@@ -386,17 +392,20 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                     values.endPositionEntry();
                     sampleCounts.appendLong(state.samples);
                     resets.appendDouble(state.resets);
+                    overlapCounts.appendLong(state.overlapCount);
                 } else {
                     timestamps.appendLong(0);
                     values.appendInt(0);
                     sampleCounts.appendLong(0);
                     resets.appendDouble(0);
+                    overlapCounts.appendLong(0);
                 }
             }
             blocks[offset] = timestamps.build();
             blocks[offset + 1] = values.build();
             blocks[offset + 2] = sampleCounts.build().asBlock();
             blocks[offset + 3] = resets.build().asBlock();
+            blocks[offset + 4] = overlapCounts.build().asBlock();
         }
     }
 
@@ -533,6 +542,8 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                 secondNextTimestamp = flushQueue.secondNextTimestamp();
                 continue;
             }
+            // OVERLAP PATH - increment counter for diagnostics
+            state.overlapCount++;
             var val = values.get(top.next());
             if (val > prevValue) {
                 state.resets += val;
@@ -649,6 +660,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         long samples;
         double resets;
         Interval[] intervals = EMPTY_INTERVALS;
+        long overlapCount;  // Track overlapping segment encounters for diagnostics
 
         void appendInterval(Interval interval) {
             int currentSize = intervals.length;
@@ -679,6 +691,11 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         if (state.samples < 2) {
             return Double.NaN;
         }
+        // HACK: Return negative overlap count for diagnostics
+        // Negative rate values are normally impossible since counter deltas are non-negative
+        if (state.overlapCount > 0) {
+            return -state.overlapCount;
+        }
         final long firstTS = state.intervals[state.intervals.length - 1].t2;
         final long lastTS = state.intervals[0].t1;
         double firstValue = state.intervals[state.intervals.length - 1].v2;
@@ -701,6 +718,11 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         boolean isRateOverTime,
         double dateFactor
     ) {
+        // HACK: Return negative overlap count for diagnostics
+        // Negative rate values are normally impossible since counter deltas are non-negative
+        if (state.overlapCount > 0) {
+            return -state.overlapCount;
+        }
         final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
         final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
         final double firstValue;

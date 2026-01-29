@@ -91,7 +91,12 @@ public enum LuceneFilesExtensions {
     CENIVF("cenivf", "IVF Centroid Data", false, true),
     CLIVF("clivf", "IVF Cluster Data", false, true),
     SFBFM("sfbfm", "Stored field bloom filter metadata", true, false),
-    SFBF("sfbf", "Stored field bloom filter bitset", false, true);
+    SFBF("sfbf", "Stored field bloom filter bitset", false, true),
+    // Star-tree pre-aggregation index format
+    STAR("star", "Star-Tree Metadata", true, false),
+    STV("stv", "Star-Tree Values", false, true),
+    STD("std", "Star-Tree Dimensions", false, true),
+    STI("sti", "Star-Tree Index", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

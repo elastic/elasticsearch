@@ -18,6 +18,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.index.mapper.startree.StarTreeConfig;
 import org.elasticsearch.search.lookup.SourceFilter;
 
 import java.util.ArrayList;
@@ -586,5 +587,24 @@ public final class MappingLookup {
         if (shadowed.getMetricType() != null) {
             throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
         }
+    }
+
+    /**
+     * Returns the star-tree configuration for this mapping, or null if none is configured.
+     */
+    @Nullable
+    public StarTreeConfig getStarTreeConfig() {
+        if (mapping == null) {
+            return null;
+        }
+        return mapping.getRoot().getStarTreeConfig();
+    }
+
+    /**
+     * Returns true if this mapping has any star-tree configurations.
+     */
+    public boolean hasStarTree() {
+        StarTreeConfig config = getStarTreeConfig();
+        return config != null && config.getStarTrees().isEmpty() == false;
     }
 }

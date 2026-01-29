@@ -20,6 +20,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
+import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat.MergeCallback;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 
 /**
@@ -41,12 +42,7 @@ public class Elasticsearch92Lucene103Codec extends CodecService.DeduplicateField
     };
 
     private final DocValuesFormat defaultDVFormat;
-    private final DocValuesFormat docValuesFormat = new XPerFieldDocValuesFormat() {
-        @Override
-        public DocValuesFormat getDocValuesFormatForField(String field) {
-            return Elasticsearch92Lucene103Codec.this.getDocValuesFormatForField(field);
-        }
-    };
+    private final DocValuesFormat docValuesFormat;
 
     private final KnnVectorsFormat defaultKnnVectorsFormat;
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
@@ -66,11 +62,36 @@ public class Elasticsearch92Lucene103Codec extends CodecService.DeduplicateField
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch92Lucene103Codec(Zstd814StoredFieldsFormat.Mode mode) {
+        this(mode, null);
+    }
+
+    /**
+     * Constructor with merge callback support for star-tree building.
+     *
+     * @param mode the stored fields compression mode
+     * @param mergeCallback optional callback invoked after doc values merge completes
+     */
+    @SuppressWarnings("this-escape")
+    public Elasticsearch92Lucene103Codec(Zstd814StoredFieldsFormat.Mode mode, MergeCallback mergeCallback) {
         super("Elasticsearch92Lucene103", new Lucene103Codec());
         this.storedFieldsFormat = mode.getFormat();
         this.defaultPostingsFormat = DEFAULT_POSTINGS_FORMAT;
         this.defaultDVFormat = new Lucene90DocValuesFormat();
         this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+        this.docValuesFormat = new XPerFieldDocValuesFormat() {
+            private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger();
+
+            @Override
+            public DocValuesFormat getDocValuesFormatForField(String field) {
+                return Elasticsearch92Lucene103Codec.this.getDocValuesFormatForField(field);
+            }
+
+            @Override
+            protected MergeCallback getMergeCallback() {
+                logger.info("getMergeCallback called, mergeCallback={}", mergeCallback != null ? "set" : "null");
+                return mergeCallback;
+            }
+        };
     }
 
     @Override

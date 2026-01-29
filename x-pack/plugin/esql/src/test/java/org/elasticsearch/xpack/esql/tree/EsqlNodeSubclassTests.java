@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.ResolvingProject;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsStarTreeQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -529,6 +530,12 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == EsQueryExec.QueryBuilderAndTags.class) {
             return randomQueryBuildAndTags();
         }
+        if (argClass == EsStarTreeQueryExec.GroupingFieldFilter.class) {
+            return randomGroupingFieldFilter();
+        }
+        if (argClass == EsStarTreeQueryExec.StarTreeAgg.class) {
+            return randomStarTreeAgg();
+        }
 
         try {
             return mock(argClass);
@@ -766,6 +773,26 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
 
     static EsQueryExec.QueryBuilderAndTags randomQueryBuildAndTags() {
         return new EsQueryExec.QueryBuilderAndTags(randomQuery(), List.of(randomBoolean() ? randomLong() : randomDouble()));
+    }
+
+    static EsStarTreeQueryExec.GroupingFieldFilter randomGroupingFieldFilter() {
+        return new EsStarTreeQueryExec.GroupingFieldFilter(
+            randomAlphaOfLength(5),
+            randomBoolean() ? randomLong() : null,
+            randomBoolean() ? randomAlphaOfLength(5) : null,  // stringValue
+            randomBoolean() ? List.of(randomAlphaOfLength(3), randomAlphaOfLength(3)) : null,  // stringValues for IN clause
+            randomBoolean() ? randomLong() : null,
+            randomBoolean() ? randomLong() : null
+        );
+    }
+
+    static EsStarTreeQueryExec.StarTreeAgg randomStarTreeAgg() {
+        return new EsStarTreeQueryExec.StarTreeAgg(
+            randomAlphaOfLength(5),
+            randomFrom(EsStarTreeQueryExec.StarTreeAggType.values()),
+            randomBoolean() ? randomAlphaOfLength(5) : null,
+            randomBoolean()
+        );
     }
 
     static FieldAttribute field(String name, DataType type) {

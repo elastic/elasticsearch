@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -1937,7 +1936,9 @@ public class MetadataCreateIndexService {
         return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
     }
 
-    static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
+    static
+        org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer
+        createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }

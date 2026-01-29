@@ -1,0 +1,5 @@
+pr: 141262
+summary: Fix injected attributes's IDs in `UnionAll` branches
+area: ES|QL
+type: bug
+issues: []

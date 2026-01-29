@@ -408,10 +408,10 @@ public final class InstrumenterImpl implements Instrumenter {
                     || constant instanceof Short
                     || constant instanceof Byte
                     || constant instanceof Boolean) {
-                    mv.visitInsn(Opcodes.IRETURN);
-                } else {
-                    throw new IllegalStateException("unexpected check method constant [" + checkMethod.constant() + "]");
-                }
+                        mv.visitInsn(Opcodes.IRETURN);
+                    } else {
+                        throw new IllegalStateException("unexpected check method constant [" + checkMethod.constant() + "]");
+                    }
             }
         }
 

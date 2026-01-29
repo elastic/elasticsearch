@@ -3711,6 +3711,43 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
+    public void testCpsResolveThrottledIndex() {
+        when(crossProjectModeDecider.resolvesCrossProject(any(IndicesRequest.Replaceable.class))).thenReturn(false);
+        projectMetadata = ProjectMetadata.builder(randomUniqueProjectId())
+            .put(
+                indexBuilder("bar").settings(
+                    indexSettings(IndexVersion.current(), randomIntBetween(1, 2), randomIntBetween(0, 2)).put("index.frozen", true).build()
+                )
+            )
+            .build();
+        var request = new SearchRequest().indices("bar");
+        var ignoreThrottled = randomBoolean();
+        request.indicesOptions(
+            IndicesOptions.fromOptions(
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                ignoreThrottled
+            )
+        );
+        var resolvedIndices = resolveIndices(request, buildAuthorizedIndices(user, TransportSearchAction.TYPE.name()));
+
+        assertThat(resolvedIndices.getLocal(), contains("bar"));
+        assertThat(resolvedIndices.getRemote(), empty());
+
+        var resolved = request.getResolvedIndexExpressions();
+        assertThat(resolved, notNullValue());
+        assertThat(
+            resolved.expressions(),
+            contains(resolvedIndexExpression("bar", Set.of("bar"), ignoreThrottled ? CONCRETE_RESOURCE_NOT_VISIBLE : SUCCESS))
+        );
+    }
+
     private void assertIndicesMatch(IndicesRequest.Replaceable request, String expression, List<String> indices, String[] expectedIndices) {
         assertThat(indices, hasSize(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));

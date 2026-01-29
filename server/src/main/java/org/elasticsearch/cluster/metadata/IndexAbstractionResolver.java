@@ -403,6 +403,11 @@ public class IndexAbstractionResolver {
                 return false;
             }
 
+            // see IndexNameExpressionResolver#addIndex for reference
+            if (indexMetadata.getSettings().getAsBoolean("index.frozen", false) && indicesOptions.ignoreThrottled()) {
+                return false;
+            }
+
             return true;
         }
 

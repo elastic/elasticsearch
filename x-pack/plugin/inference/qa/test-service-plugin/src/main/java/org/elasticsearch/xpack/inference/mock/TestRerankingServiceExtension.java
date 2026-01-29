@@ -45,6 +45,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
@@ -123,6 +124,13 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
+            if (Objects.equals(
+                ((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation(),
+                Boolean.TRUE
+            )) {
+                listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
+                return;
+            }
             TaskSettings taskSettings = model.getTaskSettings().updatedTaskSettings(taskSettingsMap);
 
             switch (model.getConfigurations().getTaskType()) {
@@ -253,14 +261,21 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         }
     }
 
-    public record TestTaskSettings(boolean useTextLength, float minScore, float resultDiff) implements TaskSettings {
+    public record TestTaskSettings(boolean shouldFailValidation, boolean useTextLength, float minScore, float resultDiff)
+        implements
+            TaskSettings {
 
         static final String NAME = "test_reranking_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
+            boolean shouldFailValidation = false;
             boolean useTextLength = false;
             float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
+
+            if (map.containsKey("should_fail_validation")) {
+                shouldFailValidation = Boolean.parseBoolean(map.remove("should_fail_validation").toString());
+            }
 
             if (map.containsKey("use_text_length")) {
                 useTextLength = Boolean.parseBoolean(map.remove("use_text_length").toString());
@@ -274,11 +289,11 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                 resultDiff = Float.parseFloat(map.remove("result_diff").toString());
             }
 
-            return new TestTaskSettings(useTextLength, minScore, resultDiff);
+            return new TestTaskSettings(shouldFailValidation, useTextLength, minScore, resultDiff);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readBoolean(), in.readFloat(), in.readFloat());
+            this(in.readBoolean(), in.readBoolean(), in.readFloat(), in.readFloat());
         }
 
         @Override
@@ -288,6 +303,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(shouldFailValidation);
             out.writeBoolean(useTextLength);
             out.writeFloat(minScore);
             out.writeFloat(resultDiff);
@@ -315,8 +331,9 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
 
         @Override
         public TaskSettings updatedTaskSettings(Map<String, Object> newSettingsMap) {
-            TestTaskSettings newSettingsObject = fromMap(Map.copyOf(newSettingsMap));
+            TestTaskSettings newSettingsObject = fromMap(new HashMap<>(newSettingsMap));
             return new TestTaskSettings(
+                newSettingsMap.containsKey("should_fail_validation") ? newSettingsObject.shouldFailValidation() : shouldFailValidation,
                 newSettingsMap.containsKey("use_text_length") ? newSettingsObject.useTextLength() : useTextLength,
                 newSettingsMap.containsKey("min_score") ? newSettingsObject.minScore() : minScore,
                 newSettingsMap.containsKey("result_diff") ? newSettingsObject.resultDiff() : resultDiff

@@ -89,7 +89,7 @@ public class CustomModel extends Model {
         );
     }
 
-    // should only be used for testing
+    // should be used directly only for testing
     CustomModel(
         String inferenceId,
         TaskType taskType,
@@ -101,9 +101,12 @@ public class CustomModel extends Model {
     ) {
         this(
             new ModelConfigurations(inferenceId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            serviceSettings
+            new ModelSecrets(secretSettings)
         );
+    }
+
+    CustomModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        this(modelConfigurations, modelSecrets, (CustomServiceSettings) modelConfigurations.getServiceSettings());
     }
 
     protected CustomModel(CustomModel model, TaskSettings taskSettings) {

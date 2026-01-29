@@ -32,7 +32,11 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -167,6 +171,46 @@ public class OpenAiServiceTests extends AbstractInferenceServiceTests {
                 @Override
                 protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
                     return createServiceSettingsMap(taskType, ConfigurationParseContext.REQUEST);
+                }
+
+                @Override
+                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
+                    return switch (taskType) {
+                        case TEXT_EMBEDDING -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            OpenAiEmbeddingsServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            new OpenAiEmbeddingsTaskSettings(createTaskSettingsMap())
+                        );
+                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            OpenAiChatCompletionServiceSettings.fromMap(
+                                createServiceSettingsMap(taskType, ConfigurationParseContext.PERSISTENT),
+                                ConfigurationParseContext.PERSISTENT
+                            ),
+                            new OpenAiChatCompletionTaskSettings(createTaskSettingsMap())
+                        );
+                        // Rerank is not supported, but in order to test unsupported task types it is included here
+                        case RERANK -> new ModelConfigurations(
+                            "some_inference_id",
+                            taskType,
+                            OpenAiService.NAME,
+                            mock(ServiceSettings.class),
+                            mock(TaskSettings.class)
+                        );
+                        default -> throw new IllegalStateException("Unexpected value: " + taskType);
+                    };
+                }
+
+                @Override
+                protected ModelSecrets createModelSecrets() {
+                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap()));
                 }
 
                 @Override

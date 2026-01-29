@@ -45,7 +45,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -540,6 +542,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -548,7 +551,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
-            true
+            true,
+            false
         );
 
         // when
@@ -578,6 +582,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -586,6 +591,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             legacyVersion,
+            false,
             false
         );
 
@@ -615,6 +621,7 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             "field",
             true,
             false,
+            false,
             new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
             true,
             false,
@@ -623,7 +630,8 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             legacyVersion,
-            true
+            true,
+            false
         );
 
         // when
@@ -634,6 +642,62 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
 
         // then
         assertThat(blockLoader, instanceOf(BytesRefsFromCustomBinaryBlockLoader.class));
+    }
+
+    public void testBlockLoaderWithDocValues() {
+        // given
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            false
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromOrdsBlockLoader.class));
+    }
+
+    public void testBlockLoaderWithDocValuesHighCardinality() {
+        // given
+        TextFieldType ft = new TextFieldType(
+            "field",
+            true,
+            false,
+            true,
+            new TextSearchInfo(TextFieldMapper.Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+            false,
+            false,
+            null,
+            Collections.emptyMap(),
+            false,
+            false,
+            IndexVersion.current(),
+            false,
+            true
+        );
+
+        // when
+        var context = mock(MappedFieldType.BlockLoaderContext.class);
+        when(context.parentField("field")).thenReturn(null);
+        BlockLoader blockLoader = ft.blockLoader(context);
+
+        // then
+        assertThat(blockLoader, instanceOf(BytesRefsFromBinaryMultiSeparateCountBlockLoader.class));
     }
 
 }

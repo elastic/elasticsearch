@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.es93;
 
-import org.apache.lucene.codecs.hnsw.FlatVectorScorerUtil;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
@@ -45,7 +44,7 @@ public class ES93ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 7) | (1 << 4);
 
     static final FlatVectorsScorer flatVectorScorer = new ESQuantizedFlatVectorsScorer(
-        new ScalarQuantizedVectorScorer(FlatVectorScorerUtil.getLucene99FlatVectorsScorer())
+        new ScalarQuantizedVectorScorer(ES93FlatVectorScorer.INSTANCE)
     );
 
     /** The minimum confidence interval */

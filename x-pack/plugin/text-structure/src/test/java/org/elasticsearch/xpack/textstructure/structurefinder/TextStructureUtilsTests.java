@@ -1833,6 +1833,51 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     }
 
     /**
+     * Input records:
+     * {"a": 1, "b": 2}
+     * {"a": 3}
+     * {"c": 3}
+     */
+    public void testGuessMappingsWithMissingFieldInSomeRecords() {
+        Map<String, Object> record1 = new LinkedHashMap<>();
+        record1.put("a", 1);
+        record1.put("b", 2);
+
+        Map<String, Object> record2 = new LinkedHashMap<>();
+        record2.put("a", 3);
+
+        Map<String, Object> record3 = new LinkedHashMap<>();
+        record3.put("c", 3);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(record1, record2, record3),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    10
+                );
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "a", "long");
+            assertKeyAndMappedType(mappings, "b", "long");
+            assertKeyAndMappedType(mappings, "c", "long");
+
+            Map<String, FieldStats> fieldStats = mappingsAndFieldStats.v2();
+            assertNotNull(fieldStats);
+            assertEquals(2, fieldStats.get("a").getCount());
+            assertEquals(1, fieldStats.get("b").getCount());
+            assertEquals(1, fieldStats.get("c").getCount());
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
      * Generates a deeply nested JSON object.
      * Example for desiredDepth=3, id=1: {"level1": {"level2": {"level3": 1}}}
      */

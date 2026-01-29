@@ -213,7 +213,7 @@ public abstract class GradleUtils {
      * @param runnable action to run
      * */
     public static void withRetries(Runnable runnable) {
-       withRetries(3, 10, runnable);
+        withRetries(3, 10, runnable);
     }
 
     /**
@@ -247,5 +247,5 @@ public abstract class GradleUtils {
                 }
             }
         }
-     }
+    }
 }

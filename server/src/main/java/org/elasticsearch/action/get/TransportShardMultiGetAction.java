@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -134,19 +133,15 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexMetadata indexMetadata = indexService.getMetadata();
         if (MultiGetShardSplitHelper.needsSplitCoordination(request, indexMetadata, shardId.id())) {
             ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
-            MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(
-                logger,
-                projectMetadata,
-                (splitRequest, splitListener) -> {
-                    try {
-                        IndexMetadata splitIndexMetadata = projectMetadata.index(splitRequest.index());
-                        ShardId splitShardId = new ShardId(splitIndexMetadata.getIndex(), splitRequest.shardId());
-                        asyncShardMultiGetAfterSplit(splitRequest, splitShardId, splitListener);
-                    } catch (Exception e) {
-                        splitListener.onFailure(e);
-                    }
+            MultiGetShardSplitHelper splitHelper = new MultiGetShardSplitHelper(logger, projectMetadata, (splitRequest, splitListener) -> {
+                try {
+                    IndexMetadata splitIndexMetadata = projectMetadata.index(splitRequest.index());
+                    ShardId splitShardId = new ShardId(splitIndexMetadata.getIndex(), splitRequest.shardId());
+                    asyncShardMultiGetAfterSplit(splitRequest, splitShardId, splitListener);
+                } catch (Exception e) {
+                    splitListener.onFailure(e);
                 }
-            );
+            });
             splitHelper.coordinateSplitRequest(request, shardId, indexMetadata, listener);
             return;
         }

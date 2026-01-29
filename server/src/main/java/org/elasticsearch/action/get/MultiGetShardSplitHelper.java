@@ -130,8 +130,7 @@ public final class MultiGetShardSplitHelper {
             final List<Tuple<Integer, MultiGetRequest.Item>> shardItems = entry.getValue();
 
             MultiGetShardRequest shardRequest = new MultiGetShardRequest(
-                new MultiGetRequest()
-                    .preference(request.preference())
+                new MultiGetRequest().preference(request.preference())
                     .realtime(request.realtime())
                     .refresh(request.refresh())
                     .setForceSyntheticSource(request.isForceSyntheticSource()),
@@ -170,11 +169,7 @@ public final class MultiGetShardSplitHelper {
                 for (int i = 0; i < splitRequest.locations.size(); i++) {
                     int location = splitRequest.locations.get(i);
                     MultiGetRequest.Item item = splitRequest.items.get(i);
-                    MultiGetResponse.Failure failure = new MultiGetResponse.Failure(
-                        splitRequest.index(),
-                        item.id(),
-                        exception
-                    );
+                    MultiGetResponse.Failure failure = new MultiGetResponse.Failure(splitRequest.index(), item.id(), exception);
                     responsesByLocation.put(location, new Tuple<>(null, failure));
                 }
             } else {

@@ -723,7 +723,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                 Aggregator aggregator = createAggregator(builder, context);
                                 aggregator.preCollection();
                                 BucketCollector bucketCollector = MultiBucketCollector.wrap(true, List.of(aggregator));
-                                return new AggregatorCollector(new Aggregator[]{aggregator}, bucketCollector);
+                                return new AggregatorCollector(new Aggregator[] { aggregator }, bucketCollector);
                             } catch (IOException e) {
                                 throw new AggregationInitializationException("Could not initialize aggregators", e);
                             }
@@ -733,8 +733,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             getMockScriptService(),
                             () -> false,
                             builder,
-                            b -> {
-                            }
+                            b -> {}
                         );
                         AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                             aggregatorSupplier,
@@ -758,8 +757,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     getMockScriptService(),
                     () -> false,
                     builder,
-                    b -> {
-                    }
+                    b -> {}
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));

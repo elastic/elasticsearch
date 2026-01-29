@@ -268,7 +268,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 } catch (Exception e) {
                     for (InternalBucket bucket : result) {
                         for (InternalAggregation agg : bucket.getAggregations()) {
-                                agg.close();
+                            agg.close();
                         }
                     }
                     throw e;

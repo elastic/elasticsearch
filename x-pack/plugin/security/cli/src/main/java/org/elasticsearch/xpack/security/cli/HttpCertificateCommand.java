@@ -21,8 +21,8 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.OperatorException;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObjectGenerator;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
@@ -525,7 +525,7 @@ class HttpCertificateCommand extends EnvironmentAwareCommand {
         ZonedDateTime now = ZonedDateTime.now().withNano(0);
         map.put("DATE", now.format(DateTimeFormatter.ISO_LOCAL_DATE));
         map.put("TIME", now.format(DateTimeFormatter.ISO_OFFSET_TIME));
-        map.put("VERSION", Version.CURRENT.toString());
+        map.put("VERSION", Build.current().version());
         map.put("CONF_DIR", env.configDir().toAbsolutePath().toString());
         map.putAll(entries);
         return map;

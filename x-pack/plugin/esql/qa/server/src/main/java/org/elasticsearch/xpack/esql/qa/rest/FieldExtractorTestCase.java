@@ -1396,7 +1396,32 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
               }
             }
             """);
-
+        ESRestTestCase.createIndex("metrics-long", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_metric": "gauge"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-long_dimension", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_dimension": true
+              }
+            }
+            """);
         index("metrics-amd", """
             {"@timestamp": "2026-01-20T11:10:00Z","metric.name": "network_packets_total",""" + """
             "metric.value": {"min": -302.50,"max": 702.30,"sum": 200.0,"value_count": 25}}""");
@@ -1406,6 +1431,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": 50}""");
         index("metrics-keyword", """
             {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": "a"}""");
+        index("metrics-long", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+        index("metrics-long_dimension", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
 
         Map<String, Object> result = runEsql("TS metrics-amd,metrics-counter | KEEP metric.value");
         assertResultMap(
@@ -1413,6 +1442,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "counter_double")),
             List.of(matchesList().item(null), matchesList().item(null))
         );
+
         result = runEsql("TS metrics-amd,metrics-gauge | KEEP metric.value");
         assertResultMap(
             result,
@@ -1445,6 +1475,13 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
             List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
             List.of(matchesList().item(null), matchesList().item(null))
         );
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> runEsql("TS metrics-long,metrics-long_dimension | KEEP metric.value")
+        );
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("Time Series Metadata conflict.  Cannot merge [DIMENSION] with [METRIC]."));
     }
 
     protected Matcher<Integer> pidMatcher() {

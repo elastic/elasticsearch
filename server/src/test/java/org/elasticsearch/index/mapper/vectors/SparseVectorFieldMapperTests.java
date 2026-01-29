@@ -30,6 +30,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.KnownIndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -89,6 +90,17 @@ public class SparseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase
     private static final Map<String, Float> MEDIUM_TOKENS = Map.of("medium1_keep_strict", 0.5f, "medium2_keep_default", 0.25f);
 
     private static final Map<String, Float> RARE_TOKENS = Map.of("rare1_keep_strict", 0.9f, "rare2_keep_strict", 0.85f);
+
+    @Override
+    protected Set<IndexVersion> getSupportedVersions() {
+        return KnownIndexVersions.ALL_VERSIONS.tailSet(IndexVersions.NEW_SPARSE_VECTOR, true);
+    }
+
+    @Override
+    protected Set<IndexVersion> getUnsupportedVersions() {
+        // below V_8_0_0, a warning is logged, but no exception is thrown
+        return KnownIndexVersions.ALL_VERSIONS.subSet(IndexVersions.V_8_0_0, true, IndexVersions.NEW_SPARSE_VECTOR, false);
+    }
 
     @Override
     protected Object getSampleValueForDocument() {

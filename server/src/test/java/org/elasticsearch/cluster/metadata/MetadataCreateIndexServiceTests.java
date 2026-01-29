@@ -1405,7 +1405,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             4,
             sourceIndexMetadata,
             false,
-            Map.of()
+            Map.of(),
+            TransportVersion.current()
         );
 
         assertThat(indexMetadata.getAliases().size(), is(1));

@@ -1092,7 +1092,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                 "moved a NOT_PREFERRED allocation",
                 notPreferredLoggerName,
                 Level.DEBUG,
-                "Moving shard [*] to [*] from a NOT_PREFERRED allocation: [NOT_PREFERRED(Always NOT_PREFERRED)]"
+                "Moving shard [*] from [*] to [*]; current assignment is NOT_PREFERRED: [NOT_PREFERRED(Always NOT_PREFERRED)]"
             )
         );
     }

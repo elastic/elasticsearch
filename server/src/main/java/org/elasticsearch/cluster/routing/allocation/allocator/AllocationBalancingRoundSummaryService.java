@@ -166,8 +166,8 @@ public class AllocationBalancingRoundSummaryService {
 
     /**
      * Creates and saves a balancer round summary for the work to move from {@code oldDesiredBalance} to {@code newDesiredBalance}. If
-     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} and {@link #ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING}), then the
-     * summary is immediately discarded.
+     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} and
+     * {@link #ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING}), then the summary is immediately discarded.
      */
     public void addBalancerRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
         addBalancerRoundSummary(createBalancerRoundSummary(oldDesiredBalance, newDesiredBalance));

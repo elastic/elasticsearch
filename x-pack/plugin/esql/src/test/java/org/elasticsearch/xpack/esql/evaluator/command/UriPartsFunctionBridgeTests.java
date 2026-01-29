@@ -7,16 +7,8 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.List;
@@ -33,11 +25,8 @@ import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBri
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.SCHEME;
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USERNAME;
 import static org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge.USER_INFO;
-import static org.hamcrest.Matchers.is;
 
-public class UriPartsFunctionBridgeTests extends ESTestCase {
-
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluatorTests<UriPartsFunctionBridge.UriPartsCollectorImpl> {
 
     private static class TestUriPartsEvaluator extends UriPartsFunctionBridge {
         TestUriPartsEvaluator(SequencedCollection<String> outputFields, Warnings warnings) {
@@ -45,109 +34,101 @@ public class UriPartsFunctionBridgeTests extends ESTestCase {
         }
     }
 
+    @Override
+    protected CompoundOutputEvaluator<UriPartsFunctionBridge.UriPartsCollectorImpl> createEvaluator(
+        List<String> requestedFields,
+        Warnings warnings
+    ) {
+        return new UriPartsFunctionBridgeTests.TestUriPartsEvaluator(requestedFields, warnings);
+    }
+
+    @Override
+    protected Map<String, Class<?>> getSupportedOutputFieldMappings() {
+        return UriPartsFunctionBridge.getAllOutputFields();
+    }
+
     public void testFullOutput() {
         List<String> requestedFields = List.of(SCHEME, DOMAIN, PORT, PATH, EXTENSION, QUERY, FRAGMENT, USER_INFO, USERNAME, PASSWORD);
-        String input = "http://user:pass@example.com:8080/path/to/file.html?query=val#fragment";
-        Object[] expected = new Object[] {
-            "http",
-            "example.com",
-            8080,
-            "/path/to/file.html",
-            "html",
-            "query=val",
-            "fragment",
-            "user:pass",
-            "user",
-            "pass" };
+        List<String> input = List.of("http://user:pass@example.com:8080/path/to/file.html?query=val#fragment");
+        List<Object[]> expected = List.of(
+            new Object[] { "http" },
+            new Object[] { "example.com" },
+            new Object[] { 8080 },
+            new Object[] { "/path/to/file.html" },
+            new Object[] { "html" },
+            new Object[] { "query=val" },
+            new Object[] { "fragment" },
+            new Object[] { "user:pass" },
+            new Object[] { "user" },
+            new Object[] { "pass" }
+        );
         evaluateAndCompare(input, requestedFields, expected);
     }
 
+    /*public void testMultiValue() {
+        List<String> requestedFields = List.of(SCHEME, DOMAIN, PORT, PATH, EXTENSION, QUERY, FRAGMENT, USER_INFO, USERNAME, PASSWORD);
+        List<String> input = List.of(
+            "http://user:pass@example.com:8080/path/to/file.html?query=val#fragment",
+            "https://elastic.co/downloads",
+            "ftp://ftp.example.org/resource.txt"
+        );
+        List<Object[]> expected = List.of(
+            new Object[] { "http", "https", "ftp" },
+            new Object[] { "example.com", "elastic.co", "ftp.example.org" },
+            new Object[] { 8080, null, null },
+            new Object[] { "/path/to/file.html", "/downloads", "/resource.txt" },
+            new Object[] { "html", null, "txt" },
+            new Object[] { "query=val", null, null },
+            new Object[] { "fragment", null, null },
+            new Object[] { "user:pass", null, null },
+            new Object[] { "user", null, null },
+            new Object[] { "pass", null, null }
+        );
+        evaluateAndCompare(input, requestedFields, expected);
+    }*/
+
     public void testPartialFieldsRequested() {
         List<String> requestedFields = List.of(DOMAIN, PORT);
-        String input = "http://user:pass@example.com:8080/path/to/file.html?query=val#fragment";
-        Object[] expected = new Object[] { "example.com", 8080 };
+        List<String> input = List.of("http://user:pass@example.com:8080/path/to/file.html?query=val#fragment");
+        List<Object[]> expected = List.of(new Object[] { "example.com" }, new Object[] { 8080 });
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingPortAndUserInfo() {
         List<String> requestedFields = List.of(SCHEME, DOMAIN, PORT, USERNAME);
-        String input = "https://elastic.co/downloads";
-        Object[] expected = new Object[] { "https", "elastic.co", null, null };
+        List<String> input = List.of("https://elastic.co/downloads");
+        List<Object[]> expected = List.of(
+            new Object[] { "https" },
+            new Object[] { "elastic.co" },
+            new Object[] { null },
+            new Object[] { null }
+        );
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingExtension() {
         List<String> requestedFields = List.of(PATH, EXTENSION);
-        String input = "https://elastic.co/downloads";
-        Object[] expected = new Object[] { "/downloads", null };
+        List<String> input = List.of("https://elastic.co/downloads");
+        List<Object[]> expected = List.of(new Object[] { "/downloads" }, new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testAllMissingFields() {
         List<String> requestedFields = List.of(FRAGMENT, QUERY, USER_INFO);
-        String input = "https://elastic.co/downloads";
-        Object[] expected = new Object[] { null, null, null };
+        List<String> input = List.of("https://elastic.co/downloads");
+        List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null }, new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testInvalidInput() {
         List<String> requestedFields = List.of(DOMAIN, PORT);
-        String input = "not a valid url";
-        Object[] expected = new Object[] { null, null };
+        List<String> input = List.of("not a valid url");
+        List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null });
         Warnings warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, 1, 2, "invalid_input");
         evaluateAndCompare(input, requestedFields, expected, warnings);
         assertCriticalWarnings(
             "Line 1:2: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:2: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
         );
-    }
-
-    private void evaluateAndCompare(String input, List<String> requestedFields, Object[] expectedRowComputationOutput) {
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput, Warnings.NOOP_WARNINGS);
-    }
-
-    private void evaluateAndCompare(String input, List<String> requestedFields, Object[] expectedRowComputationOutput, Warnings warnings) {
-        TestUriPartsEvaluator evaluator = new TestUriPartsEvaluator(requestedFields, warnings);
-        Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
-        try (BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
-            inputBuilder.appendBytesRef(new BytesRef(input));
-            BytesRefBlock inputBlock = inputBuilder.build();
-
-            Map<String, Class<?>> allFields = UriPartsFunctionBridge.getAllOutputFields();
-
-            int i = 0;
-            for (String fieldName : requestedFields) {
-                Class<?> type = allFields.get(fieldName);
-                if (type == String.class) {
-                    targetBlocks[i++] = blockFactory.newBytesRefBlockBuilder(1);
-                } else if (type == Integer.class) {
-                    targetBlocks[i++] = blockFactory.newIntBlockBuilder(1);
-                } else {
-                    throw new IllegalArgumentException("Unsupported field type for: " + fieldName);
-                }
-            }
-            evaluator.computeRow(inputBlock, 0, targetBlocks, new BytesRef());
-
-            for (int j = 0; j < expectedRowComputationOutput.length; j++) {
-                Object expected = expectedRowComputationOutput[j];
-                try (Block builtBlock = targetBlocks[j].build()) {
-                    if (expected == null) {
-                        assertThat("Expected null for field [" + requestedFields.get(j) + "]", builtBlock.isNull(0), is(true));
-                    } else if (expected instanceof String s) {
-                        BytesRefBlock fieldBlock = (BytesRefBlock) builtBlock;
-                        assertThat(fieldBlock.isNull(0), is(false));
-                        assertThat(fieldBlock.getBytesRef(0, new BytesRef()).utf8ToString(), is(s));
-                    } else if (expected instanceof Integer v) {
-                        IntBlock fieldBlock = (IntBlock) builtBlock;
-                        assertThat(fieldBlock.isNull(0), is(false));
-                        assertThat(fieldBlock.getInt(0), is(v));
-                    } else {
-                        throw new IllegalArgumentException("Unsupported expected output type: " + expected.getClass());
-                    }
-                }
-            }
-        } finally {
-            Releasables.closeExpectNoException(targetBlocks);
-        }
     }
 }

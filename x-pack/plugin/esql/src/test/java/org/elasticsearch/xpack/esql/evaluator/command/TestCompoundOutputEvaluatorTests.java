@@ -7,17 +7,11 @@
 
 package org.elasticsearch.xpack.esql.evaluator.command;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.operator.Warnings;
-import org.elasticsearch.compute.test.TestBlockFactory;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,15 +24,13 @@ import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvalu
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.intValueCollector;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.nullValueCollector;
 import static org.elasticsearch.xpack.esql.evaluator.command.CompoundOutputEvaluator.stringValueCollector;
-import static org.hamcrest.Matchers.is;
 
 /**
  * Testing different scenarios where the coordinating node predefines a list of requested output fields and the actual execution occurs on
  * a data node with a different version, where the evaluating function produces outputs that may not fully match the predefined list.
  */
-public class CompoundOutputEvaluatorTests extends ESTestCase {
-
-    private final BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
+public class TestCompoundOutputEvaluatorTests extends AbstractCompoundOutputEvaluatorTests<
+    TestCompoundOutputEvaluatorTests.TestFieldsCollector> {
 
     private static Map<String, Object> testFunction(String input) {
         Map<String, Object> result = new HashMap<>();
@@ -59,7 +51,21 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
         return result;
     }
 
-    private static class TestFieldsCollector extends CompoundOutputEvaluator.OutputFieldsCollector {
+    @Override
+    protected CompoundOutputEvaluator<TestFieldsCollector> createEvaluator(List<String> requestedFields, Warnings warnings) {
+        return new TestEvaluator(requestedFields, warnings);
+    }
+
+    @Override
+    protected Map<String, Class<?>> getSupportedOutputFieldMappings() {
+        Map<String, Class<?>> mappings = new HashMap<>();
+        mappings.put("field_a", String.class);
+        mappings.put("field_b", Integer.class);
+        mappings.put("field_c", String.class);
+        return mappings;
+    }
+
+    protected static class TestFieldsCollector extends CompoundOutputEvaluator.OutputFieldsCollector {
         private BiConsumer<Block.Builder[], String> fieldA = NOOP_STRING_COLLECTOR;
         private ObjIntConsumer<Block.Builder[]> fieldB = NOOP_INT_COLLECTOR;
         private BiConsumer<Block.Builder[], String> fieldC = NOOP_STRING_COLLECTOR;
@@ -107,127 +113,93 @@ public class CompoundOutputEvaluatorTests extends ESTestCase {
     }
 
     private static class TestEvaluator extends CompoundOutputEvaluator<TestFieldsCollector> {
-        TestEvaluator(SequencedCollection<String> outputFields) {
-            super(DataType.TEXT, Warnings.NOOP_WARNINGS, new TestFieldsCollector(outputFields, new BlocksBearer()));
+        TestEvaluator(SequencedCollection<String> outputFields, Warnings warnings) {
+            super(DataType.TEXT, warnings, new TestFieldsCollector(outputFields, new BlocksBearer()));
         }
     }
 
     public void testMatchingOutput() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "field_a:valueA-field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, "valueC" };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, "valueC" });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testPartialFieldsRequested_1() {
         List<String> requestedFields = List.of("field_a", "field_b");
-        String input = "field_a:valueA-field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2 };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { "valueA", 2 });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testPartialFieldsRequested_2() {
         List<String> requestedFields = List.of("field_b");
-        String input = "field_a:valueA-field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { 2 };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { 2 });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testUnsupportedField() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "field_a:valueA-field_b:2-field_c:valueC-extra_field:extraValue";
-        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, "valueC" };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC-extra_field:extraValue");
+        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, "valueC" });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_1() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { null, 2, "valueC" };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { null, 2, "valueC" });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_2() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "foo:1-field_b:2-bar:3";
-        Object[] expectedRowComputationOutput = new Object[] { null, 2, null };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("foo:1-field_b:2-bar:3");
+        List<Object[]> expected = toExpected(new Object[] { null, 2, null });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testMissingField_3() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "foo:1-bar:2-field_b:3-baz:4-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { null, 3, "valueC" };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("foo:1-bar:2-field_b:3-baz:4-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { null, 3, "valueC" });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testAllMissingFields() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "field_d:2-field_e:valueE";
-        Object[] expectedRowComputationOutput = new Object[] { null, null, null };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_d:2-field_e:valueE");
+        List<Object[]> expected = toExpected(new Object[] { null, null, null });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testWrongFieldType() {
         List<String> requestedFields = List.of("field_a", "field_b", "field_c");
-        String input = "field_a:1-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { null, null, null };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:1-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { null, null, null });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testKnownAndUnknownFields() {
         List<String> requestedFields = List.of("field_a", "field_b", "unknown_field");
-        String input = "field_a:valueA-field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { "valueA", 2, null };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { "valueA", 2, null });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testOnlyUnknownFields() {
         List<String> requestedFields = List.of("unknown_field_a", "unknown_field_b");
-        String input = "field_a:valueA-field_b:2-field_c:valueC";
-        Object[] expectedRowComputationOutput = new Object[] { null, null };
-        evaluateAndCompare(input, requestedFields, expectedRowComputationOutput);
+        List<String> input = List.of("field_a:valueA-field_b:2-field_c:valueC");
+        List<Object[]> expected = toExpected(new Object[] { null, null });
+        evaluateAndCompare(input, requestedFields, expected);
     }
 
-    private void evaluateAndCompare(String input, List<String> requestedFields, Object[] expectedRowComputationOutput) {
-        TestEvaluator evaluator = new TestEvaluator(requestedFields);
-        Block.Builder[] targetBlocks = new Block.Builder[requestedFields.size()];
-        try (BytesRefBlock.Builder inputBuilder = blockFactory.newBytesRefBlockBuilder(1)) {
-            inputBuilder.appendBytesRef(new BytesRef(input));
-            BytesRefBlock inputBlock = inputBuilder.build();
-
-            int i = 0;
-            for (String fieldName : requestedFields) {
-                // noinspection SwitchStatementWithTooFewBranches
-                targetBlocks[i++] = switch (fieldName) {
-                    case "field_b" -> blockFactory.newIntBlockBuilder(1);
-                    default -> blockFactory.newBytesRefBlockBuilder(1);
-                };
-            }
-            evaluator.computeRow(inputBlock, 0, targetBlocks, new BytesRef());
-
-            for (int j = 0; j < expectedRowComputationOutput.length; j++) {
-                Object o = expectedRowComputationOutput[j];
-                switch (o) {
-                    case String s -> {
-                        BytesRefBlock fieldBlock = (BytesRefBlock) targetBlocks[j].build();
-                        assertThat(fieldBlock.isNull(0), is(false));
-                        assertThat(fieldBlock.getBytesRef(0, new BytesRef()).utf8ToString(), is(s));
-                    }
-                    case Integer v -> {
-                        IntBlock fieldBlock = (IntBlock) targetBlocks[j].build();
-                        assertThat(fieldBlock.isNull(0), is(false));
-                        assertThat(fieldBlock.getInt(0), is(v));
-                    }
-                    case null -> {
-                        Block fieldBlock = targetBlocks[j].build();
-                        assertThat(fieldBlock.isNull(0), is(true));
-                    }
-                    default -> throw new IllegalArgumentException("Unsupported expected output type: " + o);
-                }
-            }
-        } finally {
-            Releasables.closeExpectNoException(targetBlocks);
+    private List<Object[]> toExpected(Object[] expected) {
+        List<Object[]> result = new ArrayList<>(expected.length);
+        for (Object o : expected) {
+            result.add(new Object[] { o });
         }
+        return result;
     }
 }

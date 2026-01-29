@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
@@ -32,6 +34,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
@@ -45,7 +48,6 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsTaskSettings;
@@ -56,15 +58,14 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -80,6 +81,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
     private static final String MODEL_ID_INITIAL_VALUE = "some_model";
     private static final String SERVICE_ACCOUNT_JSON_INITIAL_VALUE = "some_service_account";
     private static final String SERVICE_NAME_VALUE = "some_service_name";
+    private static final int MAX_BATCH_SIZE_INITIAL_VALUE = 2;
+    private static final InputType INPUT_TYPE_INITIAL_VALUE = InputType.SEARCH;
+    private static final Boolean AUTO_TRUNCATE_INITIAL_VALUE = Boolean.FALSE;
 
     private MockLicenseState licenseState;
     private TransportUpdateInferenceModelAction action;
@@ -94,6 +98,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockInferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         licenseState = MockLicenseState.createMock();
         service = mock(InferenceService.class);
+        when(service.name()).thenReturn(SERVICE_NAME_VALUE);
         action = new TransportUpdateInferenceModelAction(
             mock(TransportService.class),
             mock(ClusterService.class),
@@ -107,69 +112,331 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         );
     }
 
-    public void testUpdateInferenceModel_ThrowsSecurityExceptionWhenLicenseCheckFails() {
-        mockFailedLicenseCheck();
+    public void testMasterOperation_ResourceNotFoundExceptionThrown_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToFailWithException(new ResourceNotFoundException("Model not found"));
 
-        var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
-        var requestBody = """
-            {
-                "service_settings": {
-                    "some_key": "some_value"
-                }
-            }""";
-        action.masterOperation(
-            mock(Task.class),
-            new UpdateInferenceModelAction.Request(
-                INFERENCE_ENTITY_ID_VALUE,
-                new BytesArray(requestBody),
-                XContentType.JSON,
-                TaskType.TEXT_EMBEDDING,
-                TimeValue.timeValueSeconds(1)
-            ),
-            ClusterState.EMPTY_STATE,
-            listener
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
         );
+    }
+
+    public void testMasterOperation_RuntimeExceptionThrown_ThrowsSameException() {
+        var exceptionMessage = "Model not found";
+        mockGetModelWithSecretsToFailWithException(new RuntimeException(exceptionMessage));
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), sameInstance(exceptionMessage));
+    }
+
+    public void testMasterOperation_NullReturned_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(null);
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(
+            exception.getMessage(),
+            is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
+        );
+    }
+
+    public void testMasterOperation_ServiceNotFoundInRegistry_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+
+        mockServiceRegistryToReturnService(null);
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
+    }
+
+    public void testMasterOperation_LicenseCheckFailed_ThrowsSecurityException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+
+        // return false for license check, so the action fails before any other processing
+        mockLicenseStateIsAllowed(false);
+
+        var listener = callMasterOperationWithActionFuture();
 
         var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
         assertThat(exception.getMessage(), is("current license is non-compliant for [inference]"));
     }
 
-    private void mockFailedLicenseCheck() {
-        mockGetModelWithSecretsCall(SERVICE_NAME_VALUE);
+    public void testMasterOperation_ValidationFailed_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        mockParsePersistedConfigWithSecretsToReturnModel(createModel());
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
 
-        when(service.name()).thenReturn(SERVICE_NAME_VALUE);
-        mockGetServiceCall(SERVICE_NAME_VALUE);
+        doAnswer(invocationOnMock -> {
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            listener.onFailure(new RuntimeException("validation failed"));
+            return Void.TYPE;
+        }).when(service)
+            .infer(
+                any(GoogleVertexAiEmbeddingsModel.class),
+                isNull(),
+                isNull(),
+                isNull(),
+                anyList(),
+                anyBoolean(),
+                anyMap(),
+                any(InputType.class),
+                any(TimeValue.class),
+                any()
+            );
 
-        // return false for license check, so the action fails before any other processing
-        when(licenseState.isAllowed(any())).thenReturn(false);
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(
+            exception.getMessage(),
+            is("Could not complete inference endpoint creation as validation call to service threw an exception.")
+        );
     }
 
-    private void mockGetServiceCall(String serviceName) {
-        when(mockInferenceServiceRegistry.getService(serviceName)).thenReturn(Optional.of(service));
+    public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+
+        var exceptionMessage = "update failed";
+        doAnswer(invocationOnMock -> {
+            ActionListener<Boolean> listener = invocationOnMock.getArgument(2);
+            listener.onFailure(new RuntimeException(exceptionMessage));
+            return Void.TYPE;
+        }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), is(exceptionMessage));
     }
 
-    private void mockGetModelWithSecretsCall(String serviceName) {
+    public void testMasterOperation_UpdateModelTransactionReturnedFalse_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+
+        mockUpdateModelTransactionToReturnBoolean(false, model);
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), is("Failed to update model"));
+    }
+
+    public void testMasterOperation_GetModelReturnedNull_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+
+        mockModelRegistryGetModelToReturnUnparsedModel(null);
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), is("Failed to update model, updated model not found"));
+    }
+
+    public void testMasterOperation_GetModelThrownException_ThrowsElasticsearchStatusException() {
+        mockGetModelWithSecretsToReturnUnparsedModel(
+            new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
+        );
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+
+        var exceptionMessage = "updated model not found";
         doAnswer(invocationOnMock -> {
             ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
-            listener.onResponse(new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, serviceName, Map.of(), Map.of()));
+            listener.onFailure(new RuntimeException(exceptionMessage));
+            return Void.TYPE;
+        }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        assertThat(exception.getMessage(), is(exceptionMessage));
+    }
+
+    public void testMasterOperation_UpdatesModelSettingsSuccessfully() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        var model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        mockBuildModelFromConfigAndSecretsToReturnNewModel();
+        mockServiceInferCallToReturnDenseEmbeddingFloatResults();
+        mockUpdateModelWithEmbeddingDetailsToReturnSameModel();
+        mockUpdateModelTransactionToReturnBoolean(true, model);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        mockParsePersistedConfigToReturnModel(model);
+
+        var listener = callMasterOperationWithActionFuture();
+        var response = listener.actionGet(TimeValue.timeValueSeconds(5));
+        assertThat(response.getModel(), is(model.getConfigurations()));
+    }
+
+    private void mockParsePersistedConfigToReturnModel(GoogleVertexAiEmbeddingsModel model) {
+        when(service.parsePersistedConfig(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap())).thenReturn(model);
+    }
+
+    private static GoogleVertexAiEmbeddingsModel createModel() {
+        return new GoogleVertexAiEmbeddingsModel(
+            INFERENCE_ENTITY_ID_VALUE,
+            TaskType.TEXT_EMBEDDING,
+            SERVICE_NAME_VALUE,
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                LOCATION_INITIAL_VALUE,
+                PROJECT_ID_INITIAL_VALUE,
+                MODEL_ID_INITIAL_VALUE,
+                Boolean.FALSE,
+                null,
+                null,
+                MAX_BATCH_SIZE_INITIAL_VALUE,
+                null,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(AUTO_TRUNCATE_INITIAL_VALUE, INPUT_TYPE_INITIAL_VALUE),
+            NoneChunkingSettings.INSTANCE,
+            new GoogleVertexAiSecretSettings(new SecureString(SERVICE_ACCOUNT_JSON_INITIAL_VALUE.toCharArray()))
+        );
+    }
+
+    private void mockGetModelWithSecretsToFailWithException(RuntimeException exception) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
+            listener.onFailure(exception);
             return Void.TYPE;
         }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
     }
 
-    public void testUpdateInferenceModel_UpdatesModelSettingsSuccessfully() {
-        mockSuccessfulModelUpdate();
+    private void mockGetModelWithSecretsToReturnUnparsedModel(UnparsedModel result) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(result);
+            return Void.TYPE;
+        }).when(mockModelRegistry).getModelWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), any());
+    }
 
+    private void mockLicenseStateIsAllowed(boolean value) {
+        when(licenseState.isAllowed(any(LicensedFeature.class))).thenReturn(value);
+    }
+
+    private void mockParsePersistedConfigWithSecretsToReturnModel(GoogleVertexAiEmbeddingsModel model) {
+        when(service.parsePersistedConfigWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), anyMap(), anyMap()))
+            .thenReturn(model);
+    }
+
+    private void mockServiceRegistryToReturnService(InferenceService service) {
+        when(mockInferenceServiceRegistry.getService(SERVICE_NAME_VALUE)).thenReturn(Optional.ofNullable(service));
+    }
+
+    private void mockBuildModelFromConfigAndSecretsToReturnNewModel() {
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenAnswer(
+            invocationOnMock -> new GoogleVertexAiEmbeddingsModel(
+                (ModelConfigurations) invocationOnMock.getArgument(0),
+                invocationOnMock.getArgument(1)
+            )
+        );
+    }
+
+    private void mockServiceInferCallToReturnDenseEmbeddingFloatResults() {
+        doAnswer(invocationOnMock -> {
+            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
+            listener.onResponse(
+                new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
+            );
+            return Void.TYPE;
+        }).when(service)
+            .infer(
+                any(GoogleVertexAiEmbeddingsModel.class),
+                isNull(),
+                isNull(),
+                isNull(),
+                anyList(),
+                anyBoolean(),
+                anyMap(),
+                any(InputType.class),
+                any(TimeValue.class),
+                any()
+            );
+    }
+
+    private void mockUpdateModelWithEmbeddingDetailsToReturnSameModel() {
+        when(service.updateModelWithEmbeddingDetails(any(GoogleVertexAiEmbeddingsModel.class), eq(3))).thenAnswer(
+            invocationOnMock -> invocationOnMock.getArgument(0)
+        );
+    }
+
+    private void mockUpdateModelTransactionToReturnBoolean(boolean result, GoogleVertexAiEmbeddingsModel model) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<Boolean> listener = invocationOnMock.getArgument(2);
+            listener.onResponse(result);
+            return Void.TYPE;
+        }).when(mockModelRegistry).updateModelTransaction(any(GoogleVertexAiEmbeddingsModel.class), eq(model), any());
+    }
+
+    private void mockModelRegistryGetModelToReturnUnparsedModel(UnparsedModel result) {
+        doAnswer(invocationOnMock -> {
+            ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(result);
+            return Void.TYPE;
+        }).when(mockModelRegistry).getModel(eq(INFERENCE_ENTITY_ID_VALUE), any());
+    }
+
+    private PlainActionFuture<UpdateInferenceModelAction.Response> callMasterOperationWithActionFuture() {
         var listener = new PlainActionFuture<UpdateInferenceModelAction.Response>();
 
         var requestBody = """
             {
                 "task_type": "text_embedding",
                 "service_settings": {
-                    "location": "some_new_location",
-                    "project_id": "some_new_project",
-                    "model_id": "some_new_model",
-                    "uri": "some_new_uri",
-                    "service_account_json": "some_new_service_account"
+                    "service_account_json": "some_new_service_account",
+                    "max_batch_size": 16
                 },
                 "task_settings": {
                     "input_type": "ingest",
@@ -189,86 +456,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             ClusterState.EMPTY_STATE,
             listener
         );
-        var response = listener.actionGet(TimeValue.timeValueSeconds(5));
-        assertThat(response.getModel(), is(notNullValue()));
-    }
-
-    private void mockSuccessfulModelUpdate() {
-        mockGetModelWithSecretsCall(GoogleVertexAiService.NAME);
-
-        when(service.name()).thenReturn(GoogleVertexAiService.NAME);
-        mockGetServiceCall(GoogleVertexAiService.NAME);
-        var model = createModel();
-
-        when(service.parsePersistedConfigWithSecrets(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), any(), any())).thenReturn(
-            model
-        );
-
-        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenAnswer(
-            invocationOnMock -> new GoogleVertexAiEmbeddingsModel(
-                (ModelConfigurations) invocationOnMock.getArgument(0),
-                invocationOnMock.getArgument(1)
-            )
-        );
-        doAnswer(invocationOnMock -> {
-            ActionListener<InferenceServiceResults> listener = invocationOnMock.getArgument(9);
-            listener.onResponse(
-                new DenseEmbeddingFloatResults(List.of(new EmbeddingFloatResults.Embedding(new float[] { 1.0f, 2.0f, 3.0f })))
-            );
-            return Void.TYPE;
-        }).when(service)
-            .infer(
-                any(GoogleVertexAiEmbeddingsModel.class),
-                any(),
-                any(),
-                any(),
-                any(),
-                anyBoolean(),
-                anyMap(),
-                any(InputType.class),
-                any(TimeValue.class),
-                any()
-            );
-        when(service.updateModelWithEmbeddingDetails(any(), anyInt())).thenAnswer(invocationOnMock -> invocationOnMock.getArgument(0));
-        doAnswer(invocationOnMock -> {
-            ActionListener<Boolean> listener = invocationOnMock.getArgument(2);
-            listener.onResponse(true);
-            return Void.TYPE;
-        }).when(mockModelRegistry).updateModelTransaction(any(), any(), any());
-
-        doAnswer(invocationOnMock -> {
-            ActionListener<UnparsedModel> listener = invocationOnMock.getArgument(1);
-            listener.onResponse(
-                new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, GoogleVertexAiService.NAME, Map.of(), Map.of())
-            );
-            return Void.TYPE;
-        }).when(mockModelRegistry).getModel(anyString(), any());
-
-        when(service.parsePersistedConfig(eq(INFERENCE_ENTITY_ID_VALUE), eq(TaskType.TEXT_EMBEDDING), any())).thenReturn(model);
-
-        when(licenseState.isAllowed(any())).thenReturn(true);
-    }
-
-    private static GoogleVertexAiEmbeddingsModel createModel() {
-        return new GoogleVertexAiEmbeddingsModel(
-            INFERENCE_ENTITY_ID_VALUE,
-            TaskType.TEXT_EMBEDDING,
-            GoogleVertexAiService.NAME,
-            new GoogleVertexAiEmbeddingsServiceSettings(
-                LOCATION_INITIAL_VALUE,
-                PROJECT_ID_INITIAL_VALUE,
-                MODEL_ID_INITIAL_VALUE,
-                Boolean.FALSE,
-                null,
-                null,
-                null,
-                null,
-                null
-            ),
-            new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, InputType.INGEST),
-            NoneChunkingSettings.INSTANCE,
-            new GoogleVertexAiSecretSettings(new SecureString(SERVICE_ACCOUNT_JSON_INITIAL_VALUE.toCharArray()))
-        );
+        return listener;
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_NewConfigMapsAreNull_ReturnsExistingConfigs() {

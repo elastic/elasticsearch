@@ -1339,7 +1339,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Prints the current cluster state as debug logging.
      */
     public void logClusterState() {
-        logger.debug(
+        logger.info(
             "cluster state:\n{}\n{}",
             clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
             getClusterPendingTasks()

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -596,7 +597,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -1522,7 +1524,8 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);

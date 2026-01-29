@@ -235,7 +235,7 @@ public class ES818BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         writeSortedBinarizedVectors(fieldData, clusterCenter, ordMap, scalarQuantizer);
         long quantizedVectorLength = binarizedVectorData.getFilePointer() - vectorDataOffset;
 
-        float centroidDp = VectorUtil.dotProduct(clusterCenter, clusterCenter);
+        float centroidDp = ESVectorUtil.dotProduct(clusterCenter, clusterCenter);
         writeMeta(fieldData.fieldInfo, maxDoc, vectorDataOffset, quantizedVectorLength, clusterCenter, centroidDp, newDocsWithField);
     }
 

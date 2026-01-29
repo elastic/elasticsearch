@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.tasks.TaskManager;
@@ -59,7 +60,8 @@ public class ShutdownPrepareService {
         Setting.Property.NodeScope
     );
 
-    private final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+    private static final Logger logger = LogManager.getLogger(ShutdownPrepareService.class);
+
     private final TimeValue maxTimeout;
     private final TerminationHandler terminationHandler;
     private final List<ShutdownHook> hooks = new ArrayList<>();
@@ -82,6 +84,7 @@ public class ShutdownPrepareService {
         if (terminationHandler != null) {
             addShutdownHook("termination-handler-stop", terminationHandler::handleTermination);
         }
+        addShutdownHook("bulk-by-scroll-relocate", () -> markBulkByScrollTasksAsRequiringRelocation(transportService.getTaskManager()));
     }
 
     public void addShutdownHook(String name, Runnable action) {
@@ -201,4 +204,28 @@ public class ShutdownPrepareService {
         awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
     }
 
+    // package-private for testing
+    static void markBulkByScrollTasksAsRequiringRelocation(TaskManager taskManager) {
+        taskManager.getTasks()
+            .values()
+            .stream()
+            .filter(BulkByScrollTask.class::isInstance)
+            .map(BulkByScrollTask.class::cast)
+            .forEach(ShutdownPrepareService::maybeRequestRelocationForBulkByScroll);
+    }
+
+    private static void maybeRequestRelocationForBulkByScroll(BulkByScrollTask bulkByScrollTask) {
+        if (bulkByScrollTask.isEligibleForRelocationOnShutdown()) {
+            if (bulkByScrollTask.isLeader()) {
+                logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
+            } else {
+                logger.debug(
+                    "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
+                    bulkByScrollTask.getId(),
+                    bulkByScrollTask.getParentTaskId()
+                );
+            }
+            bulkByScrollTask.requestRelocation();
+        }
+    }
 }

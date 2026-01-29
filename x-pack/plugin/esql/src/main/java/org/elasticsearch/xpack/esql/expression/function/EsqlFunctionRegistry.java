@@ -162,6 +162,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -532,6 +533,7 @@ public class EsqlFunctionRegistry {
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvIntersects.class, MvIntersects::new, "mv_intersects"),
                 def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),

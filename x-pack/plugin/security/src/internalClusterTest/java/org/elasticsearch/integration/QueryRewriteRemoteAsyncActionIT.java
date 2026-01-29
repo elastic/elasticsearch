@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeConfigurationSource;
@@ -66,6 +65,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -93,7 +93,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 
 @ESTestCase.WithoutEntitlements
-public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCase {
+public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersWithSecurityTestCase {
     private static final String REMOTE_CLUSTER_A = "cluster-a";
     private static final String REMOTE_CLUSTER_B = "cluster-b";
 
@@ -126,7 +126,9 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
-        return List.of(TestPlugin.class);
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
+        plugins.add(TestPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -137,6 +139,11 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
     @Override
     protected String internalClientOrigin() {
         return MONITORING_ORIGIN;
+    }
+
+    @Override
+    protected boolean enableSecurity() {
+        return securityEnabled;
     }
 
     @Before
@@ -161,6 +168,7 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
         this.securityEnabled = securityEnabled;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/140193")
     public void testCallRemoteAsyncActionWithOrigin() {
         SearchRequestBuilder allClustersAllIndicesRequest = buildSearchRequest(
             List.of(INDEX_1, INDEX_2),
@@ -188,7 +196,8 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
             assertSearchFailure(
                 r,
                 ElasticsearchSecurityException.class,
-                "action [cluster:internal/test/instrumented] is unauthorized for user [test_user] with effective roles [user]"
+                "action [cluster:internal/test/instrumented] towards remote cluster is unauthorized for user [test_user]"
+                    + " with assigned roles [user]"
             );
             assertInstrumentedActionCalls(0, 0);
         };
@@ -614,6 +623,10 @@ public class QueryRewriteRemoteAsyncActionIT extends AbstractMultiClustersTestCa
               indices:
                 - names: 'index-*'
                   allow_restricted_indices: false
+                  privileges: [ ALL ]
+              remote_indices:
+                - names: 'index-*'
+                  clusters: ['cluster-*']
                   privileges: [ ALL ]
             """;
 

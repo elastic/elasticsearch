@@ -138,19 +138,21 @@ $endif$
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().new$Type$BlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < $if(boolean)$size$else$values.size()$endif$) {
-                    valuesBuilder.append$Type$(values.get(group));
+                boolean hasValue = group < $if(boolean)$size$else$values.size()$endif$ && hasValue(group);
+                if (hasValue) {
+                    valuesBuilder.append$Type$(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.append$Type$($if(boolean)$false$else$0$endif$); // TODO can we just use null?
+                    valuesBuilder.append$Type$(i, $if(boolean)$false$else$0$endif$); // TODO can we just use null?
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }

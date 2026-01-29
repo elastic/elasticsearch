@@ -96,19 +96,21 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
-                    valuesBuilder.appendDouble(values.get(group));
+                boolean hasValue = group < values.size() && hasValue(group);
+                if (hasValue) {
+                    valuesBuilder.appendDouble(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendDouble(0); // TODO can we just use null?
+                    valuesBuilder.appendDouble(i, 0); // TODO can we just use null?
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }

@@ -24,7 +24,6 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
      * been built.
      */
     private int nextIndex;
-
     private boolean closed;
 
     IntVectorFixedBuilder(int size, BlockFactory blockFactory) {

@@ -24,7 +24,6 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
      * been built.
      */
     private int nextIndex;
-
     private boolean closed;
 
     DoubleVectorFixedBuilder(int size, BlockFactory blockFactory) {

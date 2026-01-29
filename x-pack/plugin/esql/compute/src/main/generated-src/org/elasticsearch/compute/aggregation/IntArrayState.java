@@ -96,19 +96,21 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().newIntBlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
-                    valuesBuilder.appendInt(values.get(group));
+                boolean hasValue = group < values.size() && hasValue(group);
+                if (hasValue) {
+                    valuesBuilder.appendInt(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendInt(0); // TODO can we just use null?
+                    valuesBuilder.appendInt(i, 0); // TODO can we just use null?
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }

@@ -24,7 +24,8 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
      * been built.
      */
     private int nextIndex;
-
+    private boolean seenFalse = false;
+    private boolean seenTrue = false;
     private boolean closed;
 
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
@@ -37,12 +38,22 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
     @Override
     public BooleanVectorFixedBuilder appendBoolean(boolean value) {
         values[nextIndex++] = value;
+        if (value) {
+            seenTrue = true;
+        } else {
+            seenFalse = true;
+        }
         return this;
     }
 
     @Override
     public BooleanVectorFixedBuilder appendBoolean(int idx, boolean value) {
         values[idx] = value;
+        if (value) {
+            seenTrue = true;
+        } else {
+            seenFalse = true;
+        }
         return this;
     }
 
@@ -66,12 +77,14 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         }
         closed = true;
         BooleanVector vector;
-        if (values.length == 1) {
-            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+        if (seenFalse && seenTrue == false) {
+            vector = blockFactory.newConstantBooleanBlockWith(false, values.length, preAdjustedBytes).asVector();
+        } else if (seenTrue && seenFalse == false) {
+            vector = blockFactory.newConstantBooleanBlockWith(true, values.length, preAdjustedBytes).asVector();
         } else {
             vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
+            assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         }
-        assert vector.ramBytesUsed() == preAdjustedBytes : "fixed Builders should estimate the exact ram bytes used";
         return vector;
     }
 

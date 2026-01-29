@@ -84,24 +84,25 @@ class SumDoubleAggregator {
     ) {
         assert blocks.length >= offset + 3;
         try (
-            var valuesBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var deltaBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var seenBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount())
+            var valuesBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+            var deltaBuilder = driverContext.blockFactory().newDoubleVectorFixedBuilder(selected.getPositionCount());
+            var seenBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < state.values.size()) {
-                    valuesBuilder.appendDouble(state.values.get(group));
-                    deltaBuilder.appendDouble(state.deltas.get(group));
+                if (state.hasValue(group) && group < state.values.size()) {
+                    valuesBuilder.appendDouble(i, state.values.get(group));
+                    deltaBuilder.appendDouble(i, state.deltas.get(group));
+                    seenBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendDouble(0);
-                    deltaBuilder.appendDouble(0);
+                    valuesBuilder.appendDouble(i, 0);
+                    deltaBuilder.appendDouble(i, 0);
+                    seenBuilder.appendBoolean(i, false);
                 }
-                seenBuilder.appendBoolean(state.hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = deltaBuilder.build();
-            blocks[offset + 2] = seenBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
+            blocks[offset + 1] = deltaBuilder.build().asBlock();
+            blocks[offset + 2] = seenBuilder.build().asBlock();
         }
     }
 

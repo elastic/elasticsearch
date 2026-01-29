@@ -24,7 +24,6 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
      * been built.
      */
     private int nextIndex;
-
     private boolean closed;
 
     LongVectorFixedBuilder(int size, BlockFactory blockFactory) {

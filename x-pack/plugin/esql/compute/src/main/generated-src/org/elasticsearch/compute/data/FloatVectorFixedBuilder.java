@@ -24,7 +24,6 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
      * been built.
      */
     private int nextIndex;
-
     private boolean closed;
 
     FloatVectorFixedBuilder(int size, BlockFactory blockFactory) {

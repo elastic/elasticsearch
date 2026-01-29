@@ -97,19 +97,21 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
     ) {
         assert blocks.length >= offset + 2;
         try (
-            var valuesBuilder = driverContext.blockFactory().newBooleanBlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < size) {
-                    valuesBuilder.appendBoolean(values.get(group));
+                boolean hasValue = group < size && hasValue(group);
+                if (hasValue) {
+                    valuesBuilder.appendBoolean(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendBoolean(false); // TODO can we just use null?
+                    valuesBuilder.appendBoolean(i, false); // TODO can we just use null?
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
             blocks[offset + 1] = hasValueBuilder.build().asBlock();
         }
     }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.IndexReshardService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -565,7 +566,16 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         });
 
         // separate method to make sure this lambda doesn't capture any heavy local objects like a SnapshotsInProgress.Entry
-        return () -> snapshot(shardId, snapshot, indexId, snapshotStatus, entryVersion, entryStartTime, decTrackerRunsBeforeResultListener);
+        return () -> snapshot(
+            shardId,
+            snapshot,
+            indexId,
+            snapshotStatus,
+            entryVersion,
+            entryStartTime,
+            clusterService,
+            decTrackerRunsBeforeResultListener
+        );
     }
 
     // package private for testing
@@ -603,6 +613,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
         final IndexShardSnapshotStatus snapshotStatus,
         IndexVersion version,
         final long entryStartTime,
+        final ClusterService clusterService,
         ActionListener<ShardSnapshotResult> resultListener
     ) {
         ActionListener.run(resultListener, listener -> {
@@ -628,6 +639,34 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             try {
                 snapshotStatus.updateStatusDescription("acquiring commit reference from IndexShard: triggers a shard flush");
                 snapshotIndexCommit = new SnapshotIndexCommit(indexShard.acquireIndexCommitForSnapshot());
+
+                // The check below is needed to handle shard snapshots during resharding.
+                // Resharding changes the number of shards in the index and moves data between shards.
+                // These processes may cause shard snapshots to be inconsistent with each other (e.g. caught in between data movements)
+                // or to be out of sync with index metadata (e.g. a newly added shard is not present in the snapshot).
+                // We want to detect if a resharding operation has happened after this snapshot was started
+                // and if so we'll fail the shard snapshot to avoid such inconsistency.
+                // We perform this check here on the data node and not on the master node
+                // to correctly propagate this failure to SnapshotsService using existing listener
+                // in case resharding starts in the middle of the snapshot.
+                // Marking shard as failed directly in the cluster state would bypass parts of SnapshotsService logic.
+
+                // We obtain a new `SnapshotsInProgress.Entry` here in order to not capture the original in the Runnable.
+                // The information that we are interested in (the shards map keys) doesn't change so this is fine.
+                SnapshotsInProgress.Entry snapshotEntry = SnapshotsInProgress.get(clusterService.state()).snapshot(snapshot);
+                // The snapshot is deleted, there is no reason to proceed.
+                if (snapshotEntry == null) {
+                    throw new IndexShardSnapshotFailedException(shardId, "snapshot is deleted");
+                }
+
+                int maximumShardIdForIndexInTheSnapshot = calculateMaximumShardIdForIndexInTheSnapshot(shardId, snapshotEntry);
+                if (IndexReshardService.isShardSnapshotImpactedByResharding(
+                    indexShard.indexSettings().getIndexMetadata(),
+                    maximumShardIdForIndexInTheSnapshot
+                )) {
+                    throw new IndexShardSnapshotFailedException(shardId, "cannot snapshot a shard during resharding");
+                }
+
                 snapshotStatus.updateStatusDescription("commit reference acquired, proceeding with snapshot");
                 final var shardStateId = getShardStateId(indexShard, snapshotIndexCommit.indexCommit()); // not aborted so indexCommit() ok
                 snapshotStatus.addAbortListener(makeAbortListener(indexShard.shardId(), snapshot, snapshotIndexCommit));
@@ -662,6 +701,18 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 }
             }
         });
+    }
+
+    private static int calculateMaximumShardIdForIndexInTheSnapshot(ShardId shardIdStartingASnapshot, SnapshotsInProgress.Entry entry) {
+        int maximum = shardIdStartingASnapshot.id();
+        int i = maximum + 1;
+
+        while (entry.shards().containsKey(new ShardId(shardIdStartingASnapshot.getIndex(), i))) {
+            maximum = i;
+            i += 1;
+        }
+
+        return maximum;
     }
 
     private static ActionListener<IndexShardSnapshotStatus.AbortStatus> makeAbortListener(

@@ -76,7 +76,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
     }
 
     public void testRequestCacheWillBeDisabledWhenSearchRemoteIndices() {
-        configureMinMondeVersion(VersionUtils.randomVersion(random()));
+        configureMinMondeVersion(VersionUtils.randomVersion());
         final SearchRequest searchRequest = mock(SearchRequest.class);
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         RequestInfo requestInfo = new RequestInfo(

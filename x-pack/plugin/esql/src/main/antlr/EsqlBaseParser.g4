@@ -42,9 +42,9 @@ sourceCommand
     | rowCommand
     | showCommand
     | timeSeriesCommand
+    | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? promqlCommand
     ;
 
 processingCommand
@@ -71,6 +71,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -91,14 +92,6 @@ fields
 
 field
     : (qualifiedName ASSIGN)? booleanExpression
-    ;
-
-rerankFields
-    : rerankField (COMMA rerankField)*
-    ;
-
-rerankField
-    : qualifiedName (ASSIGN booleanExpression)?
     ;
 
 fromCommand
@@ -328,7 +321,7 @@ forkSubQueryProcessingCommand
     ;
 
 rerankCommand
-    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields=fields commandNamedParameters
     ;
 
 completionCommand
@@ -373,5 +366,18 @@ setCommand
 
 setField
     : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+mmrCommand
+    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
+    ;
+
+mmrOptionalQueryVector
+    : (mmrQueryVectorParams ON)?
     ;
 

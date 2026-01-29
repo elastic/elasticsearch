@@ -8,13 +8,14 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
@@ -74,12 +75,17 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
         assumeFalse(
             "Tests using PROMQL are not supported for now",
-            testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName())
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
         );
 
         assumeFalse(
             "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",
             testCase.requiredCapabilities.contains(METRICS_GROUP_BY_ALL.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            testCase.requiredCapabilities.contains(APPROXIMATION.capabilityName())
         );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));

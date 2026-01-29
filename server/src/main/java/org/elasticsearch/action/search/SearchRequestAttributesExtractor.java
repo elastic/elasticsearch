@@ -184,13 +184,13 @@ public final class SearchRequestAttributesExtractor {
         private boolean rangeOnEventIngested = false;
     }
 
-    static final String TARGET_ATTRIBUTE = "target";
-    static final String SORT_ATTRIBUTE = "sort";
-    static final String QUERY_TYPE_ATTRIBUTE = "query_type";
-    static final String PIT_SCROLL_ATTRIBUTE = "pit_scroll";
-    static final String KNN_ATTRIBUTE = "knn";
-    static final String TIME_RANGE_FILTER_FIELD_ATTRIBUTE = "time_range_filter_field";
-    static final String TIME_RANGE_FILTER_FROM_ATTRIBUTE = "time_range_filter_from";
+    public static final String TARGET_ATTRIBUTE = "target";
+    public static final String SORT_ATTRIBUTE = "sort";
+    public static final String QUERY_TYPE_ATTRIBUTE = "query_type";
+    public static final String PIT_SCROLL_ATTRIBUTE = "pit_scroll";
+    public static final String KNN_ATTRIBUTE = "knn";
+    public static final String TIME_RANGE_FILTER_FIELD_ATTRIBUTE = "time_range_filter_field";
+    public static final String TIME_RANGE_FILTER_FROM_ATTRIBUTE = "time_range_filter_from";
 
     private static final String TARGET_KIBANA = ".kibana";
     private static final String TARGET_ML = ".ml";

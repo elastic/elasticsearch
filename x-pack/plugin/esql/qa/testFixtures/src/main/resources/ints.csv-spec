@@ -939,10 +939,10 @@ a:integer | sin:double
 ;
 
 sinh
-ROW a=2 | EVAL sinh=SINH(a);
+ROW a=2 | EVAL sinh=round(SINH(a), 10);
 
 a:integer | sinh:double
-        2 | 3.626860407847019
+        2 | 3.6268604078
 ;
 
 asin

@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -134,18 +133,5 @@ public class CompletionFunction extends InferenceFunction<CompletionFunction> {
     @Override
     public String toString() {
         return "COMPLETION(" + prompt + ", " + inferenceId + ")";
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (o == null || getClass() != o.getClass()) return false;
-        if (super.equals(o) == false) return false;
-        CompletionFunction completionFunction = (CompletionFunction) o;
-        return Objects.equals(inferenceId, completionFunction.inferenceId) && Objects.equals(prompt, completionFunction.prompt);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), inferenceId, prompt);
     }
 }

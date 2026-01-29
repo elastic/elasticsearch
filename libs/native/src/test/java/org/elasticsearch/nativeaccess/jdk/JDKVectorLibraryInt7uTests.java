@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -26,7 +27,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
     static final byte MIN_INT7_VALUE = 0;
     static final byte MAX_INT7_VALUE = 127;
 
-    public JDKVectorLibraryInt7uTests(SimilarityFunction function, int size) {
+    public JDKVectorLibraryInt7uTests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
     }
 
@@ -191,7 +192,7 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         var segment = arena.allocate((long) size * 3);
 
         Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("dimensions differ"));
+        assertThat(ex.getMessage(), containsString("Dimensions differ"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
@@ -222,10 +223,11 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     int similarity(MemorySegment a, MemorySegment b, int length) {
         try {
-            return switch (function) {
-                case DOT_PRODUCT -> (int) getVectorDistance().dotProductHandle7u().invokeExact(a, b, length);
-                case SQUARE_DISTANCE -> (int) getVectorDistance().squareDistanceHandle7u().invokeExact(a, b, length);
-            };
+            return (int) getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -233,10 +235,8 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulk().invokeExact(a, b, dims, count, result);
-                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulk().invokeExact(a, b, dims, count, result);
-            }
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.INT7, VectorSimilarityFunctions.Operation.BULK)
+                .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -252,12 +252,11 @@ public class JDKVectorLibraryInt7uTests extends VectorSimilarityFunctionsTests {
         MemorySegment result
     ) {
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandle7uBulkWithOffsets()
-                    .invokeExact(a, b, dims, pitch, offsets, count, result);
-                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandle7uBulkWithOffsets()
-                    .invokeExact(a, b, dims, pitch, offsets, count, result);
-            }
+            getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.INT7,
+                VectorSimilarityFunctions.Operation.BULK_OFFSETS
+            ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

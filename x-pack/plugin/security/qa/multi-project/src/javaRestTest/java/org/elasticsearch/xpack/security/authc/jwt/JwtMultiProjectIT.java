@@ -88,7 +88,7 @@ public class JwtMultiProjectIT extends ESRestTestCase {
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() throws Exception {
         cleanUpProjects();
     }
 

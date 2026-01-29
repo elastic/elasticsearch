@@ -66,6 +66,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxChannels)
             ),
             randomPageSize(),
+            between(1, 1000),
+            randomDoubleBetween(0.1, 10.0, true),
             null
         );
     }
@@ -122,6 +124,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 null
             ).get(driverContext())
         ) {
@@ -199,6 +203,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, aggregatorChannels)
                 ),
                 randomPageSize(),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 null
             ).get(driverContext())
         ) {
@@ -285,6 +291,8 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                     new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(mode, maxAggregatorChannels)
                 ),
                 randomPageSize(),
+                between(1, 1000),
+                randomDoubleBetween(0.1, 10.0, true),
                 null
             ).get(driverContext());
         };

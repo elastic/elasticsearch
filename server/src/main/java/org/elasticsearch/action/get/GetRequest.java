@@ -9,10 +9,15 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.RealtimeRequest;
+import org.elasticsearch.action.SplitAwareRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
-public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest {
+public class GetRequest extends SingleShardRequest<GetRequest> implements RealtimeRequest, SplitAwareRequest {
 
     private String id;
     private String routing;
@@ -52,6 +57,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
 
     private VersionType versionType = VersionType.INTERNAL;
     private long version = Versions.MATCH_ANY;
+
+    private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("get_split_shard_count_summary");
+    private SplitShardCountSummary splitShardCountSummary = SplitShardCountSummary.UNSET;
 
     /**
      * Should this request force {@link SourceLoader.Synthetic synthetic source}?
@@ -76,6 +84,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         this.version = in.readLong();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         forceSyntheticSource = in.readBoolean();
+        if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            this.splitShardCountSummary = new SplitShardCountSummary(in);
+        }
     }
 
     @Override
@@ -92,6 +103,9 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         out.writeLong(version);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeBoolean(forceSyntheticSource);
+        if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
+            splitShardCountSummary.writeTo(out);
+        }
     }
 
     /**
@@ -230,6 +244,17 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
     public GetRequest version(long version) {
         this.version = version;
         return this;
+    }
+
+    public SplitShardCountSummary getSplitShardCountSummary() {
+        return splitShardCountSummary;
+    }
+
+    public void setSplitShardCountSummary(ProjectMetadata projectMetadata, String index) {
+        final var indexMetadata = projectMetadata.index(index);
+        final var indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        final var shardId = indexRouting.getShard(id(), routing());
+        this.splitShardCountSummary = SplitShardCountSummary.forSearch(indexMetadata, shardId);
     }
 
     /**

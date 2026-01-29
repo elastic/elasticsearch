@@ -28,6 +28,10 @@ public class GrammarInDevelopmentParsingTests extends ESTestCase {
         parse("row a = 1 | match foo", "match");
     }
 
+    public void testDevelopmentMMRCommand() throws Exception {
+        parse("row dense_embeddings = [0.2,0.3,0.4,0.5] | mmr dense_embeddings limit 5", "mmr");
+    }
+
     void parse(String query, String errorMessage) {
         ParsingException pe = expectThrows(ParsingException.class, () -> parser().parseQuery(query));
         assertThat(pe.getMessage(), containsString("mismatched input '" + errorMessage + "'"));

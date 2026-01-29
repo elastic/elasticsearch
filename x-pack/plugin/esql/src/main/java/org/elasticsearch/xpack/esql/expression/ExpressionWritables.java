@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
+import org.elasticsearch.xpack.esql.expression.function.scalar.approximate.Random;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
@@ -197,6 +198,7 @@ public class ExpressionWritables {
         entries.add(LTrim.ENTRY);
         entries.add(Neg.ENTRY);
         entries.add(Not.ENTRY);
+        entries.add(Random.ENTRY);
         entries.add(RLike.ENTRY);
         entries.add(RLikeList.ENTRY);
         entries.add(RTrim.ENTRY);

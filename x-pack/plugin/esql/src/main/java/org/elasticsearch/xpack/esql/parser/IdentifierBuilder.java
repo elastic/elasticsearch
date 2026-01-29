@@ -45,19 +45,11 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
         String result;
         if (quotedNode != null) {
-            result = unquoteIdString(quotedNode.getText());
+            result = ParserUtils.unquoteIdString(quotedNode.getText());
         } else {
             result = unquotedNode.getText();
         }
         return result;
-    }
-
-    protected static String unquoteIdString(String quotedString) {
-        return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
-    }
-
-    protected static String quoteIdString(String unquotedString) {
-        return "`" + unquotedString.replace("`", "``") + "`";
     }
 
     @Override

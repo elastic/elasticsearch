@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
 import static org.elasticsearch.snapshots.SnapshotTestUtils.flushMasterQueue;
 import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.threadpool.ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING;

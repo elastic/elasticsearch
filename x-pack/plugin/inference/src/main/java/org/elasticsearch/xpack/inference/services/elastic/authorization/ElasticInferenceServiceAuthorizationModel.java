@@ -140,7 +140,7 @@ public class ElasticInferenceServiceAuthorizationModel {
             authorizedEndpoint.id(),
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             components,

@@ -418,9 +418,9 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
     ) {
         String timeseriesId = timeseries.getFirst().v1();
         var referenceTuple = isLowerBoundary ? timeseries.getFirst().v2() : timeseries.getLast().v2();
-        if (referenceTuple.v1().toEpochMilli() % (secondsInWindow * 1000L) == 0) {
+        if (isLowerBoundary && referenceTuple.v1().toEpochMilli() % (secondsInWindow * 1000L) == 0) {
             // The reference tuple is already on the boundary.
-            return false;
+            return true;
         }
         Tuple<Instant, Double> otherTuple = null;
         long otherTimestamp = 0;

@@ -9,20 +9,25 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends AbstractLogsdbRollingUpgradeTestCase {
 
@@ -32,82 +37,133 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         { "@timestamp": "$now", "message": "$message", "length": $length, "factor": $factor }
         """;
 
-    private final String dataStreamName;
-    private final String template;
-    private final List<String> messages = new ArrayList<>();
     private final int numNodes;
 
-    private String templateId;
+    private final Map<String, List<String>> messagesPerDataStream = new HashMap<>();  // tracks messages per data stream
+    private final Map<String, String> templateIds = new HashMap<>();  // track template IDs per data stream
 
-    public AbstractStringTypeLogsdbRollingUpgradeTestCase(String dataStreamName, String template) {
-        this.dataStreamName = dataStreamName;
-        this.template = template;
+    protected record TemplateConfig(String dataStreamName, String template) {}
+
+    public AbstractStringTypeLogsdbRollingUpgradeTestCase() {
         this.numNodes = Integer.parseInt(System.getProperty("tests.num_nodes", "3"));
     }
 
     @Before
-    public void createIndex() throws Exception {
+    public void setup() throws Exception {
         checkRequiredFeatures();
+        verifyClusterIsRunningOldVersion();
+        createIndices();
+    }
+
+    private void createIndices() throws IOException {
         LogsdbIndexingRollingUpgradeIT.maybeEnableLogsdbByDefault();
 
-        // data stream name should already be reflective of whats being tested, so template id can be random
-        templateId = UUID.randomUUID().toString();
-        LogsdbIndexingRollingUpgradeIT.createTemplate(dataStreamName, templateId, template);
+        for (TemplateConfig config : getTemplates()) {
+            // data stream name should already be reflective of whats being tested, so template id can be random
+            String templateId = UUID.randomUUID().toString();
+            templateIds.put(config.dataStreamName(), templateId);
+            messagesPerDataStream.put(config.dataStreamName(), new ArrayList<>());
+            LogsdbIndexingRollingUpgradeIT.createTemplate(config.dataStreamName(), templateId, config.template());
+        }
     }
+
+    private void verifyClusterIsRunningOldVersion() throws IOException {
+        String expectedOldVersion = System.getProperty("tests.old_cluster_version");
+
+        if (expectedOldVersion == null && System.getProperty("tests.serverless.bwc_stack_version") != null) {
+            // we're running in serverless where a node's version is a commit hash rather than a release version, so skip this check
+            return;
+        }
+
+        // Strip -SNAPSHOT suffix for comparison since builds from refspecs may not include it
+        String normalizedExpectedVersion = expectedOldVersion.replace("-SNAPSHOT", "");
+
+        Set<String> nodeVersions = readVersionsFromNodesInfo(adminClient());
+
+        assertThat(
+            "All nodes should be running the old version [" + expectedOldVersion + "] but found: " + nodeVersions,
+            nodeVersions,
+            everyItem(equalTo(normalizedExpectedVersion))
+        );
+    }
+
+    protected abstract List<TemplateConfig> getTemplates();
 
     /**
      * Override this method to add feature checks that must pass before the test runs.
      * Use {@code assumeTrue} to skip the test if required features are not available.
      */
-    protected void checkRequiredFeatures() throws Exception {
+    protected void checkRequiredFeatures() {
         // Default: no additional feature requirements
     }
 
-    protected List<String> getMessages() {
-        return messages;
+    /**
+     * Returns the messages indexed for a specific data stream.
+     */
+    protected List<String> getMessages(String dataStreamName) {
+        return messagesPerDataStream.get(dataStreamName);
+    }
+
+    protected int getNumNodes() {
+        return numNodes;
     }
 
     public void testIndexing() throws Exception {
-        // before upgrading
-        indexDocumentsAndVerifyResults();
+        List<TemplateConfig> templates = getTemplates();
 
-        // verify that logsdb and synthetic source are enabled before proceeding
-        // note, we must index at least one document to create the data stream (data streams are created lazily on first index)
-        String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
-        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
-        assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("logsdb"));
-        assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
+        // before upgrading
+        for (TemplateConfig config : templates) {
+            indexDocumentsAndVerifyResults(config);
+        }
+
+        // verification must happen after we've indexed at least one document as streams are initialized lazily
+        verifyIndexMode(IndexMode.LOGSDB, templates.get(0).dataStreamName());
 
         // during upgrade
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
-            indexDocumentsAndVerifyResults();
+            for (TemplateConfig config : templates) {
+                indexDocumentsAndVerifyResults(config);
+            }
         }
 
         // after everything is upgraded
-        indexDocumentsAndVerifyResults();
+        for (TemplateConfig config : templates) {
+            indexDocumentsAndVerifyResults(config);
+        }
     }
 
-    private void indexDocumentsAndVerifyResults() throws Exception {
-        // given - implicitly start from the previous state
+    void indexDocumentsAndVerifyResults(TemplateConfig config) throws Exception {
+        String dataStreamName = config.dataStreamName();
 
         // when - index some documents
-        indexDocuments(1, 5);
+        indexDocuments(dataStreamName, 1, 5);
 
-        // then
-
-        // verify that the data stream is healthy and still as expected
-        assertDataStream();
+        // then - verify that the data stream is healthy and still as expected
+        assertDataStream(dataStreamName);
 
         // performs some searches and queries, expect everything to pass
-        search();
-        query();
+        search(dataStreamName);
+        query(config);
+    }
+
+    protected void verifyIndexMode(IndexMode indexMode, String dataStreamName) throws IOException {
+        String writeBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getLast();
+        var settings = (Map<?, ?>) getIndexSettings(writeBackingIndex, true).get(writeBackingIndex);
+
+        if (indexMode == IndexMode.STANDARD) {
+            // in 8.19 and older, index.mode is null (implicit default), in newer versions its explicitly "standard"
+            Object actualMode = ((Map<?, ?>) settings.get("defaults")).get("index.mode");
+            assertThat(actualMode, anyOf(nullValue(), equalTo(indexMode.getName())));
+        } else {
+            assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo(indexMode.getName()));
+        }
     }
 
     /**
      * Verifies that we're still using the expected data stream and thats its healthy.
      */
-    protected void assertDataStream() throws IOException {
+    protected void assertDataStream(String dataStreamName) throws IOException {
         var getDataStreamsRequest = new Request("GET", "/_data_stream/" + dataStreamName);
         var getDataStreamResponse = client().performRequest(getDataStreamsRequest);
 
@@ -115,8 +171,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         var dataStreams = entityAsMap(getDataStreamResponse);
 
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.indices"), hasSize(1));
-        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateId));
+        assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.template"), equalTo(templateIds.get(dataStreamName)));
 
         ensureGreen(dataStreamName);
     }
@@ -144,11 +199,13 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     /**
      * Create an arbitrary document containing random values and index it.
      */
-    protected void indexDocuments(int numRequests, int numDocs) throws Exception {
+    protected void indexDocuments(String dataStreamName, int numRequests, int numDocs) throws Exception {
+        List<String> messages = messagesPerDataStream.get(dataStreamName);
+
         for (int i = 0; i < numRequests; i++) {
             // create the request
             Request request = new Request("POST", "/" + dataStreamName + "/_bulk");
-            request.setJsonEntity(createRequestBody(numDocs, Instant.now()));
+            request.setJsonEntity(createRequestBody(messages, numDocs, Instant.now()));
             request.addParameter("refresh", "true");
 
             // send the request and receive response
@@ -161,7 +218,7 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         }
     }
 
-    private String createRequestBody(int numDocs, Instant startTime) {
+    private String createRequestBody(List<String> messages, int numDocs, Instant startTime) {
         StringBuilder requestBody = new StringBuilder();
 
         for (int i = 0; i < numDocs; i++) {
@@ -188,7 +245,9 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
     }
 
     @SuppressWarnings("unchecked")
-    private void search() throws IOException {
+    private void search(String dataStreamName) throws IOException {
+        List<String> messages = messagesPerDataStream.get(dataStreamName);
+
         Request searchRequest = new Request("GET", "/" + dataStreamName + "/_search");
         searchRequest.setJsonEntity("""
             {
@@ -219,7 +278,10 @@ public abstract class AbstractStringTypeLogsdbRollingUpgradeTestCase extends Abs
         assertThat(values, containsInAnyOrder(messages.toArray()));
     }
 
-    protected void query() throws Exception {
+    protected void query(TemplateConfig config) throws Exception {
+        String dataStreamName = config.dataStreamName();
+        List<String> messages = messagesPerDataStream.get(dataStreamName);
+
         var queryRequest = new Request("POST", "/_query");
         queryRequest.addParameter("pretty", "true");
         queryRequest.setJsonEntity("""

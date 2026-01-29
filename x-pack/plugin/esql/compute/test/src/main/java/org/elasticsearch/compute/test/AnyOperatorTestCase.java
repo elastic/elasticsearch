@@ -170,11 +170,11 @@ public abstract class AnyOperatorTestCase extends ComputeTestCase {
      */
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     protected final DriverContext crankyDriverContext() {
         BlockFactory blockFactory = crankyBlockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 }

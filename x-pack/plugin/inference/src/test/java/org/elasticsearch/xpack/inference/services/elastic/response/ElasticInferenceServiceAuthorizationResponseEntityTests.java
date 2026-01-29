@@ -284,7 +284,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
             ELSER_V2_ENDPOINT_ID,
             TaskType.SPARSE_EMBEDDING,
             ElasticInferenceService.NAME,
-            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null),
+            new ElasticInferenceServiceSparseEmbeddingsServiceSettings(ELSER_V2_MODEL_NAME, null, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),

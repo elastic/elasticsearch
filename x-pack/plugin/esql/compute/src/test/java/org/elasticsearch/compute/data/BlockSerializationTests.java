@@ -423,7 +423,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 CompositeBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionSupporting(random(), Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
@@ -485,7 +485,7 @@ public class BlockSerializationTests extends SerializationTestCase {
             try (
                 AggregateMetricDoubleBlock deserBlock = serializeDeserializeBlockWithVersion(
                     origBlock,
-                    TransportVersionUtils.randomVersionSupporting(random(), Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
+                    TransportVersionUtils.randomVersionSupporting(Block.ESQL_AGGREGATE_METRIC_DOUBLE_BLOCK)
                 )
             ) {
                 assertThat(deserBlock, equalTo(origBlock));
@@ -513,6 +513,6 @@ public class BlockSerializationTests extends SerializationTestCase {
      * A {@link DriverContext} with a nonBreakingBigArrays.
      */
     protected DriverContext driverContext() { // TODO make this final and return a breaking block factory
-        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance());
+        return new DriverContext(nonBreakingBigArrays(), TestBlockFactory.getNonBreakingInstance(), null);
     }
 }

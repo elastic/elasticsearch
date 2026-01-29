@@ -56,8 +56,8 @@ public class PromqlBaseParser extends ParserConfig {
       null, "'+'", "'-'", "'*'", "'/'", "'%'", "'^'", "'=='", "'!='", "'>'", 
       "'>='", "'<'", "'<='", "'='", "'=~'", "'!~'", "'and'", "'or'", "'unless'", 
       "'by'", "'without'", "'on'", "'ignoring'", "'group_left'", "'group_right'", 
-      "'bool'", null, "'@'", "'start()'", "'end()'", "'{'", "'}'", "'['", "']'", 
-      "'('", "')'", "':'", "','"
+      "'bool'", "'offset'", "'@'", "'start()'", "'end()'", "'{'", "'}'", "'['", 
+      "']'", "'('", "')'", "':'", "','"
     };
   }
   private static final String[] _LITERAL_NAMES = makeLiteralNames();

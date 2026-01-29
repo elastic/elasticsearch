@@ -165,12 +165,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         client.threadPool().shutdown();
     }
 
-    private MachineLearningUsageTransportAction newUsageAction(
-        Settings settings,
-        boolean isAnomalyDetectionEnabled,
-        boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
-    ) {
+    private MachineLearningUsageTransportAction newUsageAction(Settings settings) {
         ThreadPool threadPool = mock(ThreadPool.class);
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         return new MachineLearningUsageTransportAction(
@@ -181,10 +176,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             TestEnvironment.newEnvironment(settings),
             client,
             licenseState,
-            jobManagerHolder,
-            new MachineLearningExtensionHolder(
-                new MachineLearningTests.MlTestExtension(true, true, isAnomalyDetectionEnabled, isDataFrameAnalyticsEnabled, isNlpEnabled)
-            )
+            jobManagerHolder
         );
     }
 
@@ -199,7 +191,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         boolean available = randomBoolean();
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(available);
         assertThat(featureSet.available(), is(available));
-        var usageAction = newUsageAction(commonSettings, randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(commonSettings);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
@@ -229,7 +221,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         assertThat(featureSet.enabled(), is(expected));
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
@@ -250,7 +242,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
         Map<String, Integer> expectedDfaCountByAnalysis = setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
@@ -397,7 +389,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
 
     public void testAnomalyDetectionDisabled() throws Exception {
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
-        Settings.Builder settings = Settings.builder().put(commonSettings);
+        Settings.Builder settings = Settings.builder().put(commonSettings).put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false);
         settings.put("xpack.ml.enabled", true);
 
         Map<String, Integer> trainedModelsCountByAnalysis = Map.of("classification", 1, "regression", 1, "ner", 1);
@@ -408,7 +400,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         // models if the features were disabled.
         Map<String, Integer> expectedDfaCountByAnalysis = setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), false, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
@@ -497,6 +489,8 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         when(licenseState.isAllowed(MachineLearningField.ML_API_FEATURE)).thenReturn(true);
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
+        settings.put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false);
+        settings.put(MachineLearning.NLP_ENABLED.getKey(), false);
 
         // This test works by setting up a mocks that imply trained models exist, then checking
         // that the usage stats don't mention them. This proves that the trained model APIs
@@ -504,7 +498,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         // models if the features were disabled.
         setupComplexMocks();
 
-        var usageAction = newUsageAction(settings.build(), true, false, false);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
@@ -601,7 +595,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         MlMemoryAction.Response memory = new MlMemoryAction.Response(new ClusterName("foo"), List.of(), List.of());
         givenMlMemory(memory);
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();
@@ -636,7 +630,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", false);
 
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage mlUsage = future.get().getUsage();
@@ -658,7 +652,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         Settings.Builder settings = Settings.builder().put(commonSettings);
         settings.put("xpack.ml.enabled", true);
 
-        var usageAction = newUsageAction(settings.build(), randomBoolean(), randomBoolean(), randomBoolean());
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
@@ -684,7 +678,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
         settings.put("xpack.ml.enabled", true);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
 
-        var usageAction = newUsageAction(settings.build(), true, true, true);
+        var usageAction = newUsageAction(settings.build());
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
         usageAction.localClusterStateOperation(null, null, ClusterState.EMPTY_STATE, future);
         XPackFeatureUsage usage = future.get().getUsage();

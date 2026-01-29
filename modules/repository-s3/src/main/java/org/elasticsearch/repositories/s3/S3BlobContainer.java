@@ -759,10 +759,11 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Copies a blob using multipart
      * <p>
-     * This is required when the blob size is larger than MAX_FILE_SIZE.
+     * This is required when the blob size is larger than {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
      * It must be called on the destination blob container.
      * <p>
-     * It uses MAX_FILE_SIZE as the copy part size, because that minimizes the number of requests needed.
+     * It uses {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
+     * as the copy part size, because that minimizes the number of requests needed.
      * Smaller part sizes might improve throughput when downloading from multiple parts at once, but we have no measurements
      * indicating this would be helpful so we optimize for request count.
      */
@@ -773,7 +774,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String destinationBlobName,
         final long blobSize
     ) throws IOException {
-        final long copyPartSize = MAX_FILE_SIZE.getBytes();
+        final long copyPartSize = getMaxCopySizeBeforeMultipart();
         final var destinationKey = buildKey(destinationBlobName);
         executeMultipart(
             purpose,

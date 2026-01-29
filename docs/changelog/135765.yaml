@@ -1,6 +1,6 @@
 pr: 135765
 summary: Add deprecation notice for `max_size` rollover condition
-area: "ILM+SLM"
+area: "ILM"
 type: deprecation
 issues:
  - 130737

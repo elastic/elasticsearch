@@ -227,13 +227,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             while (allNodes.size() < 10) {
                 var node = DiscoveryNodeUtils.builder("node-" + allNodes.size())
                     .version(
-                        VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                        VersionUtils.randomCompatibleVersion(Version.CURRENT),
                         IndexVersions.MINIMUM_COMPATIBLE,
-                        IndexVersionUtils.randomCompatibleVersion(random())
+                        IndexVersionUtils.randomCompatibleVersion()
                     )
                     .build();
                 allNodes.add(node);
-                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion(random()));
+                nodeTransports.put(node, TransportVersionUtils.randomCompatibleVersion());
             }
 
             final DiscoveryNodes.Builder prevNodes = DiscoveryNodes.builder();
@@ -359,9 +359,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final var localNode = DiscoveryNodeUtils.create("localNode");
         final var otherNode = DiscoveryNodeUtils.builder("otherNode")
             .version(
-                VersionUtils.randomCompatibleVersion(random(), Version.CURRENT),
+                VersionUtils.randomCompatibleVersion(Version.CURRENT),
                 IndexVersions.MINIMUM_COMPATIBLE,
-                IndexVersionUtils.randomCompatibleVersion(random())
+                IndexVersionUtils.randomCompatibleVersion()
             )
             .build();
         for (final var discoveryNode : List.of(localNode, otherNode)) {

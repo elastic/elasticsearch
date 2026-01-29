@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,13 +43,15 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.PlanningProfile;
+import org.elasticsearch.xpack.esql.action.TimeSpanMarker;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.approximation.Approximation;
+import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -162,6 +165,7 @@ public class EsqlSession {
     private boolean explainMode;
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
+    private final ProjectMetadata projectMetadata;
 
     public EsqlSession(
         String sessionId,
@@ -175,6 +179,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
+        ProjectMetadata projectMetadata,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -195,6 +200,7 @@ public class EsqlSession {
         this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.projectMetadata = projectMetadata;
     }
 
     public String sessionId() {
@@ -210,11 +216,11 @@ public class EsqlSession {
         PlanRunner planRunner,
         ActionListener<Versioned<Result>> listener
     ) {
-        executionInfo.planningProfile().planning().start();
+        executionInfo.queryProfile().planning().start();
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
-        PlanningProfile.TimeSpanMarker parsingProfile = executionInfo.planningProfile().parsing();
+        TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
         parsingProfile.stop();
@@ -223,7 +229,7 @@ public class EsqlSession {
         ZoneId timeZone = request.timeZone() == null
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
-        Map<String, Object> approximationSettings = statement.setting(QuerySettings.APPROXIMATE);
+        ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
 
         Configuration configuration = new Configuration(
             timeZone,
@@ -252,12 +258,13 @@ public class EsqlSession {
             parsedPlanString = explain.query().toString();
         }
 
+        final EsqlStatement statementFinal = statement;
         analyzedPlan(
             statement,
             configuration,
             executionInfo,
             request.filter(),
-            new EsqlCCSUtils.CssPartialErrorsActionListener(executionInfo, listener) {
+            new EsqlCCSUtils.CssPartialErrorsActionListener(configuration, executionInfo, listener) {
                 @Override
                 public void onResponse(Versioned<LogicalPlan> analyzedPlan) {
                     assert ThreadPool.assertCurrentThreadPool(
@@ -277,6 +284,12 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
+                        .<LogicalPlan>andThen((l, p) -> {
+                            if (statementFinal.setting(QuerySettings.APPROXIMATION) != null) {
+                                Approximation.verifyPlan(p);
+                            }
+                            l.onResponse(p);
+                        })
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
@@ -286,6 +299,7 @@ public class EsqlSession {
                         .<Result>andThen(
                             (l, p) -> executeOptimizedPlan(
                                 request,
+                                statementFinal,
                                 executionInfo,
                                 planRunner,
                                 p,
@@ -293,6 +307,7 @@ public class EsqlSession {
                                 foldContext,
                                 minimumVersion,
                                 planTimeProfile,
+                                logicalPlanOptimizer,
                                 l
                             )
                         )
@@ -321,6 +336,7 @@ public class EsqlSession {
      */
     public void executeOptimizedPlan(
         EsqlQueryRequest request,
+        EsqlStatement statement,
         EsqlExecutionInfo executionInfo,
         PlanRunner planRunner,
         LogicalPlan optimizedPlan,
@@ -328,6 +344,7 @@ public class EsqlSession {
         FoldContext foldContext,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -363,6 +380,8 @@ public class EsqlSession {
                 planRunner,
                 executionInfo,
                 request,
+                statement,
+                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 planTimeProfile,
                 listener
@@ -377,6 +396,8 @@ public class EsqlSession {
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
+        EsqlStatement statement,
+        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -402,6 +423,25 @@ public class EsqlSession {
                 // Ensure we don't have subplan flag stuck in there on failure
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
+        } else if (statement.setting(QuerySettings.APPROXIMATION) != null) {
+            // TODO: unify the subplan execution of query approximation and joins.
+            new Approximation(
+                optimizedPlan,
+                statement.setting(QuerySettings.APPROXIMATION),
+                executionInfo,
+                logicalPlanOptimizer,
+                p -> logicalPlanToPhysicalPlan(
+                    // TODO: don't run the full optimizer twice, because it may break things.
+                    optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),
+                    request,
+                    physicalPlanOptimizer,
+                    planTimeProfile
+                ),
+                runner,
+                configuration,
+                foldContext,
+                planTimeProfile
+            ).approximate(listener);
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             // execute main plan
@@ -457,7 +497,13 @@ public class EsqlSession {
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
                             finalListener.onResponse(
-                                new Result(finalResult.schema(), finalResult.pages(), completionInfoAccumulator.finish(), executionInfo)
+                                new Result(
+                                    finalResult.schema(),
+                                    finalResult.pages(),
+                                    configuration,
+                                    completionInfoAccumulator.finish(),
+                                    executionInfo
+                                )
                             );
                         })
                     );
@@ -559,15 +605,13 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         Map<String, List<FieldCapabilitiesFailure>> failures,
         FailureCollector failureCollector
-    ) throws Exception {
+    ) {
         for (var e : failures.entrySet()) {
             String clusterAlias = e.getKey();
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
             if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.RUNNING) {
                 assert cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SUCCESSFUL : "can't mark a cluster success with failures";
-                continue;
-            }
-            if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
+            } else if (allowPartialResults == false && executionInfo.shouldSkipOnFailure(clusterAlias) == false) {
                 for (FieldCapabilitiesFailure failure : e.getValue()) {
                     failureCollector.unwrapAndCollect(failure.getException());
                 }
@@ -577,11 +621,10 @@ public class EsqlSession {
                     if (ExceptionsHelper.unwrapCause(f.getException()) instanceof ElasticsearchException es) {
                         shardId = es.getShardId();
                     }
-                    if (shardId != null) {
-                        return new ShardSearchFailure(f.getException(), new SearchShardTarget(null, shardId, clusterAlias));
-                    } else {
-                        return new ShardSearchFailure(f.getException());
-                    }
+                    return new ShardSearchFailure(
+                        f.getException(),
+                        shardId != null ? new SearchShardTarget(null, shardId, clusterAlias) : null
+                    );
                 }).toList();
                 executionInfo.swapCluster(
                     clusterAlias,
@@ -600,7 +643,7 @@ public class EsqlSession {
     ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
 
-        PlanningProfile.TimeSpanMarker preAnalysisProfile = executionInfo.planningProfile().preAnalysis();
+        TimeSpanMarker preAnalysisProfile = executionInfo.queryProfile().preAnalysis();
         preAnalysisProfile.start();
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed.plan());
         preAnalysisProfile.stop();
@@ -633,7 +676,7 @@ public class EsqlSession {
         PreAnalysisResult result,
         ActionListener<Versioned<LogicalPlan>> logicalPlanListener
     ) {
-        PlanningProfile.TimeSpanMarker dependencyResolutionProfile = executionInfo.planningProfile().dependencyResolution();
+        TimeSpanMarker dependencyResolutionProfile = executionInfo.queryProfile().dependencyResolution();
         dependencyResolutionProfile.start();
         SubscribableListener.<PreAnalysisResult>newForked(
             l -> preAnalyzeMainIndices(preAnalysis, configuration, executionInfo, result, requestFilter, l)
@@ -731,7 +774,7 @@ public class EsqlSession {
         );
         // No need to update the minimum transport version in the PreAnalysisResult,
         // it should already have been determined during the main index resolution.
-        executionInfo.planningProfile().incFieldCapsCalls();
+        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveLookupIndices(
             EsqlCCSUtils.createQualifiedLookupIndexExpressionFromAvailableClusters(executionInfo, localPattern),
             result.wildcardJoinIndices().contains(localPattern) ? IndexResolver.ALL_FIELDS : result.fieldNames,
@@ -994,7 +1037,7 @@ public class EsqlSession {
             // return empty resolution if the expression is pure CCS and resolved no remote clusters (like no-such-cluster*:index)
             listener.onResponse(result.withIndices(indexPattern, IndexResolution.empty(indexPattern.indexPattern())));
         } else {
-            executionInfo.planningProfile().incFieldCapsCalls();
+            executionInfo.queryProfile().incFieldCapsCalls();
             indexResolver.resolveMainIndicesVersioned(
                 indexPattern.indexPattern(),
                 result.fieldNames,
@@ -1034,7 +1077,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        executionInfo.planningProfile().incFieldCapsCalls();
+        executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveMainFlatWorldIndicesVersioned(
             indexPattern.indexPattern(),
             projectRouting,
@@ -1046,9 +1089,10 @@ public class EsqlSession {
             preAnalysis.useAggregateMetricDoubleWhenNotSupported(),
             preAnalysis.useDenseVectorWhenNotSupported(),
             listener.delegateFailureAndWrap((l, indexResolution) -> {
-                EsqlCCSUtils.initCrossClusterState(indexResolution.inner().get(), executionInfo);
-                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
+                EsqlCCSUtils.initCrossClusterState(indexResolution.inner(), executionInfo);
                 EsqlCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.inner().failures());
+                EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
+                planTelemetry.linkedProjectsCount(executionInfo.clusterInfo.size());
                 l.onResponse(
                     result.withIndices(indexPattern, indexResolution.inner()).withMinimumTransportVersion(indexResolution.minimumVersion())
                 );
@@ -1088,7 +1132,7 @@ public class EsqlSession {
                     requestFilter != null
                 );
             }
-            PlanningProfile.TimeSpanMarker analysisProfile = executionInfo.planningProfile().analysis();
+            TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
             LogicalPlan plan = analyzedPlan(parsed, configuration, result, executionInfo);
             analysisProfile.stop();
@@ -1137,7 +1181,13 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo
     ) throws Exception {
         handleFieldCapsFailures(configuration.allowPartialResults(), executionInfo, r.indexResolution());
-        AnalyzerContext analyzerContext = new AnalyzerContext(configuration, functionRegistry, parsed.setting(UNMAPPED_FIELDS), r);
+        AnalyzerContext analyzerContext = new AnalyzerContext(
+            configuration,
+            functionRegistry,
+            parsed.setting(UNMAPPED_FIELDS),
+            projectMetadata,
+            r
+        );
         Analyzer analyzer = new Analyzer(analyzerContext, verifier);
         LogicalPlan plan = analyzer.analyze(parsed.plan());
         plan.setAnalyzed();

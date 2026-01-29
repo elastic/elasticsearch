@@ -39,7 +39,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93FlatVectorScorer.INSTANCE
     );
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE

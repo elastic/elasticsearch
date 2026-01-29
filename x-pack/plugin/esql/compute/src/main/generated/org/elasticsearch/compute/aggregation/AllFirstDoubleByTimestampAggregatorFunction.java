@@ -44,7 +44,7 @@ public final class AllFirstDoubleByTimestampAggregatorFunction implements Aggreg
 
   public static AllFirstDoubleByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllFirstDoubleByTimestampAggregatorFunction(driverContext, channels, AllFirstDoubleByTimestampAggregator.initSingle());
+    return new AllFirstDoubleByTimestampAggregatorFunction(driverContext, channels, AllFirstDoubleByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

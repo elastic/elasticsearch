@@ -9,6 +9,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.VectorSimilarityFunctions;
 import org.elasticsearch.nativeaccess.VectorSimilarityFunctionsTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -27,7 +28,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     final float delta;
 
-    public JDKVectorLibraryFloat32Tests(SimilarityFunction function, int size) {
+    public JDKVectorLibraryFloat32Tests(VectorSimilarityFunctions.Function function, int size) {
         super(function, size);
         this.delta = 1e-5f * size; // scale the delta with the size
     }
@@ -217,7 +218,7 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         var segment = arena.allocate((long) size * 3 * Float.BYTES);
 
         Exception ex = expectThrows(IAE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
-        assertThat(ex.getMessage(), containsString("dimensions differ"));
+        assertThat(ex.getMessage(), containsString("Dimensions differ"));
 
         ex = expectThrows(IOOBE, () -> similarity(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(ex.getMessage(), containsString("out of bounds for length"));
@@ -236,10 +237,11 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     float similarity(MemorySegment a, MemorySegment b, int length) {
         try {
-            return switch (function) {
-                case DOT_PRODUCT -> (float) getVectorDistance().dotProductHandleFloat32().invokeExact(a, b, length);
-                case SQUARE_DISTANCE -> (float) getVectorDistance().squareDistanceHandleFloat32().invokeExact(a, b, length);
-            };
+            return (float) getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.FLOAT32,
+                VectorSimilarityFunctions.Operation.SINGLE
+            ).invokeExact(a, b, length);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -247,10 +249,8 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
 
     void similarityBulk(MemorySegment a, MemorySegment b, int dims, int count, MemorySegment result) {
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandleFloat32Bulk().invokeExact(a, b, dims, count, result);
-                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandleFloat32Bulk().invokeExact(a, b, dims, count, result);
-            }
+            getVectorDistance().getHandle(function, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.BULK)
+                .invokeExact(a, b, dims, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -266,12 +266,11 @@ public class JDKVectorLibraryFloat32Tests extends VectorSimilarityFunctionsTests
         MemorySegment result
     ) {
         try {
-            switch (function) {
-                case DOT_PRODUCT -> getVectorDistance().dotProductHandleFloat32BulkWithOffsets()
-                    .invokeExact(a, b, dims, pitch, offsets, count, result);
-                case SQUARE_DISTANCE -> getVectorDistance().squareDistanceHandleFloat32BulkWithOffsets()
-                    .invokeExact(a, b, dims, pitch, offsets, count, result);
-            }
+            getVectorDistance().getHandle(
+                function,
+                VectorSimilarityFunctions.DataType.FLOAT32,
+                VectorSimilarityFunctions.Operation.BULK_OFFSETS
+            ).invokeExact(a, b, dims, pitch, offsets, count, result);
         } catch (Throwable t) {
             throw rethrow(t);
         }

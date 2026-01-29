@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -131,6 +132,11 @@ public class SourceConfig implements Writeable, ToXContentObject {
             .stream()
             .filter(e -> e.getValue() instanceof Map<?, ?> && ((Map<?, ?>) e.getValue()).containsKey("script"))
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return null;
     }
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {

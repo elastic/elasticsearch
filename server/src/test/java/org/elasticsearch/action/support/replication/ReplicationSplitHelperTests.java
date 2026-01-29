@@ -59,7 +59,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
     public void testNeedsSplitCoordinationWithUnsetSummary() {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
@@ -69,7 +69,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
     public void testNeedsSplitCoordinationWithMatchingSummary() {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
@@ -86,7 +86,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
     public void testNeedsSplitCoordinationWithMismatchedSummary() {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata)
             .reshardAddShards(2)
@@ -117,7 +117,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final int numSourceShards = 2;
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(numSourceShards).build();
 
@@ -195,7 +195,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
@@ -309,7 +309,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
@@ -449,7 +449,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final ShardId targetShardId = new ShardId(indexName, "test-uuid", 1);
 
         var clusterService = mockClusterService();
-        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(random()), 1, 0).build();
+        var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 

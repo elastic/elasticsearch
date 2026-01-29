@@ -1,13 +1,7 @@
 FROM debian:latest
 
 RUN apt-get update
-RUN apt-get install -y wget
-RUN echo "deb http://apt.llvm.org/bookworm/ llvm-toolchain-bookworm-18 main" > /etc/apt/sources.list.d/clang.list
-RUN wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-RUN apt-get update
-RUN apt-get install -y clang-18 openjdk-21-jdk
-RUN ln -s /usr/bin/clang-18 /usr/bin/clang
-RUN ln -s /usr/bin/clang++-18 /usr/bin/clang++
+RUN apt-get install -y gcc g++ openjdk-21-jdk
 COPY . /workspace
 WORKDIR /workspace
 RUN ./gradlew --quiet --console=plain clean buildSharedLibrary

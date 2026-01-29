@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     public void testFlushOnSliceChanged() {
@@ -81,6 +81,8 @@ public class RateDoubleGroupingAggregatorFunctionTests extends ComputeTestCase {
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();

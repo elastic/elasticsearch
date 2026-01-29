@@ -124,6 +124,8 @@ public class ValuesAggregatorBenchmark {
         return new HashAggregationOperator(
             List.of(supplier(dataType).groupingAggregatorFactory(mode, List.of(1))),
             () -> BlockHash.build(groupSpec, driverContext.blockFactory(), 16 * 1024, false),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         ) {
             @Override
@@ -363,7 +365,7 @@ public class ValuesAggregatorBenchmark {
     }
 
     static DriverContext driverContext() {
-        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
+        return new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
     }
 
     static int blockLength(int groups) {

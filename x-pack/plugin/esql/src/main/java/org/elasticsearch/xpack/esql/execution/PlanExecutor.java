@@ -91,6 +91,7 @@ public class PlanExecutor {
             verifier,
             planTelemetry,
             indicesExpressionGrouper,
+            services.projectResolver().getProjectMetadata(services.clusterService().state()),
             services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");

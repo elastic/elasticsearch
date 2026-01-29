@@ -8,10 +8,6 @@ mapped_pages:
 
 The *Elastic S3 connector* is a [connector](/reference/search-connectors/index.md) for [Amazon S3](https://aws.amazon.com/s3/) data sources.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-s3-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-s3-client-prerequisites]

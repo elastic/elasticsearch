@@ -9,12 +9,11 @@ package org.elasticsearch.compute.aggregation;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 // end generated imports
 
@@ -23,17 +22,36 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
 final class AllLongBytesRefState implements AggregatorState {
-    // Whether an observation was recorded in this state
+
+    private BigArrays bigArrays;
+
+    /**
+     * Whether an observation was recorded in this state
+     */
     private boolean observed;
 
-    // The timestamp
+    /**
+     * The timestamp
+     */
     private long v1;
 
-    // Tells whether the observed timestamp was null
+    /**
+     * Whether the observed timestamp was null
+     */
     private boolean v1Seen;
 
-    // The value can be null, single valued of multivalued.
+    /**
+     * The value can be null, single valued of multivalued.
+     */
     private BytesRefArray v2;
+
+    public AllLongBytesRefState(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+    }
+
+    BigArrays bigArrays() {
+        return bigArrays;
+    }
 
     boolean observed() {
         return observed;
@@ -83,7 +101,9 @@ final class AllLongBytesRefState implements AggregatorState {
         }
 
         int size = (int) v2.size();
-        return driverContext.blockFactory().newBytesRefArrayBlock(v2, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+        var result = driverContext.blockFactory().newBytesRefArrayBlock(v2, 1, new int[] { 0, size }, null, Block.MvOrdering.UNORDERED);
+        v2 = null; // transfer the ownership of v2 to the block
+        return result;
     }
 
     @Override

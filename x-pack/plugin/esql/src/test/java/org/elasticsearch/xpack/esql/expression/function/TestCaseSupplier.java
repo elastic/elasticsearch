@@ -688,6 +688,14 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         return vector;
     }
 
+    public static List<Float> randomDenseVector(int dimension) {
+        List<Float> vector = new ArrayList<>();
+        for (int i = 0; i < dimension; i++) {
+            vector.add(randomFloatBetween(-1.0f, +1.0f, true));
+        }
+        return vector;
+    }
+
     /**
      * Generate positive test cases for a unary function operating on an {@link DataType#BOOLEAN}.
      */

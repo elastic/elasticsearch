@@ -14,7 +14,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
@@ -55,7 +55,7 @@ public class TDigestFieldBlockLoaderTests extends BlockLoaderTestCase {
                 if (ESTestCase.randomBoolean()) {
                     map.put("ignore_malformed", ESTestCase.randomBoolean());
                     map.put("compression", randomDoubleBetween(1.0, 1000.0, true));
-                    map.put("digest_type", randomFrom(TDigestState.Type.values()));
+                    map.put("digest_type", randomFrom(TDigestExecutionHint.values()));
                 }
                 return map;
             });

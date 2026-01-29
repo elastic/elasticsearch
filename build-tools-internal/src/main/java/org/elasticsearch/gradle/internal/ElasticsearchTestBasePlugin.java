@@ -144,6 +144,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                     return List.of();
                 }
             });
+            test.getJvmArgumentProviders()
+                .add(() -> List.of("-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=" + test.getJavaVersion().getMajorVersion()));
 
             String argline = System.getProperty("tests.jvm.argline");
             if (argline != null) {

@@ -51,7 +51,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tdigest.parsing.TDigestParser;
@@ -89,7 +89,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
         private final Parameter<Explicit<Boolean>> ignoreMalformed;
-        private final Parameter<TDigestState.Type> digestType;
+        private final Parameter<TDigestExecutionHint> digestType;
         private final Parameter<Double> compression;
 
         public Builder(String name, boolean ignoreMalformedByDefault) {
@@ -104,8 +104,8 @@ public class TDigestFieldMapper extends FieldMapper {
                 "digest_type",
                 false,
                 m -> toType(m).digestType,
-                TDigestState.Type.HYBRID,
-                TDigestState.Type.class
+                TDigestExecutionHint.DEFAULT,
+                TDigestExecutionHint.class
             );
             this.compression = new Parameter<>(
                 "compression",
@@ -147,7 +147,7 @@ public class TDigestFieldMapper extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
-    private final TDigestState.Type digestType;
+    private final TDigestExecutionHint digestType;
     private final double compression;
 
     public TDigestFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
@@ -163,7 +163,7 @@ public class TDigestFieldMapper extends FieldMapper {
         return ignoreMalformed.value();
     }
 
-    public TDigestState.Type digestType() {
+    public TDigestExecutionHint digestType() {
         return digestType;
     }
 

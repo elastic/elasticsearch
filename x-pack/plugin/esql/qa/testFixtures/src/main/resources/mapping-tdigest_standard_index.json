@@ -8,6 +8,9 @@
     },
     "responseTime": {
       "type": "tdigest"
+    },
+    "caseTestPlaceholder": {
+      "type": "tdigest"
     }
   }
 }

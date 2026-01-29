@@ -20,11 +20,10 @@ import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
-import org.elasticsearch.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
+import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
@@ -38,11 +37,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -72,18 +69,17 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         var specification = DataGeneratorSpecification.builder()
             .withMaxObjectDepth(2)
             .withMaxFieldCountPerLevel(6)
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                    return new DataSourceResponse.FieldTypeGenerator(() -> {
-                        var options = Arrays.stream(FieldType.values())
-                            .filter(ft -> ft != FieldType.PASSTHROUGH)
-                            .map(FieldType::toString)
-                            .collect(Collectors.toSet());
-                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
-                    });
-                }
-            }, new DefaultMappingParametersHandler() {
+            .withPredefinedFields(
+                List.of(
+                    new PredefinedField.WithGeneratorProvider(
+                        "flattened",
+                        FieldType.FLATTENED,
+                        Map.of("type", "flattened"),
+                        FlattenedFieldDataGenerator::new
+                    )
+                )
+            )
+            .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
                     if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {

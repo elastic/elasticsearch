@@ -13,6 +13,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.inference.InferenceOperator;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 
+import java.util.List;
+
 /**
  * {@link RerankOperator} is an {@link InferenceOperator} that computes relevance scores for rows using a reranking model.
  * It evaluates a row encoder expression for each input row, batches them together, and sends them to the reranking service
@@ -29,27 +31,27 @@ public class RerankOperator extends InferenceOperator {
     /**
      * Constructs a new {@code RerankOperator}.
      *
-     * @param driverContext                   The driver context.
-     * @param inferenceService                The inference service to use for executing inference requests.
-     * @param inferenceId                     The ID of the reranking model to invoke.
-     * @param queryText                       The query text to use for reranking.
-     * @param inputEvaluator                  Evaluator for computing reranked text from input rows.
-     * @param scoreChannel                    The output channel where the relevance scores will be written.
-     * @param batchSize                       The number of rows to include in each inference request batch.
+     * @param driverContext    The driver context.
+     * @param inferenceService The inference service to use for executing inference requests.
+     * @param inferenceId      The ID of the reranking model to invoke.
+     * @param queryText        The query text to use for reranking.
+     * @param inputEvaluators  Evaluator for computing reranked texts from input rows.
+     * @param scoreChannel     The output channel where the relevance scores will be written.
+     * @param batchSize        \The number of rows to include in each inference request batch.
      */
     RerankOperator(
         DriverContext driverContext,
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        ExpressionEvaluator inputEvaluator,
+        ExpressionEvaluator[] inputEvaluators,
         int scoreChannel,
         int batchSize
     ) {
         super(
             driverContext,
             inferenceService,
-            new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluator, batchSize),
+            new RerankRequestIterator.Factory(inferenceId, queryText, inputEvaluators, batchSize),
             new RerankOutputBuilder(driverContext.blockFactory(), scoreChannel)
         );
         this.queryText = queryText;
@@ -67,10 +69,11 @@ public class RerankOperator extends InferenceOperator {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        ExpressionEvaluator.Factory rowEncoderFactory,
+        List<ExpressionEvaluator.Factory> inputEvaluatorFactories,
         int scoreChannel,
         int batchSize
     ) implements OperatorFactory {
+
         @Override
         public String describe() {
             return "RerankOperator[inference_id=[" + inferenceId + "], query=[" + queryText + "], score_channel=[" + scoreChannel + "]]";
@@ -83,11 +86,16 @@ public class RerankOperator extends InferenceOperator {
                 inferenceService,
                 inferenceId,
                 queryText,
-                rowEncoderFactory().get(driverContext),
+                inputEvaluators(driverContext),
                 scoreChannel,
                 batchSize
             );
         }
-    }
 
+        protected ExpressionEvaluator[] inputEvaluators(DriverContext driverContext) {
+            return inputEvaluatorFactories.stream()
+                .map(evaluatorFactory -> evaluatorFactory.get(driverContext))
+                .toArray(ExpressionEvaluator[]::new);
+        }
+    }
 }

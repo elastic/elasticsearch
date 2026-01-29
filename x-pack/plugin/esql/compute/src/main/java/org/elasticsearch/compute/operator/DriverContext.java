@@ -63,21 +63,35 @@ public class DriverContext {
 
     private final @Nullable String driverDescription;
 
+    private final LocalCircuitBreaker.SizeSettings localBreakerSettings;
+
     private Runnable earlyTerminationChecker = () -> {};
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory) {
-        this(bigArrays, blockFactory, null, WarningsMode.COLLECT);
+    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings) {
+        this(bigArrays, blockFactory, localBreakerSettings, null, WarningsMode.COLLECT);
     }
 
-    public DriverContext(BigArrays bigArrays, BlockFactory blockFactory, String description) {
-        this(bigArrays, blockFactory, description, WarningsMode.COLLECT);
+    public DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        String description
+    ) {
+        this(bigArrays, blockFactory, localBreakerSettings, description, WarningsMode.COLLECT);
     }
 
-    private DriverContext(BigArrays bigArrays, BlockFactory blockFactory, @Nullable String description, WarningsMode warningsMode) {
+    private DriverContext(
+        BigArrays bigArrays,
+        BlockFactory blockFactory,
+        @Nullable LocalCircuitBreaker.SizeSettings localBreakerSettings,
+        @Nullable String description,
+        WarningsMode warningsMode
+    ) {
         Objects.requireNonNull(bigArrays);
         Objects.requireNonNull(blockFactory);
         this.bigArrays = bigArrays;
         this.blockFactory = blockFactory;
+        this.localBreakerSettings = localBreakerSettings == null ? LocalCircuitBreaker.SizeSettings.DEFAULT_SETTINGS : localBreakerSettings;
         this.driverDescription = description;
         this.warningsMode = warningsMode;
     }
@@ -91,6 +105,10 @@ public class DriverContext {
      */
     public CircuitBreaker breaker() {
         return blockFactory.breaker();
+    }
+
+    public LocalCircuitBreaker.SizeSettings localBreakerSettings() {
+        return localBreakerSettings;
     }
 
     public BlockFactory blockFactory() {

@@ -56,4 +56,13 @@ public interface HttpRequest extends HttpPreRequest {
      */
     void release();
 
+    /**
+     * Releases any request-scoped resources that should be cleaned up after the response is sent.
+     * This includes sensitive data like authentication tokens that were stored during request processing.
+     * Implementations should be idempotent.
+     */
+    default void releaseRequestScopedResources() {
+        // default no-op
+    }
+
 }

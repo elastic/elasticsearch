@@ -1171,6 +1171,16 @@ public class EsqlCapabilities {
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Basic Views with no branching (do not need subqueries or FORK).
+         */
+        VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
+
+        /**
+         * Views with branching (requires subqueries/FORK).
+         */
+        VIEWS_WITH_BRANCHING(VIEWS_WITH_NO_BRANCHING.isEnabled() && SUBQUERY_IN_FROM_COMMAND.isEnabled()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

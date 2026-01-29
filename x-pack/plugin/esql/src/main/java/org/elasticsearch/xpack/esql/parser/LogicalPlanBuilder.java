@@ -692,7 +692,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+    private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
         String stringValue;
         if (ctx.ENRICH_POLICY_NAME() != null) {
             stringValue = ctx.ENRICH_POLICY_NAME().getText();

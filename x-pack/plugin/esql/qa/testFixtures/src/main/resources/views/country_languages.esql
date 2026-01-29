@@ -1,0 +1,5 @@
+FROM languages_lookup_non_unique_key
+| MV_EXPAND country
+| WHERE country IS NOT NULL AND country NOT LIKE ("*-Land*")
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country

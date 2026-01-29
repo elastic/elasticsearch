@@ -136,18 +136,6 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     /**
-     * Maximum size allowed for copy without multipart.
-     * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
-     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
-     */
-    static final Setting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.byteSizeSetting(
-        "max_copy_size_before_multipart",
-        MAX_FILE_SIZE,
-        MIN_PART_SIZE_USING_MULTIPART,
-        MAX_FILE_SIZE
-    );
-
-    /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
@@ -262,8 +250,6 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final ByteSizeValue chunkSize;
 
-    private final ByteSizeValue maxCopySizeBeforeMultipart;
-
     private final boolean serverSideEncryption;
 
     private final String storageClass;
@@ -342,8 +328,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             );
         }
 
-        this.maxCopySizeBeforeMultipart = MAX_COPY_SIZE_BEFORE_MULTIPART.get(metadata.settings());
-
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
@@ -374,13 +358,11 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], "
-                + "max_copy_size_before_multipart [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
             bucket,
             chunkSize,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass
         );
@@ -507,7 +489,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             bucket,
             serverSideEncryption,
             bufferSize,
-            maxCopySizeBeforeMultipart,
             cannedACL,
             storageClass,
             supportsConditionalWrites,

@@ -322,7 +322,7 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
             if (timeseries.size() < 2) {
-                if (deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE)
+                if ((deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE))
                     && timeseries.size() == 1
                     && timeseries.getFirst().v2().v1().toEpochMilli() % (secondsInWindow * 1000L) == 0
                     && offset > 0) {

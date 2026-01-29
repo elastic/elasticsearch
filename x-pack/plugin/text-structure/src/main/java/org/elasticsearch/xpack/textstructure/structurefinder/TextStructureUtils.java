@@ -360,7 +360,7 @@ public final class TextStructureUtils {
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        List<Map<String, Object>> flattenedRecords = sampleRecords.stream().map(x -> (Object) x)
+        List<Map<String, List<Object>>> flattenedRecords = sampleRecords.stream().map(x -> (Object) x)
             .map(record -> flattenRecord(record, timeoutChecker, maxDepth))
             .toList();
         Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
@@ -368,7 +368,6 @@ public final class TextStructureUtils {
         for (String fieldName : uniqueFieldNames) {
             List<Object> fieldValues = flattenedRecords.stream()
                 .map(record -> record.get(fieldName))
-                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
             Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = guessMappingAndCalculateFieldStats(
@@ -395,15 +394,15 @@ public final class TextStructureUtils {
     /**
      * Flattens a map with nested objects into a flat map with dot-notation keys.
      * For example, {"host": {"id": 1}, "name": "test", "tags": [{"tag": "dev" }, { "tag": "test" }]}
-     * becomes {"host.id": 1, "name": "test", "tags.tag": ["dev", "test"]}
+     * becomes {"host.id": [1], "name": ["test"], "tags.tag": ["dev", "test"]}
      *
      * @param record The record with potentially nested objects.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @param maxDepth The max recursion depth.
-     * @return A flattened map with dot-notation keys.
+     * @return A flattened map with dot-notation keys, where each key maps to a list of values.
      */
-    private static Map<String, Object> flattenRecord(Object record, TimeoutChecker timeoutChecker, int maxDepth) {
-        Map<String, Object> flattened = new LinkedHashMap<>();
+    private static Map<String, List<Object>> flattenRecord(Object record, TimeoutChecker timeoutChecker, int maxDepth) {
+        Map<String, List<Object>> flattened = new LinkedHashMap<>();
         Set<String> keyHasChildrenObjects = new HashSet<>();
         List<String> keyParts = new ArrayList<>();
         flattenRecordRecursive(keyParts, record, flattened, keyHasChildrenObjects, timeoutChecker, maxDepth);
@@ -413,7 +412,7 @@ public final class TextStructureUtils {
     private static void flattenRecordRecursive(
         List<String> keyParts,
         Object record,
-        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> flattenedResult,
         Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth
@@ -435,8 +434,8 @@ public final class TextStructureUtils {
     }
 
     /**
-     * Adds a concrete value to the result map in a way that if the key already exists, the value is converted to a
-     * List and the value is added to it.
+     * Adds a concrete value to the result map. The map always stores lists, so values are appended to the existing list
+     * or a new list is created if the key doesn't exist yet.
      * @param keyParts The current key parts.
      * @param value The concrete value to add.
      * @param flattenedResult The result map to add the value to.
@@ -445,9 +444,14 @@ public final class TextStructureUtils {
     private static void tryAddConcreteValueToResultMap(
         List<String> keyParts,
         Object value,
-        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> flattenedResult,
         Set<String> keyHasChildrenObjects
     ) {
+        if (value == null) {
+            // null values are ignored
+            return;
+        }
+
         String key = String.join(DOT_DELIMITER, keyParts);
         if (keyHasChildrenObjects.contains(key)) {
             throw new IllegalArgumentException(
@@ -456,34 +460,26 @@ public final class TextStructureUtils {
         }
         validateParentKeysAndMarkThemAsTaken(flattenedResult, keyParts, keyHasChildrenObjects);
 
-        if (flattenedResult.containsKey(key)) {
-            var oldValue = flattenedResult.get(key);
-            if (oldValue instanceof List) {
-                @SuppressWarnings("unchecked")
-                List<Object> oldList = (List<Object>) oldValue;
-                validateNewElement(keyParts, oldList, value); // not needed anymore? - needed. I'll change it to list always though, to reduce the number of risky casts
-                oldList.add(value);
-            } else {
-                validateNewElement(keyParts, oldValue, value); // not needed anymore?
-                var arr = new ArrayList<>();
-                arr.add(oldValue);
-                arr.add(value);
-                flattenedResult.put(key, arr);
-            }
+        List<Object> valueList = flattenedResult.get(key);
+        if (valueList != null) {
+            validateNewElement(keyParts, valueList, value);
+            valueList.add(value);
         } else {
-            flattenedResult.put(key, value);
+            var newList = new ArrayList<>();
+            newList.add(value);
+            flattenedResult.put(key, newList);
         }
     }
 
     /**
      * Checks if any parent has a concrete value, which would be a conflict.
-     * Alos marks all parent keys of the given key as having children.
+     * Also marks all parent keys of the given key as having children.
      * For keyParts ["a", "b", "c"], marks "a" and "a.b" as having children.
      * This effectively means that "a" and "a.b" can't accommodate concrete values anymore,
      * only other nested objects.
      */
     private static void validateParentKeysAndMarkThemAsTaken(
-        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> flattenedResult,
         List<String> keyParts,
         Set<String> keyHasChildrenObjects
     ) {
@@ -505,20 +501,12 @@ public final class TextStructureUtils {
 
     /**
      * Validates that we don't have a mix of objects and non-objects in the same key.
-     * @param keyParts
-     * @param oldValue
-     * @param newElement
+     * @param keyParts The current key parts.
+     * @param existingValues The list of values already stored for this key.
+     * @param newElement The new element being added.
      */
-    private static void validateNewElement(List<String> keyParts, Object oldValue, Object newElement) {
-        Object oldElement;
-        if (oldValue instanceof List) {
-            @SuppressWarnings("unchecked")
-            List<Object> oldList = (List<Object>) oldValue;
-            oldElement = oldList.getFirst();
-        }
-        else {
-            oldElement = oldValue;
-        }
+    private static void validateNewElement(List<String> keyParts, List<Object> existingValues, Object newElement) {
+        Object oldElement = existingValues.getFirst();
 
         boolean oldElementIsObject = oldElement instanceof Map;
         boolean newElementIsObject = newElement instanceof Map;
@@ -534,7 +522,7 @@ public final class TextStructureUtils {
     private static void flattenMap(
         List<String> keyParts,
         Map<String, ?> record,
-        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> flattenedResult,
         Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth
@@ -558,7 +546,7 @@ public final class TextStructureUtils {
     private static void flattenList(
         List<String> keyParts,
         List<Object> list,
-        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> flattenedResult,
         Set<String> keyHasChildrenObjects,
         TimeoutChecker timeoutChecker,
         int remainingDepth

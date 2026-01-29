@@ -149,12 +149,13 @@ public class UpdateHealthInfoCacheAction extends ActionType<AcknowledgedResponse
             return Objects.equals(nodeId, request.nodeId)
                 && Objects.equals(diskHealthInfo, request.diskHealthInfo)
                 && Objects.equals(dslHealthInfo, request.dslHealthInfo)
-                && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo);
+                && Objects.equals(repositoriesHealthInfo, request.repositoriesHealthInfo)
+                && Objects.equals(fileSettingsHealthInfo, request.fileSettingsHealthInfo);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo);
+            return Objects.hash(nodeId, diskHealthInfo, dslHealthInfo, repositoriesHealthInfo, fileSettingsHealthInfo);
         }
 
         public static class Builder {

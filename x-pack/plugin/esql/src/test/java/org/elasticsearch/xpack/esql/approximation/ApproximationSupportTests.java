@@ -13,8 +13,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -196,8 +194,6 @@ public class ApproximationSupportTests extends ESTestCase {
         // For more details, see:
         // - https://en.wikipedia.org/wiki/Extreme_value_theory
         // - https://en.wikipedia.org/wiki/Generalized_extreme_value_distribution
-        AllFirst.class,
-        AllLast.class,
         FirstDocId.class,
         First.class,
         Last.class,

@@ -744,44 +744,44 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     /**
-     * Tests that ALL_FIRST agg with a large grouping state trips the circuit breaker.
+     * Tests that FIRST agg with a large grouping state trips the circuit breaker.
      * We don't require many fields in the index. However, for the small number of fields that we have, we want them to have a large
      * number of multivalues. We also require a large number of documents. Further, our query groups by a unique id field, in order to
      * generate a large of buckets. All the aforementioned participates in inflating the size of the grouping state.
      */
     public void testFirstAggWithManyLongs() throws IOException {
         initMvLongsIndex(5000, 2, 3000, true);
-        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("ALL_FIRST"));
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("FIRST"));
     }
 
     /**
-     * Tests that ALL_LAST agg with a large grouping state trips the circuit breaker.
+     * Tests that LAST agg with a large grouping state trips the circuit breaker.
      * @throws IOException
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithManyLongs() throws IOException {
         initMvLongsIndex(5000, 2, 3000, true);
-        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("ALL_LAST"));
+        assertCircuitBreaks(attempt -> aggregateByIdOnManyLongs("LAST"));
     }
 
     /**
-     * Tests that ALL_FIRST agg with huge text fields trips the circuit breaker.
+     * Tests that FIRST agg with huge text fields trips the circuit breaker.
      * @throws IOException
      * @see #testFirstAggWithManyLongs()
      */
     public void testFirstAggWithGiantText() throws IOException {
         initGiantTextField(50, true, 3);
-        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("ALL_FIRST"));
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("FIRST"));
     }
 
     /**
-     * Tests that ALL_LAST agg with huge text fields trips the circuit breaker.
+     * Tests that LAST agg with huge text fields trips the circuit breaker.
      * @throws IOException
      * @see #testFirstAggWithManyLongs()
      */
     public void testLastAggWithGiantText() throws IOException {
         initGiantTextField(50, true, 3);
-        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("ALL_LAST"));
+        assertCircuitBreaks(attempt -> aggregateByIdOnLargeText("LAST"));
     }
 
     private Map<String, Object> aggregateByIdOnLargeText(String aggregation) throws IOException {

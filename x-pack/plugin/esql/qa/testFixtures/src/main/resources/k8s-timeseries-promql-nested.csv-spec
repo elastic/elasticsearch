@@ -1,7 +1,9 @@
 // Tests for nested PromQL function patterns.
+// E.g., max(avg by (cluster) (sum by (cluster, pod) (network.cost)))
 
 nested_within_series_sum_avg_over_time
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(sum(avg_over_time(network.cost[1h])));
 
 result:double       | step:datetime
@@ -10,6 +12,7 @@ result:double       | step:datetime
 
 nested_within_series_avg_avg_over_time
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(avg(avg_over_time(network.cost[1h])));
 
 result:double       | step:datetime
@@ -18,6 +21,7 @@ result:double       | step:datetime
 
 nested_within_series_max_sum_over_time
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(max(sum_over_time(network.cost[1h])));
 
 result:double | step:datetime
@@ -26,6 +30,7 @@ result:double | step:datetime
 
 nested_within_series_min_count_over_time
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(min(count_over_time(network.cost[1h])));
 
 result:double | step:datetime
@@ -34,6 +39,7 @@ result:double | step:datetime
 
 nested_within_series_sum_by_cluster_avg_over_time
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(sum by (cluster) (avg_over_time(network.cost[1h])))
 | SORT cluster;
 
@@ -46,6 +52,7 @@ result:double          | step:datetime            | cluster:keyword
 
 nested_same_grouping_sum_avg_by_cluster
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(sum by (cluster) (avg by (cluster) (network.cost)))
 | SORT cluster;
 
@@ -57,6 +64,7 @@ result:double          | step:datetime            | cluster:keyword
 
 nested_same_grouping_max_min_by_pod
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(max by (pod) (min by (pod) (network.cost)))
 | SORT pod;
 
@@ -68,6 +76,7 @@ result:double | step:datetime            | pod:keyword
 
 nested_different_grouping_avg_sum_by_cluster
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(avg(sum by (cluster) (avg_over_time(network.cost[1h]))));
 
 result:double          | step:datetime
@@ -76,6 +85,7 @@ result:double          | step:datetime
 
 nested_different_grouping_max_avg_by_cluster
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(max(avg by (cluster) (network.cost)));
 
 result:double          | step:datetime
@@ -84,6 +94,7 @@ result:double          | step:datetime
 
 nested_different_grouping_min_sum_by_pod
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(min(sum by (pod) (network.cost)));
 
 result:double | step:datetime
@@ -92,6 +103,7 @@ result:double | step:datetime
 
 nested_different_grouping_avg_by_cluster_sum_by_cluster_pod
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(avg by (cluster) (sum by (cluster, pod) (network.cost)))
 | SORT cluster;
 
@@ -103,6 +115,7 @@ result:double          | step:datetime            | cluster:keyword
 
 nested_three_levels_max_avg_sum
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(max(avg by (cluster) (sum by (cluster, pod) (network.cost))));
 
 result:double | step:datetime
@@ -111,6 +124,7 @@ result:double | step:datetime
 
 nested_three_levels_sum_max_min
 required_capability: promql_command_v0
+required_capability: promql_nested_aggregates
 PROMQL index=k8s step=1h result=(sum(max by (cluster) (min by (pod) (network.cost))));
 
 result:double | step:datetime

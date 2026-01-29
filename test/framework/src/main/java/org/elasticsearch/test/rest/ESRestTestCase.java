@@ -2996,15 +2996,32 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    protected void cleanUpProjects() throws IOException {
+    protected void cleanUpProjects() throws Exception {
         assert multiProjectEnabled;
         final var projectIds = getProjectIds(adminClient());
         for (String projectId : projectIds) {
             if (projectId.equals(ProjectId.DEFAULT.id())) {
                 continue;
             }
-            deleteProject(projectId);
+            try {
+                deleteProject(projectId);
+            } catch (ResponseException e) {
+                // Ignore errors for projects that don't exist (might have been deleted already)
+                if (e.getResponse().getStatusLine().getStatusCode() == 400) {
+                    final String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+                    if (reason != null && reason.contains("does not exist")) {
+                        logger.warn("Project {} does not exist, ignoring deletion error", projectId);
+                        continue;
+                    }
+                }
+                throw e;
+            }
         }
+        assertBusy(() -> {
+            final var projectIdsLeft = getProjectIds(adminClient());
+            assertThat(projectIdsLeft.size(), equalTo(1));
+            assertTrue(projectIdsLeft.contains(ProjectId.DEFAULT.id()));
+        });
     }
 
     private void deleteProject(String project) throws IOException {

@@ -244,7 +244,8 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             existingParsedModel.getTaskType(),
             serviceName,
             newServiceSettings,
-            newTaskSettings
+            newTaskSettings,
+            existingConfigs.getChunkingSettings()
         );
 
         return new Model(newModelConfigs, new ModelSecrets(newSecretSettings));

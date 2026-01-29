@@ -779,7 +779,7 @@ public class ESNextDiskBBQVectorsReader extends IVFVectorsReader implements Vect
             centroidDistance = switch (similarityFunction) {
                 case EUCLIDEAN -> ((1 / score) - 1) - centroidToParentSqDist;
                 case COSINE, DOT_PRODUCT -> 2 * score - 1;
-                case MAXIMUM_INNER_PRODUCT -> score < 1 ? 1 - (1 / score) : score - 1;
+                case MAXIMUM_INNER_PRODUCT -> score - 1;
             };
             queryQuantizer.reset(metadata.queryCentroidOrdinal());
             return vectors;

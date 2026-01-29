@@ -2002,6 +2002,11 @@ public class EsqlCapabilities {
          */
         APPROXIMATION(Build.current().isSnapshot()),
 
+        /**
+         * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
+         */
+        PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

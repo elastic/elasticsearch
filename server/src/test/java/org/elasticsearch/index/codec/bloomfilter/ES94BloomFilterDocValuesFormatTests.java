@@ -18,20 +18,16 @@ import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.codecs.asserting.AssertingCodec;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -40,9 +36,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR;
+import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.MAX_BLOOM_FILTER_SIZE;
+import static org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat.bloomFilterSizeInBytes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -51,16 +51,7 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         try (var directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
-            var bloomFilterSizeInKb = atLeast(2);
-            conf.setCodec(
-                new TestCodec(
-                    new ES94BloomFilterDocValuesFormat(
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        ByteSizeValue.ofKb(bloomFilterSizeInKb),
-                        IdFieldMapper.NAME
-                    )
-                )
-            );
+            conf.setCodec(new TestCodec(new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME)));
             conf.setMergePolicy(newLogMergePolicy());
             // We want to have at most 1 segment
             conf.setMaxBufferedDocs(200);
@@ -79,37 +70,8 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
         try (var directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
-            var randomBloomFilterSizes = random().nextBoolean();
-            var bloomFilterSizeInKb = atLeast(2);
-            conf.setCodec(
-                new TestCodec(
-                    new ES94BloomFilterDocValuesFormat(
-                        BigArrays.NON_RECYCLING_INSTANCE,
-                        ByteSizeValue.ofKb(bloomFilterSizeInKb),
-                        IdFieldMapper.NAME
-                    ) {
-                        @Override
-                        int getBloomFilterSizeInBits() {
-                            if (randomBloomFilterSizes) {
-                                // Use different power of 2 values so we rebuild the bloom filter from the _id terms
-                                var bloomFilterSizeInBytes = ByteSizeValue.ofKb(1).getBytes() << atLeast(5);
-
-                                return ES94BloomFilterDocValuesFormat.closestPowerOfTwoBloomFilterSizeInBits(
-                                    ByteSizeValue.ofBytes(bloomFilterSizeInBytes)
-                                );
-                            }
-                            return super.getBloomFilterSizeInBits();
-                        }
-                    }
-
-                )
-            );
-            conf.setMergePolicy(new FilterMergePolicy(newLogMergePolicy()) {
-                @Override
-                public boolean useCompoundFile(SegmentInfos infos, SegmentCommitInfo mergedInfo, MergeContext mergeContext) {
-                    return false;
-                }
-            });
+            conf.setCodec(new TestCodec(new ES94BloomFilterDocValuesFormat(BigArrays.NON_RECYCLING_INSTANCE, IdFieldMapper.NAME)));
+            conf.setMergePolicy(newLogMergePolicy());
             conf.setMaxBufferedDocs(10);
             conf.setUseCompoundFile(randomBoolean());
             // We don't use the RandomIndexWriter because we want to control the settings so we get
@@ -117,11 +79,39 @@ public class ES94BloomFilterDocValuesFormatTests extends ESTestCase {
             try (IndexWriter writer = new IndexWriter(directory, conf)) {
                 List<BytesRef> indexedIds = indexDocs(writer);
 
+                // TODO: ensure that the OR optimization works with different sizes
                 writer.forceMerge(1);
 
                 assertBloomFilterTestsPositiveForExistingDocs(writer, indexedIds);
             }
         }
+    }
+
+    public void testBloomFilterSizing() {
+        // numSegments parameter doesn't affect sizing (currently unused, reserved for future merge optimization)
+        int numSegments = randomIntBetween(1, 100);
+
+        // The bloom filter size gets rounded up to the closest power of 2
+        assertThat(bloomFilterSizeInBytes(10, numSegments), is(equalTo(32)));
+        assertThat(bloomFilterSizeInBytes(12, numSegments), is(equalTo(64)));
+        assertThat(bloomFilterSizeInBytes(14, numSegments), is(equalTo(64)));
+
+        // Size scales with document count
+        assertThat(bloomFilterSizeInBytes(100, numSegments), is(equalTo(512)));
+        assertThat(bloomFilterSizeInBytes(1000, numSegments), is(equalTo(4096)));
+        assertThat(bloomFilterSizeInBytes(10_000, numSegments), is(equalTo(32768)));
+
+        // Capped at MAX_BLOOM_FILTER_SIZE for large segment sizes
+        assertThat(bloomFilterSizeInBytes(Integer.MAX_VALUE, numSegments), is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes())));
+        assertThat(bloomFilterSizeInBytes(10_000_000, numSegments), is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes())));
+
+        // Boundary: largest doc count that stays under the cap
+        int maxDocsBeforeCap = (int) (MAX_BLOOM_FILTER_SIZE.getBytes() * Byte.SIZE / DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR);
+        assertThat(bloomFilterSizeInBytes(maxDocsBeforeCap, numSegments), is(equalTo((int) MAX_BLOOM_FILTER_SIZE.getBytes())));
+        assertThat(
+            bloomFilterSizeInBytes(maxDocsBeforeCap - 1, numSegments),
+            is(lessThanOrEqualTo((int) MAX_BLOOM_FILTER_SIZE.getBytes()))
+        );
     }
 
     private static List<BytesRef> indexDocs(IndexWriter writer) throws IOException {

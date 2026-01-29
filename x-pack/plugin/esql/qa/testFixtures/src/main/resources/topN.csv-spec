@@ -193,7 +193,7 @@ FROM employees
 | SORT salary DESC
 | LIMIT 5 PER_🐔 languages
 | KEEP first_name, last_name, salary, languages
-| SORT languages DESC nulls last, salary DESC
+| SORT languages DESC nulls last, salary DESC, first_name
 ;
 
 first_name:keyword | last_name:keyword | salary:integer | languages:integer

@@ -594,7 +594,9 @@ public final class EsqlTestUtils {
         DataPartitioning.AUTO,
         ByteSizeValue.ofMb(1),
         10_000,
-        ByteSizeValue.ofMb(1)
+        ByteSizeValue.ofMb(1),
+        1000,
+        0.1
     );
 
     public static final TransportActionServices MOCK_TRANSPORT_ACTION_SERVICES = new TransportActionServices(

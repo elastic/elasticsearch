@@ -1166,6 +1166,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_WITHOUT_IMPLICIT_LIMIT(Build.current().isSnapshot()),
 
         /**
+         * Append an implicit limit to unbounded sorts in subqueries in the FROM clause.
+         */
+        SUBQUERY_IN_FROM_COMMAND_APPEND_IMPLICIT_LIMIT_TO_UNBOUNDED_SORT_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
@@ -1374,32 +1379,32 @@ public class EsqlCapabilities {
         /**
          * Support timezones in DATE_TRUNC and dependent functions.
          */
-        DATE_TRUNC_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_TRUNC_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_DIFF.
          */
-        DATE_DIFF_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_DIFF_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in KQL and QSTR.
          */
-        KQL_QSTR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        KQL_QSTR_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in the conversion utils and functions, like TO_STRING.
          */
-        TYPE_CONVERSION_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        TYPE_CONVERSION_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in DATE_FORMAT and DATE_PARSE.
          */
-        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        DATE_FORMAT_DATE_PARSE_TIMEZONE_SUPPORT,
 
         /**
          * Support timezones in + and - operators.
          */
-        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT(Build.current().isSnapshot()),
+        ADD_SUB_OPERATOR_TIMEZONE_SUPPORT,
 
         /**
          * (Re)Added EXPLAIN command
@@ -1799,7 +1804,7 @@ public class EsqlCapabilities {
         CHUNK_FUNCTION_V2(),
 
         /**
-         * Support for vector similarity functtions pushdown
+         * Support for vector similarity functions pushdown
          */
         VECTOR_SIMILARITY_FUNCTIONS_PUSHDOWN,
 
@@ -1991,6 +1996,21 @@ public class EsqlCapabilities {
          * Fixes reset calculation in rates where partitioning data into multiple slices can lead to incorrect results.
          */
         RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
+
+        /**
+         * Support query approximation.
+         */
+        APPROXIMATION(Build.current().isSnapshot()),
+
+        /**
+         * Periodically emit partial aggregation results when the number of groups exceeds the threshold.
+         */
+        PERIODIC_EMIT_PARTIAL_AGGREGATION_RESULTS,
+
+        /**
+         * Support for requesting the "_size" metadata field when the mapper-size plugin is enabled.
+         */
+        METADATA_SIZE_FIELD,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

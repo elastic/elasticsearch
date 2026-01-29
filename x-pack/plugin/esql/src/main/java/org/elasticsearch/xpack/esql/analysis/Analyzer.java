@@ -1014,7 +1014,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit projection to align the outputs.
-                if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
+                // If the branch already has a Project on top, and the output of the branch is empty,
+                // don't add another Project with only NO_FIELDS on top of it,
+                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
+                // forkColumns do not contain NO_FIELD because Fork.outputUnion removes it.
+                if (logicalPlan instanceof Project == false
+                    || (subPlanColumns.equals(forkColumns) == false
+                        && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -1035,6 +1041,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributes(outputUnion));
+        }
+
+        /*
+         * Returns true if a subquery references an index with empty mapping.
+         */
+        private static boolean subqueryReferencingIndexWithEmptyMapping(
+            LogicalPlan unionAll,
+            LogicalPlan subquery,
+            List<String> outputColumns
+        ) {
+            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {

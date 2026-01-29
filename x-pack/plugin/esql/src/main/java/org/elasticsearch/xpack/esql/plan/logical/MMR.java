@@ -38,7 +38,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     private final Expression queryVector;
     private final Expression options;
 
-    private Double lambdaValue;
+    private Float lambdaValue;
 
     public MMR(
         Source source,
@@ -71,7 +71,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         return options;
     }
 
-    public Double lambdaValue() {
+    public Float lambdaValue() {
         return lambdaValue;
     }
 
@@ -178,11 +178,11 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
     }
 
-    public static Double extractLambdaFromMMROptions(Expression lambdaExpression) {
+    public static Float extractLambdaFromMMROptions(Expression lambdaExpression) {
         if (lambdaExpression != null) {
             if (lambdaExpression instanceof Literal litLambdaValue) {
-                Double retValue = (Double) litLambdaValue.value();
-                if (retValue != null && retValue >= 0.0 && retValue <= 1.0) {
+                Float retValue = ((Double) litLambdaValue.value()).floatValue();
+                if (retValue >= 0.0 && retValue <= 1.0) {
                     return retValue;
                 }
             }

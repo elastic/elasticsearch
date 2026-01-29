@@ -7,6 +7,10 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
@@ -16,11 +20,13 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversification;
 import org.elasticsearch.search.diversification.mmr.MMRResultDiversificationContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -104,9 +110,8 @@ public class MMROperator extends CompleteInputCollectorOperator {
     private final Deque<Page> outputPages = new ArrayDeque<>();
     private boolean outputPagesCreated = false;
 
-    /**
-     * Count of rows this operator has emitted.
-     */
+    private long emitNanos;
+    private int pagesProcessed = 0;
     private long rowsEmitted = 0L;
 
     MMROperator(
@@ -140,17 +145,22 @@ public class MMROperator extends CompleteInputCollectorOperator {
 
     @Override
     protected Page onGetOutput() {
+        final var emitStart = System.nanoTime();
+
         // now we can perform our work
         // gather our input rows
-        // TODO - ensure docs and vectors have the same number positions!
-        if (outputPagesCreated == false) {
-            createOutputPages();
+        try {
+            if (outputPagesCreated == false) {
+                createOutputPages();
+            }
+
+            Page page = outputPages.removeFirst();
+            rowsEmitted += page.getPositionCount();
+            return page;
+        } finally {
+            emitNanos = System.nanoTime() - emitStart;
+            Releasables.close(inputPages);
         }
-
-        Page page = outputPages.removeFirst();
-        rowsEmitted += page.getPositionCount();
-
-        return page;
     }
 
     public record PagePositionDocVector(int page, int position, RankDoc doc, VectorData vector) {}
@@ -193,12 +203,15 @@ public class MMROperator extends CompleteInputCollectorOperator {
             throw new RuntimeException(ioEx);
         }
 
-        createOutputPagesFromResults(results, mapRankToPageAndPosition);
+        // create our output filter set
+        Map<Integer, List<Integer>> filtersByPagePosition = createOutputPageFilters(results, mapRankToPageAndPosition);
+        createOutputPagesFromResults(filtersByPagePosition);
 
         outputPagesCreated = true;
     }
 
     private List<PagePositionDocVector> gatherAllDocsAndVectors() {
+        // TODO - ensure docs and vectors have the same number positions!
         List<PagePositionDocVector> docsAndVectors = new ArrayList<>();
         int pageIndex = 0;
         for (Page page : inputPages) {
@@ -217,21 +230,12 @@ public class MMROperator extends CompleteInputCollectorOperator {
                 positionIndex++;
             }
             pageIndex++;
+            pagesProcessed++;
         }
         return docsAndVectors;
     }
 
-    private void createOutputPagesFromResults(RankDoc[] results, Map<Integer, Tuple<Integer, Integer>> mapRankToPageAndPosition) {
-        // create our output filter set
-        Map<Integer, List<Integer>> filtersByPagePosition = new HashMap<>();
-        for (int i = 0; i < results.length; i++) {
-            int rank = results[i].rank;
-            var pageAndRow = mapRankToPageAndPosition.get(rank);
-            var filter = filtersByPagePosition.getOrDefault(pageAndRow.v1(), new ArrayList<>());
-            filter.add(pageAndRow.v2());
-            filtersByPagePosition.put(pageAndRow.v1(), filter);
-        }
-
+    private void createOutputPagesFromResults(Map<Integer, List<Integer>> filtersByPagePosition) {
         // create our output pages filtered, in page order
         int pageCounter = 0;
         for (Page inputPage : inputPages) {
@@ -257,9 +261,95 @@ public class MMROperator extends CompleteInputCollectorOperator {
         }
     }
 
+    private Map<Integer, List<Integer>> createOutputPageFilters(
+        RankDoc[] results,
+        Map<Integer, Tuple<Integer, Integer>> mapRankToPageAndPosition
+    ) {
+        Map<Integer, List<Integer>> filtersByPagePosition = new HashMap<>();
+        for (int i = 0; i < results.length; i++) {
+            int rank = results[i].rank;
+            var pageAndRow = mapRankToPageAndPosition.get(rank);
+            var filter = filtersByPagePosition.getOrDefault(pageAndRow.v1(), new ArrayList<>());
+            filter.add(pageAndRow.v2());
+            filtersByPagePosition.put(pageAndRow.v1(), filter);
+        }
+        return filtersByPagePosition;
+    }
+
     @Override
     protected void onClose() {
         // no additional cleanup needed
+    }
+
+    @Override
+    public String toString() {
+        return "MMROperator[diversificationField="
+            + "(docIDChannel="
+            + docIdChannel
+            + "), diversificationField="
+            + diversifyField
+            + " (channel="
+            + diversifyFieldChannel
+            + "), limit="
+            + limit
+            + ", queryVector="
+            + (queryVector != null ? queryVector.toString() : "null")
+            + ", lambda="
+            + (lambda != null ? lambda.toString() : "null")
+            + "]";
+    }
+
+    @Override
+    public Operator.Status status() {
+        return new MMROperator.Status(emitNanos, pagesReceived, pagesProcessed, rowsReceived, rowsEmitted);
+    }
+
+    public record Status(long emitNanos, int pagesReceived, int pagesProcessed, long rowsReceived, long rowsEmitted)
+        implements
+            Operator.Status {
+
+        public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+            Operator.Status.class,
+            "MMR",
+            MMROperator.Status::new
+        );
+
+        Status(StreamInput streamInput) throws IOException {
+            this(streamInput.readLong(), streamInput.readInt(), streamInput.readInt(), streamInput.readLong(), streamInput.readLong());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return ENTRY.name;
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.minimumCompatible();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(emitNanos);
+            out.writeInt(pagesReceived);
+            out.writeInt(pagesProcessed);
+            out.writeLong(rowsReceived);
+            out.writeLong(rowsEmitted);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("emit_nanos", emitNanos);
+            if (builder.humanReadable()) {
+                builder.field("emit_time", TimeValue.timeValueNanos(emitNanos));
+            }
+            builder.field("pages_received", pagesReceived);
+            builder.field("pages_processed", pagesProcessed);
+            builder.field("rows_received", rowsReceived);
+            builder.field("rows_emitted", rowsEmitted);
+            return builder.endObject();
+        }
     }
 
     public static class InterleaveBlocks implements Iterable<Tuple<RankDoc, VectorData>> {

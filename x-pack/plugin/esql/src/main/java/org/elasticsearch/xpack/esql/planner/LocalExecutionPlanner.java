@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -101,7 +100,6 @@ import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -139,7 +137,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -153,7 +150,6 @@ import java.util.stream.Stream;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.operator.ProjectOperator.ProjectOperatorFactory;
-import static org.elasticsearch.xpack.esql.plan.logical.MMR.extractLambdaFromMMROptions;
 import static org.elasticsearch.xpack.esql.plan.logical.MMR.getMMRLimitValue;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
 
@@ -331,6 +327,8 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planMMR(MMRExec mmr, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(mmr.child(), context);
 
+        assert (mmr.diversifyField() != null) : "diversifyField is required for the MMROperator";
+
         var diversifyField = mmr.diversifyField().qualifiedName();
         var limit = getMMRLimitValue(mmr.limit());
         VectorData queryVector = null;
@@ -341,24 +339,11 @@ public class LocalExecutionPlanner {
             // queryVector.dataType() != DataType.DENSE_VECTOR
         }
 
-        Float lambda = null;
-        var options = mmr.options();
-        if (options instanceof MapExpression optionsMap) {
-            Map<String, Expression> optionsHashMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
-            try {
-                Expression lambdaValueExpression = optionsHashMap.remove(MMR.LAMBDA_OPTION_NAME);
-                lambda = extractLambdaFromMMROptions(lambdaValueExpression).floatValue();
-            } catch (RuntimeException rtEx) {
-                // ignore errors as any would have been caught in the logical plan validation
-            }
-        }
-
         // TODO - we need to ensure the incoming data has at least a _doc and our diversify field channels
         // this means, we can't have a KEEP (or other field limiting operator) before without these as well
 
         Integer docIdChannel = null;
         Integer scoreChannel = null;
-        Integer diversifyFieldChannel = null;
         for (var input : mmr.inputSet()) {
             if (input.name().equals("_doc") && input.dataType() == DataType.DOC_DATA_TYPE) {
                 docIdChannel = source.layout.get(input.id()).channel();
@@ -369,23 +354,16 @@ public class LocalExecutionPlanner {
                 scoreChannel = source.layout.get(input.id()).channel();
                 continue;
             }
-
-            if (input.name().equals(diversifyField)) {
-                diversifyFieldChannel = source.layout.get(input.id()).channel();
-                continue;
-            }
         }
+
+        int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();
 
         if (docIdChannel == null) {
             throw new EsqlIllegalArgumentException("Could not determine doc id channel for MMROperator");
         }
 
-        if (diversifyFieldChannel == null) {
-            throw new EsqlIllegalArgumentException("Could not determine diversifyField channel for MMROperator");
-        }
-
         return source.with(
-            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, lambda, scoreChannel),
+            new MMROperator.Factory(docIdChannel, diversifyField, diversifyFieldChannel, limit, queryVector, mmr.lambda(), scoreChannel),
             source.layout
         );
     }

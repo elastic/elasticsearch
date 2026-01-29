@@ -758,7 +758,8 @@ public class ComputeService {
         });
     }
 
-    static ReductionPlan reductionPlan(
+    // public for testing
+    public static ReductionPlan reductionPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,

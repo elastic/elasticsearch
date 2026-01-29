@@ -94,6 +94,9 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(IndexMetadata.class);
+    // During a reshard split operation, we restrict the split factor to be exactly 2 i.e
+    // we can go from 1 -> 2 shards, or 2 -> 4 shards, and so on.
+    public static final int RESHARD_SPLIT_FACTOR = 2;
 
     public static final ClusterBlock INDEX_READ_ONLY_BLOCK = new ClusterBlock(
         5,

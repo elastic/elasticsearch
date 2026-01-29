@@ -12,7 +12,7 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
+import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -90,7 +90,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
     // the current state.
     @Override
     protected Map<ShardId, ShardFlushRequest> splitRequestOnPrimary(ShardFlushRequest request) {
-        return ReplicationRequestSplitHelper.splitRequest(
+        return BroadcastRequestSplitHelper.splitRequest(
             request,
             projectResolver.getProjectMetadata(clusterService.state()),
             (targetShard, shardCountSummary) -> new ShardFlushRequest(request.getRequest(), targetShard, shardCountSummary)
@@ -103,7 +103,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         Map<ShardId, ShardFlushRequest> splitRequests,
         Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
     ) {
-        return ReplicationRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
+        return BroadcastRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

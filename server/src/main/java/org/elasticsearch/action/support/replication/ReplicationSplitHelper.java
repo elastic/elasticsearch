@@ -68,12 +68,31 @@ public class ReplicationSplitHelper<
     public static <Request extends ReplicationRequest<Request>> boolean needsSplitCoordination(
         final Request primaryRequest,
         final IndexMetadata indexMetadata
-    ) {
+    ) throws Exception {
         SplitShardCountSummary requestSplitSummary = primaryRequest.reshardSplitShardCountSummary();
-        // TODO: We currently only set the request split summary transport shard bulk. Only evaluate this at the moment or else every
+        // TODO: We currently only set the request split summary for certain Replication Requests
+        // like refresh, flush and shard bulk requests. Only evaluate this when set or else every
         // request would say it needs a split.
-        return requestSplitSummary.isUnset() == false
-            && requestSplitSummary.equals(SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId())) == false;
+        System.out.println("Inside needsSplitCoordination: requestSplitSummary = " + requestSplitSummary);
+        if (requestSplitSummary.isUnset() == false) {
+            SplitShardCountSummary latestSplitSummary = SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId());
+            if (requestSplitSummary.equals(latestSplitSummary)) {  // no split coordination required
+                return false;
+            } else {  // check that resharding is ongoing and the latest shard count is exactly 2 times the shard count in the request
+                if (indexMetadata.getReshardingMetadata() == null
+                    || latestSplitSummary.asInt() != IndexMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
+                    System.out.println("reshardingMetadata = " + indexMetadata.getReshardingMetadata());
+                    throw new StaleRequestException(
+                        "Request stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
+                        requestSplitSummary.asInt(),
+                        latestSplitSummary.asInt()
+                    );
+                }
+                return true;
+            }
+        } else {  // no split coordination required
+            return false;
+        }
     }
 
     @FunctionalInterface

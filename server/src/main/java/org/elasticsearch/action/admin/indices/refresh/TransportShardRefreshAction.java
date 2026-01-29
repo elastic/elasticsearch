@@ -15,8 +15,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.action.support.replication.BroadcastRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.ReplicationRequestSplitHelper;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -117,7 +117,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
     // the current state.
     @Override
     protected Map<ShardId, BasicReplicationRequest> splitRequestOnPrimary(BasicReplicationRequest request) {
-        return ReplicationRequestSplitHelper.splitRequest(
+        return BroadcastRequestSplitHelper.splitRequest(
             request,
             projectResolver.getProjectMetadata(clusterService.state()),
             (targetShard, shardCountSummary) -> new BasicReplicationRequest(targetShard, shardCountSummary)
@@ -130,7 +130,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         Map<ShardId, BasicReplicationRequest> splitRequests,
         Map<ShardId, Tuple<ReplicationResponse, Exception>> responses
     ) {
-        return ReplicationRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
+        return BroadcastRequestSplitHelper.combineSplitResponses(originalRequest, splitRequests, responses);
     }
 
     @Override

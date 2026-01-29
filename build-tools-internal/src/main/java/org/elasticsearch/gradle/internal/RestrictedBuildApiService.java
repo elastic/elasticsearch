@@ -71,7 +71,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:single-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:security:with-ssl");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:jdbc:security:without-ssl");
-        map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:mixed-node");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:server:security:with-ssl");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:sql:qa:server:security:without-ssl");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:text-structure:qa:text-structure-with-security");

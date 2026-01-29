@@ -354,12 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
   method: testIndexingSyntheticSource
   issue: https://github.com/elastic/elasticsearch/issues/139482
-- class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139740
-- class: org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadataTests
-  method: testMinVersionSerialization
-  issue: https://github.com/elastic/elasticsearch/issues/139741
 - class: org.elasticsearch.xpack.esql.session.EsqlResolvedIndexExpressionIT
   method: testLocalDateMathExpression
   issue: https://github.com/elastic/elasticsearch/issues/140106

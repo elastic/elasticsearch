@@ -105,7 +105,7 @@ final class BooleanArrayState extends AbstractArrayState implements GroupingAggr
                 if (group < size) {
                     valuesBuilder.appendBoolean(i, values.get(group));
                 } else {
-                    valuesBuilder.appendBoolean(i, false); // TODO can we just use null?
+                    valuesBuilder.appendBoolean(i, false);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

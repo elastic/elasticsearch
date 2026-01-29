@@ -104,7 +104,7 @@ final class DoubleArrayState extends AbstractArrayState implements GroupingAggre
                 if (group < values.size()) {
                     valuesBuilder.appendDouble(i, values.get(group));
                 } else {
-                    valuesBuilder.appendDouble(i, 0); // TODO can we just use null?
+                    valuesBuilder.appendDouble(i, 0);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

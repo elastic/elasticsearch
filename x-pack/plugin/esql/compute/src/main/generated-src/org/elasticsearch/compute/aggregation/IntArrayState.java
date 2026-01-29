@@ -104,7 +104,7 @@ final class IntArrayState extends AbstractArrayState implements GroupingAggregat
                 if (group < values.size()) {
                     valuesBuilder.appendInt(i, values.get(group));
                 } else {
-                    valuesBuilder.appendInt(i, 0); // TODO can we just use null?
+                    valuesBuilder.appendInt(i, 0);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

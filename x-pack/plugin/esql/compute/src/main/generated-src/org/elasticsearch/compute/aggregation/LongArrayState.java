@@ -110,7 +110,7 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
                 if (group < values.size()) {
                     valuesBuilder.appendLong(i, values.get(group));
                 } else {
-                    valuesBuilder.appendLong(i, 0); // TODO can we just use null?
+                    valuesBuilder.appendLong(i, 0);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

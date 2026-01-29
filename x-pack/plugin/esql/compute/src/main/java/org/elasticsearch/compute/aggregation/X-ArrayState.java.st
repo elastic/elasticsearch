@@ -146,7 +146,7 @@ $endif$
                 if (group < $if(boolean)$size$else$values.size()$endif$) {
                     valuesBuilder.append$Type$(i, values.get(group));
                 } else {
-                    valuesBuilder.append$Type$(i, $if(boolean)$false$else$0$endif$); // TODO can we just use null?
+                    valuesBuilder.append$Type$(i, $if(boolean)$false$else$0$endif$);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

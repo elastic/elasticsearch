@@ -104,7 +104,7 @@ final class FloatArrayState extends AbstractArrayState implements GroupingAggreg
                 if (group < values.size()) {
                     valuesBuilder.appendFloat(i, values.get(group));
                 } else {
-                    valuesBuilder.appendFloat(i, 0); // TODO can we just use null?
+                    valuesBuilder.appendFloat(i, 0);
                 }
                 hasValueBuilder.appendBoolean(i, hasValue(group));
             }

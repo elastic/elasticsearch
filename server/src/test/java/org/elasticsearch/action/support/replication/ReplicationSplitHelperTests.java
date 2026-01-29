@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
 
 public class ReplicationSplitHelperTests extends ESTestCase {
 
-    public void testNeedsSplitCoordinationWithUnsetSummary() {
+    public void testNeedsSplitCoordinationWithUnsetSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
@@ -67,7 +67,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMatchingSummary() {
+    public void testNeedsSplitCoordinationWithMatchingSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
@@ -84,7 +84,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMismatchedSummary() {
+    public void testNeedsSplitCoordinationWithMismatchedSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();

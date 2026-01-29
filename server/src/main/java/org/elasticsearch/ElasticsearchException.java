@@ -16,6 +16,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -2041,6 +2042,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             NoMatchingProjectException::new,
             185,
             NO_MATCHING_PROJECT_EXCEPTION_VERSION
+        ),
+        STALE_REQUEST_EXCEPTION(
+            StaleRequestException.class,
+            StaleRequestException::new,
+            186,
+            TransportVersion.minimumCompatible()
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

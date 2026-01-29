@@ -550,6 +550,7 @@ public abstract class TransportReplicationAction<
                     executePrimaryRequest(primaryShardReference, primaryRequest.getRequest(), setFinishedListener);
                 }
             } catch (Exception e) {
+                System.out.println("Exception = " + e);
                 Releasables.closeWhileHandlingException(primaryShardReference);
                 setFinishedListener.onFailure(e);
             }

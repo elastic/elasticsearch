@@ -1,0 +1,6 @@
+pr: 140747
+summary: Optimize search shard iterator sort
+area: Search
+type: enhancement
+issues:
+ - 135472

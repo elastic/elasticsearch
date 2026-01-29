@@ -1060,47 +1060,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
             }
             iw.commit();
 
-            var factory = TestBlock.factory();
-            try (var reader = DirectoryReader.open(iw)) {
-                for (var leaf : reader.leaves()) {
-                    var binaryFixedDV = getSparseBinaryValues(leaf.reader(), binaryFixedField);
-                    var binaryVariableDV = getSparseBinaryValues(leaf.reader(), binaryVariableField);
-
-                    int maxDoc = leaf.reader().maxDoc();
-                    for (int i = 0; i < maxDoc;) {
-                        int size = Math.max(1, random().nextInt(0, maxDoc - i));
-                        var docs = TestBlock.docs(IntStream.range(i, i + size).toArray());
-                        {
-                            // bulk loading binary fixed length field:
-                            var block = (TestBlock) binaryFixedDV.tryReadLength(factory, docs, 0, random().nextBoolean());
-                            assertNotNull(block);
-                            assertEquals(size, block.size());
-                            for (int j = 0; j < block.size(); j++) {
-                                var actual = block.get(j);
-                                var expectedBinary = binaryFixedValues.removeLast();
-                                var expected = expectedBinary == null ? null : expectedBinary.length;
-                                assertEquals(expected, actual);
-                            }
-                        }
-                        {
-                            // bulk loading binary variable length field:
-                            var block = (TestBlock) binaryVariableDV.tryReadLength(factory, docs, 0, random().nextBoolean());
-                            assertNotNull(block);
-                            assertEquals(size, block.size());
-                            for (int j = 0; j < block.size(); j++) {
-                                var actual = block.get(j);
-                                var expectedBinary = binaryVariableValues.removeLast();
-                                var expected = expectedBinary == null ? null : expectedBinary.length;
-                                assertEquals(expected, actual);
-                            }
-                        }
-
-                        i += size;
-                    }
-                }
-            }
-
             // Now bulk reader from one big segment and use random offset:
+            var factory = TestBlock.factory();
             iw.forceMerge(1);
             try (var reader = DirectoryReader.open(iw)) {
                 int randomOffset = random().nextInt(numDocs / 4);

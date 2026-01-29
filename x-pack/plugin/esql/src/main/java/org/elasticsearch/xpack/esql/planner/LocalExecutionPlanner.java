@@ -329,27 +329,16 @@ public class LocalExecutionPlanner {
 
         assert (mmr.diversifyField() != null) : "diversifyField is required for the MMROperator";
 
-        var diversifyField = mmr.diversifyField().qualifiedName();
-        var limit = getMMRLimitValue(mmr.limit());
-        var lambdaValue = mmr.lambda();
-
-        VectorData queryVector = null;
-        if (mmr.queryVector() != null) {
-            // we've already verified this is resolved and is a DENSE_VECTOR data type
-            var queryVectorExpression = mmr.queryVector();
-
-            // TODO -- get the realized query vector as VectorData
-            // queryVector.dataType() != DataType.DENSE_VECTOR
-        }
-
-        // TODO - we need to ensure the incoming data has at least a _doc and our diversify field channels
-        // this means, we can't have a KEEP (or other field limiting operator) before without these as well
+        String diversifyField = mmr.diversifyField().qualifiedName();
+        int limit = getMMRLimitValue(mmr.limit());
+        Float lambdaValue = mmr.lambda();
+        VectorData queryVector = mmr.queryVector();
 
         int diversifyFieldChannel = source.layout.get(mmr.diversifyField().id()).channel();
 
         // see if we have a score in the input we can use for the docs
         Integer scoreChannel = null;
-        for (var input : mmr.inputSet()) {
+        for (Attribute input : mmr.inputSet()) {
             if (input.name().equals("_score") && input.dataType() == DataType.DOUBLE) {
                 scoreChannel = source.layout.get(input.id()).channel();
                 break;

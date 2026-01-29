@@ -9,19 +9,24 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.plan.logical.ExecutesOn;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Objects;
 
 public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
     private final Attribute diversifyField;
     private final Expression limit;
-    private final Expression queryVector;
+    private final Expression queryVectorExpression;
+    private final VectorData queryVector;
     private final Float lambda;
 
     public MMRExec(
@@ -29,13 +34,14 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         PhysicalPlan child,
         Attribute diversifyField,
         Expression limit,
-        @Nullable Expression queryVector,
+        @Nullable Expression queryVectorExpression,
         @Nullable Float lambda
     ) {
         super(source, child);
         this.diversifyField = diversifyField;
         this.limit = limit;
-        this.queryVector = queryVector;
+        this.queryVectorExpression = queryVectorExpression;
+        this.queryVector = extractQueryVectorData(queryVectorExpression);
         this.lambda = lambda;
     }
 
@@ -47,7 +53,7 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
         return limit;
     }
 
-    public Expression queryVector() {
+    public VectorData queryVector() {
         return queryVector;
     }
 
@@ -57,12 +63,12 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new MMRExec(source(), newChild, diversifyField, limit, queryVector, lambda);
+        return new MMRExec(source(), newChild, diversifyField, limit, queryVectorExpression, lambda);
     }
 
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVector, lambda);
+        return NodeInfo.create(this, MMRExec::new, child(), diversifyField, limit, queryVectorExpression, lambda);
     }
 
     @Override
@@ -90,5 +96,33 @@ public class MMRExec extends UnaryExec implements ExecutesOn.Coordinator {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), diversifyField, limit, queryVector, lambda);
+    }
+
+    private VectorData extractQueryVectorData(Expression queryVectorExpression) {
+        if (queryVectorExpression == null) {
+            return null;
+        }
+
+        if (queryVectorExpression instanceof Literal literalExpression && queryVectorExpression.dataType() == DataType.DENSE_VECTOR) {
+            ArrayList<?> litValues = (ArrayList<?>) literalExpression.value();
+            if (litValues.isEmpty()) {
+                return null;
+            }
+
+            float[] values = new float[litValues.size()];
+            for (int i = 0; i < values.length; i++) {
+                if (litValues.get(i) instanceof Float floatValue) {
+                    values[i] = floatValue;
+                } else if (litValues.get(i) instanceof Double doubleValue) {
+                    values[i] = doubleValue.floatValue();
+                } else {
+                    // should never happen here
+                    return null;
+                }
+            }
+            return new VectorData(values);
+        }
+
+        return null;
     }
 }

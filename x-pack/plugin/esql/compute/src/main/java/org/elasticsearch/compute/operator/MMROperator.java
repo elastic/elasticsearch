@@ -252,7 +252,9 @@ public class MMROperator extends CompleteInputCollectorOperator {
 
     @Override
     protected void onClose() {
-        // no additional cleanup needed
+        for (Page outputPage : outputPages) {
+            outputPage.releaseBlocks();
+        }
     }
 
     @Override

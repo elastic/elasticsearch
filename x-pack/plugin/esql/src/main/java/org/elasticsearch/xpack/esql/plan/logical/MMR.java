@@ -37,8 +37,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     private final Expression limit;
     private final Expression queryVector;
     private final Expression options;
-
-    private Float lambdaValue;
+    private final Float lambdaValue;
 
     public MMR(
         Source source,
@@ -53,6 +52,7 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         this.limit = limit;
         this.queryVector = queryVector;
         this.options = options;
+        this.lambdaValue = tryExtractLambdaFromOptions(options);
     }
 
     public Attribute diversifyField() {
@@ -159,9 +159,11 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         Map<String, Expression> optionsMap = new HashMap<>(((MapExpression) options).keyFoldedMap());
 
         try {
-            // set our Lambda value if we have it so it makes it easier to get it later without having to parse the expression
             Expression lambdaValueExpression = optionsMap.remove(MMR.LAMBDA_OPTION_NAME);
-            this.lambdaValue = extractLambdaFromMMROptions(lambdaValueExpression);
+            Float extractedLambda = extractLambdaFromMMROptions(lambdaValueExpression);
+            if (extractedLambda != null && (extractedLambda < 0.0f || extractedLambda > 1.0f)) {
+                throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
+            }
         } catch (RuntimeException rtEx) {
             failures.add(fail(this, rtEx.getMessage()));
         }
@@ -178,15 +180,22 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         }
     }
 
+    private Float tryExtractLambdaFromOptions(Expression optionsInput) {
+        if (optionsInput instanceof MapExpression optionsMap) {
+            Map<String, Expression> optionsValues = new HashMap<>(optionsMap.keyFoldedMap());
+            Expression lambdaValueExpression = optionsValues.getOrDefault(MMR.LAMBDA_OPTION_NAME, null);
+            if (lambdaValueExpression != null) {
+                return extractLambdaFromMMROptions(lambdaValueExpression);
+            }
+        }
+        return null;
+    }
+
     public static Float extractLambdaFromMMROptions(Expression lambdaExpression) {
         if (lambdaExpression != null) {
             if (lambdaExpression instanceof Literal litLambdaValue) {
-                Float retValue = ((Double) litLambdaValue.value()).floatValue();
-                if (retValue >= 0.0 && retValue <= 1.0) {
-                    return retValue;
-                }
+                return ((Double) litLambdaValue.value()).floatValue();
             }
-            throw new RuntimeException("MMR lambda value must be a number between 0.0 and 1.0");
         }
 
         return null;

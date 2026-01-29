@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -80,7 +81,8 @@ public enum FeatureMetric {
     SAMPLE(Sample.class::isInstance),
     SUBQUERY(Subquery.class::isInstance),
     MMR(MMR.class::isInstance),
-    PROMQL(PromqlCommand.class::isInstance);
+    PROMQL(PromqlCommand.class::isInstance),
+    URI_PARTS(UriParts.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

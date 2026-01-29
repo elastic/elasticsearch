@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -185,6 +186,9 @@ public class FieldNameUtils {
             } else if (p instanceof RegexExtract re) { // for Grok and Dissect
                 // keep the inputs needed by Grok/Dissect
                 referencesBuilder.get().addAll(re.input().references());
+            } else if (p instanceof CompoundOutputEval<?> coe) {
+                // keep the input field needed by the CompoundOutputEval
+                referencesBuilder.get().addAll(coe.getInput().references());
             } else if (p instanceof Enrich enrich) {
                 AttributeSet enrichFieldRefs = Expressions.references(enrich.enrichFields());
                 AttributeSet.Builder enrichRefs = enrichFieldRefs.combine(enrich.matchField().references()).asBuilder();
@@ -332,6 +336,7 @@ public class FieldNameUtils {
             || p instanceof OrderBy
             || p instanceof Project
             || p instanceof RegexExtract
+            || p instanceof CompoundOutputEval<?>
             || p instanceof Rename
             || p instanceof TopN
             || p instanceof UnresolvedRelation) == false;

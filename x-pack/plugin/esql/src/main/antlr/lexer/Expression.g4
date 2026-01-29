@@ -20,6 +20,7 @@ SAMPLE : 'sample'             -> pushMode(EXPRESSION_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
+DEV_URI_PARTS:      {this.isDevVersion()}? 'uri_parts_🐔'      -> pushMode(EXPRESSION_MODE);
 
 mode EXPRESSION_MODE;
 

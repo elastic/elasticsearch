@@ -167,6 +167,10 @@ class AbstractTransportVersionFuncTest extends AbstractGradleFuncTest {
         execute("git init")
         execute('git config user.email "build-tool@elastic.co"')
         execute('git config user.name "Build tool"')
+        file(".gitignore") << """
+        .gradle/
+        build/
+        """.stripIndent()
         execute("git add .")
         execute('git commit -m "Initial"')
     }

@@ -79,7 +79,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         new IntermediateStateDesc("timestamps", ElementType.LONG),
         new IntermediateStateDesc("values", ElementType.$TYPE$),
         new IntermediateStateDesc("sampleCounts", ElementType.LONG),
-        new IntermediateStateDesc("resets", ElementType.DOUBLE)
+        new IntermediateStateDesc("resets", ElementType.DOUBLE),
+        new IntermediateStateDesc("overlapCounts", ElementType.LONG)
     );
 
     private final $Type$RawBuffer rawBuffer;
@@ -303,6 +304,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
         DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector overlapCounts = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -319,6 +321,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
             state.samples += sampleCount;
             state.resets += resets.getDouble(valuePosition);
+            state.overlapCount += overlapCounts.getLong(valuePosition);
         }
     }
 
@@ -332,6 +335,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
         DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        LongVector overlapCounts = ((LongBlock) page.getBlock(channels.get(4))).asVector();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -354,6 +358,7 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                 state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
                 state.samples += sampleCount;
                 state.resets += resets.getDouble(valuePosition);
+                state.overlapCount += overlapCounts.getLong(valuePosition);
             }
         }
     }
@@ -367,7 +372,8 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.new$Type$BlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
-            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount);
+            var overlapCounts = blockFactory.newLongVectorFixedBuilder(positionCount)
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selected.getInt(p);
@@ -386,17 +392,20 @@ public final class Rate$Type$GroupingAggregatorFunction extends AbstractRateGrou
                     values.endPositionEntry();
                     sampleCounts.appendLong(state.samples);
                     resets.appendDouble(state.resets);
+                    overlapCounts.appendLong(state.overlapCount);
                 } else {
                     timestamps.appendLong(0);
                     values.append$Type$(0);
                     sampleCounts.appendLong(0);
                     resets.appendDouble(0);
+                    overlapCounts.appendLong(0);
                 }
             }
             blocks[offset] = timestamps.build();
             blocks[offset + 1] = values.build();
             blocks[offset + 2] = sampleCounts.build().asBlock();
             blocks[offset + 3] = resets.build().asBlock();
+            blocks[offset + 4] = overlapCounts.build().asBlock();
         }
     }
 

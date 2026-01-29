@@ -161,6 +161,8 @@
               text_field: "foo bar"
 
   - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
 
   # Verify terms aggregation
   - do:
@@ -181,14 +183,14 @@
   - match: { aggregations.text_terms.buckets.1.key: "baz qux" }
   - match: { aggregations.text_terms.buckets.1.doc_count: 1 }
 
-  # Verify ES|QL
+  # Verify ESQL
   - do:
       esql.query:
         body:
-          query: 'FROM test_text_no_index_docvalues | WHERE text_field == "foo bar" | KEEP text_field | SORT text_field'
+          query: 'FROM test_text_no_index_docvalues | WHERE text_field == "foo bar" | KEEP _id, text_field | SORT _id ASC'
 
   - length: { values: 2 }
-  - match: { values.0.0: "foo bar" }
-  - match: { values.1.0: "foo bar" }
-
-    
+  - match: { values.0.0: "1" }
+  - match: { values.0.1: "foo bar" }
+  - match: { values.1.0: "2" }
+  - match: { values.1.1: "foo bar" }

@@ -32,7 +32,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -555,20 +554,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
         }
-    }
-
-    public void testEstimateSynonymsMapSize() throws Exception {
-        String synonyms = """
-            foo => bar, baz
-            foo, bar, baz
-            # foo, bar, baz
-            """;
-        SynonymTokenFilterFactory.ReaderWithOrigin readerWithOrigin = new SynonymTokenFilterFactory.ReaderWithOrigin(
-            new StringReader(synonyms),
-            "test",
-            SynonymTokenFilterFactory.SynonymsSource.LOCAL_FILE
-        );
-        assertEquals(18, SynonymTokenFilterFactory.estimateSynonymsMapSize(readerWithOrigin));
     }
 
     private void match(String analyzerName, String source, String target) throws IOException {

@@ -27,11 +27,8 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
-import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.function.Function;
 
@@ -239,11 +236,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer);
                 ((ESWordnetSynonymParser) parser).parse(rules.reader);
             } else {
-                if (rules.synonymsSource == SynonymsSource.INDEX) {
-                    long estimatedSize = estimateSynonymsMapSize(rules);
-                    // TODO: Add estimated size to circuit breaker
-                }
-
                 parser = new ESSolrSynonymParser(true, expand, lenient, analyzer);
                 ((ESSolrSynonymParser) parser).parse(rules.reader);
             }
@@ -251,56 +243,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         } catch (Exception e) {
             throw new IllegalArgumentException("failed to build synonyms from [" + rules.origin + "]", e);
         }
-    }
-
-    /**
-     * <p>
-     * Estimates the synonyms map size by summing up the size of all the terms in the provided rules. The size of each term is determined
-     * by UTF8 encoding it and taking its length.
-     * </p>
-     * <p>
-     * Note that this method does not deduplicate terms. Doing so would require storing a reference to each unique term, which may require
-     * a significant amount of memory. Since the point of this method is to estimate the synonyms map size to avoid OOMs while building it,
-     * low memory usage is prioritized in the implementation.
-     * </p>
-     *
-     * @param rules
-     * @return
-     * @throws IOException
-     */
-    static long estimateSynonymsMapSize(ReaderWithOrigin rules) throws IOException {
-        final Function<String[], Long> estimateSize = a -> {
-            long estimatedSize = 0;
-            for (String s : a) {
-                estimatedSize += s.trim().getBytes(StandardCharsets.UTF_8).length;
-            }
-
-            return estimatedSize;
-        };
-
-        long totalEstimatedSize = 0;
-        try {
-            // Don't close the buffered reader because that also closes the underlying rules reader
-            BufferedReader bufferedReader = new BufferedReader(rules.reader);
-            String line = bufferedReader.readLine();
-            while (line != null) {
-                // Ignore empty lines and comments
-                if (line.isEmpty() == false && line.startsWith("#") == false) {
-                    String[] inputAndOutput = line.split("=>", 2);
-                    totalEstimatedSize += estimateSize.apply(inputAndOutput[0].split(","));
-                    if (inputAndOutput.length == 2) {
-                        // Explicit synonym
-                        totalEstimatedSize += estimateSize.apply(inputAndOutput[1].split(","));
-                    }
-                }
-
-                line = bufferedReader.readLine();
-            }
-        } finally {
-            rules.reader.reset();
-        }
-
-        return totalEstimatedSize;
     }
 
     record ReaderWithOrigin(Reader reader, String origin, SynonymsSource synonymsSource, String resource) {

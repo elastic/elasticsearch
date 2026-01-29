@@ -57,7 +57,7 @@ public class PageBufferOperatorTests extends ESTestCase {
         sink.addInput(page);
 
         assertThat(sink.size(), equalTo(1));
-        assertThat(sink.needsInput(), is(false));  // Cache is full (size 1)
+        assertThat(sink.needsInput(), is(true));  // Cache has room for more (size 100)
 
         BatchPage polled = sink.poll();
         assertThat(polled, notNullValue());
@@ -70,18 +70,25 @@ public class PageBufferOperatorTests extends ESTestCase {
     public void testBlocksWhenFull() {
         PageBufferOperator sink = new PageBufferOperator();
 
-        BatchPage page = createTestBatchPage(1, 0);
-        sink.addInput(page);
+        // Fill the cache to capacity
+        for (int i = 0; i < PageBufferOperator.CACHE_SIZE; i++) {
+            BatchPage page = createTestBatchPage(i, 0);
+            sink.addInput(page);
+        }
 
         // Should be blocked now (cache full)
         IsBlockedResult blocked = sink.isBlocked();
         assertThat(blocked.listener().isDone(), is(false));
 
-        // Poll the page
-        sink.poll();
+        // Poll a page
+        BatchPage polled = sink.poll();
+        assertThat(polled, notNullValue());
 
         // Should be unblocked now
         assertThat(blocked.listener().isDone(), is(true));
+
+        // Clean up remaining pages
+        sink.close();
     }
 
     public void testWaitForPage() {
@@ -172,8 +179,10 @@ public class PageBufferOperatorTests extends ESTestCase {
     public void testCloseUnblocksFutures() {
         PageBufferOperator sink = new PageBufferOperator();
 
-        // Fill cache to get blocked future
-        sink.addInput(createTestBatchPage(1, 0));
+        // Fill cache to capacity to get blocked future
+        for (int i = 0; i < PageBufferOperator.CACHE_SIZE; i++) {
+            sink.addInput(createTestBatchPage(i, 0));
+        }
         IsBlockedResult blocked = sink.isBlocked();
         assertThat(blocked.listener().isDone(), is(false));
 

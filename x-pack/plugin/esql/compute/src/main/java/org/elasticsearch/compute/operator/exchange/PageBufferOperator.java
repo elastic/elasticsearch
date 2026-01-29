@@ -15,25 +15,31 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 
-import java.util.ArrayDeque;
-import java.util.Queue;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * A sink operator that caches a single page and blocks when full.
+ * A sink operator that caches pages and blocks when full.
  * <p>
  * This provides backpressure by blocking the upstream pipeline when the cache is full,
  * allowing the downstream consumer to control the pace of page processing.
  * <p>
  * The downstream consumer calls {@link #poll()} to retrieve pages and {@link #waitForPage()}
  * to get an {@link IsBlockedResult} that resolves when a page is available.
+ * <p>
+ * Uses {@link ArrayBlockingQueue} for thread-safe bounded buffering with O(1) size tracking.
+ * Synchronization is only used for listener notification
  */
 public class PageBufferOperator extends SinkOperator {
     private static final Logger logger = LogManager.getLogger(PageBufferOperator.class);
 
-    private static final int CACHE_SIZE = 1;
+    static final int CACHE_SIZE = 10;
 
-    private final Queue<BatchPage> cache = new ArrayDeque<>(CACHE_SIZE);
-    private final Object lock = new Object();
+    // Bounded queue for backpressure - ArrayBlockingQueue has O(1) size() and handles synchronization internally
+    private final ArrayBlockingQueue<BatchPage> cache = new ArrayBlockingQueue<>(CACHE_SIZE);
+
+    // Lock only for listener notification (rare events)
+    private final Object listenerLock = new Object();
 
     // Future that resolves when space becomes available in the cache
     private SubscribableListener<Void> spaceAvailableFuture;
@@ -41,8 +47,9 @@ public class PageBufferOperator extends SinkOperator {
     // Future that resolves when a page becomes available in the cache
     private SubscribableListener<Void> pageAvailableFuture;
 
-    private volatile boolean finished = false;
-    private volatile boolean upstreamFinished = false;
+    // Atomic flags for finished state
+    private final AtomicBoolean finished = new AtomicBoolean(false);
+    private final AtomicBoolean upstreamFinished = new AtomicBoolean(false);
 
     @Override
     protected void doAddInput(Page page) {
@@ -51,29 +58,28 @@ public class PageBufferOperator extends SinkOperator {
         }
         BatchPage batchPage = (BatchPage) page;
 
-        SubscribableListener<Void> listenerToNotify = null;
-        int cacheSize;
-        synchronized (lock) {
-            cache.add(batchPage);
-            cacheSize = cache.size();
-            // Capture the listener to notify outside the lock
-            if (pageAvailableFuture != null) {
-                listenerToNotify = pageAvailableFuture;
-                pageAvailableFuture = null;
-            }
-        }
+        // Add to queue
+        cache.add(batchPage);
+        int newSize = cache.size();
 
-        // Log and notify outside the lock
         logger.trace(
             "[PageBufferOperator] Added page to cache: batchId={}, pageIndex={}, isLast={}, positions={}, cacheSize={}/{}",
             batchPage.batchId(),
             batchPage.pageIndexInBatch(),
             batchPage.isLastPageInBatch(),
             batchPage.getPositionCount(),
-            cacheSize,
+            newSize,
             CACHE_SIZE
         );
 
+        // Notify waiting consumers (only synchronize for listener access)
+        SubscribableListener<Void> listenerToNotify = null;
+        synchronized (listenerLock) {
+            if (pageAvailableFuture != null) {
+                listenerToNotify = pageAvailableFuture;
+                pageAvailableFuture = null;
+            }
+        }
         if (listenerToNotify != null) {
             listenerToNotify.onResponse(null);
         }
@@ -81,66 +87,78 @@ public class PageBufferOperator extends SinkOperator {
 
     @Override
     public boolean needsInput() {
-        synchronized (lock) {
-            return cache.size() < CACHE_SIZE && finished == false;
-        }
+        return cache.size() < CACHE_SIZE && finished.get() == false;
     }
 
     @Override
     public IsBlockedResult isBlocked() {
-        synchronized (lock) {
-            if (cache.size() < CACHE_SIZE || finished) {
+        // Fast path: check without lock
+        int currentSize = cache.size();
+        if (currentSize < CACHE_SIZE || finished.get()) {
+            return Operator.NOT_BLOCKED;
+        }
+
+        // Slow path: need to create/return listener (requires synchronization)
+        synchronized (listenerLock) {
+            // Re-check under lock to avoid race
+            currentSize = cache.size();
+            if (currentSize < CACHE_SIZE || finished.get()) {
                 return Operator.NOT_BLOCKED;
             }
             // Cache is full - block until space is available
             if (spaceAvailableFuture == null) {
                 spaceAvailableFuture = new SubscribableListener<>();
             }
-            logger.debug("[PageBufferOperator] Blocking - cache full: cacheSize={}/{}", cache.size(), CACHE_SIZE);
+            logger.debug("[PageBufferOperator] Blocking - cache full: cacheSize={}/{}", currentSize, CACHE_SIZE);
             return new IsBlockedResult(spaceAvailableFuture, "page cache full");
         }
     }
 
     @Override
     public void finish() {
-        synchronized (lock) {
-            logger.debug(
-                "[PageBufferOperator] finish() called: cacheSize={}, upstreamFinished={}, finished={}",
-                cache.size(),
-                upstreamFinished,
-                finished
-            );
-            upstreamFinished = true;
-            // If cache is empty and upstream is done, we're finished
-            if (cache.isEmpty()) {
-                finished = true;
-            }
-            // Notify anyone waiting for pages that no more will come
+        logger.debug(
+            "[PageBufferOperator] finish() called: cacheSize={}, upstreamFinished={}, finished={}",
+            cache.size(),
+            upstreamFinished.get(),
+            finished.get()
+        );
+        upstreamFinished.set(true);
+        // If cache is empty and upstream is done, we're finished
+        if (cache.size() == 0) {
+            finished.set(true);
+        }
+
+        // Notify anyone waiting for pages that no more will come
+        SubscribableListener<Void> listenerToNotify = null;
+        synchronized (listenerLock) {
             if (pageAvailableFuture != null) {
                 logger.debug("[PageBufferOperator] Notifying pageAvailableFuture (no more pages)");
-                pageAvailableFuture.onResponse(null);
+                listenerToNotify = pageAvailableFuture;
                 pageAvailableFuture = null;
             }
+        }
+        if (listenerToNotify != null) {
+            listenerToNotify.onResponse(null);
         }
     }
 
     @Override
     public boolean isFinished() {
-        synchronized (lock) {
-            return finished && cache.isEmpty();
-        }
+        return finished.get() && cache.size() == 0;
     }
 
     @Override
     public void close() {
-        synchronized (lock) {
-            finished = true;
-            // Release any cached pages
-            for (BatchPage page : cache) {
-                page.releaseBlocks();
-            }
-            cache.clear();
-            // Notify any blocked futures
+        finished.set(true);
+
+        // Drain and release any cached pages
+        BatchPage page;
+        while ((page = cache.poll()) != null) {
+            page.releaseBlocks();
+        }
+
+        // Notify any blocked futures
+        synchronized (listenerLock) {
             if (spaceAvailableFuture != null) {
                 spaceAvailableFuture.onResponse(null);
                 spaceAvailableFuture = null;
@@ -160,28 +178,34 @@ public class PageBufferOperator extends SinkOperator {
      * @return the next page, or null if the cache is empty
      */
     public BatchPage poll() {
-        synchronized (lock) {
-            BatchPage page = cache.poll();
-            if (page != null) {
-                logger.debug(
-                    "[PageBufferOperator] Polled page from cache: batchId={}, pageIndex={}, cacheSize={}/{}",
-                    page.batchId(),
-                    page.pageIndexInBatch(),
-                    cache.size(),
-                    CACHE_SIZE
-                );
-                // Notify upstream that space is available
+        BatchPage page = cache.poll();
+        if (page != null) {
+            logger.debug(
+                "[PageBufferOperator] Polled page from cache: batchId={}, pageIndex={}, cacheSize={}/{}",
+                page.batchId(),
+                page.pageIndexInBatch(),
+                cache.size(),
+                CACHE_SIZE
+            );
+
+            // Notify upstream that space is available (only synchronize for listener access)
+            SubscribableListener<Void> listenerToNotify = null;
+            synchronized (listenerLock) {
                 if (spaceAvailableFuture != null) {
-                    spaceAvailableFuture.onResponse(null);
+                    listenerToNotify = spaceAvailableFuture;
                     spaceAvailableFuture = null;
                 }
             }
-            // Check if we're done
-            if (upstreamFinished && cache.isEmpty()) {
-                finished = true;
+            if (listenerToNotify != null) {
+                listenerToNotify.onResponse(null);
             }
-            return page;
         }
+
+        // Check if we're done
+        if (upstreamFinished.get() && cache.size() == 0) {
+            finished.set(true);
+        }
+        return page;
     }
 
     /**
@@ -190,8 +214,15 @@ public class PageBufferOperator extends SinkOperator {
      * @return NOT_BLOCKED if a page is available or finished, otherwise a blocked result
      */
     public IsBlockedResult waitForPage() {
-        synchronized (lock) {
-            if (cache.isEmpty() == false || finished) {
+        // Fast path: check without lock
+        if (cache.size() > 0 || finished.get()) {
+            return Operator.NOT_BLOCKED;
+        }
+
+        // Slow path: need to create/return listener (requires synchronization)
+        synchronized (listenerLock) {
+            // Re-check under lock to avoid race
+            if (cache.size() > 0 || finished.get()) {
                 return Operator.NOT_BLOCKED;
             }
             // No pages available - wait for one
@@ -207,26 +238,20 @@ public class PageBufferOperator extends SinkOperator {
      * Returns the current number of pages in the cache.
      */
     public int size() {
-        synchronized (lock) {
-            return cache.size();
-        }
+        return cache.size();
     }
 
     /**
      * Returns true if the upstream has finished and the cache is empty.
      */
     public boolean isDone() {
-        synchronized (lock) {
-            return finished && cache.isEmpty();
-        }
+        return finished.get() && cache.size() == 0;
     }
 
     /**
      * Returns true if upstream has signaled finish (but cache may still have pages).
      */
     public boolean isUpstreamFinished() {
-        synchronized (lock) {
-            return upstreamFinished;
-        }
+        return upstreamFinished.get();
     }
 }

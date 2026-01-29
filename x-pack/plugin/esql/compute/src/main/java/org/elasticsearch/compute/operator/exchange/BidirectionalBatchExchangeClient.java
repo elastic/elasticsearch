@@ -645,6 +645,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             );
         }
 
+        // Finish the server-to-client source handler to unblock the client driver.
+        // The driver may be blocked waiting for pages from this exchange, so we need to signal completion.
+        // This is necessary when closing early (e.g., test cleanup) before any pages were received.
+        if (serverToClientSourceHandler != null) {
+            logger.debug("[LookupJoinClient] Finishing server-to-client source handler to unblock driver");
+            serverToClientSourceHandler.finishEarly(true, ActionListener.noop());
+        }
+
         // Wait for driver to finish completely before closing the source.
         // The driver will finish the operator when it's done, so we should wait for that
         // to avoid race conditions where we try to finish/close the source while the driver is still using it.

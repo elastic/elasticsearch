@@ -111,7 +111,7 @@ public final class TextStructureUtils {
      * @return A tuple of (field name, timestamp format finder) if one can be found, or <code>null</code> if
      *         there is no consistent timestamp.
      */
-    static Tuple<String, TimestampFormatFinder> guessTimestampField(
+    public static Tuple<String, TimestampFormatFinder> guessTimestampField(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TextStructureOverrides overrides,
@@ -268,9 +268,36 @@ public final class TextStructureUtils {
      * @param sampleRecords The sampled records.
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @param maxDepth The max recursion depth.
      * @return A map of field name to mapping settings.
      */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+        List<String> explanation,
+        List<Map<String, ?>> sampleRecords,
+        TimeoutChecker timeoutChecker,
+        String timestampFormatOverride,
+        int maxDepth
+    ) {
+        return guessMappingsAndCalculateFieldStats(
+            explanation,
+            sampleRecords,
+            timeoutChecker,
+            DEFAULT_ECS_COMPATIBILITY,
+            timestampFormatOverride,
+            maxDepth
+        );
+    }
+
+    /**
+     * Given the sampled records, guess appropriate Elasticsearch mappings.
+     * @param explanation List of reasons for making decisions.  May contain items when passed and new reasons
+     *                    can be appended by this method.
+     * @param sampleRecords The sampled records.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @return A map of field name to mapping settings.
+     */
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
@@ -281,7 +308,8 @@ public final class TextStructureUtils {
             sampleRecords,
             timeoutChecker,
             DEFAULT_ECS_COMPATIBILITY,
-            timestampFormatOverride
+            timestampFormatOverride,
+            1
         );
     }
 
@@ -294,13 +322,13 @@ public final class TextStructureUtils {
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @return A map of field name to mapping settings.
      */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
         boolean ecsCompatibility
     ) {
-        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, ecsCompatibility, null);
+        return guessMappingsAndCalculateFieldStats(explanation, sampleRecords, timeoutChecker, ecsCompatibility, null, 1);
     }
 
     /**
@@ -311,24 +339,31 @@ public final class TextStructureUtils {
      * @param timeoutChecker Will abort the operation if its timeout is exceeded.
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
+     * @param maxDepth The max recursion depth.
      * @return A map of field name to mapping settings.
      */
-    static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
+    public static Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> guessMappingsAndCalculateFieldStats(
         List<String> explanation,
         List<Map<String, ?>> sampleRecords,
         TimeoutChecker timeoutChecker,
         boolean ecsCompatibility,
-        String timestampFormatOverride
+        String timestampFormatOverride,
+        int maxDepth
     ) {
+        if (maxDepth < 1) {
+            throw new IllegalArgumentException("Max recursion depth must be at least 1");
+        }
 
         SortedMap<String, Object> mappings = new TreeMap<>();
         SortedMap<String, FieldStats> fieldStats = new TreeMap<>();
 
-        Set<String> uniqueFieldNames = sampleRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
+        List<Map<String, Object>> flattenedRecords = sampleRecords.stream()
+            .map(record -> flattenRecord(record, timeoutChecker, maxDepth))
+            .toList();
+        Set<String> uniqueFieldNames = flattenedRecords.stream().flatMap(record -> record.keySet().stream()).collect(Collectors.toSet());
 
         for (String fieldName : uniqueFieldNames) {
-
-            List<Object> fieldValues = sampleRecords.stream()
+            List<Object> fieldValues = flattenedRecords.stream()
                 .map(record -> record.get(fieldName))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
@@ -355,6 +390,166 @@ public final class TextStructureUtils {
     }
 
     /**
+     * Flattens a map with nested objects into a flat map with dot-notation keys.
+     * For example, {"host": {"id": 1}, "name": "test"} becomes {"host.id": 1, "name": "test"}
+     *
+     * @param record         The record with potentially nested objects.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param maxDepth       The max recursion depth.
+     * @return A flattened map with dot-notation keys.
+     */
+    private static Map<String, Object> flattenRecord(Map<String, ?> record, TimeoutChecker timeoutChecker, int maxDepth) {
+        Map<String, Object> flattened = new LinkedHashMap<>();
+        flattenRecordRecursive("", record, flattened, timeoutChecker, 1, maxDepth);
+        return flattened;
+    }
+
+    private static void flattenRecordRecursive(
+        String prefix,
+        Map<String, ?> record,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int currentDepth,
+        int maxDepth
+    ) {
+        timeoutChecker.check("record flattening");
+        for (Map.Entry<String, ?> entry : record.entrySet()) {
+            String key = prefix.isEmpty() ? entry.getKey() : prefix + "." + entry.getKey();
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> nestedMap = (Map<String, ?>) value;
+                if (nestedMap.isEmpty() || currentDepth >= maxDepth) {
+                    // Empty nested objects or max depth reached - will be mapped as "object" type
+                    flattenedResult.put(key, Collections.emptyMap());
+                } else {
+                    flattenRecordRecursive(key, nestedMap, flattenedResult, timeoutChecker, currentDepth + 1, maxDepth);
+                }
+            } else if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                flattenListValues(key, list, flattenedResult, timeoutChecker, currentDepth, maxDepth);
+            } else {
+                flattenedResult.put(key, value);
+            }
+        }
+    }
+
+    /**
+     * Flattens values from a list, handling nested maps within the list.
+     * For lists of maps like [{"id": 1}, {"id": 2}], this merges them into a map with arrays: {"id": [1, 2]}
+     * @param prefix The current field prefix for dot notation.
+     * @param list The list to process.
+     * @param flattenedResult The output map to add flattened fields to.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param currentDepth The current recursion depth.
+     * @param maxDepth The max recursion depth.
+     */
+    private static void flattenListValues(
+        String prefix,
+        List<Object> list,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int currentDepth,
+        int maxDepth
+    ) {
+        timeoutChecker.check("record flattening");
+        boolean hasNestedMaps = false;
+        boolean hasNonMaps = false;
+        for (Object item : list) {
+            if (item instanceof Map) {
+                hasNestedMaps = true;
+            } else if (item != null) {
+                hasNonMaps = true;
+            }
+            if (hasNestedMaps && hasNonMaps) {
+                break;
+            }
+        }
+        if (hasNestedMaps == false) {
+            flattenedResult.put(prefix, list);
+            return;
+        }
+
+        if (hasNestedMaps && hasNonMaps) {
+            throw new IllegalArgumentException(
+                "Field [" + prefix + "] has both object and non-object values - this is not supported by Elasticsearch"
+            );
+        }
+
+        Map<String, List<Object>> collectedValues = flattenObjectsInAList(
+            prefix,
+            list,
+            flattenedResult,
+            timeoutChecker,
+            currentDepth,
+            maxDepth
+        );
+        addListFlatteningResultToGeneralResults(flattenedResult, collectedValues);
+    }
+
+    private static void addListFlatteningResultToGeneralResults(
+        Map<String, Object> flattenedResult,
+        Map<String, List<Object>> collectedValues
+    ) {
+        for (Map.Entry<String, List<Object>> entry : collectedValues.entrySet()) {
+            List<Object> values = entry.getValue();
+            // If all values are singles, keep as list; if any are lists, flatten them
+            List<Object> flattenedValues = new ArrayList<>();
+            for (Object val : values) {
+                if (val instanceof List) {
+                    @SuppressWarnings("unchecked")
+                    List<Object> innerList = (List<Object>) val;
+                    flattenedValues.addAll(innerList);
+                } else {
+                    flattenedValues.add(val);
+                }
+            }
+            flattenedResult.put(entry.getKey(), flattenedValues);
+        }
+    }
+
+    /**
+     * Iterates over objects in a list, flattening them and gathering the results into a single map.
+     * @param prefix The current field prefix for dot notation.
+     * @param list The list to process.
+     * @param flattenedResult The output map to add flattened fields to.
+     * @param timeoutChecker Will abort the operation if its timeout is exceeded.
+     * @param currentDepth The current recursion depth.
+     * @param maxDepth The max recursion depth.
+     * @return A map of field name to list of values.
+     */
+    private static Map<String, List<Object>> flattenObjectsInAList(
+        String prefix,
+        List<Object> list,
+        Map<String, Object> flattenedResult,
+        TimeoutChecker timeoutChecker,
+        int currentDepth,
+        int maxDepth
+    ) {
+        Map<String, List<Object>> collectedValues = new LinkedHashMap<>();
+        for (Object item : list) {
+            if (item instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, ?> nestedMap = (Map<String, ?>) item;
+                Map<String, Object> flattenedItem = new LinkedHashMap<>();
+                if (currentDepth >= maxDepth) {
+                    // Max depth reached - will be mapped as "object" type
+                    flattenedResult.put(prefix, Collections.emptyMap());
+                    return collectedValues;
+                } else {
+                    flattenRecordRecursive("", nestedMap, flattenedItem, timeoutChecker, currentDepth + 1, maxDepth);
+                }
+                for (Map.Entry<String, Object> entry : flattenedItem.entrySet()) {
+                    String fieldKey = prefix + "." + entry.getKey();
+                    collectedValues.computeIfAbsent(fieldKey, k -> new ArrayList<>()).add(entry.getValue());
+                }
+            }
+        }
+        return collectedValues;
+    }
+
+    /**
      * Given the sampled records, guess appropriate Elasticsearch mappings.
      * @param explanation List of reasons for choosing the overall text structure.  This list
      *                    may be non-empty when the method is called, and this method may
@@ -367,7 +562,7 @@ public final class TextStructureUtils {
      * @param ecsCompatibility The mode of compatibility with ECS Grok patterns.
      * @return A tuple comprised of the field mappings and field stats.
      */
-    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    private static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
@@ -391,7 +586,7 @@ public final class TextStructureUtils {
      * @param timestampFormatOverride The format of the timestamp as given in the request overrides.
      * @return A tuple comprised of the field mappings and field stats.
      */
-    static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
+    private static Tuple<Map<String, String>, FieldStats> guessMappingAndCalculateFieldStats(
         List<String> explanation,
         String fieldName,
         List<Object> fieldValues,
@@ -409,9 +604,6 @@ public final class TextStructureUtils {
             if (fieldValues.stream().allMatch(value -> value instanceof Map)) {
                 return new Tuple<>(Collections.singletonMap(MAPPING_TYPE_SETTING, "object"), null);
             }
-            throw new IllegalArgumentException(
-                "Field [" + fieldName + "] has both object and non-object values - this is not supported by Elasticsearch"
-            );
         }
 
         if (fieldValues.stream().anyMatch(value -> value instanceof List || value instanceof Object[])) {

@@ -21,7 +21,10 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class TextStructureUtilsTests extends TextStructureTestCase {
     private static final boolean ECS_COMPATIBILITY_DISABLED = false;
@@ -618,6 +621,351 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
     }
 
+    /**
+     * Input:
+     * {
+     *  "host": {"id": 1, "category": "NETWORKING DEVICE"},
+     *  "timestamp": "1478261151445",
+     *  "message": "Connection established"
+     * }
+     */
+    public void testGuessMappingGivenNestedObjectAndNoRecursion() {
+        Map<String, Object> nestedObject = new LinkedHashMap<>();
+        nestedObject.put("id", 1);
+        nestedObject.put("category", "NETWORKING DEVICE");
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", nestedObject);
+        input.put("timestamp", "1478261151445");
+        input.put("message", "Connection established");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "host", "object");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertKeyAndMappedType(mappings, "message", "keyword");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "host": {"id": 1, "category": "NETWORKING DEVICE"},
+     *  "timestamp": "1478261151445",
+     *  "message": "Connection established"
+     * }
+     */
+    public void testGuessMappingRecursiveGivenNestedObject() {
+        Map<String, Object> nestedObject = new LinkedHashMap<>();
+        nestedObject.put("id", 1);
+        nestedObject.put("category", "NETWORKING DEVICE");
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", nestedObject);
+        input.put("timestamp", "1478261151445");
+        input.put("message", "Connection established");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "host.id", "long");
+            assertKeyAndMappedType(mappings, "host.category", "keyword");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertKeyAndMappedType(mappings, "message", "keyword");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": [
+     *      {"id": 1, "name": "host1"},
+     *      {"id": 1, "name": "host1"},
+     *      {"id": 1, "name": "host1"}
+     *  ],
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveGivenArrayWithNestedObject() {
+        Map<String, Object> nestedObject = new LinkedHashMap<>();
+        nestedObject.put("id", 1);
+        nestedObject.put("name", "host1");
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", List.of(nestedObject, nestedObject, nestedObject));
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "host.id", "long");
+            assertKeyAndMappedType(mappings, "host.name", "keyword");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": [
+     *      [{"id": 1, "name": "host1"}],
+     *      [{"id": 1, "name": "host1"}],
+     *      [{"id": 1, "name": "host1"}]
+     *  ],
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveGivenNestedLists() {
+        Map<String, Object> nestedObject = new LinkedHashMap<>();
+        nestedObject.put("id", 1);
+        nestedObject.put("name", "host1");
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", List.of(List.of(nestedObject), List.of(nestedObject), List.of(nestedObject)));
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            // No support for list of lists
+            assertKeyAndMappedType(mappings, "host", "object");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "host": {},
+     *  "message" : { "content" : {}}
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingEmptyObjectMappedToObjectType() {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("host", Map.of());
+        input.put("message", Map.of("content", Map.of()));
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "host", "object");
+            assertKeyAndMappedType(mappings, "message.content", "object");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": { "host": [4, { "id": 3}]},
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveWithNestedListOfObjectsAndNonObjects() {
+        var innerList = List.of(4, Map.of("id", 3));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("hosts", Map.of("host", innerList));
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(input),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    10
+                )
+            );
+            assertEquals(
+                "Field [hosts.host] has both object and non-object values - this is not supported by Elasticsearch",
+                e.getMessage()
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": { "host": null },
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveWithNullValue() {
+        Map<String, Object> innerMap = new LinkedHashMap<>();
+        innerMap.put("host", null);
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("hosts", innerMap);
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertThat("No mappings other than timestamp", mappings.entrySet(), hasSize(1));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "hosts": { "host": [] },
+     *  "timestamp": "1478261151445"
+     * }
+     */
+    public void testGuessMappingRecursiveWithEmptyList() {
+        Map<String, Object> innerMap = new LinkedHashMap<>();
+        innerMap.put("host", List.of());
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("hosts", innerMap);
+        input.put("timestamp", "1478261151445");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+            assertThat("No mappings other than timestamp", mappings.entrySet(), hasSize(1));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "level1": { "level2" : { "level3": { "...": { "level10": 1}}}},
+     * }
+     */
+    public void testGuessMappingDeeplyNestedRecordsWithinRecursionLimit() {
+        int inputDepth = 10;
+        Map<String, Object> finalInput = generateDeeplyNestedRecord(inputDepth);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(finalInput),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    inputDepth + 1
+                );
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "level1.level2.level3.level4.level5.level6.level7.level8.level9.level10", "long");
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *  "level1": { "level2" : { "level3": { "...": { "level10": 1}}}},
+     * }
+     */
+    public void testGuessMappingDeeplyNestedRecordsOutsideRecursionLimit() {
+        int inputDepth = 10;
+        Map<String, Object> finalInput = generateDeeplyNestedRecord(inputDepth);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(finalInput),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    inputDepth - 1
+                );
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            assertKeyAndMappedType(mappings, "level1.level2.level3.level4.level5.level6.level7.level8.level9", "object");
+            assertThat(
+                "Anything beyond the max depth gets serialized into 'object'",
+                mappings,
+                not(hasKey("level1.level2.level3.level4.level5.level6.level7.level8.level10"))
+            );
+            assertKeyAndMappedTime(mappings, "timestamp", "date", "epoch_millis");
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    public void testGuessMappingsWithMaxDepthLessThanOneThrowsException() {
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("field", "value");
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(input),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    0
+                )
+            );
+            assertEquals("Max recursion depth must be at least 1", e.getMessage());
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
     public void testGuessMappingsAndCalculateFieldStats() {
         Map<String, Object> sample1 = new LinkedHashMap<>();
         sample1.put("foo", "not a time");
@@ -1116,6 +1464,20 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
     }
 
+    /**
+     * Generates a deeply nested JSON object.
+     * Example for desiredDepth=3, id=1: {"level1": {"level2": {"level3": 1}}}
+     */
+    private Map<String, Object> generateDeeplyNestedRecord(int desiredDepth) {
+        Map<String, Object> input = Map.of("level" + desiredDepth, 1);
+        for (int i = desiredDepth - 1; i >= 1; i--) {
+            input = Map.of("level" + i, input);
+        }
+        Map<String, Object> finalInput = new LinkedHashMap<>(input);
+        finalInput.put("timestamp", "1478261151445");
+        return finalInput;
+    }
+
     private Map<String, String> guessMapping(
         List<String> explanation,
         String fieldName,
@@ -1123,15 +1485,26 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         boolean ecsCompatibility,
         String timestampFormatOverride
     ) {
-        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> recordsMap = List.of(Map.of(fieldName, fieldValues));
+        var mappings = TextStructureUtils.guessMappingsAndCalculateFieldStats(
             explanation,
-            fieldName,
-            fieldValues,
+            recordsMap,
             NOOP_TIMEOUT_CHECKER,
             ecsCompatibility,
-            timestampFormatOverride
+            timestampFormatOverride,
+            1
         );
-        return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
+
+        if (mappings.v1().isEmpty()) {
+            return null;
+        }
+
+        var fieldMapping = Map.ofEntries(mappings.v1().firstEntry());
+        @SuppressWarnings("unchecked")
+        var fieldMapping2 = (Map<String, String>) fieldMapping.get(fieldName);
+        return fieldMapping2;
     }
 
     private Map<String, String> guessMapping(
@@ -1140,14 +1513,23 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         List<Object> fieldValues,
         boolean ecsCompatibility
     ) {
-        Tuple<Map<String, String>, FieldStats> mappingAndFieldStats = TextStructureUtils.guessMappingAndCalculateFieldStats(
+        @SuppressWarnings("unchecked")
+        List<Map<String, ?>> recordsMap = List.of(Map.of(fieldName, fieldValues));
+        var mappings = TextStructureUtils.guessMappingsAndCalculateFieldStats(
             explanation,
-            fieldName,
-            fieldValues,
+            recordsMap,
             NOOP_TIMEOUT_CHECKER,
             ecsCompatibility
         );
-        return (mappingAndFieldStats == null) ? null : mappingAndFieldStats.v1();
+
+        if (mappings.v1().isEmpty()) {
+            return null;
+        }
+
+        var fieldMapping = Map.ofEntries(mappings.v1().firstEntry());
+        @SuppressWarnings("unchecked")
+        var fieldMapping2 = (Map<String, String>) fieldMapping.get(fieldName);
+        return fieldMapping2;
     }
 
     private List<Map<String, Object>> makeTopHits(Object value1, int count1, Object value2, int count2) {

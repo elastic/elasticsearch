@@ -2922,14 +2922,11 @@ public class VerifierTests extends ESTestCase {
             containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
         );
 
-        assertThat(
-            error("""
-                FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
-                     (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
-                | FUSE GROUP BY label
-                """),
-            containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE.")
-        );
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL label = "query1"),
+                 (FROM test METADATA _index, _id, _score | EVAL label = "query2" | LIMIT 10)
+            | FUSE GROUP BY label
+            """), containsString("FUSE can only be used on a limited number of rows. Consider adding a LIMIT before FUSE."));
     }
 
     public void testNoMetricInStatsByClause() {
@@ -3619,23 +3616,17 @@ public class VerifierTests extends ESTestCase {
     public void testMMRLimitedInput() {
         assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
 
-        assertThat(
-            error("""
+        assertThat(error("""
             FROM test
             | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector
             | MMR dense_embedding LIMIT 10
-            """),
-            containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR.")
-        );
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
 
-        assertThat(
-            error("""
-                FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
-                     (FROM test METADATA _index, _id, _score | LIMIT 10)
-                | MMR dense_embedding LIMIT 10
-                """),
-            containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR.")
-        );
+        assertThat(error("""
+            FROM (FROM test METADATA _index, _id, _score | EVAL dense_embedding=[0.5, 0.4, 0.3, 0.2]::dense_vector),
+                 (FROM test METADATA _index, _id, _score | LIMIT 10)
+            | MMR dense_embedding LIMIT 10
+            """), containsString("MMR can only be used on a limited number of rows. Consider adding a LIMIT before MMR."));
     }
 
     private void query(String query) {

@@ -178,7 +178,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
         List<NamedExpression> firstPassAggs = new ArrayList<>();
         List<NamedExpression> secondPassAggs = new ArrayList<>();
         Holder<Boolean> requiredTimeSeriesSource = new Holder<>(Boolean.FALSE);
-        var internalNames = new InternalNames();
+        var internalNames = TemporaryNameUtils.internalNameGenerator();
         for (NamedExpression agg : aggregate.aggregates()) {
             if (agg instanceof Alias alias && alias.child() instanceof Function function) {
                 final Expression inlineFilter;
@@ -365,15 +365,6 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             return new DimensionValues(group.source(), group);
         } else {
             return new Values(group.source(), group);
-        }
-    }
-
-    private static class InternalNames {
-        final Map<String, Integer> next = new HashMap<>();
-
-        String next(String prefix) {
-            int id = next.merge(prefix, 1, Integer::sum);
-            return prefix + "_$" + id;
         }
     }
 

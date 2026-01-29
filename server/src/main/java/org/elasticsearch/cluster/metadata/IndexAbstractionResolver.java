@@ -279,7 +279,7 @@ public class IndexAbstractionResolver {
         boolean includeDataStreams
     ) {
         assert Regex.isSimpleMatchPattern(expression) == false : "Expected a concrete expression";
-        return isIndexVisible(index, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
+        return isIndexVisible(expression, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
     }
 
     public static boolean isIndexVisibleUnderWildcardAccess(

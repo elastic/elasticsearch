@@ -55,7 +55,6 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -302,7 +301,10 @@ public class CsvTests extends ESTestCase {
                 "can't load metrics in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.TS_COMMAND_V0.capabilityName())
             );
-            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
+            assumeFalse(
+                "can't load metrics in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
+            );
             assumeFalse(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
@@ -355,8 +357,6 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
-            assumeFalse("can't use PromQL in csv tests", testCase.requiredCapabilities.contains(PromqlFeatures.capabilityName()));
-
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -657,7 +657,7 @@ public class CsvTests extends ESTestCase {
 
     private ActualResults executePlan(BigArrays bigArrays) throws Exception {
         EsqlExecutionInfo esqlExecutionInfo = createEsqlExecutionInfo(randomBoolean());
-        esqlExecutionInfo.planningProfile().planning().start();
+        esqlExecutionInfo.queryProfile().planning().start();
         EsqlStatement statement = EsqlParser.INSTANCE.createStatement(testCase.query);
         this.configuration = EsqlTestUtils.configuration(
             new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
@@ -682,6 +682,7 @@ public class CsvTests extends ESTestCase {
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
             null,
+            null,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
@@ -695,6 +696,7 @@ public class CsvTests extends ESTestCase {
         session.preOptimizedPlan(analyzed, logicalPlanPreOptimizer, planTimeProfile, listener.delegateFailureAndWrap((l, preOptimized) -> {
             session.executeOptimizedPlan(
                 new EsqlQueryRequest(),
+                statement,
                 esqlExecutionInfo,
                 planRunner(bigArrays, physicalOperationProviders),
                 session.optimizedPlan(preOptimized, logicalPlanOptimizer, planTimeProfile),
@@ -702,6 +704,7 @@ public class CsvTests extends ESTestCase {
                 foldCtx,
                 minimumVersion,
                 planTimeProfile,
+                logicalPlanOptimizer,
                 listener.delegateFailureAndWrap(
                     // Wrap so we can capture the warnings in the calling thread
                     (next, result) -> next.onResponse(

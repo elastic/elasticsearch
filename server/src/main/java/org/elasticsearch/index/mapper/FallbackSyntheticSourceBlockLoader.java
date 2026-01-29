@@ -78,6 +78,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public String toString() {
+        return "FallbackToSource[" + reader + "]";
+    }
+
     public static Set<String> splitIntoFieldPaths(String fieldName) {
         var paths = new HashSet<String>();
         paths.add("_doc");
@@ -261,6 +266,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         @Override
         public boolean canReuse(int startingDocID) {
             return true;
+        }
+
+        @Override
+        public String toString() {
+            return "FallbackToSource[" + reader + "]";
         }
     }
 

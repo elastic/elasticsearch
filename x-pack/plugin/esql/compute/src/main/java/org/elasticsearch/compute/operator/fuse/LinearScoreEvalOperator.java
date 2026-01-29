@@ -43,7 +43,7 @@ import java.util.Map;
  * we need to apply for each result group.
  *
  */
-public class LinearScoreEvalOperator implements CompleteInputCollectorOperator {
+public class LinearScoreEvalOperator extends CompleteInputCollectorOperator {
     public record Factory(int discriminatorPosition, int scorePosition, LinearConfig linearConfig, WarningSourceLocation source)
         implements
             OperatorFactory {

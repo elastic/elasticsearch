@@ -457,7 +457,8 @@ public final class FetchPhase {
             final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
 
             int maxInFlightChunks = SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(
-                context.getSearchExecutionContext().getIndexSettings().getSettings());
+                context.getSearchExecutionContext().getIndexSettings().getSettings()
+            );
 
             docsIterator.iterateAsync(
                 context.shardTarget(),

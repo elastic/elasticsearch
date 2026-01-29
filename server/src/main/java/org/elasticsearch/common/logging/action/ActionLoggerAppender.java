@@ -15,15 +15,18 @@ import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.appender.AsyncAppender;
 import org.apache.logging.log4j.core.appender.RollingFileAppender;
 import org.apache.logging.log4j.core.appender.rolling.DefaultRolloverStrategy;
 import org.apache.logging.log4j.core.appender.rolling.SizeBasedTriggeringPolicy;
+import org.apache.logging.log4j.core.config.AppenderRef;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginConfiguration;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
 import org.elasticsearch.common.logging.ECSJsonLayout;
+import org.elasticsearch.common.util.ArrayUtils;
 
 @Plugin(name = "ActionLoggerAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public final class ActionLoggerAppender extends AbstractAppender {
@@ -61,6 +64,15 @@ public final class ActionLoggerAppender extends AbstractAppender {
             .setConfiguration(config)
             .build();
         config.addAppender(roller);
-        return new ActionLoggerAppender(name, roller);
+        var async = AsyncAppender.newBuilder()
+            .setName(name + "_async")
+            .setConfiguration(config)
+            .setBlocking(false)
+            .setBufferSize(256)
+            .setAppenderRefs(new AppenderRef[] { AppenderRef.createAppenderRef(roller.getName(), null, null) })
+            .setShutdownTimeout(1000)
+            .build();
+        config.addAppender(async);
+        return new ActionLoggerAppender(name, async);
     }
 }

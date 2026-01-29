@@ -78,7 +78,7 @@ public class XSkipBlockRangeIterator extends AbstractDocIdSetIterator {
         while (doc < upTo) {
             int end = Math.min(upTo, docIDRunEnd());
             bitSet.set(doc - offset, end - offset);
-            advance(docIDRunEnd());
+            advance(end);
         }
     }
 }

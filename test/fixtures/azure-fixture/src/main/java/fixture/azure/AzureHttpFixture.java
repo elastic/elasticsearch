@@ -149,7 +149,13 @@ public class AzureHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return scheme() + "://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort() + "/" + account;
+        String host = server.getAddress().getHostString();
+        if (host.contains(":") && !host.startsWith("[")) {
+            // ipv6 formatting
+            host = "[" + host + "]";
+        }
+
+        return scheme() + "://" + host + ":" + server.getAddress().getPort() + "/" + account;
     }
 
     public String getOAuthTokenServiceAddress() {

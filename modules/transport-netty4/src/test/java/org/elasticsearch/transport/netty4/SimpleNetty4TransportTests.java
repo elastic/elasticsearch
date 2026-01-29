@@ -92,7 +92,9 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             null
         );
         assertThat(e.getMessage(), containsString("connect_exception"));
-        assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
+
+        String loopback = InetAddress.getByName("localhost").toString().contains(":") ? "[::1]" : "127.0.0.1";
+        assertThat(e.getMessage(), containsString("[" + loopback + ":9876]"));
     }
 
     public void testDefaultKeepAliveSettings() throws IOException {

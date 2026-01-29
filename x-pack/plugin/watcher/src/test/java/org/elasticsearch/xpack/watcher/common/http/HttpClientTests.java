@@ -578,7 +578,7 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testThatGetRedirectIsFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         HttpMethod method = randomFrom(HttpMethod.GET, HttpMethod.HEAD);
 
@@ -601,7 +601,7 @@ public class HttpClientTests extends ESTestCase {
 
     // not allowed by RFC, only allowed for GET or HEAD
     public void testThatPostRedirectIsNotFollowed() throws Exception {
-        String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/foo";
+        String redirectUrl = "http://" + webServer.getHttpAddress() + "/foo";
         webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldNeverBeRead"));
 
@@ -690,7 +690,7 @@ public class HttpClientTests extends ESTestCase {
     public void testThatWhiteListingWorksForRedirects() throws Exception {
         int numberOfRedirects = randomIntBetween(1, 10);
         for (int i = 0; i < numberOfRedirects; i++) {
-            String redirectUrl = "http://" + webServer.getHostName() + ":" + webServer.getPort() + "/redirect" + i;
+            String redirectUrl = "http://" + webServer.getHttpAddress() + "/redirect" + i;
             webServer.enqueue(new MockResponse().setResponseCode(302).addHeader("Location", redirectUrl));
         }
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("shouldBeRead"));
@@ -846,6 +846,6 @@ public class HttpClientTests extends ESTestCase {
     }
 
     private String getWebserverUri() {
-        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s", webServer.getHttpAddress());
     }
 }

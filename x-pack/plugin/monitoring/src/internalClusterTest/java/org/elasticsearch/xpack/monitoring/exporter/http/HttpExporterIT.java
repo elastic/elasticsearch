@@ -133,7 +133,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             .put("xpack.monitoring.exporters._http.type", "http")
             .put("xpack.monitoring.exporters._http.ssl.truststore.password", "foobar") // ensure that ssl can be used by settings
             .put("xpack.monitoring.exporters._http.headers.ignored", "value") // ensure that headers can be used by settings
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", true)
             .putList("xpack.monitoring.exporters._http.cluster_alerts.management.blacklist", clusterAlertBlacklist)
             .put("xpack.monitoring.exporters._http.auth.username", userName);
@@ -291,7 +291,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
             final Settings newSettings = Settings.builder()
                 .put(settings)
-                .putList("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))
+                .putList("xpack.monitoring.exporters._http.host", secondWebServer.getHttpAddress())
                 .build();
 
             enqueueGetClusterVersionResponse(secondWebServer, Version.CURRENT);
@@ -309,7 +309,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     public void testUnsupportedClusterVersion() throws Exception {
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .build();
 
         // returning an unsupported cluster version
@@ -347,7 +347,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     public void testRemoteTemplatesNotPresent() throws Exception {
         final Settings settings = Settings.builder()
             .put("xpack.monitoring.exporters._http.type", "http")
-            .put("xpack.monitoring.exporters._http.host", getFormattedAddress(webServer))
+            .put("xpack.monitoring.exporters._http.host", webServer.getHttpAddress())
             .build();
 
         // returning an unsupported cluster version
@@ -888,10 +888,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         for (DocWriteRequest<?> actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
         }
-    }
-
-    private String getFormattedAddress(MockWebServer server) {
-        return server.getHostName() + ":" + server.getPort();
     }
 
     private MockWebServer createMockWebServer() throws IOException {

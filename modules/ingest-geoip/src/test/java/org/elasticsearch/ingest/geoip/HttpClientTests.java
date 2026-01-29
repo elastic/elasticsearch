@@ -118,6 +118,10 @@ public class HttpClientTests extends ESTestCase {
 
     private static String url(final String path) {
         String hostname = server.getAddress().getHostString();
+        if (hostname.contains(":")) {
+            // ipv6 format
+            hostname = "[" + hostname + "]";
+        }
         int port = server.getAddress().getPort();
         return "http://" + hostname + ":" + port + path;
     }

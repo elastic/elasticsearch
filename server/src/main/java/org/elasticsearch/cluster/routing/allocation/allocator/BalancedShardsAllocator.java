@@ -1105,6 +1105,18 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
             }
 
+            if (logger.isTraceEnabled()) {
+                // Some of the target information may be null, but that's still informative.
+                logger.trace(
+                    "Shard [{}] cannot remain on node [{}] because of decision [{}]. Moving to node [{}] with decision [{}]",
+                    shardRouting.shardId(),
+                    shardRouting.currentNodeId(),
+                    remainDecision,
+                    targetNode != null ? targetNode.nodeId() : null,
+                    bestDecision
+                );
+            }
+
             return MoveDecision.move(
                 remainDecision,
                 AllocationDecision.fromDecisionType(bestDecision),

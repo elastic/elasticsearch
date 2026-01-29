@@ -62,6 +62,7 @@ public final class SearchCapabilities {
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT = "dense_vector_docvalue_fields_format";
+    private static final String KNN_QUERY_VECTOR_BASE64 = "knn_query_vector_base64";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -94,6 +95,7 @@ public final class SearchCapabilities {
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS_FORMAT);
+        capabilities.add(KNN_QUERY_VECTOR_BASE64);
         CAPABILITIES = Set.copyOf(capabilities);
     }
 }

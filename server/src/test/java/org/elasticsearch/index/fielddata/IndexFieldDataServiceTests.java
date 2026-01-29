@@ -21,6 +21,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.cache.LRUCache;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -59,6 +60,7 @@ import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.LONG;
 import static org.elasticsearch.index.mapper.NumberFieldMapper.NumberType.SHORT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -356,13 +358,15 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             Settings settings = Settings.EMPTY;
             IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             });
-            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
+            assertThat("Type is LRUCache as test depends on it", cache.getCache(), instanceOf(LRUCache.class));
+            assertThat(((LRUCache<?, ?>) cache.getCache()).getExpireAfterAccessNanos(), equalTo(3_600_000_000_000L));
         }
         {
             Settings settings = Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_EXPIRE.getKey(), "5s").build();
             IndicesFieldDataCache cache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
             });
-            assertThat(cache.getCache().getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
+            assertThat("Type is LRUCache as test depends on it", cache.getCache(), instanceOf(LRUCache.class));
+            assertThat(((LRUCache<?, ?>) cache.getCache()).getExpireAfterAccessNanos(), equalTo(5_000_000_000L));
         }
     }
 }

@@ -55,7 +55,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -686,7 +685,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                 continue;
             }
             try {
-                final List<DocIdSeqNoAndSource> docsOnShard = IndexShardTestCase.getDocIdAndSeqNos(indexShard);
+                final var docsOnShard = indexShard.withEngineException(engine -> ESIntegTestCase.getLiveDocs(engine, true));
                 logger.info("--> shard {} docs {} seq_no_stats {}", shardRouting, docsOnShard, indexShard.seqNoStats());
                 docs.put(
                     shardRouting.shardId().id(),

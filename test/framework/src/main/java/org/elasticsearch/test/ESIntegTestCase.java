@@ -19,6 +19,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -135,14 +136,24 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.LuceneChangesSnapshot;
+import org.elasticsearch.index.engine.LuceneSyntheticSourceChangesSnapshot;
+import org.elasticsearch.index.engine.SearchBasedChangesSnapshot;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldFilterPlugin;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -197,6 +208,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -243,6 +255,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -1284,6 +1297,196 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Returns the ids of all live documents of the shard.
+     *
+     * @param shard the shard to list documents ids from
+     * @return a set of document ids
+     * @throws IOException
+     */
+    protected Set<String> getShardDocIDs(final IndexShard shard) throws IOException {
+        return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns all live documents of the shard as {@link DocIdSeqNoAndSource}.
+     *
+     * @param shard the shard to list documents ids from
+     * @return a list of {@link DocIdSeqNoAndSource} representing documents.
+     * @throws IOException
+     */
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
+        return shard.withEngineException(engine -> getLiveDocs(engine, true));
+    }
+
+    /**
+     * Returns all live documents of the engine as {@link DocIdSeqNoAndSource}.
+     *
+     * @param engine the engine to list documents ids from
+     * @param refresh if true, the engine is refreshed before listing documents
+     * @return a list of {@link DocIdSeqNoAndSource} representing documents.
+     * @throws IOException
+     */
+    public static List<DocIdSeqNoAndSource> getLiveDocs(Engine engine, boolean refresh) throws IOException {
+        var source = "test_get_doc_ids";
+        if (refresh) {
+            engine.refresh(source);
+        }
+        final var engineConfig = engine.getEngineConfig();
+        Engine.Searcher searcher = engine.acquireSearcher(source, Engine.SearcherScope.INTERNAL);
+        try {
+            Translog.Snapshot snapshot = null;
+            try {
+                if (engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                    snapshot = new LuceneSyntheticSourceChangesSnapshot(
+                        engineConfig.getMapperService(),
+                        searcher,
+                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                        RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes(),
+                        0L,
+                        Long.MAX_VALUE,
+                        false,
+                        true,
+                        false
+                    );
+                } else {
+                    ESTestCase.assertThat(
+                        "Listing documents using an engine with no " + MapperService.class.getName() + " is not supported",
+                        engineConfig.getMapperService(),
+                        notNullValue() // Closed indices have no MapperService
+                    );
+                    snapshot = new LuceneChangesSnapshot(
+                        engineConfig.getMapperService(),
+                        searcher,
+                        SearchBasedChangesSnapshot.DEFAULT_BATCH_SIZE,
+                        0L,
+                        Long.MAX_VALUE,
+                        false,
+                        true,
+                        true,
+                        false
+                    );
+                }
+                if (snapshot.totalOperations() == 0) {
+                    return List.of();
+                }
+
+                final var docs = new ArrayList<DocIdSeqNoAndSource>(snapshot.totalOperations());
+                Translog.Operation operation;
+                while ((operation = snapshot.next()) != null) {
+                    DocIdSeqNoAndSource doc;
+                    switch (operation.opType()) {
+                        case CREATE:
+                        case INDEX:
+                            final var indexOp = ESTestCase.asInstanceOf(Translog.Index.class, operation);
+                            doc = new DocIdSeqNoAndSource(
+                                Uid.decodeId(indexOp.uid()),
+                                indexOp.source().toBytesRef(),
+                                indexOp.seqNo(),
+                                indexOp.primaryTerm(),
+                                indexOp.version()
+                            );
+                            break;
+                        case DELETE:
+                            final var deleteOp = ESTestCase.asInstanceOf(Translog.Delete.class, operation);
+                            doc = new DocIdSeqNoAndSource(
+                                Uid.decodeId(deleteOp.uid()),
+                                null,
+                                deleteOp.seqNo(),
+                                deleteOp.primaryTerm(),
+                                deleteOp.version()
+                            );
+                            break;
+                        case NO_OP:
+                            continue;
+                        default:
+                            throw new AssertionError("Unsupported operation type " + operation.opType());
+                    }
+                    docs.add(doc);
+                }
+                docs.sort(
+                    Comparator.comparingLong(DocIdSeqNoAndSource::seqNo)
+                        .thenComparingLong(DocIdSeqNoAndSource::primaryTerm)
+                        .thenComparing((DocIdSeqNoAndSource::id))
+                );
+                return docs;
+            } finally {
+                if (snapshot != null) {
+                    IOUtils.close(snapshot);
+                    searcher = null;
+                }
+            }
+        } finally {
+            IOUtils.close(searcher);
+        }
+    }
+
+    /**
+     * Asserts that all shards with the same shardId should have document Ids.
+     */
+    static void assertSameDocIdsOnShards(InternalTestCluster testCluster) throws Exception {
+        ClusterState state = testCluster.clusterService(testCluster.getMasterName()).state();
+        state.forEachProject(projectState -> {
+            for (var indexRoutingTable : projectState.routingTable().indicesRouting().values()) {
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
+                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
+                    if (primaryShardRouting == null || primaryShardRouting.assignedToNode() == false) {
+                        continue;
+                    }
+                    final DiscoveryNode primaryNode = state.nodes().get(primaryShardRouting.currentNodeId());
+                    if (primaryNode == null) {
+                        continue;
+                    }
+                    IndexShard primaryShard = testCluster.getInstance(IndicesService.class, primaryNode.getName())
+                        .getShardOrNull(primaryShardRouting.shardId());
+                    if (primaryShard == null) {
+                        continue;
+                    }
+                    final List<DocIdSeqNoAndSource> docsOnPrimary;
+                    try {
+                        docsOnPrimary = primaryShard.withEngineException(engine -> getLiveDocs(engine, true));
+                    } catch (AlreadyClosedException ex) {
+                        continue;
+                    }
+                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
+                        if (replicaShardRouting == null || replicaShardRouting.assignedToNode() == false) {
+                            continue;
+                        }
+                        final DiscoveryNode replicaNode = state.nodes().get(replicaShardRouting.currentNodeId());
+                        if (replicaNode == null) {
+                            continue;
+                        }
+                        IndexShard replicaShard = testCluster.getInstance(IndicesService.class, replicaNode.getName())
+                            .getShardOrNull(replicaShardRouting.shardId());
+                        if (replicaShard == null) {
+                            continue;
+                        }
+                        final List<DocIdSeqNoAndSource> docsOnReplica;
+                        try {
+                            docsOnReplica = replicaShard.withEngineException(engine -> getLiveDocs(engine, true));
+                        } catch (AlreadyClosedException ex) {
+                            continue;
+                        }
+                        assertThat(
+                            "out of sync shards: primary=["
+                                + primaryShardRouting
+                                + "] num_docs_on_primary=["
+                                + docsOnPrimary.size()
+                                + "] vs replica=["
+                                + replicaShardRouting
+                                + "] num_docs_on_replica=["
+                                + docsOnReplica.size()
+                                + "]",
+                            docsOnReplica,
+                            equalTo(docsOnPrimary)
+                        );
+                    }
+                }
+            }
+        });
     }
 
     private static long getTotalHitsAllIndices() {

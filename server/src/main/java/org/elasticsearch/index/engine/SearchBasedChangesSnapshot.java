@@ -25,7 +25,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -69,7 +68,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @param toSeqNo              Ending sequence number.
      * @param requiredFullRange    Whether the full range is required.
      * @param accessStats          If true, enable access statistics for counting total operations.
-     * @param indexVersionCreated  Version of the index when it was created.
+     * @param allDocsLive          If true, all documents are considered "live" and are returned in the snapshot
      */
     protected SearchBasedChangesSnapshot(
         MapperService mapperService,
@@ -79,7 +78,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         long toSeqNo,
         boolean requiredFullRange,
         boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean allDocsLive
     ) throws IOException {
 
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
@@ -101,7 +100,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         this.toSeqNo = toSeqNo;
         this.lastSeenSeqNo = fromSeqNo - 1;
         this.requiredFullRange = requiredFullRange;
-        this.indexSearcher = newIndexSearcher(engineSearcher);
+        this.indexSearcher = newIndexSearcher(engineSearcher, allDocsLive);
         this.indexSearcher.setQueryCache(null);
 
         long requestingSize = (toSeqNo - fromSeqNo == Long.MAX_VALUE) ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
@@ -234,8 +233,12 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
     }
 
-    static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {
-        return new IndexSearcher(Lucene.wrapAllDocsLive(engineSearcher.getDirectoryReader()));
+    static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher, boolean allDocsLive) throws IOException {
+        var directoryReader = engineSearcher.getDirectoryReader();
+        if (allDocsLive) {
+            directoryReader = Lucene.wrapAllDocsLive(directoryReader);
+        }
+        return new IndexSearcher(directoryReader);
     }
 
     static Query rangeQuery(IndexSettings indexSettings, long fromSeqNo, long toSeqNo) {

@@ -486,10 +486,10 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         public synchronized void assertAllEqual(int expectedCount) throws IOException {
-            Set<String> primaryIds = getShardDocUIDs(primary);
+            Set<String> primaryIds = getShardDocIDs(primary);
             assertThat(primaryIds.size(), equalTo(expectedCount));
             for (IndexShard replica : replicas) {
-                Set<String> replicaIds = getShardDocUIDs(replica);
+                Set<String> replicaIds = getShardDocIDs(replica);
                 Set<String> temp = new HashSet<>(primaryIds);
                 temp.removeAll(replicaIds);
                 assertThat(replica.routingEntry() + " is missing docs", temp, empty());

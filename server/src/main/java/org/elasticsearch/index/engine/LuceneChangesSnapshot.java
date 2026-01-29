@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -63,7 +62,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      * @param singleConsumer    true if the snapshot is accessed by a single thread that creates the snapshot
      * @param accessStats       true if the stats of the snapshot can be accessed via {@link #totalOperations()}
-     * @param indexVersionCreated the version on which this index was created
+     * @param allDocsLive       If true, all documents are considered "live" and are returned in the snapshot
      */
     public LuceneChangesSnapshot(
         MapperService mapperService,
@@ -74,9 +73,9 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         boolean requiredFullRange,
         boolean singleConsumer,
         boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean allDocsLive
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, allDocsLive);
         this.creationThread = Assertions.ENABLED ? Thread.currentThread() : null;
         this.singleConsumer = singleConsumer;
         this.parallelArray = new ParallelArray(this.searchBatchSize);
@@ -201,7 +200,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
         }
-        return newIndexSearcher(engineSearcher).count(rangeQuery(indexSettings, fromSeqNo, toSeqNo));
+        return newIndexSearcher(engineSearcher, true).count(rangeQuery(indexSettings, fromSeqNo, toSeqNo));
     }
 
     private Translog.Operation readDocAsOp(int docIndex) throws IOException {

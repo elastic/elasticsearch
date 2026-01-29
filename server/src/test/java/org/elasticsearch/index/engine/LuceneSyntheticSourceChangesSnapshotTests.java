@@ -50,7 +50,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
             toSeqNo,
             requiredFullRange,
             accessStats,
-            indexVersionCreated
+            true
         );
     }
 }

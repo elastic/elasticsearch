@@ -16,7 +16,6 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -76,9 +75,9 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         long toSeqNo,
         boolean requiredFullRange,
         boolean accessStats,
-        IndexVersion indexVersionCreated
+        boolean allDocsLive
     ) throws IOException {
-        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, allDocsLive);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
         assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
             : "either an empty index or synthetic source must be enabled for proper functionality.";

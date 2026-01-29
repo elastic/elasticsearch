@@ -51,16 +51,19 @@ public class DownsampledRateRestEsqlIT extends ESRestTestCase {
 
     public void testTimeSeriesQuerying() throws IOException {
         createIndex();
-        indexDocuments(INDEX_NAME, List.of(
-            Tuple.tuple("2021-04-29T17:02:12.470Z", 1),
-            Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
-            Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
-            Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
-            Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-            Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
-            Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
-            Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
-        ));
+        indexDocuments(
+            INDEX_NAME,
+            List.of(
+                Tuple.tuple("2021-04-29T17:02:12.470Z", 1),
+                Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
+                Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
+                Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
+                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
+                Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
+                Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
+                Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
+            )
+        );
 
         List<List<?>> values = queryRate(INDEX_NAME);
         assertEquals(1, values.size());
@@ -78,18 +81,21 @@ public class DownsampledRateRestEsqlIT extends ESRestTestCase {
     public void testTimeSeriesQueryingSingleReset() throws IOException {
         createIndex();
 
-        indexDocuments(INDEX_NAME, List.of(
-            Tuple.tuple("2021-04-29T17:02:12.470Z", 1),
-            Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
-            Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
-            Tuple.tuple("2021-04-29T17:19:12.470Z", 8),
-            Tuple.tuple("2021-04-29T17:20:22.470Z", 3),
-            Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
-            Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-            Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
-            Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
-            Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
-        ));
+        indexDocuments(
+            INDEX_NAME,
+            List.of(
+                Tuple.tuple("2021-04-29T17:02:12.470Z", 1),
+                Tuple.tuple("2021-04-29T17:03:12.470Z", 2),
+                Tuple.tuple("2021-04-29T17:10:12.470Z", 5),
+                Tuple.tuple("2021-04-29T17:19:12.470Z", 8),
+                Tuple.tuple("2021-04-29T17:20:22.470Z", 3),
+                Tuple.tuple("2021-04-29T17:22:22.470Z", 6),
+                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
+                Tuple.tuple("2021-04-29T17:29:22.470Z", 11),
+                Tuple.tuple("2021-04-29T17:32:22.470Z", 12),
+                Tuple.tuple("2021-04-29T17:39:22.470Z", 13)
+            )
+        );
 
         List<List<?>> values = queryRate(INDEX_NAME);
         assertEquals(1, values.size());
@@ -107,18 +113,21 @@ public class DownsampledRateRestEsqlIT extends ESRestTestCase {
     public void testTimeSeriesQueryingSingleLargeReset() throws IOException {
         createIndex();
 
-        indexDocuments(INDEX_NAME, List.of(
-            Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
-            Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
-            Tuple.tuple("2021-04-29T17:10:12.470Z", 1010),
-            Tuple.tuple("2021-04-29T17:19:12.470Z", 1040),
-            Tuple.tuple("2021-04-29T17:20:22.470Z", 1060),
-            Tuple.tuple("2021-04-29T17:22:22.470Z", 20),
-            Tuple.tuple("2021-04-29T17:24:22.470Z", 30),
-            Tuple.tuple("2021-04-29T17:29:22.470Z", 40),
-            Tuple.tuple("2021-04-29T17:32:22.470Z", 70),
-            Tuple.tuple("2021-04-29T17:39:22.470Z", 80)
-        ));
+        indexDocuments(
+            INDEX_NAME,
+            List.of(
+                Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
+                Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
+                Tuple.tuple("2021-04-29T17:10:12.470Z", 1010),
+                Tuple.tuple("2021-04-29T17:19:12.470Z", 1040),
+                Tuple.tuple("2021-04-29T17:20:22.470Z", 1060),
+                Tuple.tuple("2021-04-29T17:22:22.470Z", 20),
+                Tuple.tuple("2021-04-29T17:24:22.470Z", 30),
+                Tuple.tuple("2021-04-29T17:29:22.470Z", 40),
+                Tuple.tuple("2021-04-29T17:32:22.470Z", 70),
+                Tuple.tuple("2021-04-29T17:39:22.470Z", 80)
+            )
+        );
 
         List<List<?>> values = queryRate(INDEX_NAME);
         assertEquals(1, values.size());
@@ -136,26 +145,29 @@ public class DownsampledRateRestEsqlIT extends ESRestTestCase {
     public void testTimeSeriesQueryingMultipleResets() throws IOException {
         createIndex();
 
-        indexDocuments(INDEX_NAME, List.of(
-            Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
-            Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
-            Tuple.tuple("2021-04-29T17:05:12.470Z", 1010),
-            Tuple.tuple("2021-04-29T17:06:12.470Z", 1040),
-            Tuple.tuple("2021-04-29T17:07:22.470Z", 1060),
-            Tuple.tuple("2021-04-29T17:08:22.470Z", 20),
-            Tuple.tuple("2021-04-29T17:10:22.470Z", 30),
-            Tuple.tuple("2021-04-29T17:11:22.470Z", 40),
-            Tuple.tuple("2021-04-29T17:12:22.470Z", 70),
-            Tuple.tuple("2021-04-29T17:22:22.470Z", 80),
-            Tuple.tuple("2021-04-29T17:23:22.470Z", 20),
-            Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
-            Tuple.tuple("2021-04-29T17:25:22.470Z", 20),
-            Tuple.tuple("2021-04-29T17:26:22.470Z", 40),
-            Tuple.tuple("2021-04-29T17:27:22.470Z", 60),
-            Tuple.tuple("2021-04-29T17:28:22.470Z", 5),
-            Tuple.tuple("2021-04-29T17:29:22.470Z", 10),
-            Tuple.tuple("2021-04-29T17:59:22.470Z", 20)
-        ));
+        indexDocuments(
+            INDEX_NAME,
+            List.of(
+                Tuple.tuple("2021-04-29T17:02:12.470Z", 1000),
+                Tuple.tuple("2021-04-29T17:03:12.470Z", 1003),
+                Tuple.tuple("2021-04-29T17:05:12.470Z", 1010),
+                Tuple.tuple("2021-04-29T17:06:12.470Z", 1040),
+                Tuple.tuple("2021-04-29T17:07:22.470Z", 1060),
+                Tuple.tuple("2021-04-29T17:08:22.470Z", 20),
+                Tuple.tuple("2021-04-29T17:10:22.470Z", 30),
+                Tuple.tuple("2021-04-29T17:11:22.470Z", 40),
+                Tuple.tuple("2021-04-29T17:12:22.470Z", 70),
+                Tuple.tuple("2021-04-29T17:22:22.470Z", 80),
+                Tuple.tuple("2021-04-29T17:23:22.470Z", 20),
+                Tuple.tuple("2021-04-29T17:24:22.470Z", 10),
+                Tuple.tuple("2021-04-29T17:25:22.470Z", 20),
+                Tuple.tuple("2021-04-29T17:26:22.470Z", 40),
+                Tuple.tuple("2021-04-29T17:27:22.470Z", 60),
+                Tuple.tuple("2021-04-29T17:28:22.470Z", 5),
+                Tuple.tuple("2021-04-29T17:29:22.470Z", 10),
+                Tuple.tuple("2021-04-29T17:59:22.470Z", 20)
+            )
+        );
 
         List<List<?>> values = queryRate(INDEX_NAME);
         assertEquals(1, values.size());

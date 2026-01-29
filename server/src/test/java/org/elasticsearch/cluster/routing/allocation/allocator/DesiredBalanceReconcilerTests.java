@@ -625,7 +625,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
-            ImmutableOpenMap.of()
+            ImmutableOpenMap.of(),
+            Set.of()
         );
 
         final var restoredShardSize = randomNonNegativeLong();

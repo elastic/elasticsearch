@@ -623,7 +623,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         inferenceLoader.setNextReader(readerContext);
         List<Object> values = inferenceLoader.fetchValues(source, docId, List.of());
         if (values.size() == 1) {
-            var newSource = source.source();
+            var newSource = new HashMap<>(source.source());
             newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
             return Source.fromMap(newSource, source.sourceContentType());
         }

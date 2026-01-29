@@ -37,6 +37,13 @@ public class SecondaryAuthenticator {
      */
     public static final String SECONDARY_AUTH_HEADER_NAME = "es-secondary-authorization";
 
+    /**
+     * Header name for secondary client authentication credentials.
+     * Used by authenticators that require additional headers beyond the Authorization header,
+     * such as X-Client-Authentication.
+     */
+    public static final String SECONDARY_X_CLIENT_AUTH_HEADER_NAME = "es-secondary-x-client-authentication";
+
     private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
     private final AuthenticationService authenticationService;
@@ -109,6 +116,7 @@ public class SecondaryAuthenticator {
             listener.onResponse(null);
             return;
         }
+        final String secondaryXClientAuthHeader = threadContext.getHeader(SECONDARY_X_CLIENT_AUTH_HEADER_NAME);
 
         final Supplier<ThreadContext.StoredContext> originalContext = threadContext.newRestorableContext(false);
         final ActionListener<Authentication> authenticationListener = new ContextPreservingActionListener<>(
@@ -133,6 +141,15 @@ public class SecondaryAuthenticator {
                 UsernamePasswordToken.BASIC_AUTH_HEADER
             );
             threadContext.putHeader(UsernamePasswordToken.BASIC_AUTH_HEADER, header);
+
+            if (Strings.hasText(secondaryXClientAuthHeader)) {
+                threadContext.putHeader("X-Client-Authentication", secondaryXClientAuthHeader);
+                logger.trace(
+                    "found secondary client authentication credentials, placing them in the [{}] header",
+                    "X-Client-Authentication"
+                );
+            }
+
             authenticate.accept(authenticationListener);
         }
     }

@@ -226,7 +226,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             IndexAbstractionResolver.isIndexVisibleUnderConcreteAccess(
                 "data-stream1",
                 null,
-                "data-stream1",
                 IndicesOptions.DEFAULT,
                 projectMetadata,
                 indexNameExpressionResolver,

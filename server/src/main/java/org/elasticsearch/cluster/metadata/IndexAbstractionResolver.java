@@ -202,7 +202,6 @@ public class IndexAbstractionResolver {
                         && isIndexVisibleUnderConcreteAccess(
                             indexAbstraction,
                             selectorString,
-                            indexAbstraction,
                             indicesOptions,
                             projectMetadata,
                             indexNameExpressionResolver,
@@ -272,14 +271,13 @@ public class IndexAbstractionResolver {
     public static boolean isIndexVisibleUnderConcreteAccess(
         String expression,
         @Nullable String selectorString,
-        String index,
         IndicesOptions indicesOptions,
         ProjectMetadata projectMetadata,
         IndexNameExpressionResolver resolver,
         boolean includeDataStreams
     ) {
         assert Regex.isSimpleMatchPattern(expression) == false : "Expected a concrete expression";
-        return isIndexVisible(expression, selectorString, index, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
+        return isIndexVisible(expression, selectorString, expression, indicesOptions, projectMetadata, resolver, includeDataStreams, false);
     }
 
     public static boolean isIndexVisibleUnderWildcardAccess(
@@ -321,7 +319,9 @@ public class IndexAbstractionResolver {
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // it's complicated to support those options with aliases pointing to multiple indices...
-            if (indicesOptions.ignoreAliases()) return false;
+            if (indicesOptions.ignoreAliases()) {
+                return false;
+            }
 
             if (isVisible && indexAbstraction.isSystem()) {
                 // check if it is net new
@@ -438,6 +438,7 @@ public class IndexAbstractionResolver {
     }
 
     private static boolean isVisibleDueToImplicitHidden(String expression, String index) {
+        assert Regex.isSimpleMatchPattern(expression) : "Expected wildcard expression";
         return index.startsWith(".") && expression.startsWith(".");
     }
 

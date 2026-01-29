@@ -62,6 +62,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintMonitor;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
@@ -782,9 +783,13 @@ class NodeConstruction {
         );
         RepositoriesService repositoriesService = repositoriesModule.getRepositoryService();
         final SetOnce<RerouteService> rerouteServiceReference = new SetOnce<>();
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final ClusterInfoService clusterInfoService = serviceProvider.newClusterInfoService(
             pluginsService,
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client
@@ -826,7 +831,7 @@ class NodeConstruction {
 
         clusterInfoService.addListener(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 rerouteService,

@@ -26,6 +26,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,6 +39,7 @@ import org.junit.Rule;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -62,6 +64,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Queries like {@code FROM * | KEEP *} can include columns of unsupported types,
@@ -272,11 +275,19 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         );
     }
 
+    /**
+     * Is the test running for a single node on snapshot version?
+     * If so, we'll assert the profile of the field readers.
+     */
+    protected boolean isSingleNodeSnapshot() {
+        return false;
+    }
+
     public final void testFetchAll() throws IOException {
         doTestFetchAll(fromAllQuery("""
             , _id, _ignored, _index_mode, _score, _source, _version
             | LIMIT 1000
-            """), allNodeToInfo(), allNodeToInfo());
+            """), allNodeToInfo(), allNodeToInfo(), isSingleNodeSnapshot());
     }
 
     public final void testFetchAllEnrich() throws IOException {
@@ -288,7 +299,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             , _id, _ignored, _index_mode, _score, _source, _version
             | ENRICH _remote:{} ON {}
             | LIMIT 1000
-            """, ENRICH_POLICY_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
+            """, ENRICH_POLICY_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo(), false);
     }
 
     public final void testFetchAllLookupJoin() throws IOException {
@@ -302,7 +313,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             | LOOKUP JOIN {} ON {}
             | SORT _id
             | LIMIT 1000
-            """, LOOKUP_INDEX_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo());
+            """, LOOKUP_INDEX_NAME, LOOKUP_ID_FIELD)), allNodeToInfo(), allNodeToInfo(), false);
     }
 
     /**
@@ -311,7 +322,8 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
     protected final void doTestFetchAll(
         String query,
         Map<String, NodeInfo> nodesContributingIndices,
-        Map<String, NodeInfo> nodesInvolvedInExecution
+        Map<String, NodeInfo> nodesInvolvedInExecution,
+        boolean checkProfile
     ) throws IOException {
         var responseAndCoordinatorVersion = runQuery(query);
 
@@ -344,6 +356,9 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         assertMap(indexToRow(columns, values), expectedAllValues);
 
         assertMinimumVersion(minVersion(nodesInvolvedInExecution), responseAndCoordinatorVersion, true, fetchAllIsCrossCluster());
+        if (checkProfile) {
+            assertProfile((Map<?, ?>) response.get("profile"));
+        }
 
         profileLogger.clearProfile();
     }
@@ -358,7 +373,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         }
     }
 
-    protected static MapMatcher allTypesColumnsMatcher(
+    protected MapMatcher allTypesColumnsMatcher(
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersionAcrossInvolvedNodes,
         TransportVersion minimumVersionAcrossAllNodes,
@@ -391,7 +406,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return expectedColumns;
     }
 
-    protected static MapMatcher allTypesValuesMatcher(
+    protected MapMatcher allTypesValuesMatcher(
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersionAcrossInvolvedNodes,
         TransportVersion minimumVersionAcrossAllNodes,
@@ -962,7 +977,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         client.performRequest(execute);
     }
 
-    private static Matcher<?> expectedValue(
+    private Matcher<?> expectedValue(
         DataType type,
         TransportVersion coordinatorVersion,
         TransportVersion minimumVersion,
@@ -981,7 +996,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             case DATETIME, DATE_NANOS -> equalTo("2025-01-01T01:00:00.000Z");
             case IP -> equalTo("192.168.0.1");
             case VERSION -> equalTo("1.0.0-SNAPSHOT");
-            case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.DOC_VALUES || syntheticSourceByDefault(indexMode)
+            case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.DOC_VALUES || syntheticSourceByDefault()
                 ? equalTo("POINT (-71.34000004269183 41.1199999647215)")
                 : equalTo("POINT (-71.34 41.12)");
             case GEO_SHAPE -> equalTo("POINT (-71.34 41.12)");
@@ -1195,7 +1210,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         return true;
     }
 
-    private static boolean syntheticSourceByDefault(IndexMode indexMode) {
+    private boolean syntheticSourceByDefault() {
         return switch (indexMode) {
             case TIME_SERIES, LOGSDB -> true;
             case STANDARD, LOOKUP -> false;
@@ -1245,5 +1260,135 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
 
     protected static TransportVersion minVersion(Map<String, NodeInfo> nodeToInfo) {
         return nodeToInfo.values().stream().map(NodeInfo::version).min(Comparator.naturalOrder()).get();
+    }
+
+    /**
+     * Assert that the profile is what we expect. Note that the profile is
+     * generally not backwards compatible, so we should only run this in the
+     * single-node case.
+     */
+    private void assertProfile(Map<?, ?> profile) {
+        List<?> drivers = (List<?>) profile.get("drivers");
+        boolean atleastOneDataDriver = false;
+        for (Object d : drivers) {
+            Map<?, ?> driver = (Map<?, ?>) d;
+            if ("data".equals(driver.get("description"))) {
+                atleastOneDataDriver = true;
+                assertDataDriverProfile((List<?>) driver.get("operators"));
+            }
+        }
+        assertTrue("at least one data driver found", atleastOneDataDriver);
+    }
+
+    private void assertDataDriverProfile(List<?> operators) {
+        int readerCount = 0;
+        for (Object o : operators) {
+            Map<?, ?> operator = (Map<?, ?>) o;
+            String name = operator.get("operator").toString();
+            if (name.startsWith("ValuesSourceReaderOperator")) {
+                readerCount++;
+                Map<?, ?> status = (Map<?, ?>) operator.get("status");
+                assertReadersBuilt((Map<?, ?>) status.get("readers_built"));
+            }
+        }
+        assertThat(readerCount, equalTo(1));
+    }
+
+    private void assertReadersBuilt(Map<?, ?> readersBuilt) {
+        Map<String, List<String>> found = new TreeMap<>();
+        for (Object k : readersBuilt.keySet()) {
+            String key = k.toString();
+            if (key.startsWith("stored_fields")) {
+                continue;
+            }
+            int firstColon = key.indexOf(':');
+            String field = key.substring(0, firstColon);
+            String reader = key.substring(firstColon + 1);
+            found.computeIfAbsent(field, unused -> new ArrayList<>()).add(reader);
+        }
+        for (List<String> v : found.values()) {
+            Collections.sort(v);
+        }
+
+        MapMatcher expected = matchesMap();
+        for (DataType type : DataType.values()) {
+            if (supportedInIndex(type, TransportVersion.current()) == false) {
+                continue;
+            }
+
+            expected = expected.entry(fieldName(type), loadersFor(type));
+        }
+
+        expected = expected.entry(
+            "_id",
+            indexMode == IndexMode.TIME_SERIES
+                ? matchesList().item("column_at_a_time:TsIdFieldReader")
+                : matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Id")
+        )
+            .entry("_ignored", matchesList().item("column_at_a_time:constant_nulls"))
+            .entry("_index_mode", matchesList().item(startsWith("column_at_a_time:constant")))
+            .entry("_index", matchesList().item(startsWith("column_at_a_time:constant")))
+            .entry("_source", matchesList().item("column_at_a_time:null").item("row_stride:BlockStoredFieldsReader.Source"))
+            .entry("_version", matchesList().item("column_at_a_time:LongsFromDocValues.Singleton"))
+            .entry("lookup_id", loadersFor(DataType.INTEGER));
+        assertMap(found, expected);
+    }
+
+    ListMatcher loadersFor(DataType type) {
+        return switch (type) {
+            case AGGREGATE_METRIC_DOUBLE -> matchesList().item("column_at_a_time:BlockDocValuesReader.AggregateMetricDouble");
+            case BOOLEAN -> matchesList().item("column_at_a_time:BooleansFromDocValues.Singleton");
+            case DATE_RANGE -> matchesList().item("column_at_a_time:BlockDocValuesReader.DateRangeDocValuesReader");
+            case DOUBLE, COUNTER_DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Doubles")
+                : matchesList().item("column_at_a_time:DoublesFromDocValues.Singleton");
+            case EXPONENTIAL_HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.ExponentialHistogram");
+            case DENSE_VECTOR -> matchesList().item("column_at_a_time:FloatDenseVectorFromDocValues.Normalized.Load");
+            case GEO_POINT -> extractPreference == MappedFieldType.FieldExtractPreference.STORED || syntheticSourceByDefault() == false
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Geometries")
+                : matchesList().item("column_at_a_time:BlockDocValuesReader.BytesRefsFromLong");
+            case GEO_SHAPE -> {
+                String last;
+                if (syntheticSourceByDefault()) {
+                    last = "row_stride:FallbackToSource[Geometry]";
+                } else if (extractPreference == MappedFieldType.FieldExtractPreference.STORED) {
+                    last = "row_stride:BlockSourceReader.Geometries";
+                } else {
+                    last = "row_stride:BlockSourceReader.Geometries";
+                }
+                yield matchesList().item("column_at_a_time:null").item(last);
+            }
+            case HISTOGRAM -> matchesList().item("column_at_a_time:BlockDocValuesReader.Bytes");
+            case INTEGER, COUNTER_INTEGER, SHORT, BYTE -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ints")
+                : matchesList().item("column_at_a_time:IntsFromDocValues.Singleton");
+            case IP -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Ips")
+                : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
+            case KEYWORD -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                : matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
+            case LONG, COUNTER_LONG, UNSIGNED_LONG -> useStoredLoader()
+                ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Longs")
+                : matchesList().item("column_at_a_time:LongsFromDocValues.Singleton");
+            case DATETIME, DATE_NANOS -> matchesList().item("column_at_a_time:LongsFromDocValues.Singleton");
+            case NULL -> // TODO figure out why stored field preference makes this go to _source
+                useStoredLoader()
+                    ? matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes")
+                    : matchesList().item("column_at_a_time:constant_nulls");
+            case TDIGEST -> matchesList().item("column_at_a_time:BlockDocValuesReader.TDigest");
+            case TEXT -> syntheticSourceByDefault()
+                ? matchesList().item("column_at_a_time:BlockDocValuesReader.BytesCustom")
+                : matchesList().item("column_at_a_time:null").item("row_stride:BlockSourceReader.Bytes");
+            case VERSION -> matchesList().item("column_at_a_time:BytesRefsFromOrds.Singleton");
+            default -> matchesList();
+        };
+    }
+
+    /**
+     * Do the preference and {@code index_mode} indicate that we should load from stored fields?
+     */
+    private boolean useStoredLoader() {
+        return extractPreference == MappedFieldType.FieldExtractPreference.STORED && false == syntheticSourceByDefault();
     }
 }

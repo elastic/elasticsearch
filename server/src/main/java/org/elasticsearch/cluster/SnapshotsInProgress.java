@@ -1226,12 +1226,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 allQueued &= status.state() == ShardState.QUEUED;
                 if (status.state().completed() == false) {
                     final String nodeId = status.nodeId();
-                    status = new ShardSnapshotStatus(
-                        nodeId,
-                        nodeId == null ? ShardState.FAILED : ShardState.ABORTED,
-                        status.generation(),
-                        "aborted by snapshot deletion"
-                    );
+                    final var newState = (nodeId == null || status.state() == ShardState.PAUSED_FOR_NODE_REMOVAL)
+                        ? ShardState.FAILED
+                        : ShardState.ABORTED;
+                    status = new ShardSnapshotStatus(nodeId, newState, status.generation(), "aborted by snapshot deletion");
                 }
                 completed &= status.state().completed();
                 shardsBuilder.put(shardEntry.getKey(), status);

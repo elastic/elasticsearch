@@ -188,18 +188,19 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         if (numGroups == 0) {
             return;
         }
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(tsBlockHash.getMinLongKey(), tsBlockHash.getMaxLongKey());
         this.expandingGroups = new ExpandingGroups(driverContext.bigArrays());
         for (long groupId = 0; groupId < numGroups; groupId++) {
             long tsid = tsBlockHash.getBytesRefKeyFromGroup(groupId);
             long endTimestamp = tsBlockHash.getLongKeyFromGroup(groupId);
-            long bucket = timeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
+            long bucket = optimizedTimeBucket.nextRoundingValue(endTimestamp - timeResolution.convert(largestWindowMillis()));
             bucket = Math.max(bucket, tsBlockHash.getMinLongKey());
             // Fill the missing buckets between (timestamp-window, timestamp)
             while (bucket < endTimestamp) {
                 if (tsBlockHash.addGroup(tsid, bucket) >= 0) {
                     expandingGroups.addGroup(Math.toIntExact(groupId));
                 }
-                bucket = timeBucket.nextRoundingValue(bucket);
+                bucket = optimizedTimeBucket.nextRoundingValue(bucket);
             }
         }
     }
@@ -313,7 +314,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         final BytesRefLongBlockHash hash = (BytesRefLongBlockHash) blockHash;
 
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
-        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(timestamps);
+        Rounding.Prepared optimizedTimeBucket = optimizeRoundingForTimeRange(hash.getMinLongKey(), hash.getMaxLongKey());
 
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
@@ -392,24 +393,10 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
      * As soon as we have the actual populated groups and their timestamps, we can optimize the rounding in case
      * it does not intersect with any daylight savings transition.
      */
-    private Rounding.Prepared optimizeRoundingForTimeRange(LongBlock timestamps) {
-        long timeRangeStart = Long.MAX_VALUE;
-        long timeRangeEnd = Long.MIN_VALUE;
-        for (int p = 0; p < timestamps.getPositionCount(); p++) {
-            if (timestamps.isNull(p)) {
-                continue;
-            }
-            int firstIndex = timestamps.getFirstValueIndex(p);
-            int limit = firstIndex + timestamps.getValueCount(p);
-            for (int i = firstIndex; i < limit; i++) {
-                long ts = timestamps.getLong(i);
-                timeRangeStart = Math.min(timeRangeStart, ts);
-                timeRangeEnd = Math.max(timeRangeEnd, ts);
-            }
-        }
-        if (timeRangeStart <= timeRangeEnd) {
-            long startMillis = timeResolution.roundDownToMillis(timeRangeStart);
-            long endMillis = timeResolution.roundUpToMillis(timeRangeEnd);
+    private Rounding.Prepared optimizeRoundingForTimeRange(long minTimestamp, long maxTimestamp) {
+        if (minTimestamp <= maxTimestamp) {
+            long startMillis = timeResolution.roundDownToMillis(minTimestamp);
+            long endMillis = timeResolution.roundUpToMillis(maxTimestamp);
             return timeBucket.getUnprepared().prepare(startMillis, endMillis);
         } else {
             return timeBucket;

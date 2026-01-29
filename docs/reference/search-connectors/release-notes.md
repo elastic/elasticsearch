@@ -13,6 +13,9 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.3.0 [connectors-9.3.0-release-notes]
+* Fixed a bug in the Network Drive connector that caused connections to SMB servers to close prematurely, leading to errors when multiple connections were made to the same host. [#3868](https://github.com/elastic/connectors/pull/3868), [#3873](https://github.com/elastic/connectors/pull/3873)
+
 ## 9.2.4 [connectors-9.2.4-release-notes]
 There are no new features, enhancements, fixes, known issues, or deprecations associated with this release.
 

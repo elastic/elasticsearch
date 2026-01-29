@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateSettingsFilterProvider;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
@@ -109,7 +110,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             xContentRegistry,
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            globalRetentionSettings,
+            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
         );
     }
 
@@ -900,7 +902,8 @@ public class ReservedComposableIndexTemplateActionTests extends ESTestCase {
             xContentRegistry,
             mock(SystemIndices.class),
             new IndexSettingProviders(Set.of()),
-            globalRetentionSettings
+            globalRetentionSettings,
+            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
         );
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch"))

@@ -2645,7 +2645,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings())
+            DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
+            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2716,7 +2717,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             EmptySystemIndices.INSTANCE,
             indexSettingProviders,
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings()),
-            instantSource
+            instantSource,
+            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
         );
     }
 

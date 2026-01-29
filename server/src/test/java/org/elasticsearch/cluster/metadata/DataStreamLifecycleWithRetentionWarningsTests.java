@@ -283,7 +283,8 @@ public class DataStreamLifecycleWithRetentionWarningsTests extends ESTestCase {
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
             DataStreamGlobalRetentionSettings.create(ClusterSettings.createBuiltInClusterSettings(settingsWithDefaultRetention)),
-            instantSource
+            instantSource,
+            MetadataIndexTemplateSettingsFilterProvider.defaultProvider()
         );
 
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

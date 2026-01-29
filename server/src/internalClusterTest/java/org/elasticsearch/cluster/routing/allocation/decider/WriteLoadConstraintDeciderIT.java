@@ -688,36 +688,17 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
         int secondDataNodeExpectedNumShards,
         int thirdDataNodeExpectedNumShards
     ) {
-        logger.info("--> Checking shard assignment for index: " + index.getName());
 
         int firstDataNodeRealNumberOfShards = routingNodes.node(firstDataNodeId).numberOfOwningShardsForIndex(index);
         if (firstDataNodeRealNumberOfShards != firstDataNodeExpectedNumShards) {
-            logger.info(
-                "--> First data node has "
-                    + firstDataNodeRealNumberOfShards
-                    + " shards assigned, expected "
-                    + firstDataNodeExpectedNumShards
-            );
             return false;
         }
         int secondDataNodeRealNumberOfShards = routingNodes.node(secondDataNodeId).numberOfOwningShardsForIndex(index);
         if (secondDataNodeRealNumberOfShards != secondDataNodeExpectedNumShards) {
-            logger.info(
-                "--> Second data node has "
-                    + secondDataNodeRealNumberOfShards
-                    + " shards assigned, expected "
-                    + secondDataNodeExpectedNumShards
-            );
             return false;
         }
         int thirdDataNodeRealNumberOfShards = routingNodes.node(thirdDataNodeId).numberOfOwningShardsForIndex(index);
         if (thirdDataNodeRealNumberOfShards != thirdDataNodeExpectedNumShards) {
-            logger.info(
-                "--> Third data node has "
-                    + thirdDataNodeRealNumberOfShards
-                    + " shards assigned, expected "
-                    + thirdDataNodeExpectedNumShards
-            );
             return false;
         }
 

@@ -241,9 +241,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (eisTaskType != null) {
-                builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
-            }
+            builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
             builder.field(ELASTICSEARCH_TASK_TYPE_FIELD, elasticsearchTaskType);
             builder.endObject();
             return builder;

@@ -699,7 +699,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "timestamp": "1478261151445"
      * }
      */
-    public void testGuessMappingRecursiveGivenArrayWithNestedObject() {
+    public void testGuessMappingRecursiveGivenArrayWithObjects() {
         Map<String, Object> nestedObject = new LinkedHashMap<>();
         nestedObject.put("id", 1);
         nestedObject.put("name", "host1");
@@ -728,8 +728,8 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      * {
      *  "hosts": [
      *      [{"id": 1, "name": "host1"}],
-     *      [[[{"id": 1, "name": "host1"}]]],
-     *      [{"id": 1, "name": "host1"}]
+     *      [[{"id": 1, "name": "host1"}]],
+     *      [[[{"id": 1, "name": "host1"}]]]
      *  ],
      *  "timestamp": "1478261151445"
      * }
@@ -740,7 +740,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         nestedObject.put("name", "host1");
 
         Map<String, Object> input = new LinkedHashMap<>();
-        input.put("host", List.of(List.of(nestedObject), List.of(List.of(nestedObject)), List.of(nestedObject)));
+        input.put("host", List.of(List.of(nestedObject), List.of(List.of(nestedObject)), List.of(List.of(List.of(nestedObject)))));
         input.put("timestamp", "1478261151445");
 
         Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
@@ -766,7 +766,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "timestamp": "1478261151445"
      * }
      */
-    public void testGuessMappingEmptyObjectMappedToObjectType() {
+    public void testGuessMappingRecursiveEmptyObjectMappedToObjectType() {
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("host", Map.of());
         input.put("message", Map.of("content", Map.of()));
@@ -794,7 +794,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
      *  "timestamp": "1478261151445"
      * }
      */
-    public void testGuessMappingRecursiveWithNestedListOfObjectsAndNonObjects() {
+    public void testGuessMappingRecursiveWithListOfObjectsAndConcreteValues() {
         var innerList = List.of(4, Map.of("id", 3));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("hosts", Map.of("host", innerList));
@@ -824,7 +824,12 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
-     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": 42}} ]
+     *  "key":
+     *    [
+     *      {"x": 1},
+     *      {"y": {"z": 10}},
+     *      {"y": {"z": 42}}
+     *    ]
      * }
      */
     public void testGuessMappingRecursiveWithListOfDifferentObjects1() {
@@ -849,7 +854,11 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
-     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": "a"}} ]
+     *   "key": [
+     *     {"x": 1},
+     *     {"y": {"z": 10}},
+     *     {"y": {"z": "a"}}
+     *   ]
      * }
      */
     public void testGuessMappingRecursiveWithListOfDifferentObjects2() {
@@ -874,10 +883,14 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
-     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": {"w": 1}}} ]
-     * }
+     *   "key": [
+     *     {"x": 1},
+     *     {"y": {"z": 10}},
+     *     {"y": {"z": {"w": 1}}}
+     *   ]
+     *  }
      */
-    public void testGuessMappingRecursiveWithListOfDifferentObjects3() {
+    public void testGuessMappingRecursiveWithListOfConflictingObjects1() {
         var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", Map.of("w", 1))));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);
@@ -903,10 +916,47 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
-     *  "key": [ {"x": 1}, {"y": {"z": 10}}, {"y": {"z": {"q": { "w" : 10}}}} ]
+     *   "key": [
+     *     {"x": 1},
+     *     {"y": {"z": {"w": 1}}}
+     *     {"y": {"z": 10}},
+     *   ]
+     *  }
+     */
+    public void testGuessMappingRecursiveWithListOfConflictingObjects2() {
+        var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", Map.of("w", 1))), Map.of("y", Map.of("z", 10)));
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("key", innerList);
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Exception e = expectThrows(
+                RuntimeException.class,
+                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
+                    explanation,
+                    List.of(input),
+                    NOOP_TIMEOUT_CHECKER,
+                    ecsCompatibility,
+                    null,
+                    10
+                )
+            );
+            assertEquals("Field [key.y.z] has both object and non-object values - this is not supported by Elasticsearch", e.getMessage());
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *   "key": [
+     *     {"x": 1},
+     *     {"y": {"z": 10}},
+     *     {"y": {"z": {"q": { "w" : 10}}}}
+     *   ]
      * }
      */
-    public void testGuessMappingRecursiveWithListOfDifferentObjects4() {
+    public void testGuessMappingRecursiveWithListOfConflictingObjects3() {
         var innerList = List.of(Map.of("x", 1), Map.of("y", Map.of("z", 10)), Map.of("y", Map.of("z", Map.of("q", Map.of("w", 10)))));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);
@@ -932,13 +982,14 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
     /**
      * Input:
      * {
-     *  "key": [
-     *   {"l1": {"l2": 10}},
-     *   {"l1": {"l2": {"l3": { "l4" : 10}}}} ]
+     *   "key": [
+     *     {"l1": {"l2": {"l3": { "l4" : 10}}}}
+     *     {"l1": {"l2": 10}},
+     *   ]
      * }
      */
-    public void testGuessMappingRecursiveWithListOfConflictingObjects5() {
-        var innerList = List.of(Map.of("l1", Map.of("l2", 10)), Map.of("l1", Map.of("l2", Map.of("l3", Map.of("l4", 10)))));
+    public void testGuessMappingRecursiveWithListOfDifferentObjects4() {
+        var innerList = List.of(Map.of("l1", Map.of("l2", Map.of("l3", Map.of("l4", 10)))), Map.of("l1", Map.of("l2", 10)));
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("key", innerList);
 
@@ -958,72 +1009,6 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
                 "Field [key.l1.l2] has both object and non-object values - this is not supported by Elasticsearch",
                 e.getMessage()
             );
-        };
-
-        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
-    }
-
-    /**
-     * Input:
-     * {
-     *  "key": [
-     *   {"l1": {"l2": 10}},
-     *   {"l1": {"l2": {"l3": { "l4" : 10}}}}
-     *  ]
-     * }
-     */
-    public void testGuessMappingRecursiveWithListOfDifferentObjects6() {
-        var innerList = List.of(Map.of("l1", Map.of("l2", 10)), Map.of("l1", Map.of("l2", Map.of("l3", Map.of("l4", 10)))));
-        Map<String, Object> input = new LinkedHashMap<>();
-        input.put("key", innerList);
-
-        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
-            Exception e = expectThrows(
-                RuntimeException.class,
-                () -> TextStructureUtils.guessMappingsAndCalculateFieldStats(
-                    explanation,
-                    List.of(input),
-                    NOOP_TIMEOUT_CHECKER,
-                    ecsCompatibility,
-                    null,
-                    10
-                )
-            );
-            assertEquals(
-                "Field [key.l1.l2] has both object and non-object values - this is not supported by Elasticsearch",
-                e.getMessage()
-            );
-        };
-
-        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
-    }
-
-    /**
-     * Input:
-     * {
-     *  "key": [
-     *   {"l1": {"l2": {"l3": { "l4" : 10}}}},
-     *   {"l1": {"l2": {"l3": { "l5" : 10}}}}
-     *  ]
-     * }
-     */
-    public void testGuessMappingRecursiveWithListOfDifferentObjects7() {
-        var innerList = List.of(
-            Map.of("l1", Map.of("l2", Map.of("l3", Map.of("l4", 10)))),
-            Map.of("l1", Map.of("l2", Map.of("l3", Map.of("l5", 10))))
-        );
-        Map<String, Object> input = new LinkedHashMap<>();
-        input.put("key", innerList);
-
-        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
-            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
-                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, 10);
-
-            Map<String, Object> mappings = mappingsAndFieldStats.v1();
-            assertNotNull(mappings);
-
-            assertKeyAndMappedType(mappings, "key.l1.l2.l3.l4", "long");
-            assertKeyAndMappedType(mappings, "key.l1.l2.l3.l5", "long");
         };
 
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
@@ -1203,8 +1188,44 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
 
             assertKeyAndMappedType(mappings, "items.shallow", "long");
             assertKeyAndMappedType(mappings, "items.deep.nestedLong", "long");
+            // anything beyond the desired depth gets mapped to an object
             assertKeyAndMappedType(mappings, "items.deep.nestedObject", "object");
             assertThat(mappings, not(hasKey("items.deep.nested.tooDeep")));
+        };
+
+        ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);
+    }
+
+    /**
+     * Input:
+     * {
+     *   "items": {
+     *     "l1" [
+     *         {"tooDeep": 1},
+     *         {"tooDeep": 1},
+     *         {"tooDeep": 1}
+     *     ]
+     *   }
+     * }
+     */
+    public void testGuessMappingMaxDepthReachedForElementInList2() {
+        Map<String, Object> tooDeep = Map.of("tooDeep", 1);
+        Map<String, Object> deepElement = Map.of("l1", List.of(tooDeep, tooDeep, tooDeep));
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("items", List.of(deepElement, deepElement, deepElement));
+
+        int maxDepth = 2;
+
+        Consumer<Boolean> testGuessMappingGivenEcsCompatibility = (ecsCompatibility) -> {
+            Tuple<SortedMap<String, Object>, SortedMap<String, FieldStats>> mappingsAndFieldStats = TextStructureUtils
+                .guessMappingsAndCalculateFieldStats(explanation, List.of(input), NOOP_TIMEOUT_CHECKER, ecsCompatibility, null, maxDepth);
+
+            Map<String, Object> mappings = mappingsAndFieldStats.v1();
+            assertNotNull(mappings);
+
+            // anything beyond the desired depth gets mapped to an object
+            assertKeyAndMappedType(mappings, "items.l1", "object");
         };
 
         ecsCompatibilityModes.forEach(testGuessMappingGivenEcsCompatibility);

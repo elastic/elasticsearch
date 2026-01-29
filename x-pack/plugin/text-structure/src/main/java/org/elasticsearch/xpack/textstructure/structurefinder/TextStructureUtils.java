@@ -465,7 +465,7 @@ public final class TextStructureUtils {
     }
 
     /**
-     * Checks if any parent has a concrete value, which would be a conflict.
+     * Checks if any parent has a concrete value, which would mean a conflict.
      * Also marks all parent keys of the given key as having children.
      * Example: for keyParts ["a", "b", "c"], marks "a" and "a.b" as having children.
      * This effectively means that "a" and "a.b" can't accommodate concrete values anymore,

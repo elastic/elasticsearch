@@ -682,6 +682,7 @@ id_left:integer | name_left:keyword | other1_from_first_join:keyword | other1:ke
 lookupOnExpressionOnTheCoordinator
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -690,6 +691,8 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code_left == language_code
 | KEEP emp_no, language_code_left, language_name
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code_left:integer | language_name:keyword
 10001          | 2                     | French

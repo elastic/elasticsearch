@@ -98,6 +98,52 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "Decider is disabled for index level allocation filters.");
         }
 
+        return checkAllocationIsConsistentWithBalance(
+            node,
+            allocation,
+            projectId,
+            index,
+            indexMetadata,
+            (currentAllocation, threshold) -> currentAllocation >= threshold
+        );
+    }
+
+    @Override
+    public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (indexBalanceConstraintSettings.isDeciderEnabled() == false || isStateless == false || hasFilters()) {
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled.");
+        }
+
+        if (hasIndexRoutingFilters(indexMetadata)) {
+            return allocation.decision(Decision.YES, NAME, "Decider is disabled for index level allocation filters.");
+        }
+
+        Index index = shardRouting.index();
+        assert node.getByShardId(shardRouting.shardId()) != null : "Node doesn't have the shard?!";
+        assert node.node() != null;
+        assert node.node().getRoles().contains(INDEX_ROLE) || node.node().getRoles().contains(SEARCH_ROLE);
+        assert node.node().getRoles().contains(INDEX_ROLE) == shardRouting.primary() : "Search shard on index node?";
+        assert node.node().getRoles().contains(SEARCH_ROLE) != shardRouting.primary() : "Indexing shard on search node?";
+
+        final ProjectId projectId = allocation.getClusterState().metadata().projectFor(index).id();
+        return checkAllocationIsConsistentWithBalance(
+            node,
+            allocation,
+            projectId,
+            index,
+            indexMetadata,
+            (currentAllocation, threshold) -> currentAllocation > threshold
+        );
+    }
+
+    private Decision checkAllocationIsConsistentWithBalance(
+        RoutingNode node,
+        RoutingAllocation allocation,
+        ProjectId projectId,
+        Index index,
+        IndexMetadata indexMetadata,
+        NotPreferredPredicate notPreferredPredicate
+    ) {
         final Set<DiscoveryNode> eligibleNodes = new HashSet<>();
         int totalShards = 0;
         String nomenclature = EMPTY;
@@ -127,7 +173,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         final int threshold = Math.ceilDiv(totalShards + indexBalanceConstraintSettings.getExcessShards(), eligibleNodes.size());
         final int currentAllocation = node.numberOfOwningShardsForIndex(index);
 
-        if (currentAllocation >= threshold) {
+        if (notPreferredPredicate.test(currentAllocation, threshold)) {
             String explanation = Strings.format(
                 "There are [%d] eligible nodes in the [%s] tier for assignment of [%d] shards in index [%s]. Ideally no more than [%.0f] "
                     + "shard would be assigned per node (the index balance excess shards setting is [%d]). This node is already assigned"
@@ -147,6 +193,17 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
         }
 
         return allocation.decision(Decision.YES, NAME, "Node index shard allocation is under the threshold.");
+    }
+
+    /**
+     * When checking <code>canRemain</code>, we return {@link Decision#NOT_PREFERRED} if the node is allocated <code>&gt; threshold</code>
+     * shards. When checking <code>canAllocate</code>, we return {@link Decision#NOT_PREFERRED} if the node is allocated
+     * <code>&gt;= threshold</code> shards.
+     * <p>
+     * This interface allows us to pass that check into {@link #checkAllocationIsConsistentWithBalance}
+     */
+    private interface NotPreferredPredicate {
+        boolean test(int currentAllocation, int threshold);
     }
 
     private void collectEligibleNodes(RoutingAllocation allocation, Set<DiscoveryNode> eligibleNodes, DiscoveryNodeRole role) {

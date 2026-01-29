@@ -1080,7 +1080,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     if (allocationDecision.type() == Type.NOT_PREFERRED && remainDecision.type() == Type.NOT_PREFERRED) {
                         // Whether or not a relocation target node can be found, it's important to explain the canAllocate response as
                         // NOT_PREFERRED, as opposed to NO.
-                        bestDecision = Type.NOT_PREFERRED;
+                        if (allocationDecision.type().compareToBetweenDecisions(bestDecision) > 0) {
+                            bestDecision = Type.NOT_PREFERRED;
+                        }
                         // Relocating a shard from one NOT_PREFERRED node to another NOT_PREFERRED node would not improve the situation.
                         continue;
                     }

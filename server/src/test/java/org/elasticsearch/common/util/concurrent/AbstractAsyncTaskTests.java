@@ -59,14 +59,20 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 try {
                     barrier1.await();
                 } catch (Exception e) {
+                    logger.error("barrier1 interrupted", e);
                     fail("interrupted");
                 }
+                barrier1.reset();
+
                 count.incrementAndGet();
                 try {
                     barrier2.await();
                 } catch (Exception e) {
+                    logger.error("barrier2 interrupted", e);
                     fail("interrupted");
                 }
+                barrier2.reset();
+
                 if (shouldRunThrowException) {
                     throw new RuntimeException("foo");
                 }
@@ -81,8 +87,8 @@ public class AbstractAsyncTaskTests extends ESTestCase {
         assertTrue(task.isScheduled());
         barrier2.await();
         assertEquals(1, count.get());
-        barrier1.reset();
-        barrier2.reset();
+
+        // wait for the rescheduled task to begin running
         barrier1.await();
         assertTrue(task.isScheduled());
         task.close();
@@ -112,6 +118,7 @@ public class AbstractAsyncTaskTests extends ESTestCase {
                 try {
                     barrier.await();
                 } catch (Exception e) {
+                    logger.error("barrier interrupted", e);
                     fail("interrupted");
                 }
                 if (shouldRunThrowException) {

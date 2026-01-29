@@ -105,6 +105,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(restoredIndexName)
             .getIndex();
 
@@ -218,7 +219,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
             .setMetadata(true)
             .setIndices(mountedIndexName)
             .get();
-        final Index mountedIndex = state.getState().metadata().index(mountedIndexName).getIndex();
+        final Index mountedIndex = state.getState().metadata().getProject().index(mountedIndexName).getIndex();
 
         final Set<DiscoveryNode> dataNodes = new HashSet<>();
         for (DiscoveryNode node : getDiscoveryNodes()) {

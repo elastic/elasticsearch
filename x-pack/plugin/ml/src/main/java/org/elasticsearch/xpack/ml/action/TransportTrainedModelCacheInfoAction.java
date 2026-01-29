@@ -13,14 +13,12 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction;
 import org.elasticsearch.xpack.core.ml.action.TrainedModelCacheInfoAction.Response.CacheInfo;
@@ -87,8 +85,7 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         );
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // this can be replaced with TransportRequest.Empty in v9
-    public static class NodeModelCacheInfoRequest extends TransportRequest {
+    public static class NodeModelCacheInfoRequest extends AbstractTransportRequest {
 
         NodeModelCacheInfoRequest() {}
 
@@ -99,11 +96,6 @@ public class TransportTrainedModelCacheInfoAction extends TransportNodesAction<
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new CancellableTask(id, type, action, "", parentTaskId, headers);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
         }
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,16 +81,7 @@ public final class ConfigurableClusterPrivileges {
      * Utility method to write an array of {@link ConfigurableClusterPrivilege} objects to a {@link StreamOutput}
      */
     public static void writeArray(StreamOutput out, ConfigurableClusterPrivilege[] privileges) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeArray(WRITER, privileges);
-        } else {
-            out.writeArray(
-                WRITER,
-                Arrays.stream(privileges)
-                    .filter(privilege -> privilege instanceof ManageRolesPrivilege == false)
-                    .toArray(ConfigurableClusterPrivilege[]::new)
-            );
-        }
+        out.writeArray(WRITER, privileges);
     }
 
     /**
@@ -414,13 +404,18 @@ public final class ConfigurableClusterPrivileges {
             this.requestPredicateSupplier = (restrictedIndices) -> {
                 IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
-                    indicesPermissionBuilder.addGroup(
-                        IndexPrivilege.get(Set.of(indexPatternPrivilege.privileges())),
-                        FieldPermissions.DEFAULT,
-                        null,
-                        false,
-                        indexPatternPrivilege.indexPatterns()
-                    );
+                    Set<IndexPrivilege> privileges = IndexPrivilege.resolveBySelectorAccess(Set.of(indexPatternPrivilege.privileges()));
+                    assert privileges.stream().allMatch(p -> p.getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES)
+                        : "not support for failures store access yet";
+                    for (IndexPrivilege indexPrivilege : privileges) {
+                        indicesPermissionBuilder.addGroup(
+                            indexPrivilege,
+                            FieldPermissions.DEFAULT,
+                            null,
+                            false,
+                            indexPatternPrivilege.indexPatterns()
+                        );
+                    }
                 }
                 final IndicesPermission indicesPermission = indicesPermissionBuilder.build();
 
@@ -555,6 +550,20 @@ public final class ConfigurableClusterPrivileges {
                 if (indexPrivilege.privileges == null || indexPrivilege.privileges.length == 0) {
                     throw new IllegalArgumentException("Indices privileges must define at least one privilege");
                 }
+                for (String privilege : indexPrivilege.privileges) {
+                    IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
+
+                    // Use resolveBySelectorAccess to determine whether the passed privilege is valid.
+                    // IllegalArgumentException is thrown here when an invalid permission is encountered.
+                    IndexPrivilege.resolveBySelectorAccess(Set.of(privilege));
+
+                    if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                        throw new IllegalArgumentException(
+                            "Failure store related privileges are not supported as targets of manage roles but found [" + privilege + "]"
+                        );
+                    }
+                }
+
             }
             return new ManageRolesPrivilege(indexPrivileges);
         }

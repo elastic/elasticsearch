@@ -18,19 +18,14 @@ import org.elasticsearch.test.cluster.util.Version;
 
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 
 public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgradeIndexCompatibilityTestCase {
 
@@ -73,88 +68,15 @@ public class RollingUpgradeLuceneIndexCompatibilityTestCase extends RollingUpgra
                 closeIndex(index);
             }
 
-            final var randomBlocks = randomFrom(
-                List.of(IndexMetadata.APIBlock.WRITE, IndexMetadata.APIBlock.READ_ONLY),
-                List.of(IndexMetadata.APIBlock.READ_ONLY),
-                List.of(IndexMetadata.APIBlock.WRITE)
-            );
-            for (var randomBlock : randomBlocks) {
-                addIndexBlock(index, randomBlock);
-                assertThat(indexBlocks(index), hasItem(randomBlock.getBlock()));
-            }
-
-            assertThat(indexBlocks(index), maybeClose ? hasItem(INDEX_CLOSED_BLOCK) : not(hasItem(INDEX_CLOSED_BLOCK)));
-            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(maybeClose));
-            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            addAndAssertIndexBlocks(index, maybeClose);
             return;
         }
 
         if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
             final var isClosed = isIndexClosed(index);
-            logger.debug("--> upgraded index [{}] is now in [{}] state", index, isClosed ? "closed" : "open");
-            assertThat(
-                indexBlocks(index),
-                allOf(
-                    either(hasItem(INDEX_READ_ONLY_BLOCK)).or(hasItem(INDEX_WRITE_BLOCK)),
-                    isClosed ? hasItem(INDEX_CLOSED_BLOCK) : not(hasItem(INDEX_CLOSED_BLOCK))
-                )
-            );
-            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(isClosed));
-            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            assertAndModifyIndexBlocks(index, isClosed);
 
-            var blocks = indexBlocks(index).stream().filter(c -> c.equals(INDEX_WRITE_BLOCK) || c.equals(INDEX_READ_ONLY_BLOCK)).toList();
-            if (blocks.size() == 2) {
-                switch (randomInt(2)) {
-                    case 0:
-                        updateIndexSettings(
-                            index,
-                            Settings.builder()
-                                .putNull(IndexMetadata.APIBlock.WRITE.settingName())
-                                .put(IndexMetadata.APIBlock.READ_ONLY.settingName(), true)
-                        );
-                        assertThat(
-                            indexBlocks(index),
-                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_READ_ONLY_BLOCK) : contains(INDEX_READ_ONLY_BLOCK)
-                        );
-                        break;
-                    case 1:
-                        updateIndexSettings(
-                            index,
-                            Settings.builder()
-                                .putNull(IndexMetadata.APIBlock.READ_ONLY.settingName())
-                                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
-                        );
-                        assertThat(
-                            indexBlocks(index),
-                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK)
-                        );
-                        break;
-                    case 2:
-                        updateIndexSettings(index, Settings.builder().put(IndexMetadata.APIBlock.READ_ONLY.settingName(), false));
-                        assertThat(
-                            indexBlocks(index),
-                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK)
-                        );
-                        break;
-                    default:
-                        throw new AssertionError();
-                }
-            }
-
-            blocks = indexBlocks(index).stream().filter(c -> c.equals(INDEX_WRITE_BLOCK) || c.equals(INDEX_READ_ONLY_BLOCK)).toList();
-            if (blocks.contains(INDEX_READ_ONLY_BLOCK)) {
-                logger.debug("--> read_only API block can be replaced by a write block (required for the remaining tests)");
-                updateIndexSettings(
-                    index,
-                    Settings.builder()
-                        .putNull(IndexMetadata.APIBlock.READ_ONLY.settingName())
-                        .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
-                );
-            }
-
-            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
-            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(isClosed));
-            assertThat(indexBlocks(index), isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK));
+            ensureWriteBlock(index, isClosed);
 
             if (isClosed) {
                 logger.debug("--> re-opening index [{}] after upgrade", index);

@@ -103,7 +103,7 @@ public class TransportPrevalidateShardPathAction extends TransportNodesAction<
         // For each shard we only check whether the shard path exists, regardless of whether the content is a valid index or not.
         for (ShardId shardId : request.getShardIds()) {
             try {
-                var indexMetadata = clusterService.state().metadata().index(shardId.getIndex());
+                var indexMetadata = clusterService.state().metadata().findIndex(shardId.getIndex()).orElse(null);
                 String customDataPath = null;
                 if (indexMetadata != null) {
                     customDataPath = new IndexSettings(indexMetadata, settings).customDataPath();

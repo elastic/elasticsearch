@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
@@ -53,11 +54,11 @@ public class TransportClusterAllocationExplainActionTests extends ESTestCase {
             clusterService,
             threadPool,
             new ActionFilters(Set.of()),
-            null,
             () -> ClusterInfo.EMPTY,
             EmptySnapshotsInfoService.INSTANCE,
             new AllocationDeciders(List.of()),
-            null
+            null,
+            DefaultProjectResolver.INSTANCE
         );
     }
 

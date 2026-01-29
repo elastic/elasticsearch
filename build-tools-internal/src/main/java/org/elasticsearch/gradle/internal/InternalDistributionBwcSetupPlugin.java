@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -73,7 +74,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         var buildParams = loadBuildParams(project).get();
-        Boolean isCi = buildParams.isCi();
+        Boolean isCi = buildParams.getCi();
         buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(
                 project.project(unreleasedVersion.gradleProjectPath()),
@@ -104,6 +105,25 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         }
+
+        // We need source access to unmaintained previous major for our yamlRestTest compatibility tests but we do not
+        // want bwc coverage for this atm.
+        Optional<BwcVersions.UnreleasedVersionInfo> unmaintainedPreviousMajor = buildParams.getBwcVersions().getUnmaintainedPreviousMajor();
+        if (unmaintainedPreviousMajor.isPresent()) {
+            configureBwcProject(
+                project.project(unmaintainedPreviousMajor.get().gradleProjectPath()),
+                buildParams,
+                unmaintainedPreviousMajor.get(),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
+        // In a scenario where we do not have unreleased previous major we still wanna resolve some resources directly from branch
+        // (e.g. needed by YamlRestTestCompatibilityTestPlugin)
+
     }
 
     private static void configureBwcProject(
@@ -355,8 +375,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
             boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+            boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
             File expectedOutputFile = useNativeExpanded
-                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
+                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
                 : projectArtifact.distFile;
             c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
             if (useNativeExpanded) {
@@ -364,7 +385,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.isCi() == false);
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.getCi() == false);
             c.getArgs().add("-p");
             c.getArgs().add(projectPath);
             c.getArgs().add(assembleTaskName);

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.redact;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
 import org.elasticsearch.grok.GrokCaptureExtracter;
@@ -30,6 +31,7 @@ import org.joni.Region;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -226,7 +228,10 @@ public class RedactProcessor extends AbstractProcessor {
 
         // document newly redacted
         if (alreadyRedacted == false && isRedacted) {
-            ingestDocument.setFieldValue(METADATA_PATH_REDACT_IS_REDACTED, true);
+            // Set the field directly in the metadata map to avoid any access pattern related problems
+            Map<String, Object> redactObject = HashMap.newHashMap(1);
+            redactObject.put(IS_REDACTED_KEY, true);
+            ingestDocument.getIngestMetadata().put(REDACT_KEY, redactObject);
         }
     }
 
@@ -273,8 +278,8 @@ public class RedactProcessor extends AbstractProcessor {
             assert patternName != null;
 
             int number = 0;
-            int matchOffset = offset + region.beg[number];
-            int matchEnd = offset + region.end[number];
+            int matchOffset = offset + region.getBeg(number);
+            int matchEnd = offset + region.getEnd(number);
             replacementPositions.add(new Replacement(matchOffset, matchEnd, patternName));
         }
 
@@ -410,7 +415,8 @@ public class RedactProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");

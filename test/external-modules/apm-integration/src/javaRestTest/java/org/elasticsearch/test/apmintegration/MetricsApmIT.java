@@ -127,7 +127,7 @@ public class MetricsApmIT extends ESRestTestCase {
 
         var completed = finished.await(30, TimeUnit.SECONDS);
         var remainingAssertions = Stream.concat(valueAssertions.keySet().stream(), histogramAssertions.keySet().stream())
-            .collect(Collectors.joining());
+            .collect(Collectors.joining(","));
         assertTrue("Timeout when waiting for assertions to complete. Remaining assertions to match: " + remainingAssertions, completed);
     }
 

@@ -19,10 +19,12 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -33,10 +35,8 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfiguration;
 import org.elasticsearch.ingest.geoip.direct.DatabaseConfigurationMetadata;
-import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -67,7 +67,10 @@ import static org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderTaskExecut
  * Downloads are verified against MD5 checksum provided by the server
  * Current state of all stored databases is stored in cluster state in persistent task state
  */
-public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
+@NotMultiProjectCapable(
+    description = "Enterprise GeoIP not available in serverless, we should review this class for MP again after serverless is enabled"
+)
+public class EnterpriseGeoIpDownloader extends AbstractGeoIpDownloader {
 
     private static final Logger logger = LogManager.getLogger(EnterpriseGeoIpDownloader.class);
 
@@ -99,12 +102,9 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
     private final Client client;
     private final HttpClient httpClient;
     private final ClusterService clusterService;
-    private final ThreadPool threadPool;
 
     // visible for testing
     protected volatile EnterpriseGeoIpTaskState state;
-    private volatile Scheduler.ScheduledCancellable scheduled;
-    private final Supplier<TimeValue> pollIntervalSupplier;
     private final Function<String, char[]> tokenProvider;
 
     EnterpriseGeoIpDownloader(
@@ -121,12 +121,10 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         Supplier<TimeValue> pollIntervalSupplier,
         Function<String, char[]> tokenProvider
     ) {
-        super(id, type, action, description, parentTask, headers);
+        super(id, type, action, description, parentTask, headers, threadPool, pollIntervalSupplier);
         this.client = client;
         this.httpClient = httpClient;
         this.clusterService = clusterService;
-        this.threadPool = threadPool;
-        this.pollIntervalSupplier = pollIntervalSupplier;
         this.tokenProvider = tokenProvider;
     }
 
@@ -142,22 +140,27 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
+        @NotMultiProjectCapable(description = "Enterprise GeoIP not available in serverless")
+        ProjectId projectId = ProjectId.DEFAULT;
         var clusterState = clusterService.state();
-        var geoipIndex = clusterState.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
+        var geoipIndex = clusterState.getMetadata().getProject(projectId).getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX);
         if (geoipIndex != null) {
             logger.trace("the geoip index [{}] exists", EnterpriseGeoIpDownloader.DATABASES_INDEX);
-            if (clusterState.getRoutingTable().index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
+            if (clusterState.routingTable(projectId).index(geoipIndex.getWriteIndex()).allPrimaryShardsActive() == false) {
                 logger.debug("not updating databases because not all primary shards of [{}] index are active yet", DATABASES_INDEX);
                 return;
             }
-            var blockException = clusterState.blocks().indexBlockedException(ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
+            var blockException = clusterState.blocks()
+                .indexBlockedException(projectId, ClusterBlockLevel.WRITE, geoipIndex.getWriteIndex().getName());
             if (blockException != null) {
                 throw blockException;
             }
         }
 
         logger.trace("Updating databases");
-        IngestGeoIpMetadata geoIpMeta = clusterState.metadata().custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
+        IngestGeoIpMetadata geoIpMeta = clusterState.metadata()
+            .getProject(projectId)
+            .custom(IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.EMPTY);
 
         // if there are entries in the cs that aren't in the persistent task state,
         // then download those (only)
@@ -379,27 +382,15 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
         return buf;
     }
 
-    /**
-     * Downloads the geoip databases now, and schedules them to be downloaded again after pollInterval.
-     */
-    synchronized void runDownloader() {
-        // by the time we reach here, the state will never be null
-        assert this.state != null : "this.setState() is null. You need to call setState() before calling runDownloader()";
-
-        // there's a race condition between here and requestReschedule. originally this scheduleNextRun call was at the end of this
-        // block, but remember that updateDatabases can take seconds to run (it's downloading bytes from the internet), and so during the
-        // very first run there would be no future run scheduled to reschedule in requestReschedule. which meant that if you went from zero
-        // to N(>=2) databases in quick succession, then all but the first database wouldn't necessarily get downloaded, because the
-        // requestReschedule call in the EnterpriseGeoIpDownloaderTaskExecutor's clusterChanged wouldn't have a scheduled future run to
-        // reschedule. scheduling the next run at the beginning of this run means that there's a much smaller window (milliseconds?, rather
-        // than seconds) in which such a race could occur. technically there's a window here, still, but i think it's _greatly_ reduced.
-        scheduleNextRun(pollIntervalSupplier.get());
-        // TODO regardless of the above comment, i like the idea of checking the lowest last-checked time and then running the math to get
-        // to the next interval from then -- maybe that's a neat future enhancement to add
-
+    @Override
+    void runDownloader() {
         if (isCancelled() || isCompleted()) {
+            logger.debug("Not running downloader because task is cancelled or completed");
             return;
         }
+        // by the time we reach here, the state will never be null
+        assert this.state != null : "this.state is null. You need to call setState() before calling runDownloader()";
+
         try {
             updateDatabases(); // n.b. this downloads bytes from the internet, it can take a while
         } catch (Exception e) {
@@ -409,21 +400,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             cleanDatabases();
         } catch (Exception e) {
             logger.error("exception during databases cleanup", e);
-        }
-    }
-
-    /**
-     * This method requests that the downloader be rescheduled to run immediately (presumably because a dynamic property supplied by
-     * pollIntervalSupplier or eagerDownloadSupplier has changed, or a pipeline with a geoip processor has been added). This method does
-     * nothing if this task is cancelled, completed, or has not yet been scheduled to run for the first time. It cancels any existing
-     * scheduled run.
-     */
-    public void requestReschedule() {
-        if (isCancelled() || isCompleted()) {
-            return;
-        }
-        if (scheduled != null && scheduled.cancel()) {
-            scheduleNextRun(TimeValue.ZERO);
         }
     }
 
@@ -441,20 +417,6 @@ public class EnterpriseGeoIpDownloader extends AllocatedPersistentTask {
             state = state.put(name, new Metadata(meta.lastUpdate(), meta.firstChunk(), meta.lastChunk(), meta.md5(), meta.lastCheck() - 1));
             updateTaskState();
         });
-    }
-
-    @Override
-    protected void onCancelled() {
-        if (scheduled != null) {
-            scheduled.cancel();
-        }
-        markAsCompleted();
-    }
-
-    private void scheduleNextRun(TimeValue time) {
-        if (threadPool.scheduler().isShutdown() == false) {
-            scheduled = threadPool.schedule(this::runDownloader, time, threadPool.generic());
-        }
     }
 
     private ProviderDownload downloaderFor(DatabaseConfiguration database) {

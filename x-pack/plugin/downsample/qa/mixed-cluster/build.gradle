@@ -8,8 +8,8 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.bwc-test'
 
 
@@ -31,7 +31,7 @@ def supportedVersion = bwcVersion -> {
 buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
 
   def yamlRestTest = tasks.register("v${bwcVersion}#yamlRestTest", StandaloneRestIntegTestTask) {
-    usesDefaultDistribution()
+    usesDefaultDistribution("BWC tests require full distribution for now")
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
     testClassesDirs = sourceSets.yamlRestTest.output.classesDirs

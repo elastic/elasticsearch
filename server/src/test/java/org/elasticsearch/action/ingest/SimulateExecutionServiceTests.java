@@ -261,7 +261,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocument() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -281,7 +281,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocumentVerbose() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -304,7 +304,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testDropDocumentVerboseExtraProcessor() throws Exception {
         TestProcessor processor1 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field1", "value"));
-        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of());
+        Processor processor2 = new DropProcessor.Factory().create(Map.of(), null, null, Map.of(), null);
         TestProcessor processor3 = new TestProcessor(ingestDocument -> ingestDocument.setFieldValue("field2", "value"));
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1, processor2, processor3));
 

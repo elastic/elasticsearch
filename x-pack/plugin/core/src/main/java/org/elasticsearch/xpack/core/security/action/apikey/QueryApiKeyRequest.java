@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -22,7 +22,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public final class QueryApiKeyRequest extends ActionRequest {
+public final class QueryApiKeyRequest extends LegacyActionRequest {
 
     @Nullable
     private final QueryBuilder queryBuilder;

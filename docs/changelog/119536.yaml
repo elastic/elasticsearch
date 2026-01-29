@@ -1,5 +1,0 @@
-pr: 119536
-summary: Fix ROUND() with unsigned longs throwing in some edge cases
-area: ES|QL
-type: bug
-issues: []

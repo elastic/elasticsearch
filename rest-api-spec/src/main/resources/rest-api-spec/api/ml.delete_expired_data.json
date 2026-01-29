@@ -1,51 +1,55 @@
 {
-  "ml.delete_expired_data":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-expired-data.html",
-      "description":"Deletes expired and unused machine learning data."
+  "ml.delete_expired_data": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-expired-data",
+      "description": "Delete expired ML data"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_ml/_delete_expired_data/{job_id}",
-          "methods":[
+          "path": "/_ml/_delete_expired_data/{job_id}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "job_id":{
-              "type":"string",
-              "description":"The ID of the job(s) to perform expired data hygiene for"
+          "parts": {
+            "job_id": {
+              "type": "string",
+              "description": "The ID of the job(s) to perform expired data hygiene for"
             }
           }
         },
         {
-          "path":"/_ml/_delete_expired_data",
-          "methods":[
+          "path": "/_ml/_delete_expired_data",
+          "methods": [
             "DELETE"
           ]
         }
       ]
     },
-    "params":{
-      "requests_per_second":{
-        "type":"number",
-        "required":false,
-        "description":"The desired requests per second for the deletion processes."
+    "params": {
+      "requests_per_second": {
+        "type": "number",
+        "description": "The desired requests per second for the deletion processes."
       },
-      "timeout":{
-        "type":"time",
-        "required":false,
-        "description":"How long can the underlying delete processes run until they are canceled"
+      "timeout": {
+        "type": "time",
+        "default": "8h",
+        "description": "How long can the underlying delete processes run until they are canceled"
       }
     },
-    "body":{
-      "description":"deleting expired data parameters"
+    "body": {
+      "description": "deleting expired data parameters",
+      "required": false
     }
   }
 }

@@ -8,54 +8,18 @@
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingTypeTests extends ESTestCase {
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingByte() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
 
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingInt8() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.INT8, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsFloat_WhenVersionIsBeforeByteEnumAddition_WhenSpecifyingFloat() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, new TransportVersion(8_613_00_0)),
-            is(CohereEmbeddingType.FLOAT)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsByte_WhenVersionOnByteEnumAddition_WhenSpecifyingByte() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BYTE, TransportVersions.V_8_14_0),
-            is(CohereEmbeddingType.BYTE)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsFloat_WhenVersionOnByteEnumAddition_WhenSpecifyingFloat() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.V_8_14_0),
-            is(CohereEmbeddingType.FLOAT)
-        );
-    }
-
-    public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAdditionPatch_WhenSpecifyingBit() {
-        assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, new TransportVersion(8_840_0_00)),
-            is(CohereEmbeddingType.INT8)
-        );
-    }
+    private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = TransportVersion.fromName(
+        "cohere_bit_embedding_type_support_added"
+    );
+    private static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_PATCH = COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED
+        .nextPatchVersion();
 
     public void testTranslateToVersion_ReturnsInt8_WhenVersionIsBeforeBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
@@ -66,24 +30,21 @@ public class CohereEmbeddingTypeTests extends ESTestCase {
 
     public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAddition_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
             is(CohereEmbeddingType.BIT)
         );
     }
 
     public void testTranslateToVersion_ReturnsBit_WhenVersionOnBitEnumAdditionPatch_WhenSpecifyingBit() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(
-                CohereEmbeddingType.BIT,
-                TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X
-            ),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.BIT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED_PATCH),
             is(CohereEmbeddingType.BIT)
         );
     }
 
     public void testTranslateToVersion_ReturnsFloat_WhenVersionOnBitEnumAddition_WhenSpecifyingFloat() {
         assertThat(
-            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, TransportVersions.COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
+            CohereEmbeddingType.translateToVersion(CohereEmbeddingType.FLOAT, COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED),
             is(CohereEmbeddingType.FLOAT)
         );
     }

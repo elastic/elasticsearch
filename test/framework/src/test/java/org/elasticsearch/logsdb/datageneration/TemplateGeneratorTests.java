@@ -9,6 +9,9 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.Template;
+import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;

@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
@@ -46,12 +45,12 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 
 import java.io.IOException;
@@ -77,6 +76,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
+@ESTestCase.WithoutEntitlements // due to dependency issue ES-12435
 public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String INFERENCE_ROUTE = "/_inference";
     private static final String REQUEST_COUNT = "request_count";
@@ -179,24 +179,19 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     private static class StreamingInferenceServiceResults implements InferenceServiceResults {
-        private final Flow.Publisher<ChunkedToXContent> publisher;
+        private final Flow.Publisher<InferenceServiceResults.Result> publisher;
 
-        private StreamingInferenceServiceResults(Flow.Publisher<ChunkedToXContent> publisher) {
+        private StreamingInferenceServiceResults(Flow.Publisher<InferenceServiceResults.Result> publisher) {
             this.publisher = publisher;
         }
 
         @Override
-        public Flow.Publisher<ChunkedToXContent> publisher() {
+        public Flow.Publisher<InferenceServiceResults.Result> publisher() {
             return publisher;
         }
 
         @Override
         public List<? extends InferenceResults> transformToCoordinationFormat() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
             return List.of();
         }
 
@@ -224,7 +219,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomPublisher implements Flow.Publisher<ChunkedToXContent> {
+    private static class RandomPublisher implements Flow.Publisher<InferenceServiceResults.Result> {
         private final int requestCount;
         private final boolean withError;
 
@@ -234,7 +229,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public void subscribe(Flow.Subscriber<? super ChunkedToXContent> subscriber) {
+        public void subscribe(Flow.Subscriber<? super InferenceServiceResults.Result> subscriber) {
             var resultCount = new AtomicInteger(requestCount);
             subscriber.onSubscribe(new Flow.Subscription() {
                 @Override
@@ -256,11 +251,24 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomString implements ChunkedToXContent {
+    private record RandomString(String randomString) implements InferenceServiceResults.Result {
+        RandomString() {
+            this(randomUnicodeOfLengthBetween(2, 20));
+        }
+
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            var randomString = randomUnicodeOfLengthBetween(2, 20);
             return ChunkedToXContentHelper.chunk((b, p) -> b.startObject().field("delta", randomString).endObject());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test_RandomString";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(randomString);
         }
     }
 
@@ -268,11 +276,6 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
         @Override
         public List<? extends InferenceResults> transformToCoordinationFormat() {
-            return List.of();
-        }
-
-        @Override
-        public List<? extends InferenceResults> transformToLegacyFormat() {
             return List.of();
         }
 
@@ -351,9 +354,8 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         private void collect(String str) throws IOException {
             sseParser.parse(str.getBytes(StandardCharsets.UTF_8))
                 .stream()
-                .filter(event -> event.name() == ServerSentEventField.DATA)
-                .filter(ServerSentEvent::hasValue)
-                .map(ServerSentEvent::value)
+                .filter(ServerSentEvent::hasData)
+                .map(ServerSentEvent::data)
                 .forEach(stringsVerified::offer);
         }
     }

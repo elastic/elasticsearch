@@ -1,0 +1,5 @@
+pr: 137572
+summary: Push filters past inline stats
+area: ES|QL
+type: enhancement
+issues: []

@@ -25,7 +25,7 @@ tasks.named("test").configure {
 }
 
 tasks.named('javaRestTest').configure {
-  it.onlyIf("snapshot build") { buildParams.isSnapshotBuild() }
+  it.onlyIf("snapshot build") { buildParams.snapshotBuild }
 }
 
 dependencies {

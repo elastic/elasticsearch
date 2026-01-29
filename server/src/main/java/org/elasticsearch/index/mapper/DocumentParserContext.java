@@ -14,11 +14,13 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -91,6 +93,36 @@ public abstract class DocumentParserContext {
         protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
+
+        @Override
+        public void processArrayOffsets(DocumentParserContext context) throws IOException {
+            in.processArrayOffsets(context);
+        }
+
+        @Override
+        public FieldArrayContext getOffSetContext() {
+            return in.getOffSetContext();
+        }
+
+        @Override
+        public void setImmediateXContentParent(XContentParser.Token token) {
+            in.setImmediateXContentParent(token);
+        }
+
+        @Override
+        public XContentParser.Token getImmediateXContentParent() {
+            return in.getImmediateXContentParent();
+        }
+
+        @Override
+        public boolean isImmediateParentAnArray() {
+            return in.isImmediateParentAnArray();
+        }
+
+        @Override
+        public BytesRef getTsid() {
+            return in.getTsid();
+        }
     }
 
     /**
@@ -140,6 +172,8 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
+    private FieldArrayContext fieldArrayContext;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -237,7 +271,7 @@ public abstract class DocumentParserContext {
             new HashMap<>(),
             null,
             null,
-            SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
             RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
@@ -270,6 +304,10 @@ public abstract class DocumentParserContext {
 
     public final MetadataFieldMapper getMetadataMapper(String mapperName) {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
+    }
+
+    public final List<VectorsFormatProvider> getVectorFormatProviders() {
+        return mappingParserContext.getVectorsFormatProviders();
     }
 
     public final MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
@@ -305,12 +343,6 @@ public abstract class DocumentParserContext {
         if (canAddIgnoredField()) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
-        }
-    }
-
-    final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
         }
     }
 
@@ -460,6 +492,33 @@ public abstract class DocumentParserContext {
         return copyToFields.contains(name);
     }
 
+    public void processArrayOffsets(DocumentParserContext context) throws IOException {
+        if (fieldArrayContext != null) {
+            fieldArrayContext.addToLuceneDocument(context);
+        }
+    }
+
+    public FieldArrayContext getOffSetContext() {
+        if (fieldArrayContext == null) {
+            fieldArrayContext = new FieldArrayContext();
+        }
+        return fieldArrayContext;
+    }
+
+    private XContentParser.Token lastSetToken;
+
+    public void setImmediateXContentParent(XContentParser.Token token) {
+        this.lastSetToken = token;
+    }
+
+    public XContentParser.Token getImmediateXContentParent() {
+        return lastSetToken;
+    }
+
+    public boolean isImmediateParentAnArray() {
+        return lastSetToken == XContentParser.Token.START_ARRAY;
+    }
+
     /**
      * Add a new mapper dynamically created while parsing.
      *
@@ -500,6 +559,24 @@ public abstract class DocumentParserContext {
                 mappingLookup.checkFieldLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd);
             }
             dynamicMappersSize.add(mapperSize);
+
+            if (indexSettings().isIgnoreDynamicFieldNamesBeyondLimit()) {
+                if (mapper.leafName().length() > indexSettings().getMappingFieldNameLengthLimit()) {
+                    if (canAddIgnoredField()) {
+                        try {
+                            addIgnoredField(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
+                            );
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + "]", e);
+                        }
+                    }
+                    addIgnoredField(mapper.fullPath());
+                    return false;
+                } else {
+                    mappingLookup.checkFieldNameLengthLimit(indexSettings().getMappingFieldNameLengthLimit());
+                }
+            }
         }
         if (mapper instanceof ObjectMapper objectMapper) {
             dynamicObjectMappers.put(objectMapper.fullPath(), objectMapper);
@@ -817,6 +894,9 @@ public abstract class DocumentParserContext {
 
     protected abstract void addDoc(LuceneDocument doc);
 
+    @Nullable
+    public abstract BytesRef getTsid();
+
     /**
      * Find a dynamic mapping template for the given field and its matching type
      *
@@ -840,6 +920,28 @@ public abstract class DocumentParserContext {
             );
         }
         return null;
+    }
+
+    /**
+     * Provides parameters for the {@link DynamicTemplate} returned by
+     * {@link #findDynamicTemplate(String, DynamicTemplate.XContentFieldType)}.
+     * The {@link DynamicTemplate} can use placeholders in its definition that
+     * will be replaced by the values returned by this method.
+     * For example, a dynamic template may contain a snippet like this:
+     * <pre>
+     * "meta": {
+     *   "unit": "{{unit}}"
+     * }
+     * </pre>
+     * When applying the dynamic template to a field, the placeholder <code>{{unit}}</code>
+     * will be replaced by the value returned by this method for the key <code>unit</code>.
+     *
+     * @param fieldName the name of the field
+     * @return a map of parameter names to values; empty map if no parameters exist
+     */
+    public final Map<String, String> getDynamicTemplateParams(String fieldName) {
+        final String pathAsString = path().pathAsText(fieldName);
+        return sourceToParse.dynamicTemplateParams().getOrDefault(pathAsString, Map.of());
     }
 
     // XContentParser that wraps an existing parser positioned on a value,

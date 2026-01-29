@@ -1,6 +1,0 @@
-pr: 120143
-summary: Esql - support date nanos in date format function
-area: ES|QL
-type: enhancement
-issues:
- - 109994

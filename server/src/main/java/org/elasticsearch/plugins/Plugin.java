@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -23,20 +24,26 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
+import org.elasticsearch.transport.RemoteTransportClient;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
@@ -92,6 +99,11 @@ public abstract class Plugin implements Closeable {
          * A service to allow retrieving an executor to run an async action
          */
         ThreadPool threadPool();
+
+        /**
+         * A service for allocating (and recycling) sizeable amounts of memory.
+         */
+        BigArrays bigArrays();
 
         /**
          * A service to watch for changes to node local files
@@ -174,6 +186,32 @@ public abstract class Plugin implements Closeable {
          * to track task removal by registering a RemovedTaskListener.
          */
         TaskManager taskManager();
+
+        /**
+         * The project resolver for the cluster. This should be used to determine the active project against which a request should execute
+         */
+        ProjectResolver projectResolver();
+
+        /**
+         * Provider for additional SlowLog fields
+         */
+        ActionLoggingFieldsProvider loggingFieldsProvider();
+
+        /**
+         * Provider for indexing pressure
+         */
+        IndexingPressure indexingPressure();
+
+        /**
+         * A service for registering for linked project configuration updates.
+         */
+        LinkedProjectConfigService linkedProjectConfigService();
+
+        /** A resolver for project routing information */
+        ProjectRoutingResolver projectRoutingResolver();
+
+        /** A utility for executing transport actions on remote nodes */
+        RemoteTransportClient remoteTransportClient();
     }
 
     /**
@@ -253,7 +291,8 @@ public abstract class Plugin implements Closeable {
      * Returns operators to modify custom metadata in the cluster state on startup.
      *
      * <p>Each key of the map returned gives the type of custom to be modified. Each value is an operator to be applied to that custom
-     * metadata. The operator will be invoked with the result of calling {@link Metadata#custom(String)} with the map key as its argument,
+     * metadata. The operator will be invoked with the result of calling
+     * {@link org.elasticsearch.cluster.metadata.ProjectMetadata#custom(String)} with the map key as its argument,
      * and should downcast the value accordingly.
      *
      * <p>Plugins should return an empty map if no upgrade is required.
@@ -261,7 +300,7 @@ public abstract class Plugin implements Closeable {
      * <p>The order of the upgrade calls is undefined and can change between runs. It is expected that plugins will modify only templates
      * owned by them to avoid conflicts.
      */
-    public Map<String, UnaryOperator<Metadata.Custom>> getCustomMetadataUpgraders() {
+    public Map<String, UnaryOperator<Metadata.ProjectCustom>> getProjectCustomMetadataUpgraders() {
         return Map.of();
     }
 

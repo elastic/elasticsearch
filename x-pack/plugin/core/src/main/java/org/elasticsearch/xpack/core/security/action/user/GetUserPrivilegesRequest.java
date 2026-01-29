@@ -6,19 +6,27 @@
  */
 package org.elasticsearch.xpack.core.security.action.user;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 import java.io.IOException;
 
 /**
  * A request for checking a user's privileges
  */
-public final class GetUserPrivilegesRequest extends ActionRequest implements UserRequest {
+public final class GetUserPrivilegesRequest extends LegacyActionRequest implements UserRequest {
+
+    private static final TransportVersion TV_UNWRAP_ROLE = TransportVersion.fromName("get_user_priv_unwrap_role");
 
     private String username;
+
+    @Nullable
+    private RoleReference.ApiKeyRoleType unwrapInnerRole;
 
     /**
      * Package level access for {@link GetUserPrivilegesRequestBuilder}.
@@ -28,6 +36,11 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
     public GetUserPrivilegesRequest(StreamInput in) throws IOException {
         super(in);
         this.username = in.readString();
+        if (in.getTransportVersion().supports(TV_UNWRAP_ROLE)) {
+            this.unwrapInnerRole = in.readOptionalEnum(RoleReference.ApiKeyRoleType.class);
+        } else {
+            this.unwrapInnerRole = null;
+        }
     }
 
     @Override
@@ -54,10 +67,21 @@ public final class GetUserPrivilegesRequest extends ActionRequest implements Use
         return new String[] { username };
     }
 
+    public RoleReference.ApiKeyRoleType unwrapLimitedRole() {
+        return unwrapInnerRole;
+    }
+
+    public void unwrapLimitedRole(RoleReference.ApiKeyRoleType unwrapInnerRole) {
+        this.unwrapInnerRole = unwrapInnerRole;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
+        if (out.getTransportVersion().supports(TV_UNWRAP_ROLE)) {
+            out.writeOptionalEnum(unwrapInnerRole);
+        }
     }
 
 }

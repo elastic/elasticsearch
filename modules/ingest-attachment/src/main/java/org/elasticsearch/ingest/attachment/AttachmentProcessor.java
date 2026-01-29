@@ -15,6 +15,7 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -232,7 +233,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String resourceName = readOptionalStringProperty(TYPE, processorTag, config, "resource_name");
@@ -241,7 +243,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
             // Revisit whether we want to update the [remove_binary] default to be 'true' - would need to find a way to do this safely
             Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
             if (removeBinary == null) {

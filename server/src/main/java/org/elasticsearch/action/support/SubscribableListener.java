@@ -32,15 +32,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 /**
- * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is
- * completed it fans-out its result to the subscribed listeners.
+ * An {@link ActionListener} to which other {@link ActionListener} instances can subscribe, such that when this listener is completed it
+ * fans-out its result to the subscribed listeners.
  * <p>
- * If this listener is complete, {@link #addListener} completes the subscribing listener immediately
- * with the result with which this listener was completed. Otherwise, the subscribing listener is retained
- * and completed when this listener is completed.
+ * If this listener is complete, {@link #addListener} completes the subscribing listener immediately with the result with which this
+ * listener was completed. Otherwise, the subscribing listener is retained and completed when this listener is completed.
  * <p>
- * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are child
- * classes that provide additional exception handling.
+ * Exceptions are passed to subscribed listeners without modification. {@link ListenableActionFuture} and {@link ListenableFuture} are
+ * subclasses which modify the exceptions passed to subscribed listeners.
+ * <p>
+ * If this listener is completed more than once then all results other than the first (whether successful or otherwise) are silently
+ * discarded. All subscribed listeners will be notified of the same result, exactly once, even if several completions occur concurrently.
  * <p>
  * A sequence of async steps can be chained together using a series of {@link SubscribableListener}s, similar to {@link CompletionStage}
  * (without the {@code catch (Throwable t)}). Listeners can be created for each step, where the next step subscribes to the result of the
@@ -97,6 +99,23 @@ import java.util.concurrent.Executor;
  *         .addListener(finalListener);
  * }
  * }</pre>
+ * <p>
+ * You must take care when using a chain of {@link SubscribableListener}s where one or more of the response objects have nontrivial
+ * lifecycles (e.g. they implement {@link org.elasticsearch.core.Releasable} or {@link org.elasticsearch.core.RefCounted}). For example:
+ * <ul>
+ *     <li>{@link SubscribableListener} silently discards all but one response, whether exceptional or otherwise. The caller must take steps
+ *     to release any discarded responses that need releasing.</li>
+ *     <li>When a {@link SubscribableListener} is completed it keeps hold of the response in case another listener subscribes to this
+ *     response in future (e.g. via {@link #addListener} or {@link #andThen}) but it does not formally take ownership of the response (e.g.
+ *     by calling {@link org.elasticsearch.core.RefCounted#incRef}). In particular, in the usual pattern ...
+ *     <pre>{@code
+ *         SubscribableListener.newForked(l1 -> step1(l1)).andThen((l2, r1) -> step2(r1, l2))...
+ *     }</pre>
+ *     ... if {@code r1} is ref-counted then usually {@code step1} will call {@link org.elasticsearch.core.RefCounted#decRef} immediately
+ *     after {@code l1.onResponse(r1)} returns since it no longer needs to keep the response alive itself. This is a problem because it may
+ *     happen before the {@link #andThen} adds the second step to the chain, so that by the time {@code step2} runs the response {@code r1}
+ *     may already be fully-released. The caller must take steps to keep responses alive until they are no longer needed.</li>
+ * </ul>
  */
 public class SubscribableListener<T> implements ActionListener<T> {
 
@@ -127,6 +146,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
     /**
      * Create a {@link SubscribableListener}, fork a computation to complete it, and return the listener. If the forking itself throws an
      * exception then the exception is caught and fed to the returned listener.
+     * <p>
+     * The listener passed to {@code fork} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public static <T> SubscribableListener<T> newForked(CheckedConsumer<ActionListener<T>, ? extends Exception> fork) {
         final var listener = new SubscribableListener<T>();
@@ -190,12 +212,19 @@ public class SubscribableListener<T> implements ActionListener<T> {
      *                      then it will be completed using the given executor. If the subscribing listener is completed immediately then
      *                      this completion happens on the subscribing thread.
      *                      <p>
-     *                      In other words, if you want to ensure that {@code listener} is completed using a particular executor, then you
-     *                      must do both of:
+     *                      This behaviour may seem complex at first sight, but it is like this to allow callers to ensure that
+     *                      {@code listener} is completed using a particular executor much more cheaply than simply always forking the
+     *                      completion task to the desired executor. To ensure that {@code listener} is completed using a particular
+     *                      executor, do both of the following:
      *                      <ul>
      *                      <li>Pass the desired executor in as {@code executor}, and</li>
      *                      <li>Invoke {@link #addListener} using that executor.</li>
      *                      </ul>
+     *                      <p>
+     *                      If you really want to fork the completion task to a specific executor in all circumstances, wrap the supplied
+     *                      {@code listener} in a {@link ThreadedActionListener} yourself. But do note that this can be surprisingly
+     *                      expensive, and it's almost always not the right approach, so it is deliberate that there is no convenient method
+     *                      on {@link SubscribableListener} which does this for you.
      *                      <p>
      *                      If {@code executor} rejects the execution of the completion of the subscribing listener then the result is
      *                      discarded and the subscribing listener is completed with a rejection exception on the thread which completes
@@ -264,6 +293,13 @@ public class SubscribableListener<T> implements ActionListener<T> {
      */
     public final boolean isDone() {
         return isDone(state);
+    }
+
+    /**
+     * @return return {@code true} if and only if this listener is done and has been completed successfully
+     */
+    public final boolean isSuccess() {
+        return state instanceof SuccessResult;
     }
 
     /**
@@ -432,6 +468,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(CheckedConsumer<ActionListener<U>, ? extends Exception> nextStep) {
         return newForked(l -> addListener(l.delegateFailureIgnoreResponseAndWrap(nextStep)));
@@ -459,6 +498,9 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * <li>Ensure that this {@link SubscribableListener} is always completed using that executor, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(CheckedBiConsumer<ActionListener<U>, T, ? extends Exception> nextStep) {
         return andThen(EsExecutors.DIRECT_EXECUTOR_SERVICE, null, nextStep);
@@ -480,17 +522,26 @@ public class SubscribableListener<T> implements ActionListener<T> {
      * The threading of the {@code nextStep} callback is the same as for listeners added with {@link #addListener}: if this listener is
      * already complete then {@code nextStep} is invoked on the thread calling {@link #andThen} and in its thread context, but if this
      * listener is incomplete then {@code nextStep} is invoked using {@code executor}, in a thread context captured when {@link #andThen}
-     * was called. In other words, if you want to ensure that {@code nextStep} is invoked using a particular executor, then you must do
-     * both of:
+     * was called. This behaviour may seem complex at first sight but it is like this to allow callers to ensure that {@code nextStep} runs
+     * using a particular executor much more cheaply than simply always forking its execution. To ensure that {@code nextStep} is invoked
+     * using a particular executor, do both of the following:
      * <ul>
      * <li>Pass the desired executor in as {@code executor}, and</li>
      * <li>Invoke {@link #andThen} using that executor.</li>
      * </ul>
      * <p>
+     * If you really want to fork the execution of the next step in the sequence to a specific executor in all circumstances, explicitly
+     * call {@link Executor#execute} within {@code nextStep} yourself. But do note that this can be surprisingly expensive, and it's almost
+     * always not the right approach, so it is deliberate that there is no convenient method on {@link SubscribableListener} which does this
+     * for you.
+     * <p>
      * If {@code executor} rejects the execution of {@code nextStep} then the result is discarded and the returned listener is completed
      * with a rejection exception on the thread which completes this listener. Likewise if this listener is completed exceptionally but
      * {@code executor} rejects the execution of the completion of the returned listener then the returned listener is completed with a
      * rejection exception on the thread which completes this listener.
+     * <p>
+     * The listener passed to {@code nextStep} is the returned {@link SubscribableListener}. In particular, it is valid to complete this
+     * listener more than once, but all results after the first completion will be silently ignored.
      */
     public <U> SubscribableListener<U> andThen(
         Executor executor,
@@ -578,5 +629,16 @@ public class SubscribableListener<T> implements ActionListener<T> {
 
     private Object compareAndExchangeState(Object expectedValue, Object newValue) {
         return VH_STATE_FIELD.compareAndExchange(this, expectedValue, newValue);
+    }
+
+    @SuppressWarnings("rawtypes")
+    private static final SubscribableListener NULL_SUCCESS = newSucceeded(null);
+
+    /**
+     * Same as {@link #newSucceeded(Object)} but always returns the same instance with result value {@code null}.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> SubscribableListener<T> nullSuccess() {
+        return NULL_SUCCESS;
     }
 }

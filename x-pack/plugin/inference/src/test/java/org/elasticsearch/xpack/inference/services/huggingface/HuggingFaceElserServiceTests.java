@@ -14,9 +14,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -24,8 +26,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -42,13 +45,14 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
@@ -64,7 +68,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -78,7 +82,7 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
     public void testChunkedInfer_CallsInfer_Elser_ConvertsFloatResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 [
@@ -94,23 +98,22 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             service.chunkedInfer(
                 model,
                 null,
-                List.of("abc"),
+                List.of(new ChunkInferenceInput("abc")),
                 new HashMap<>(),
-                InputType.INGEST,
+                InputType.INTERNAL_SEARCH,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
                 listener
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var sparseResult = (ChunkedInferenceEmbeddingSparse) result;
+            assertThat(result, instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResult = (ChunkedInferenceEmbedding) result;
             assertThat(
                 sparseResult.chunks(),
                 is(
                     List.of(
-                        new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(
-                            List.of(new WeightedToken(".", 0.13315596f)),
-                            "abc",
+                        new EmbeddingResults.Chunk(
+                            new SparseEmbeddingResults.Embedding(List.of(new WeightedToken(".", 0.13315596f)), false),
                             new ChunkedInference.TextOffset(0, "abc".length())
                         )
                     )
@@ -131,11 +134,33 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
         }
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new HuggingFaceElserService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            var model = HuggingFaceElserModelTests.createModel(getUrl(webServer), "secret");
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_SEARCH,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            assertThat(listener.actionGet(TIMEOUT), empty());
+            assertThat(webServer.requests(), empty());
+        }
+    }
+
     public void testGetConfiguration() throws Exception {
         try (
             var service = new HuggingFaceElserService(
                 HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
-                createWithEmptySettings(threadPool)
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
             )
         ) {
             String content = XContentHelper.stripWhitespace("""

@@ -12,10 +12,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 
@@ -33,17 +34,20 @@ public class DownsampleStep extends AsyncActionStep {
 
     private final DateHistogramInterval fixedInterval;
     private final TimeValue waitTimeout;
+    private final DownsampleConfig.SamplingMethod samplingMethod;
 
     public DownsampleStep(
         final StepKey key,
         final StepKey nextStepKey,
-        final Client client,
         final DateHistogramInterval fixedInterval,
-        final TimeValue waitTimeout
+        final TimeValue waitTimeout,
+        final DownsampleConfig.SamplingMethod samplingMethod,
+        final Client client
     ) {
         super(key, nextStepKey, client);
         this.fixedInterval = fixedInterval;
         this.waitTimeout = waitTimeout;
+        this.samplingMethod = samplingMethod;
     }
 
     @Override
@@ -54,7 +58,7 @@ public class DownsampleStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
@@ -85,11 +89,16 @@ public class DownsampleStep extends AsyncActionStep {
                 return;
             }
         }
-        performDownsampleIndex(indexName, downsampleIndexName, listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
+        performDownsampleIndex(
+            currentState.projectId(),
+            indexName,
+            downsampleIndexName,
+            listener.delegateFailureAndWrap((l, r) -> l.onResponse(r))
+        );
     }
 
-    void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {
-        DownsampleConfig config = new DownsampleConfig(fixedInterval);
+    void performDownsampleIndex(ProjectId projectId, String indexName, String downsampleIndexName, ActionListener<Void> listener) {
+        DownsampleConfig config = new DownsampleConfig(fixedInterval, samplingMethod);
         DownsampleAction.Request request = new DownsampleAction.Request(
             TimeValue.MAX_VALUE,
             indexName,
@@ -98,7 +107,11 @@ public class DownsampleStep extends AsyncActionStep {
             config
         );
         // Currently, DownsampleAction always acknowledges action was complete when no exceptions are thrown.
-        getClient().execute(DownsampleAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> l.onResponse(null)));
+        getClient(projectId).execute(
+            DownsampleAction.INSTANCE,
+            request,
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
+        );
     }
 
     public DateHistogramInterval getFixedInterval() {
@@ -109,9 +122,13 @@ public class DownsampleStep extends AsyncActionStep {
         return waitTimeout;
     }
 
+    public DownsampleConfig.SamplingMethod getSamplingMethod() {
+        return samplingMethod;
+    }
+
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout);
+        return Objects.hash(super.hashCode(), fixedInterval, waitTimeout, samplingMethod);
     }
 
     @Override
@@ -126,7 +143,10 @@ public class DownsampleStep extends AsyncActionStep {
             return false;
         }
         DownsampleStep other = (DownsampleStep) obj;
-        return super.equals(obj) && Objects.equals(fixedInterval, other.fixedInterval) && Objects.equals(waitTimeout, other.waitTimeout);
+        return super.equals(obj)
+            && Objects.equals(fixedInterval, other.fixedInterval)
+            && Objects.equals(waitTimeout, other.waitTimeout)
+            && Objects.equals(samplingMethod, other.samplingMethod);
     }
 
 }

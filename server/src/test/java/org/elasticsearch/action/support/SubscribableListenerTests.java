@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -249,7 +250,7 @@ public class SubscribableListenerTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory(executorThreadPrefix),
+            TestEsExecutors.testOnlyDaemonThreadFactory(executorThreadPrefix),
             threadContext
         );
 

@@ -3,7 +3,7 @@
 # opensuse 15 has a missing dep for systemd
 
 if which zypper > /dev/null ; then
-    sudo zypper install -y insserv-compat
+    sudo zypper install -y insserv-compat docker-buildx
 fi
 
 if [ -e /etc/sysctl.d/99-gce.conf ]; then
@@ -61,9 +61,14 @@ sudo bash -c 'cat > /etc/sudoers.d/elasticsearch_vars'  << SUDOERS_VARS
 SUDOERS_VARS
 sudo chmod 0440 /etc/sudoers.d/elasticsearch_vars
 
-# Bats tests still use this locationa
+# Bats tests still use this location
 sudo rm -Rf /elasticsearch
 sudo mkdir -p /elasticsearch/qa/ && sudo chown jenkins /elasticsearch/qa/ && ln -s $PWD/qa/vagrant /elasticsearch/qa/
+
+#
+if [[ -z "${WORKSPACE}" ]]; then
+  WORKSPACE=$(pwd)
+fi
 
 # Ensure since we're running as root that we can do git operations in this directory
 # See: https://git-scm.com/docs/git-config/2.35.2#Documentation/git-config.txt-safedirectory

@@ -16,5 +16,5 @@ tasks.named("javaRestTest").configure {
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   buildParams.withFipsEnabledOnly(it)
 
-  usesDefaultDistribution()
+  usesDefaultDistribution("to be triaged")
 }

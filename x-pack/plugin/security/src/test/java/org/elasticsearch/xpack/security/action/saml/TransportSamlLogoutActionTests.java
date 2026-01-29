@@ -27,9 +27,11 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.saml.SingleSpSamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -62,6 +65,7 @@ import org.elasticsearch.xpack.security.authc.saml.SamlNameId;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealm;
 import org.elasticsearch.xpack.security.authc.saml.SamlRealmTests;
 import org.elasticsearch.xpack.security.authc.saml.SamlTestCase;
+import org.elasticsearch.xpack.security.authc.saml.SingleSamlSpConfiguration;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
 import org.junit.Before;
@@ -101,6 +105,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     private TransportSamlLogoutAction action;
     private Client client;
     private ThreadPool threadPool;
+    private MockBytesRefRecycler bytesRefRecycler;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -110,11 +115,17 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Settings settings = Settings.builder()
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
             .put("path.home", createTempDir())
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID), SamlRealmTests.TEST_IDP_ENTITY_ID)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ENTITY_ID), SP_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.SP_ACS), SP_URL)
-            .put(getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.getAttribute()), "uid")
+            .put(SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_METADATA_PATH), metadata.toString())
+            .put(
+                SingleSpSamlRealmSettings.getFullSettingKey(REALM_NAME, SamlRealmSettings.IDP_ENTITY_ID),
+                SamlRealmTests.TEST_IDP_ENTITY_ID
+            )
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ENTITY_ID), SP_URL)
+            .put(getFullSettingKey(REALM_NAME, SingleSpSamlRealmSettings.SP_ACS), SP_URL)
+            .put(
+                getFullSettingKey(REALM_NAME, SamlRealmSettings.PRINCIPAL_ATTRIBUTE.apply(SingleSpSamlRealmSettings.TYPE).getAttribute()),
+                "uid"
+            )
             .put(getFullSettingKey(realmIdentifier, RealmSettings.ORDER_SETTING), 0)
             .build();
 
@@ -194,17 +205,18 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         }).when(client).bulk(any(BulkRequest.class), any(ActionListener.class));
 
         final SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
         doAnswer(inv -> {
             ((Runnable) inv.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        }).when(projectIndex).checkIndexVersionThenExecute(any(Consumer.class), any(Runnable.class));
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
@@ -214,6 +226,9 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             clusterService = ClusterServiceUtils.createClusterService(threadPool);
         }
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
+
+        bytesRefRecycler = new MockBytesRefRecycler();
+
         tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
@@ -222,7 +237,8 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             securityContext,
             securityIndex,
             securityIndex,
-            clusterService
+            clusterService,
+            bytesRefRecycler
         );
 
         final TransportService transportService = new TransportService(
@@ -240,7 +256,13 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
 
         final RealmConfig realmConfig = new RealmConfig(realmIdentifier, settings, env, threadContext);
-        samlRealm = SamlRealm.create(realmConfig, mock(SSLService.class), mock(ResourceWatcherService.class), mock(UserRoleMapper.class));
+        samlRealm = SamlRealm.create(
+            realmConfig,
+            mock(SSLService.class),
+            mock(ResourceWatcherService.class),
+            mock(UserRoleMapper.class),
+            SingleSamlSpConfiguration.create(realmConfig)
+        );
         when(realms.realm(realmConfig.name())).thenReturn(samlRealm);
     }
 
@@ -248,6 +270,7 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
     public void cleanup() {
         samlRealm.close();
         threadPool.shutdown();
+        Releasables.closeExpectNoException(bytesRefRecycler);
     }
 
     public void testLogoutInvalidatesToken() throws Exception {
@@ -260,10 +283,11 @@ public class TransportSamlLogoutActionTests extends SamlTestCase {
             nameId
         );
         final User user = new User("punisher", new String[] { "superuser" }, null, null, userMetadata, true);
-        final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SamlRealmSettings.TYPE, "node01");
+        final Authentication.RealmRef realmRef = new Authentication.RealmRef(samlRealm.name(), SingleSpSamlRealmSettings.TYPE, "node01");
         final Map<String, Object> tokenMetadata = samlRealm.createTokenMetadata(
             new SamlNameId(NameID.TRANSIENT, nameId, null, null, null),
-            session
+            session,
+            null
         );
         final Authentication authentication = Authentication.newRealmAuthentication(user, realmRef);
 

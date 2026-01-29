@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -139,7 +136,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -162,10 +159,6 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(returnDocuments, topNDocumentsOnly, truncateInputTokens);
-    }
-
-    public static String invalidInputTypeMessage(InputType inputType) {
-        return Strings.format("received invalid input type value [%s]", inputType.toString());
     }
 
     public Boolean getDoesReturnDocuments() {

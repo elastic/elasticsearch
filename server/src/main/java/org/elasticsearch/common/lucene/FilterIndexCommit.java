@@ -71,4 +71,11 @@ public abstract class FilterIndexCommit extends IndexCommit {
     public String toString() {
         return "FilterIndexCommit{" + "in=" + in + '}';
     }
+
+    public static IndexCommit unwrap(IndexCommit in) {
+        while (in instanceof FilterIndexCommit) {
+            in = ((FilterIndexCommit) in).getIndexCommit();
+        }
+        return in;
+    }
 }

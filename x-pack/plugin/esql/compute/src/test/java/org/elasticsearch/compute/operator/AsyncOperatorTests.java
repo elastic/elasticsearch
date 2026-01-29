@@ -30,6 +30,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -79,11 +80,17 @@ public class AsyncOperatorTests extends ESTestCase {
         LocalCircuitBreaker localBreaker = null;
         final DriverContext driverContext;
         if (randomBoolean()) {
-            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            int overReserveBytes = between(0, 1024);
+            int maxOverReservedBytes = between(0, 4096);
+            LocalCircuitBreaker.SizeSettings localBreakerSettings = new LocalCircuitBreaker.SizeSettings(
+                overReserveBytes,
+                maxOverReservedBytes
+            );
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), overReserveBytes, maxOverReservedBytes);
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, localBreakerSettings);
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, null);
         }
         int positions = randomIntBetween(0, 10_000);
         List<Long> ids = new ArrayList<>(positions);
@@ -141,7 +148,7 @@ public class AsyncOperatorTests extends ESTestCase {
         if (randomBoolean()) {
             int limit = between(0, ids.size());
             it = ids.subList(0, limit).iterator();
-            intermediateOperators.add(new LimitOperator(limit));
+            intermediateOperators.add(new LimitOperator(new Limiter(limit)));
         } else {
             it = ids.iterator();
         }
@@ -165,8 +172,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         });
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver(
-            "test",
+        Driver driver = TestDriverFactory.create(
             driverContext,
             sourceOperator,
             intermediateOperators,
@@ -208,7 +214,7 @@ public class AsyncOperatorTests extends ESTestCase {
 
     public void testStatus() {
         BlockFactory blockFactory = blockFactory();
-        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
         TestOp operator = new TestOp(driverContext, 2);
         assertTrue(operator.isBlocked().listener().isDone());
         assertTrue(operator.needsInput());
@@ -250,11 +256,17 @@ public class AsyncOperatorTests extends ESTestCase {
         LocalCircuitBreaker localBreaker = null;
         final DriverContext driverContext;
         if (randomBoolean()) {
-            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), between(0, 1024), between(0, 4096));
+            int overReserveBytes = between(0, 1024);
+            int maxOverReservedBytes = between(0, 4096);
+            LocalCircuitBreaker.SizeSettings localBreakerSettings = new LocalCircuitBreaker.SizeSettings(
+                overReserveBytes,
+                maxOverReservedBytes
+            );
+            localBreaker = new LocalCircuitBreaker(globalBlockFactory.breaker(), overReserveBytes, maxOverReservedBytes);
             BlockFactory localFactory = globalBlockFactory.newChildFactory(localBreaker);
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), localFactory, localBreakerSettings);
         } else {
-            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory);
+            driverContext = new DriverContext(globalBlockFactory.bigArrays(), globalBlockFactory, null);
         }
         final SequenceLongBlockSourceOperator sourceOperator = new SequenceLongBlockSourceOperator(
             driverContext.blockFactory(),
@@ -302,7 +314,7 @@ public class AsyncOperatorTests extends ESTestCase {
         };
         SinkOperator outputOperator = new PageConsumerOperator(Page::releaseBlocks);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
-        Driver driver = new Driver("test", driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
+        Driver driver = TestDriverFactory.create(driverContext, sourceOperator, List.of(asyncOperator), outputOperator, localBreaker);
         Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 1000), future);
         assertBusy(() -> assertTrue(future.isDone()));
         if (failed.get()) {
@@ -322,7 +334,7 @@ public class AsyncOperatorTests extends ESTestCase {
         int iters = iterations(10, 10_000);
         BlockFactory blockFactory = blockFactory();
         for (int i = 0; i < iters; i++) {
-            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
+            DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
             CyclicBarrier barrier = new CyclicBarrier(2);
             AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), between(1, 10)) {
                 @Override

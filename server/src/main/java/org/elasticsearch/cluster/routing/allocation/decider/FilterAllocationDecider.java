@@ -62,9 +62,9 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "filter";
 
-    private static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
-    private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
-    private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
+    public static final String CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX = "cluster.routing.allocation.require";
+    public static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
+    public static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
 
     public static final Setting.AffixSetting<List<String>> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING = Setting.prefixKeySetting(
         CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".",
@@ -94,7 +94,7 @@ public class FilterAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+        IndexMetadata indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
         if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
             // only for unassigned - we filter allocation right after the index creation (for shard shrinking) to ensure
             // that once it has been allocated post API the replicas can be allocated elsewhere without user interaction
@@ -233,7 +233,7 @@ public class FilterAllocationDecider extends AllocationDecider {
     @Override
     public Optional<Set<String>> getForcedInitialShardAllocationToNodes(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.unassigned() && shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) {
-            var indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
+            var indexMetadata = allocation.metadata().indexMetadata(shardRouting.index());
             var initialRecoveryFilters = DiscoveryNodeFilters.trimTier(indexMetadata.getInitialRecoveryFilters());
 
             if (initialRecoveryFilters != null) {

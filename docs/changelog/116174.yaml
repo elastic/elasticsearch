@@ -1,7 +1,0 @@
-pr: 116174
-summary: Handle with `illegalArgumentExceptions` negative values in HDR percentile
-  aggregations
-area: Aggregations
-type: bug
-issues:
- - 115777

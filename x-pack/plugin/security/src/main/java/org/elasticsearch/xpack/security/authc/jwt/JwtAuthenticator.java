@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -44,7 +45,8 @@ public class JwtAuthenticator implements Releasable {
     public JwtAuthenticator(
         final RealmConfig realmConfig,
         final SSLService sslService,
-        final JwtSignatureValidator.PkcJwkSetReloadNotifier reloadNotifier
+        final PkcJwkSetReloadNotifier reloadNotifier,
+        final ThreadPool threadPool
     ) {
         this.realmConfig = realmConfig;
         this.tokenType = realmConfig.getSetting(JwtRealmSettings.TOKEN_TYPE);
@@ -61,7 +63,12 @@ public class JwtAuthenticator implements Releasable {
         }
         jwtFieldValidators.addAll(getRequireClaimsValidators());
         this.jwtFieldValidators = List.copyOf(jwtFieldValidators);
-        this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(realmConfig, sslService, reloadNotifier);
+        this.jwtSignatureValidator = new JwtSignatureValidator.DelegatingJwtSignatureValidator(
+            realmConfig,
+            sslService,
+            reloadNotifier,
+            threadPool
+        );
     }
 
     public void authenticate(JwtAuthenticationToken jwtAuthenticationToken, ActionListener<JWTClaimsSet> listener) {
@@ -136,7 +143,7 @@ public class JwtAuthenticator implements Releasable {
         }
 
         return List.of(
-            JwtTypeValidator.INSTANCE,
+            JwtTypeValidator.ID_TOKEN_INSTANCE,
             new JwtStringClaimValidator("iss", true, List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), List.of()),
             subjectClaimValidator,
             new JwtStringClaimValidator("aud", false, realmConfig.getSetting(JwtRealmSettings.ALLOWED_AUDIENCES), List.of()),
@@ -157,7 +164,7 @@ public class JwtAuthenticator implements Releasable {
         final Clock clock = Clock.systemUTC();
 
         return List.of(
-            JwtTypeValidator.INSTANCE,
+            JwtTypeValidator.ACCESS_TOKEN_INSTANCE,
             new JwtStringClaimValidator("iss", true, List.of(realmConfig.getSetting(JwtRealmSettings.ALLOWED_ISSUER)), List.of()),
             getSubjectClaimValidator(realmConfig, fallbackClaimLookup),
             new JwtStringClaimValidator(

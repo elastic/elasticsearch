@@ -36,12 +36,13 @@ public class IndexAbstractionTests extends ESTestCase {
             List.of(backingIndexMetadata.getIndex()),
             List.of(failureIndexMetadata.getIndex())
         );
-        Metadata metadata = Metadata.builder()
+        var metadata = Metadata.builder()
             .put(standaloneIndexMetadata, false)
             .put(backingIndexMetadata, false)
             .put(failureIndexMetadata, false)
             .dataStreams(Map.of(dataStreamWithFs.getName(), dataStreamWithFs), Map.of())
-            .build();
+            .build()
+            .getProject();
 
         // Concrete indices do not support failure store
 
@@ -102,7 +103,7 @@ public class IndexAbstractionTests extends ESTestCase {
             dsWithoutFailureStore.getName(),
             Map.of()
         );
-        Metadata metadata = Metadata.builder()
+        var metadata = Metadata.builder()
             .put(otherBackingIndexMetadata, false)
             .put(backingIndexMetadata, false)
             .put(failureIndexMetadata, false)
@@ -117,7 +118,8 @@ public class IndexAbstractionTests extends ESTestCase {
                     aliasWithoutWriteDataStream
                 )
             )
-            .build();
+            .build()
+            .getProject();
 
         // Data stream with no failure store
         assertThat(dsWithoutFailureStore.getWriteIndex(), equalTo(otherBackingIndexMetadata.getIndex()));
@@ -199,13 +201,18 @@ public class IndexAbstractionTests extends ESTestCase {
 
     private static DataStream newDataStreamInstance(List<Index> backingIndices, List<Index> failureStoreIndices) {
         boolean isSystem = randomBoolean();
+        boolean isReplicated = randomBoolean();
         return DataStream.builder(randomAlphaOfLength(50), backingIndices)
-            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices).build())
+            .setFailureIndices(
+                DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices)
+                    .setRolloverOnWrite(isReplicated == false && failureStoreIndices.isEmpty())
+                    .build()
+            )
             .setGeneration(randomLongBetween(1, 1000))
             .setMetadata(Map.of())
             .setSystem(isSystem)
             .setHidden(isSystem || randomBoolean())
-            .setReplicated(randomBoolean())
+            .setReplicated(isReplicated)
             .build();
     }
 }

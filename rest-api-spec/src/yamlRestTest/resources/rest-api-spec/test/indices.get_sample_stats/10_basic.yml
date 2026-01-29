@@ -1,0 +1,19 @@
+---
+"Test get sample stats for index with no sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.get_sample_stats:
+        index: non_existent
+      catch: missing
+
+  - do:
+      indices.create:
+        index: no_config
+
+  - do:
+      indices.get_sample_stats:
+        index: no_config
+      catch: missing

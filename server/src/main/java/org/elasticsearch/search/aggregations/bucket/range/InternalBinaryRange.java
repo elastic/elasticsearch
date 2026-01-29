@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Releasables;
@@ -25,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,11 +58,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
         }
 
         private static Bucket createFromStream(StreamInput in, DocValueFormat format) throws IOException {
-            // NOTE: the key is required in version == 8.0.0 and version <= 7.17.0,
-            // while it is optional for all subsequent versions.
-            String key = in.getTransportVersion().equals(TransportVersions.V_8_0_0) ? in.readString()
-                : in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1) ? in.readOptionalString()
-                : in.readString();
+            String key = in.readOptionalString();
             BytesRef from = in.readOptional(StreamInput::readBytesRef);
             BytesRef to = in.readOptional(StreamInput::readBytesRef);
             long docCount = in.readLong();
@@ -73,13 +69,7 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().equals(TransportVersions.V_8_0_0)) {
-                out.writeString(key == null ? generateKey(from, to, format) : key);
-            } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_1)) {
-                out.writeOptionalString(key);
-            } else {
-                out.writeString(key == null ? generateKey(from, to, format) : key);
-            }
+            out.writeOptionalString(key);
             out.writeOptional(StreamOutput::writeBytesRef, from);
             out.writeOptional(StreamOutput::writeBytesRef, to);
             out.writeLong(docCount);
@@ -262,13 +252,11 @@ public final class InternalBinaryRange extends InternalMultiBucketAggregation<In
 
     @Override
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalBinaryRange(
-            name,
-            format,
-            keyed,
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
-            metadata
-        );
+        final List<Bucket> buckets = new ArrayList<>(this.buckets.size());
+        for (Bucket bucket : this.buckets) {
+            buckets.add(bucket.finalizeSampling(samplingContext));
+        }
+        return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }
 
     @Override

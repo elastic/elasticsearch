@@ -25,7 +25,10 @@ import org.apache.lucene.util.compress.LowercaseAsciiCompression;
 
 import java.io.IOException;
 
-/** Compression algorithm used for suffixes of a block of terms. */
+/**
+ * This is a copy of the class with same name shipped with Lucene, which is though package protected hence not accessible.
+ * We need to copy it because we have our own fork of {@link FieldReader}.
+ */
 enum CompressionAlgorithm {
     NO_COMPRESSION(0x00) {
 

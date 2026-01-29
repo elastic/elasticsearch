@@ -16,6 +16,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
@@ -118,7 +119,8 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testSyntheticSourceIndexLevelKeepArrays() throws IOException {
-        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
+        SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed(), Mapper.SourceKeepMode.ARRAYS)
+            .example(1);
         XContentBuilder mappings = mapping(b -> {
             b.startObject("field");
             example.mapping().accept(b);
@@ -216,5 +218,15 @@ public class CountedKeywordFieldMapperTests extends MapperTestCase {
         assertEquals(1, fields.size());
         assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

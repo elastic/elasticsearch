@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
@@ -25,7 +25,6 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
 
     @Override
     public Expression rule(Expression e, LogicalOptimizerContext ctx) {
-        Expression result = tryReplaceIsNullIsNotNull(e);
 
         // convert an aggregate null filter into a false
         // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
@@ -36,23 +35,25 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
             }
         }
 
-        if (result != e) {
-            return result;
-        } else if (e instanceof In in) {
+        if (e instanceof In in) {
             if (Expressions.isGuaranteedNull(in.value())) {
                 return Literal.of(in, null);
             }
         } else if (e instanceof Alias == false && e.nullable() == Nullability.TRUE
-        // Categorize function stays as a STATS grouping (It isn't moved to an early EVAL like other groupings),
+        // Non-evaluatable functions stay as a STATS grouping (It isn't moved to an early EVAL like other groupings),
         // so folding it to null would currently break the plan, as we don't create an attribute/channel for that null value.
-            && e instanceof Categorize == false
-            && Expressions.anyMatch(e.children(), Expressions::isGuaranteedNull)) {
+            && e instanceof GroupingFunction.NonEvaluatableGroupingFunction == false
+            // We cannot fold aggregate functions until we resolve https://github.com/elastic/elasticsearch/issues/100634.
+            // AggregateMapper cannot handle aggregate functions with literal values.
+            && e instanceof AggregateFunction == false
+            && e.children().stream().anyMatch(FoldNull::isNull)) {
                 return Literal.of(e, null);
             }
         return e;
     }
 
-    protected Expression tryReplaceIsNullIsNotNull(Expression e) {
-        return e;
+    private static boolean isNull(Expression e) {
+        return Expressions.isGuaranteedNull(e) || e.nullable() == Nullability.TRUE && e.children().stream().anyMatch(FoldNull::isNull);
     }
+
 }

@@ -9,20 +9,62 @@
 
 package org.elasticsearch.nativeaccess;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.NodeNamePatternConverter;
 import org.elasticsearch.test.ESTestCase;
 
+import java.lang.foreign.Arena;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.not;
 
-public class VectorSimilarityFunctionsTests extends ESTestCase {
+public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
 
-    final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
+    static {
+        NodeNamePatternConverter.setGlobalNodeName("foo");
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+    }
 
-    public VectorSimilarityFunctionsTests() {
-        logger.info(platformMsg());
+    public static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
+    public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
+
+    protected static Arena arena;
+
+    protected final VectorSimilarityFunctions.Function function;
+    protected final int size;
+    protected final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
+
+    @ParametersFactory
+    public static Iterable<Object[]> parametersFactory() {
+        var dims1 = Arrays.stream(new int[] { 1, 2, 4, 6, 8, 12, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 768 });
+        var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
+        return () -> IntStream.concat(dims1, dims2)
+            .boxed()
+            .flatMap(i -> Stream.of(VectorSimilarityFunctions.Function.values()).map(f -> new Object[] { f, i }))
+            .iterator();
+    }
+
+    protected VectorSimilarityFunctionsTests(VectorSimilarityFunctions.Function function, int size) {
+        this.function = function;
+        this.size = size;
         vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();
+
+        logger.info(platformMsg());
+    }
+
+    public static void setup() {
+        arena = Arena.ofConfined();
+    }
+
+    public static void cleanup() {
+        arena.close();
     }
 
     public void testSupported() {
@@ -59,4 +101,17 @@ public class VectorSimilarityFunctionsTests extends ESTestCase {
         var osName = System.getProperty("os.name");
         return "JDK=" + jdkVersion + ", os=" + osName + ", arch=" + arch;
     }
+
+    // Support for passing on-heap arrays/segments to native
+    protected static boolean supportsHeapSegments() {
+        return Runtime.version().feature() >= 22;
+    }
+
+    protected static RuntimeException rethrow(Throwable t) {
+        if (t instanceof Error err) {
+            throw err;
+        }
+        return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    }
+
 }

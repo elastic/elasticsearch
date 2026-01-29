@@ -61,8 +61,8 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test1"))
-            .addAsNew(metadata.index("test2"))
+            .addAsNew(metadata.getProject().index("test1"))
+            .addAsNew(metadata.getProject().index("test2"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -82,13 +82,13 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
 
         metadata = Metadata.builder()
             .put(
-                IndexMetadata.builder(clusterState.metadata().index("test1"))
+                IndexMetadata.builder(clusterState.metadata().getProject().index("test1"))
                     .settings(
                         indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
                     )
             )
             .put(
-                IndexMetadata.builder(clusterState.metadata().index("test2"))
+                IndexMetadata.builder(clusterState.metadata().getProject().index("test2"))
                     .settings(
                         indexSettings(IndexVersion.current(), numberOfShards, 0).put("index.routing.allocation.exclude._name", "node2")
                     )

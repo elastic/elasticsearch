@@ -15,11 +15,15 @@ import java.util.Map;
 public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     public static EsField randomEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        DataType esDataType = randomFrom(DataType.types());
+        DataType esDataType = randomValueOtherThanMany(
+            t -> false == t.supportedVersion().supportedLocally(),
+            () -> randomFrom(DataType.types())
+        );
         Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean aggregatable = randomBoolean();
         boolean isAlias = randomBoolean();
-        return new EsField(name, esDataType, properties, aggregatable, isAlias);
+        EsField.TimeSeriesFieldType tsType = randomFrom(EsField.TimeSeriesFieldType.values());
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
     }
 
     @Override
@@ -28,20 +32,22 @@ public class EsFieldTests extends AbstractEsFieldTypeTests<EsField> {
     }
 
     @Override
-    protected EsField mutate(EsField instance) {
+    protected EsField mutateInstance(EsField instance) {
         String name = instance.getName();
         DataType esDataType = instance.getDataType();
         Map<String, EsField> properties = instance.getProperties();
         boolean aggregatable = instance.isAggregatable();
         boolean isAlias = instance.isAlias();
-        switch (between(0, 4)) {
+        EsField.TimeSeriesFieldType tsType = instance.getTimeSeriesFieldType();
+        switch (between(0, 5)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> esDataType = randomValueOtherThan(esDataType, () -> randomFrom(DataType.types()));
             case 2 -> properties = randomValueOtherThan(properties, () -> randomProperties(4));
             case 3 -> aggregatable = false == aggregatable;
             case 4 -> isAlias = false == isAlias;
+            case 5 -> tsType = randomValueOtherThan(tsType, () -> randomFrom(EsField.TimeSeriesFieldType.values()));
             default -> throw new IllegalArgumentException();
         }
-        return new EsField(name, esDataType, properties, aggregatable, isAlias);
+        return new EsField(name, esDataType, properties, aggregatable, isAlias, tsType);
     }
 }

@@ -88,14 +88,14 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         final PersistedClusterStateService persistedClusterStateService = createPersistedClusterStateService(env.settings(), dataPaths);
 
         final Metadata metadata = loadClusterState(terminal, env, persistedClusterStateService).metadata();
-        if (indexPaths.isEmpty() && metadata.indices().isEmpty()) {
+        if (indexPaths.isEmpty() && metadata.getProject().indices().isEmpty()) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_DATA_TO_CLEAN_UP_FOUND);
             return;
         }
 
         final Set<String> indexUUIDs = Sets.union(
             indexUUIDsFor(indexPaths),
-            metadata.indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
+            metadata.getProject().indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
         );
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
@@ -171,7 +171,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     private static String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
-            for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.indices().entrySet()) {
+            for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.getProject().indices().entrySet()) {
                 if (indexMetadata.getValue().getIndexUUID().equals(uuid)) {
                     return indexMetadata.getValue().getIndex().getName();
                 }

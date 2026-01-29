@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
@@ -89,16 +90,29 @@ public class SecuritySystemIndices {
         return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
-    public void init(Client client, FeatureService featureService, ClusterService clusterService) {
+    public void init(Client client, FeatureService featureService, ClusterService clusterService, ProjectResolver projectResolver) {
         if (this.initialized.compareAndSet(false, true) == false) {
             throw new IllegalStateException("Already initialized");
         }
-        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, mainDescriptor);
-        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, tokenDescriptor);
+        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            projectResolver,
+            mainDescriptor
+        );
+        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            projectResolver,
+            tokenDescriptor
+        );
         this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(
             client,
             clusterService,
             featureService,
+            projectResolver,
             profileDescriptor
         );
     }
@@ -495,6 +509,12 @@ public class SecuritySystemIndices {
                     builder.field("type", "boolean");
                     builder.endObject();
 
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_CERTIFICATE_IDENTITY_FIELD)) {
+                        builder.startObject("certificate_identity");
+                        builder.field("type", "keyword");
+                        builder.endObject();
+                    }
+
                     builder.startObject("role_descriptors");
                     builder.field("type", "object");
                     builder.field("enabled", false);
@@ -666,6 +686,7 @@ public class SecuritySystemIndices {
                         builder.endObject();
                     }
                     builder.endObject();
+
                 }
                 builder.endObject();
             }
@@ -1082,6 +1103,11 @@ public class SecuritySystemIndices {
          * Mapping for global manage role privilege
          */
         ADD_MANAGE_ROLES_PRIVILEGE(3),
+
+        /**
+         * Mapping for cross-cluster API keys to include the certificate_identity field.
+         */
+        ADD_CERTIFICATE_IDENTITY_FIELD(4),
 
         ;
 

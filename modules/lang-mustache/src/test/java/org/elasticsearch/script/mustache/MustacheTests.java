@@ -141,6 +141,26 @@ public class MustacheTests extends ESTestCase {
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
 
+    public void testMapInArrayBadAccess() throws Exception {
+        String template = "{{data.0.key}} {{data.2.key}}";
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
+        Map<String, Object> vars = new HashMap<>();
+        vars.put("data", new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") });
+        // assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        vars.put("data", Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
+        factory.newInstance(vars);
+        assertThat(factory.newInstance(vars).execute(), equalTo("foo "));
+
+        // HashSet iteration order isn't fixed
+        Set<Object> setData = new HashSet<>();
+        setData.add(singletonMap("key", "foo"));
+        setData.add(singletonMap("key", "bar"));
+        vars.put("data", setData);
+        String output = factory.newInstance(vars).execute();
+        assertThat(output, both(containsString("foo")).and(not(containsString("bar"))));
+    }
+
     public void testSizeAccessForCollectionsAndArrays() throws Exception {
         String[] randomArrayValues = generateRandomStringArray(10, 20, false);
         List<String> randomList = Arrays.asList(generateRandomStringArray(10, 20, false));
@@ -425,7 +445,7 @@ public class MustacheTests extends ESTestCase {
         assertScript(
             "{{#url}}prefix_{{s}}{{/url}}",
             singletonMap("s", random),
-            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name()))
+            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8))
         );
     }
 
@@ -453,6 +473,18 @@ public class MustacheTests extends ESTestCase {
             params,
             equalTo("1%2B1%2B2%2B3%2B5%2B8%2B13%2B21%2B34%2B55")
         );
+    }
+
+    public void testsUnsupportedPartials() {
+        ScriptException e;
+
+        final String script1 = "{{>foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script1));
+        assertThat(e.getMessage(), equalTo("Cannot expand 'foobar' because partial templates are not supported"));
+
+        final String script2 = "{{>*foobar}}";
+        e = expectThrows(ScriptException.class, () -> compile(script2));
+        assertThat(e.getMessage(), equalTo("Cannot expand '*foobar' because dynamic partial templates are not supported"));
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

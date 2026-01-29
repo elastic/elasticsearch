@@ -70,11 +70,10 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, clusterState, future);
+        usageAction.localClusterStateOperation(task, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(true));
 
@@ -98,11 +97,10 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(task, null, clusterState, future);
+        usageAction.localClusterStateOperation(task, null, clusterState, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertTrue(usage.enabled());
 

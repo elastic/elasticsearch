@@ -176,7 +176,6 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * other will be considered dangling, and can therefore be listed and
      * deleted through the API
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108288")
     public void testDanglingIndexCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
@@ -327,8 +326,11 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         }
 
         final Metadata metadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).get().getState().metadata();
-        assertTrue(metadata.indexGraveyard().toString(), metadata.indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID)));
-        assertNull(Strings.toString(metadata, true, true), metadata.index(INDEX_NAME));
+        assertTrue(
+            metadata.getProject().indexGraveyard().toString(),
+            metadata.getProject().indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID))
+        );
+        assertNull(Strings.toString(metadata, true, true), metadata.getProject().index(INDEX_NAME));
     }
 
     /**

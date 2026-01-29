@@ -10,12 +10,10 @@
 package org.elasticsearch.ingest.geoip;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -37,7 +35,7 @@ import java.util.stream.Collectors;
 /**
  * Holds the ingest-geoip databases that are available in the cluster state.
  */
-public final class IngestGeoIpMetadata implements Metadata.Custom {
+public final class IngestGeoIpMetadata implements Metadata.ProjectCustom {
 
     public static final String TYPE = "ingest_geoip";
     private static final ParseField DATABASES_FIELD = new ParseField("databases");
@@ -46,7 +44,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "ingest_geoip_metadata",
+        TYPE,
         a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[0]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )
@@ -70,7 +68,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     public Map<String, DatabaseConfigurationMetadata> getDatabases() {
@@ -92,7 +90,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases));
+        return ChunkedToXContentHelper.xContentObjectFields(DATABASES_FIELD.getPreferredName(), databases);
     }
 
     @Override
@@ -101,11 +99,11 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom before) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom before) {
         return new GeoIpMetadataDiff((IngestGeoIpMetadata) before, this);
     }
 
-    static class GeoIpMetadataDiff implements NamedDiff<Metadata.Custom> {
+    static class GeoIpMetadataDiff implements NamedDiff<Metadata.ProjectCustom> {
 
         final Diff<Map<String, DatabaseConfigurationMetadata>> databases;
 
@@ -123,7 +121,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             return new IngestGeoIpMetadata(databases.apply(((IngestGeoIpMetadata) part).databases));
         }
 
@@ -139,7 +137,7 @@ public final class IngestGeoIpMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_16_0;
+            return TransportVersion.minimumCompatible();
         }
     }
 

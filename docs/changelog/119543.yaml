@@ -1,7 +1,0 @@
-pr: 119543
-summary: "[Inference API] Fix unique ID message for inference ID matches trained model\
-  \ ID"
-area: Machine Learning
-type: bug
-issues:
- - 111312

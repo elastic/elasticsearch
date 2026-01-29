@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Block view of a {@link LongVector}. Cannot represent multi-values or nulls.
@@ -54,6 +56,11 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     @Override
     public LongBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public LongBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -27,6 +28,8 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.junit.After;
 
+import java.time.Duration;
+import java.time.Period;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.equalToIgnoringIds;
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.field;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -50,14 +54,14 @@ public class CaseExtraTests extends ESTestCase {
                 field("first_cond", DataType.BOOLEAN),
                 List.of(field("v", DataType.LONG), field("e", DataType.LONG))
             ).children(),
-            equalTo(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG), field("e", DataType.LONG)))
+            equalToIgnoringIds(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG), field("e", DataType.LONG)))
         );
     }
 
     public void testElseValueImplied() {
         assertThat(
             new Case(Source.synthetic("case"), field("first_cond", DataType.BOOLEAN), List.of(field("v", DataType.LONG))).children(),
-            equalTo(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG)))
+            equalToIgnoringIds(List.of(field("first_cond", DataType.BOOLEAN), field("v", DataType.LONG)))
         );
     }
 
@@ -70,7 +74,9 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
+            equalToIgnoringIds(
+                new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
+            )
         );
     }
 
@@ -83,7 +89,9 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG))))
+            equalToIgnoringIds(
+                new Case(Source.synthetic("case"), field("last_cond", DataType.BOOLEAN), List.of(field("last", DataType.LONG)))
+            )
         );
     }
 
@@ -104,7 +112,7 @@ public class CaseExtraTests extends ESTestCase {
             List.of(field("first", DataType.LONG), field("last", DataType.LONG))
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("first", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("first", DataType.LONG)));
     }
 
     public void testPartialFoldFirstAfterKeepingUnknown() {
@@ -121,7 +129,7 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(
+            equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),
                     field("keep_me_cond", DataType.BOOLEAN),
@@ -143,7 +151,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldSecondAfterDroppingFalse() {
@@ -158,7 +166,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("second", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("second", DataType.LONG)));
     }
 
     public void testPartialFoldLast() {
@@ -173,7 +181,7 @@ public class CaseExtraTests extends ESTestCase {
             )
         );
         assertThat(c.foldable(), equalTo(false));
-        assertThat(c.partiallyFold(FoldContext.small()), equalTo(field("last", DataType.LONG)));
+        assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("last", DataType.LONG)));
     }
 
     public void testPartialFoldLastAfterKeepingUnknown() {
@@ -190,7 +198,7 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.foldable(), equalTo(false));
         assertThat(
             c.partiallyFold(FoldContext.small()),
-            equalTo(
+            equalToIgnoringIds(
                 new Case(
                     Source.synthetic("case"),
                     field("keep_me_cond", DataType.BOOLEAN),
@@ -220,6 +228,69 @@ public class CaseExtraTests extends ESTestCase {
             assertTrue(caseExpr.foldable());
             return caseExpr.fold(FoldContext.small());
         });
+    }
+
+    public void testFoldCaseWithTemporalAmount() {
+        // TIME_DURATION
+        Duration oneDay = Duration.ofDays(1);
+        Duration fiveDays = Duration.ofDays(5);
+        Duration tenDays = Duration.ofDays(10);
+
+        Case caseExprTrue = caseExprWithTemporalAmount(true, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprTrue.foldable());
+        assertEquals(oneDay, caseExprTrue.fold(FoldContext.small()));
+
+        Case caseExprFalse = caseExprWithTemporalAmount(false, oneDay, tenDays, DataType.TIME_DURATION);
+        assertTrue(caseExprFalse.foldable());
+        assertEquals(tenDays, caseExprFalse.fold(FoldContext.small()));
+
+        // DATE_PERIOD
+        Period oneMonth = Period.ofMonths(1);
+        Period oneYear = Period.ofYears(1);
+
+        Case caseExprPeriodTrue = caseExprWithTemporalAmount(true, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodTrue.foldable());
+        assertEquals(oneMonth, caseExprPeriodTrue.fold(FoldContext.small()));
+
+        Case caseExprPeriodFalse = caseExprWithTemporalAmount(false, oneMonth, oneYear, DataType.DATE_PERIOD);
+        assertTrue(caseExprPeriodFalse.foldable());
+        assertEquals(oneYear, caseExprPeriodFalse.fold(FoldContext.small()));
+
+        // Test multiple conditions
+        Case caseExprMulti = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMulti.foldable());
+        assertEquals(fiveDays, caseExprMulti.fold(FoldContext.small()));
+
+        // Test multiple conditions with else
+        Case caseExprMultiElse = new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, oneDay, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, fiveDays, DataType.TIME_DURATION),
+                new Literal(Source.EMPTY, tenDays, DataType.TIME_DURATION)
+            )
+        );
+        assertTrue(caseExprMultiElse.foldable());
+        assertEquals(tenDays, caseExprMultiElse.fold(FoldContext.small()));
+    }
+
+    private static Case caseExprWithTemporalAmount(boolean condition, Object trueValue, Object elseValue, DataType dataType) {
+        return new Case(
+            Source.EMPTY,
+            new Literal(Source.EMPTY, condition, DataType.BOOLEAN),
+            List.of(new Literal(Source.EMPTY, trueValue, dataType), new Literal(Source.EMPTY, elseValue, dataType))
+        );
     }
 
     public void testCase(Function<Case, Object> toValue) {
@@ -280,6 +351,11 @@ public class CaseExtraTests extends ESTestCase {
                         }
 
                         @Override
+                        public long baseRamBytesUsed() {
+                            return 0;
+                        }
+
+                        @Override
                         public void close() {}
                     };
                 }
@@ -305,7 +381,11 @@ public class CaseExtraTests extends ESTestCase {
             if (arg instanceof Expression e) {
                 return e;
             }
-            return new Literal(Source.synthetic(arg == null ? "null" : arg.toString()), arg, DataType.fromJava(arg));
+            DataType dataType = DataType.fromJava(arg);
+            if (arg instanceof String) {
+                arg = BytesRefs.toBytesRef(arg);
+            }
+            return new Literal(Source.synthetic(arg == null ? "null" : BytesRefs.toString(arg)), arg, dataType);
         }).toList();
         return new Case(Source.synthetic("<case>"), exps.get(0), exps.subList(1, exps.size()));
     }
@@ -324,7 +404,7 @@ public class CaseExtraTests extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays), null);
     }
 
     @After

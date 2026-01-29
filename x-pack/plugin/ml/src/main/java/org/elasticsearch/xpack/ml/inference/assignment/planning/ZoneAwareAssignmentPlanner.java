@@ -91,6 +91,8 @@ public class ZoneAwareAssignmentPlanner {
                 remainingZones,
                 tryAssigningPreviouslyAssignedModels
             );
+
+            // Update remaining allocations to account for allocations satisfied in this zone
             plan.deployments()
                 .forEach(
                     d -> deploymentIdToRemainingAllocations.computeIfPresent(
@@ -127,6 +129,7 @@ public class ZoneAwareAssignmentPlanner {
                 d -> new AssignmentPlan.Deployment(
                     // replace each deployment with a new deployment
                     d.deploymentId(),
+                    d.modelId(),
                     d.memoryBytes(),
                     deploymentIdToTargetAllocationsPerZone.get(d.deploymentId()),
                     d.threadsPerAllocation(),
@@ -163,6 +166,7 @@ public class ZoneAwareAssignmentPlanner {
             .map(
                 d -> new AssignmentPlan.Deployment(
                     d.deploymentId(),
+                    d.modelId(),
                     d.memoryBytes(),
                     d.allocations(),
                     d.threadsPerAllocation(),
@@ -180,32 +184,49 @@ public class ZoneAwareAssignmentPlanner {
         List<AssignmentPlan.Deployment> planDeployments = preserveAllAllocations.modelsPreservingAllocations();
         AssignmentPlan plan = new LinearProgrammingPlanSolver(planNodes, planDeployments).solvePlan(false);
         plan = preserveAllAllocations.mergePreservedAllocations(plan);
-        return swapOriginalModelsInPlan(plan, allNodes, modelsAccountingPlans);
+        return swapOriginalDeploymentsInPlan(plan, allNodes, modelsAccountingPlans);
     }
 
-    private AssignmentPlan swapOriginalModelsInPlan(
+    /**
+     * The method is responsible for reconstructing an AssignmentPlan
+     * by replacing the deployments and nodes in the given plan with their original counterparts.
+     * This ensures that the final plan uses the original objects while preserving the assignments
+     * and memory accounting from the input plan.
+     *
+     * @param plan AssignmentPlan to reconstruct with original models and nodes
+     * @param allNodes List of all nodes in the system, used to find original nodes
+     * @param planDeployments List of deployments in the plan, not the original deployments
+     * @return final plan with original models and nodes swapped in
+     */
+    private AssignmentPlan swapOriginalDeploymentsInPlan(
         AssignmentPlan plan,
         List<Node> allNodes,
         List<AssignmentPlan.Deployment> planDeployments
     ) {
-        final Map<String, AssignmentPlan.Deployment> originalModelById = deployments.stream()
+        final Map<String, AssignmentPlan.Deployment> originalDeploymentsById = deployments.stream()
             .collect(Collectors.toMap(AssignmentPlan.Deployment::deploymentId, Function.identity()));
         final Map<String, Node> originalNodeById = allNodes.stream().collect(Collectors.toMap(Node::id, Function.identity()));
-        AssignmentPlan.Builder planBuilder = AssignmentPlan.builder(allNodes, deployments);
-        for (AssignmentPlan.Deployment m : planDeployments) {
-            AssignmentPlan.Deployment originalDeployment = originalModelById.get(m.deploymentId());
-            Map<Node, Integer> nodeAssignments = plan.assignments(m).orElse(Map.of());
+        AssignmentPlan.Builder finalPlanBuilder = AssignmentPlan.builder(allNodes, deployments);
+
+        for (AssignmentPlan.Deployment planDeployment : planDeployments) {
+            AssignmentPlan.Deployment originalDeployment = originalDeploymentsById.get(planDeployment.deploymentId());
+            Map<Node, Integer> nodeAssignments = plan.assignments(planDeployment).orElse(Map.of());
             for (Map.Entry<Node, Integer> assignment : nodeAssignments.entrySet()) {
                 Node originalNode = originalNodeById.get(assignment.getKey().id());
-                planBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
-                // As the node has all its available memory we need to manually account memory of models with
-                // current allocations.
-                planBuilder.accountMemory(originalDeployment, originalNode);
+                finalPlanBuilder.assignModelToNode(originalDeployment, originalNode, assignment.getValue());
             }
         }
-        return planBuilder.build();
+        return finalPlanBuilder.build();
     }
 
+    /**
+     * The mergeAllocationsByNodeIdByDeploymentId method is responsible for consolidating allocation data
+     * from multiple AssignmentPlan objects into a single structure. This structure maps deployment IDs
+     * to their respective node allocations, allowing the system to track how resources are distributed
+     * across nodes for each deployment.
+     * @param plans List of AssignmentPlan objects to merge allocations from
+     * @return
+     */
     private Map<String, Map<String, Integer>> mergeAllocationsByNodeIdByDeploymentId(List<AssignmentPlan> plans) {
         Map<String, Map<String, Integer>> allocationsByNodeIdByDeploymentId = new HashMap<>();
         deployments.forEach(d -> allocationsByNodeIdByDeploymentId.put(d.deploymentId(), new HashMap<>()));

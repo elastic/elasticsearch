@@ -18,6 +18,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -155,6 +156,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
         final String indexName = "index_fulfilling";
         final String roleName = "taskCancellationRoleName";
         final String userName = "taskCancellationUsername";
+        String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
         try {
             // create some index on the fulfilling cluster, to be searched from the querying cluster
             {
@@ -206,13 +208,12 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                         {
                           "name": "*:*",
                           "error_type": "exception",
-                          "stall_time_seconds": 60
+                          "stall_time_seconds": 10
                         }
                       ]
                     }
                   }
                 }""");
-            String asyncSearchOpaqueId = "async-search-opaque-id-" + randomUUID();
             submitAsyncSearchRequest.setOptions(
                 RequestOptions.DEFAULT.toBuilder()
                     .addHeader("Authorization", headerFromRandomAuthMethod(userName, PASS))
@@ -308,6 +309,25 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/user/" + userName)));
             assertOK(adminClient().performRequest(new Request("DELETE", "/_security/role/" + roleName)));
             assertOK(performRequestAgainstFulfillingCluster(new Request("DELETE", indexName)));
+            // wait for search related tasks to finish on the query cluster
+            assertBusy(() -> {
+                try {
+                    Response queryingClusterTasks = adminClient().performRequest(new Request("GET", "/_tasks"));
+                    assertOK(queryingClusterTasks);
+                    Map<String, Object> responseMap = XContentHelper.convertToMap(
+                        JsonXContent.jsonXContent,
+                        EntityUtils.toString(queryingClusterTasks.getEntity()),
+                        false
+                    );
+                    selectTasksWithOpaqueId(responseMap, asyncSearchOpaqueId, task -> {
+                        if (task.get("action") instanceof String action && action.contains("indices:data/read/search")) {
+                            fail("there are still search tasks running");
+                        }
+                    });
+                } catch (ResponseException e) {
+                    fail(e.getMessage());
+                }
+            });
         }
     }
 
@@ -628,7 +648,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             // remote cluster is not reported in transport profiles
             assertThat(ObjectPath.eval("transport.profiles", node), anEmptyMap());
 
-            if (Boolean.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
+            if (Booleans.parseBoolean(ObjectPath.eval("settings.remote_cluster_server.enabled", node))) {
                 numberOfRemoteClusterServerNodes += 1;
                 final List<String> boundAddresses = ObjectPath.eval("remote_cluster_server.bound_address", node);
                 assertThat(boundAddresses, notNullValue());
@@ -643,6 +663,72 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             numberOfRemoteClusterServerNodes,
             equalTo(1 + (NODE1_RCS_SERVER_ENABLED.get() ? 1 : 0) + (NODE2_RCS_SERVER_ENABLED.get() ? 1 : 0))
         );
+    }
+
+    public void testInvalidClusterAlias() throws Exception {
+        configureRemoteCluster();
+
+        // Query cluster
+        {
+            // Create user role with privileges for remote and local indices
+            final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+            putRoleRequest.setJsonEntity("""
+                {
+                  "description": "Role with privileges for remote and local indices.",
+                  "indices": [
+                    {
+                      "names": ["*"],
+                      "privileges": ["read"]
+                    }
+                  ],
+                  "remote_indices": [
+                    {
+                      "names": ["*"],
+                      "privileges": ["read", "read_cross_cluster"],
+                      "clusters": ["my_missing_cluster"]
+                    }
+                  ]
+                }""");
+            assertOK(adminClient().performRequest(putRoleRequest));
+            final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
+            putUserRequest.setJsonEntity("""
+                {
+                  "password": "x-pack-test-password",
+                  "roles" : ["remote_search"]
+                }""");
+            assertOK(adminClient().performRequest(putUserRequest));
+        }
+
+        // Check that access is denied to a remote cluster that actually exists
+        final ResponseException exception = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_remote_cluster:index2/_search"))
+        );
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "action [indices:data/read/search] towards remote cluster [my_remote_cluster] is unauthorized for user"
+                    + " [remote_search_user] with effective roles [remote_search] because no remote indices privileges apply for the"
+                    + " target cluster"
+            )
+        );
+
+        // Check that a request to a remote cluster that doesn't exist, but we would have access to, returns a 404
+        final ResponseException exception2 = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_missing_cluster:index2/_search"))
+        );
+        assertThat(exception2.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(exception2.getMessage(), containsString("no such remote cluster: [my_missing_cluster]"));
+
+        // Check that a request to a remote cluster that doesn't exist, and we wouldn't have access to, also returns a 404
+        final ResponseException exception3 = expectThrows(
+            ResponseException.class,
+            () -> performRequestWithRemoteSearchUser(new Request("GET", "/my_missing_cluster_2:index2/_search"))
+        );
+        assertThat(exception3.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+        assertThat(exception3.getMessage(), containsString("no such remote cluster: [my_missing_cluster_2]"));
     }
 
     private Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

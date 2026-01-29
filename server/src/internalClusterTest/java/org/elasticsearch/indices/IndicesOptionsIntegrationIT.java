@@ -496,7 +496,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     public void testPutAlias() throws Exception {
         createIndex("foobar");
-        verify(indicesAdmin().prepareAliases().addAlias("foobar", "foobar_alias"), false);
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foobar", "foobar_alias"), false);
         assertFalse(
             indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
         );
@@ -506,7 +506,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
     public void testPutAliasWildcard() throws Exception {
         createIndex("foo", "foobar", "bar", "barbaz");
 
-        verify(indicesAdmin().prepareAliases().addAlias("foo*", "foobar_alias"), false);
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("foo*", "foobar_alias"), false);
         assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
         assertFalse(
             indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
@@ -516,7 +516,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
             indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("barbaz").get().getAliases().isEmpty()
         );
 
-        verify(indicesAdmin().prepareAliases().addAlias("*", "foobar_alias"), false);
+        verify(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("*", "foobar_alias"), false);
         assertFalse(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foo").get().getAliases().isEmpty());
         assertFalse(
             indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, "foobar_alias").setIndices("foobar").get().getAliases().isEmpty()
@@ -610,7 +610,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         try {
             verify(indicesAdmin().prepareUpdateSettings("barbaz").setSettings(Settings.builder().put("e", "f")), false);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), startsWith("Can't update non dynamic settings [[index.e]] for open indices [[barbaz"));
+            assertThat(e.getMessage(), startsWith("Can't update non dynamic setting(s) [[index.e]] for open indices [[barbaz"));
         }
         verify(indicesAdmin().prepareUpdateSettings("baz*").setSettings(Settings.builder().put("a", "b")), true);
     }

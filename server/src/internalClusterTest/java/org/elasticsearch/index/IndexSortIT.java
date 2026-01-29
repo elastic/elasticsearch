@@ -11,6 +11,7 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.common.settings.Settings;
@@ -58,8 +59,8 @@ public class IndexSortIT extends ESIntegTestCase {
     public void testIndexSort() {
         SortField dateSort = new SortedNumericSortField("date", SortField.Type.LONG, false);
         dateSort.setMissingValue(Long.MAX_VALUE);
-        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.LONG, false);
-        numericSort.setMissingValue(Long.MAX_VALUE);
+        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.INT, false);
+        numericSort.setMissingValue(Integer.MAX_VALUE);
         SortField keywordSort = new SortedSetSortField("keyword_dv", false);
         keywordSort.setMissingValue(SortField.STRING_LAST);
         Sort indexSort = new Sort(dateSort, numericSort, keywordSort);
@@ -78,6 +79,33 @@ public class IndexSortIT extends ESIntegTestCase {
         flushAndRefresh();
         ensureYellow();
         assertSortedSegments("test", indexSort);
+    }
+
+    public void testIndexSortDateNanos() {
+        prepareCreate("test").setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.number_of_shards", "1")
+                .put("index.number_of_replicas", "1")
+                .put("index.sort.field", "@timestamp")
+                .put("index.sort.order", "desc")
+        ).setMapping("""
+            {
+              "properties": {
+                "@timestamp": {
+                  "type": "date_nanos"
+                }
+              }
+            }
+            """).get();
+
+        flushAndRefresh();
+        ensureYellow();
+
+        SortField sf = new SortedNumericSortField("@timestamp", SortField.Type.LONG, true, SortedNumericSelector.Type.MAX);
+        sf.setMissingValue(0L);
+        Sort expectedIndexSort = new Sort(sf);
+        assertSortedSegments("test", expectedIndexSort);
     }
 
     public void testInvalidIndexSort() {

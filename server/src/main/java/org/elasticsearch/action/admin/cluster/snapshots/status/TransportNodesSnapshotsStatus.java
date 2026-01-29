@@ -29,7 +29,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -148,7 +148,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         private final List<Snapshot> snapshots;
 
@@ -157,7 +157,7 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<
             snapshots = in.readCollectionAsList(Snapshot::new);
         }
 
-        NodeRequest(TransportNodesSnapshotsStatus.Request request) {
+        NodeRequest(Request request) {
             snapshots = Arrays.asList(request.snapshots);
         }
 

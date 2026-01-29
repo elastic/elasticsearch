@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -377,7 +379,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     }
 
     private ReactiveStorageDeciderService.AllocationState createAllocationState(Map<String, Long> shardSize, ClusterState clusterState) {
-        ClusterInfo info = new ClusterInfo(Map.of(), Map.of(), shardSize, Map.of(), Map.of(), Map.of());
+        ClusterInfo info = ClusterInfo.builder().shardSizes(shardSize).build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
             null,
@@ -516,7 +518,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfReplicas(10)
             .build();
         metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        final Metadata metadata = metaBuilder.build();
+        stateBuilder.metadata(metadata);
+
+        stateBuilder.routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew));
         ClusterState clusterState = stateBuilder.build();
 
         var shards = IntStream.range(0, between(1, 10))
@@ -539,7 +544,11 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         }
 
         var diskUsages = Map.of(nodeId, new DiskUsage(nodeId, null, null, ByteSizeUnit.KB.toBytes(100), ByteSizeUnit.KB.toBytes(5)));
-        ClusterInfo info = new ClusterInfo(diskUsages, diskUsages, shardSize, Map.of(), Map.of(), Map.of());
+        ClusterInfo info = ClusterInfo.builder()
+            .leastAvailableSpaceUsage(diskUsages)
+            .mostAvailableSpaceUsage(diskUsages)
+            .shardSizes(shardSize)
+            .build();
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             clusterState,
@@ -576,7 +585,10 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .numberOfReplicas(1)
             .build();
         metaBuilder.put(indexMetadata, true);
-        stateBuilder.metadata(metaBuilder);
+        var metadata = metaBuilder.build();
+        stateBuilder.metadata(metadata);
+
+        stateBuilder.routingTable(GlobalRoutingTableTestHelper.buildRoutingTable(metadata, RoutingTable.Builder::addAsNew));
         ClusterState clusterState = stateBuilder.build();
 
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
@@ -760,9 +772,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         if (allocation.routingNodesChanged() == false) {
             return oldState;
         }
-        final RoutingTable oldRoutingTable = oldState.routingTable();
-        final RoutingNodes newRoutingNodes = allocation.routingNodes();
-        final RoutingTable newRoutingTable = RoutingTable.of(newRoutingNodes);
+        final GlobalRoutingTable oldRoutingTable = oldState.globalRoutingTable();
+        final GlobalRoutingTable newRoutingTable = oldRoutingTable.rebuild(allocation.routingNodes(), allocation.metadata());
         final Metadata newMetadata = allocation.updateMetadataWithRoutingChanges(newRoutingTable);
         assert newRoutingTable.validate(newMetadata); // validates the routing table is coherent with the cluster state metadata
 

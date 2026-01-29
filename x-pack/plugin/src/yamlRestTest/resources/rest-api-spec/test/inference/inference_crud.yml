@@ -25,18 +25,3 @@
             }
           }
   - match: { error.reason: "Unknown task_type [bad]" }
-
----
-"Test inference with bad task type":
-  - do:
-      catch: bad_request
-      inference.inference:
-        task_type: bad
-        inference_id: elser_model
-        body: >
-          {
-            "input": "important text"
-          }
-  - match: { error.reason: "Unknown task_type [bad]" }
-
-

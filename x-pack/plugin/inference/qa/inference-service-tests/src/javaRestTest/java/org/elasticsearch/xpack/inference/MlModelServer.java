@@ -13,6 +13,10 @@ import com.sun.net.httpserver.HttpServer;
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -48,7 +52,19 @@ public class MlModelServer implements TestRule {
 
     private int port;
 
-    public String getUrl() {
+    public Response setMlModelRepository(RestClient restClient) throws IOException {
+        logger.info("setting ML model repository to: {}", getUrl());
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity(Strings.format("""
+            {
+              "persistent": {
+                "xpack.ml.model_repository": "%s"
+              }
+            }""", getUrl()));
+        return restClient.performRequest(request);
+    }
+
+    private String getUrl() {
         return new URIBuilder().setScheme("http").setHost(HOST).setPort(port).toString();
     }
 

@@ -14,17 +14,24 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramBlockBuilder;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.TDigestBlock;
+import org.elasticsearch.compute.data.TDigestBlockBuilder;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.test.ESTestCase.between;
 
 /**
- * Inserts nulls into blocks
+ * Inserts "null rows" between incoming rows. By default, a "null row" contains
+ * {@code null} in every {@link Block}. Override {@link #appendNull} to customize
+ * how "null rows" are built.
  */
 public class NullInsertingSourceOperator extends MappingSourceOperator {
     final BlockFactory blockFactory;
@@ -58,6 +65,9 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
         return result;
     }
 
+    /**
+     * Called on a "null row" to insert values.
+     */
     protected void appendNull(ElementType elementType, Block.Builder builder, int blockId) {
         builder.appendNull();
     }
@@ -102,6 +112,14 @@ public class NullInsertingSourceOperator extends MappingSourceOperator {
                 break;
             case FLOAT:
                 ((FloatBlock.Builder) into).appendFloat(((FloatBlock) from).getFloat(valueIndex));
+                break;
+            case EXPONENTIAL_HISTOGRAM:
+                ((ExponentialHistogramBlockBuilder) into).append(
+                    ((ExponentialHistogramBlock) from).getExponentialHistogram(valueIndex, new ExponentialHistogramScratch())
+                );
+                break;
+            case TDIGEST:
+                ((TDigestBlockBuilder) into).appendTDigest(((TDigestBlock) from).getTDigestHolder(valueIndex));
                 break;
             default:
                 throw new IllegalArgumentException("unknown block type " + elementType);

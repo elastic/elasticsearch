@@ -51,11 +51,12 @@ public class StartsWithTests extends AbstractScalarFunctionTestCase {
                 }));
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new StartsWith(source, args.get(0), args.get(1));
     }
+
 }

@@ -33,8 +33,14 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         FieldExtractExec::new
     );
 
-    private final List<Attribute> attributesToExtract;
-    private final @Nullable Attribute sourceAttribute;
+    protected final List<Attribute> attributesToExtract;
+    protected final @Nullable Attribute sourceAttribute;
+
+    /**
+     * The default for {@link #fieldExtractPreference} if the plan doesn't require
+     * a preference.
+     */
+    protected final MappedFieldType.FieldExtractPreference defaultPreference;
 
     /**
      * Attributes that may be extracted as doc values even if that makes them
@@ -42,29 +48,35 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
      * precision in their doc values, but in some cases doc values provides
      * <strong>enough</strong> precision to do the job.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> docValuesAttributes;
+    protected final Set<Attribute> docValuesAttributes;
 
     /**
      * Attributes of a shape whose extent can be extracted directly from the doc-values encoded geometry.
      * <p>
-     *     This is never serialized between nodes and only used locally.
+     * This is never serialized between nodes and only used locally.
      * </p>
      */
-    private final Set<Attribute> boundsAttributes;
+    protected final Set<Attribute> boundsAttributes;
 
     private List<Attribute> lazyOutput;
 
-    public FieldExtractExec(Source source, PhysicalPlan child, List<Attribute> attributesToExtract) {
-        this(source, child, attributesToExtract, Set.of(), Set.of());
-    }
-
-    private FieldExtractExec(
+    public FieldExtractExec(
         Source source,
         PhysicalPlan child,
         List<Attribute> attributesToExtract,
+        MappedFieldType.FieldExtractPreference defaultPreference
+    ) {
+        this(source, child, attributesToExtract, defaultPreference, Set.of(), Set.of());
+    }
+
+    protected FieldExtractExec(
+        Source source,
+        PhysicalPlan child,
+        List<Attribute> attributesToExtract,
+        MappedFieldType.FieldExtractPreference defaultPreference,
         Set<Attribute> docValuesAttributes,
         Set<Attribute> boundsAttributes
     ) {
@@ -73,15 +85,18 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         this.sourceAttribute = extractSourceAttributesFrom(child);
         this.docValuesAttributes = docValuesAttributes;
         this.boundsAttributes = boundsAttributes;
+        this.defaultPreference = defaultPreference;
     }
 
     private FieldExtractExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
-            in.readNamedWriteableCollectionAsList(Attribute.class)
+            in.readNamedWriteableCollectionAsList(Attribute.class),
+            MappedFieldType.FieldExtractPreference.NONE
         );
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // defaultPreference is only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -89,7 +104,8 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(attributesToExtract());
-        // docValueAttributes and boundsAttributes are only used on the data node and never serialized.
+        // defaultPreference is only used on the data node and never serialized.
+        // docValueAttributes, fieldFunctionAttributes and boundsAttributes are only used on the data node and never serialized.
     }
 
     @Override
@@ -99,7 +115,7 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     public static @Nullable Attribute extractSourceAttributesFrom(PhysicalPlan plan) {
         for (Attribute attribute : plan.outputSet()) {
-            if (EsQueryExec.isSourceAttribute(attribute)) {
+            if (EsQueryExec.isDocAttribute(attribute)) {
                 return attribute;
             }
         }
@@ -108,25 +124,29 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return sourceAttribute != null ? new AttributeSet(sourceAttribute) : AttributeSet.EMPTY;
+        return sourceAttribute != null ? AttributeSet.of(sourceAttribute) : AttributeSet.EMPTY;
     }
 
     @Override
-    protected NodeInfo<FieldExtractExec> info() {
-        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract);
+    protected NodeInfo<? extends FieldExtractExec> info() {
+        return NodeInfo.create(this, FieldExtractExec::new, child(), attributesToExtract, defaultPreference);
     }
 
     @Override
     public UnaryExec replaceChild(PhysicalPlan newChild) {
-        return new FieldExtractExec(source(), newChild, attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(source(), newChild, attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public FieldExtractExec withBoundsAttributes(Set<Attribute> boundsAttributes) {
-        return new FieldExtractExec(source(), child(), attributesToExtract, docValuesAttributes, boundsAttributes);
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
+    }
+
+    public FieldExtractExec withAttributesToExtract(List<Attribute> attributesToExtract) {
+        return new FieldExtractExec(source(), child(), attributesToExtract, defaultPreference, docValuesAttributes, boundsAttributes);
     }
 
     public List<Attribute> attributesToExtract() {
@@ -186,10 +206,10 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return Strings.format(
             "%s<%s,%s>",
-            nodeName() + NodeUtils.limitedToString(attributesToExtract),
+            nodeName() + NodeUtils.toString(attributesToExtract, format),
             docValuesAttributes,
             boundsAttributes
         );
@@ -202,6 +222,6 @@ public class FieldExtractExec extends UnaryExec implements EstimatesRowSize {
         if (docValuesAttributes.contains(attr)) {
             return MappedFieldType.FieldExtractPreference.DOC_VALUES;
         }
-        return MappedFieldType.FieldExtractPreference.NONE;
+        return defaultPreference;
     }
 }

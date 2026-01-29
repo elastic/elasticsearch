@@ -10,9 +10,9 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -33,6 +33,8 @@ import java.io.IOException;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 
@@ -69,17 +71,24 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
             null
         );
 
-        assertTrue(expectThrows(IllegalArgumentException.class, () -> action.doExecute(mock(Task.class), request, new ActionListener<>() {
-            @Override
-            public void onResponse(FakeResponse fakeResponse) {
-                fail("Shouldn't reach here");
-            }
+        var exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> action.doExecute(mock(Task.class), request, new ActionListener<>() {
+                @Override
+                public void onResponse(FakeResponse fakeResponse) {
+                    fail("Shouldn't reach here");
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                assertNotNull(e);
-            }
-        })).getMessage().contains("with errors: [[a] set as read-only by [namespace_one], " + "[e] set as read-only by [namespace_two]"));
+                @Override
+                public void onFailure(Exception e) {
+                    assertNotNull(e);
+                }
+            })
+        );
+        assertThat(
+            exception.getMessage(),
+            allOf(containsString("[a] set as read-only by [namespace_one]"), containsString("[e] set as read-only by [namespace_two]"))
+        );
 
         ClusterUpdateSettingsRequest okRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .persistentSettings(Settings.builder().put("m", "m value").build())
@@ -115,7 +124,7 @@ public class ReservedStateAwareHandledTransportActionTests extends ESTestCase {
         }
     }
 
-    static class DummyRequest extends ActionRequest {
+    static class DummyRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

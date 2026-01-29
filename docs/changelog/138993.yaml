@@ -1,0 +1,6 @@
+pr: 138993
+summary: "[Security Solution] Add privileges to Kibana System role for management\
+  \ of internal indexes in support of Elastic Defend features"
+area: Authorization
+type: enhancement
+issues: []

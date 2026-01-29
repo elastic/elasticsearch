@@ -71,6 +71,11 @@ public final class SmileXContentImpl implements XContent {
     }
 
     @Override
+    public boolean hasBulkSeparator() {
+        return true;
+    }
+
+    @Override
     public boolean detectContent(byte[] bytes, int offset, int length) {
         return length > 2
             && bytes[offset] == SmileConstants.HEADER_BYTE_1

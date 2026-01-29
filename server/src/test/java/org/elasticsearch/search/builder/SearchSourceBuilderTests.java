@@ -10,6 +10,7 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.admin.cluster.stats.ExtendedSearchUsageLongCounter;
 import org.elasticsearch.action.admin.cluster.stats.SearchUsageStats;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilderTests;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -670,6 +672,56 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testSortUsage() throws IOException {
+        var sortFormats = List.of("\"_score\"", "\"field_name\"", "{ \"name\" : \"desc\" }", """
+              {
+                "_script": {
+                  "type": "number",
+                  "script": {
+                    "lang": "painless",
+                    "source": "doc['field_name'].value * 0.1"
+                  }
+                }
+              }
+            """, """
+                {
+                  "_geo_distance" : {
+                      "pin.location" : [-70, 40]
+                  }
+                }
+            """);
+
+        var expectedTypes = List.of("_score", "field_sort", "field_sort", "_script", "_geo_distance");
+
+        for (int i = 0; i < sortFormats.size(); i++) {
+            var sorter = sortFormats.get(i);
+            String restContent = Strings.format("""
+                {
+                    "query" : {
+                        "match": { "content": { "query": "foo bar" }}
+                     },
+                    "sort": %s
+                }
+                """, sorter);
+
+            SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                new SearchSourceBuilder().parseXContent(parser, true, searchUsageHolder, nf -> false);
+                SearchUsageStats searchUsageStats = searchUsageHolder.getSearchUsageStats();
+                Map<String, Long> sectionsUsage = searchUsageStats.getSectionsUsage();
+                assertEquals(
+                    "Failed to correctly parse and record sort usage of '" + restContent + "'",
+                    1L,
+                    sectionsUsage.get("sort").longValue()
+                );
+                var extendedData = searchUsageStats.getExtendedSearchUsage().getCategorizedExtendedData().get("section").get("sort");
+                assertThat(extendedData, instanceOf(ExtendedSearchUsageLongCounter.class));
+                var counter = (ExtendedSearchUsageLongCounter) extendedData;
+                assertEquals(Map.of(expectedTypes.get(i), 1L), counter.getValues());
+            }
+        }
+    }
+
     public void testEmptySectionsAreNotTracked() throws IOException {
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
 
@@ -788,6 +840,11 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
               "search_after" : []
             }
             """);
+        assertSectionNotTracked(searchUsageHolder, """
+            {
+              "sort" : {}
+            }
+            """);
     }
 
     private void assertSectionNotTracked(SearchUsageHolder searchUsageHolder, String request) throws IOException {
@@ -825,7 +882,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         searchSourceBuilder.fetchField("field");
         // these are not correct runtime mappings but they are counted compared to empty object
         searchSourceBuilder.runtimeMappings(Collections.singletonMap("field", "keyword"));
-        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, null, null)));
+        searchSourceBuilder.knnSearch(List.of(new KnnSearchBuilder("field", new float[] {}, 2, 5, 10f, null, null)));
         searchSourceBuilder.pointInTimeBuilder(new PointInTimeBuilder(new BytesArray("pitid")));
         searchSourceBuilder.docValueField("field");
         searchSourceBuilder.storedField("field");
@@ -995,6 +1052,40 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort("_score"));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").sort(SortBuilders.fieldSort("field")));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TermsAggregationBuilder("terms").subAggregation(new TopHitsAggregationBuilder("tophits")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(new TopHitsAggregationBuilder("tophits").subAggregation(new TermsAggregationBuilder("terms")));
+            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
+            searchSourceBuilder.aggregation(
+                new TopHitsAggregationBuilder("terms").sort(
+                    SortBuilders.scriptSort(new Script("id"), randomFrom(ScriptSortBuilder.ScriptSortType.values()))
+                )
+            );
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();
             searchSourceBuilder.collapse(CollapseBuilderTests.randomCollapseBuilder());
             assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
@@ -1012,7 +1103,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     ScriptSortBuilder.ScriptSortType.NUMBER
                 ).order(randomFrom(SortOrder.values()))
             );
-            assertFalse(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
+            assertTrue(searchSourceBuilder.supportsParallelCollection(fieldCardinality));
         }
         {
             SearchSourceBuilder searchSourceBuilder = newSearchSourceBuilder.get();

@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.SizeLimitingStringWriter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -31,7 +32,7 @@ import org.elasticsearch.script.TemplateScript;
 import java.io.Reader;
 import java.io.StringReader;
 import java.io.StringWriter;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,7 +41,7 @@ import static org.elasticsearch.core.Strings.format;
 /**
  * Main entry point handling template registration, compilation and
  * execution.
- *
+ * <p>
  * Template handling is based on Mustache. Template handling is a two step
  * process: First compile the string representing the template, the resulting
  * {@link Mustache} object can then be re-used for subsequent executions.
@@ -86,7 +87,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
             TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
             return context.factoryClazz.cast(compiled);
         } catch (MustacheException ex) {
-            throw new ScriptException(ex.getMessage(), ex, Collections.emptyList(), templateSource, NAME);
+            throw new ScriptException(ex.getMessage(), ex, List.of(), templateSource, NAME);
         }
 
     }
@@ -107,10 +108,14 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         if (options.containsKey(DETECT_MISSING_PARAMS_OPTION)) {
-            builder.detectMissingParams(Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION)));
+            builder.detectMissingParams(getDetectMissingParamsOption(options));
         }
 
         return builder.build();
+    }
+
+    private static boolean getDetectMissingParamsOption(Map<String, String> options) {
+        return Booleans.parseBoolean(options.get(DETECT_MISSING_PARAMS_OPTION));
     }
 
     @Override
@@ -123,9 +128,9 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * */
     private class MustacheExecutableScript extends TemplateScript {
         /** Factory template. */
-        private Mustache template;
+        private final Mustache template;
 
-        private Map<String, Object> params;
+        private final Map<String, Object> params;
 
         /**
          * @param template the compiled template object wrapper

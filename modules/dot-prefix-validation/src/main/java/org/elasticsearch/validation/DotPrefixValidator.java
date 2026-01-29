@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -35,8 +36,9 @@ import java.util.stream.Collectors;
  *
  * This class then implements the {@link #apply(Task, String, ActionRequest, ActionListener, ActionFilterChain)}
  * method which checks for indices in the request that begin with a dot, emitting a deprecation
- * warning if they do. If the request is performed by a non-external user (operator, internal product, etc.)
- * as defined by {@link #isInternalRequest()} then the deprecation is emitted. Otherwise, it is skipped.
+ * warning if they do and we are _not_ in stateless mode, or throwing an IllegalArgumentException if they do and we _are_ in stateless mode.
+ * If the request is performed by a non-external user (operator, internal product, etc.) as defined by {@link #isInternalRequest()} then the
+ * deprecation is emitted in non-stateless mode and an IllegalArgumentException is thrown in stateless mode. Otherwise, it is skipped.
  *
  * The indices for consideration are returned by the abstract {@link #getIndicesFromRequest(Object)}
  * method, which subclasses must implement.
@@ -61,19 +63,22 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
      * .ml-* is used by ML
      * .slo-observability-* is used by Observability
      */
-    private static Set<String> IGNORED_INDEX_NAMES = Set.of(
-        ".elastic-connectors-v1",
-        ".elastic-connectors-sync-jobs-v1",
-        ".ml-state",
-        ".ml-anomalies-unrelated"
-    );
+    private static Set<String> IGNORED_INDEX_NAMES = Set.of(".elastic-connectors-v1", ".elastic-connectors-sync-jobs-v1", ".ml-state");
     public static final Setting<List<String>> IGNORED_INDEX_PATTERNS_SETTING = Setting.stringListSetting(
         "cluster.indices.validate_ignored_dot_patterns",
         List.of(
+            "\\.ml-anomalies-.*",
+            "\\.ml-annotations-\\d+",
             "\\.ml-state-\\d+",
+            "\\.ml-stats-\\d+",
             "\\.slo-observability\\.sli-v\\d+.*",
             "\\.slo-observability\\.summary-v\\d+.*",
-            "\\.entities\\.v\\d+\\.latest\\..*"
+            "\\.entities\\.v\\d+\\..*",
+            "\\.monitoring-es-8-.*",
+            "\\.monitoring-logstash-8-.*",
+            "\\.monitoring-kibana-8-.*",
+            "\\.monitoring-beats-8-.*",
+            "\\.monitoring-ent-search-8-.*"
         ),
         (patternList) -> patternList.forEach(pattern -> {
             try {
@@ -90,11 +95,13 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
 
     private final ThreadContext threadContext;
     private final boolean isEnabled;
+    private final boolean isStateless;
     private volatile Set<Pattern> ignoredIndexPatterns;
 
     public DotPrefixValidator(ThreadContext threadContext, ClusterService clusterService) {
         this.threadContext = threadContext;
         this.isEnabled = VALIDATE_DOT_PREFIXES.get(clusterService.getSettings());
+        this.isStateless = DiscoveryNode.isStateless(clusterService.getSettings());
         this.ignoredIndexPatterns = IGNORED_INDEX_PATTERNS_SETTING.get(clusterService.getSettings())
             .stream()
             .map(Pattern::compile)
@@ -137,13 +144,17 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
                         if (this.ignoredIndexPatterns.stream().anyMatch(p -> p.matcher(strippedName).matches())) {
                             return;
                         }
-                        deprecationLogger.warn(
-                            DeprecationCategory.INDICES,
-                            "dot-prefix",
-                            "Index [{}] name begins with a dot (.), which is deprecated, "
-                                + "and will not be allowed in a future Elasticsearch version.",
-                            index
-                        );
+                        if (isStateless) {
+                            throw new IllegalArgumentException("Index [" + index + "] name beginning with a dot (.) is not allowed");
+                        } else {
+                            deprecationLogger.warn(
+                                DeprecationCategory.INDICES,
+                                "dot-prefix",
+                                "Index [{}] name begins with a dot (.), which is deprecated, "
+                                    + "and will not be allowed in a future Elasticsearch version.",
+                                index
+                            );
+                        }
                     }
                 }
             }
@@ -182,6 +193,8 @@ public abstract class DotPrefixValidator<RequestType> implements MappedActionFil
         final boolean hasElasticOriginHeader = Optional.ofNullable(threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER))
             .map(Strings::hasText)
             .orElse(false);
-        return isSystemContext || isInternalOrigin || hasElasticOriginHeader;
+        final boolean isOperator = "operator".equals(threadContext.getHeader("_security_privilege_category"));
+        return isSystemContext || isInternalOrigin || hasElasticOriginHeader || isOperator;
     }
+
 }

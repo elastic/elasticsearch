@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.HasAggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
@@ -23,7 +22,7 @@ public interface MultiBucketsAggregation extends Aggregation {
      * A bucket represents a criteria to which all documents that fall in it adhere to. It is also uniquely identified
      * by a key, and can potentially hold sub-aggregations computed over all documents in it.
      */
-    interface Bucket extends HasAggregations {
+    interface Bucket {
         /**
          * @return The key associated with the bucket
          */
@@ -42,7 +41,6 @@ public interface MultiBucketsAggregation extends Aggregation {
         /**
          * @return  The sub-aggregations of this bucket
          */
-        @Override
         InternalAggregations getAggregations();
 
     }

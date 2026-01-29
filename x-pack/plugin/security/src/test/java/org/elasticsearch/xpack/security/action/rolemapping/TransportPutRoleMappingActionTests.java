@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRe
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
+import org.elasticsearch.xpack.security.authc.support.mapper.ProjectStateRoleMapper;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -44,7 +44,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     private NativeRoleMappingStore store;
     private TransportPutRoleMappingAction action;
     private AtomicReference<PutRoleMappingRequest> requestRef;
-    private ClusterStateRoleMapper clusterStateRoleMapper;
+    private ProjectStateRoleMapper projectStateRoleMapper;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -59,9 +59,9 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        clusterStateRoleMapper = mock();
-        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(false);
-        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store, clusterStateRoleMapper);
+        projectStateRoleMapper = mock();
+        when(projectStateRoleMapper.hasMapping(any())).thenReturn(false);
+        action = new TransportPutRoleMappingAction(mock(ActionFilters.class), transportService, store, projectStateRoleMapper);
 
         requestRef = new AtomicReference<>(null);
 
@@ -94,7 +94,7 @@ public class TransportPutRoleMappingActionTests extends ESTestCase {
     public void testValidMappingClashingClusterStateMapping() throws Exception {
         final FieldExpression expression = new FieldExpression("username", Collections.singletonList(new FieldExpression.FieldValue("*")));
         final PutRoleMappingResponse response = put("anarchy", expression, "superuser", Collections.singletonMap("dumb", true));
-        when(clusterStateRoleMapper.hasMapping(any())).thenReturn(true);
+        when(projectStateRoleMapper.hasMapping(any())).thenReturn(true);
 
         assertThat(response.isCreated(), equalTo(true));
 

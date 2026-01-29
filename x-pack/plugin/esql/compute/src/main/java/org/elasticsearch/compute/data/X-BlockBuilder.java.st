@@ -7,21 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
-$if(BytesRef)$
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.BytesRefArray;
-import org.elasticsearch.core.Releasables;
-
-$else$
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.$Array$;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
-$endif$
+// end generated imports
 
 /**
  * Block build of $Type$Blocks.
@@ -43,7 +38,7 @@ $else$
     $Type$BlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new $type$[initialSize];
     }
 $endif$

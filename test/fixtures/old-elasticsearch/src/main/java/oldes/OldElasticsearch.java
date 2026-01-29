@@ -128,11 +128,11 @@ public class OldElasticsearch {
         }
 
         Path tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(port).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tmp, Integer.toString(port));
         Files.move(tmp, baseDir.resolve("ports"), StandardCopyOption.ATOMIC_MOVE);
 
         tmp = Files.createTempFile(baseDir, null, null);
-        Files.write(tmp, Integer.toString(pid).getBytes(StandardCharsets.UTF_8));
+        Files.writeString(tmp, Integer.toString(pid));
         Files.move(tmp, baseDir.resolve("pid"), StandardCopyOption.ATOMIC_MOVE);
     }
 }

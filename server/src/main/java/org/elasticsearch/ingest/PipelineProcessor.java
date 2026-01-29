@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.Map;
@@ -93,7 +94,8 @@ public class PipelineProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> registry,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) throws Exception {
             TemplateScript.Factory pipelineTemplate = ConfigurationUtils.readTemplateProperty(
                 TYPE,

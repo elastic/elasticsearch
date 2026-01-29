@@ -1,5 +1,0 @@
-pr: 122731
-summary: Fork post-snapshot-delete cleanup off master thread
-area: Snapshot/Restore
-type: bug
-issues: []

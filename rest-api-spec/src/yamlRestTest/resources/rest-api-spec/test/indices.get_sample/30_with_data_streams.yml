@@ -1,0 +1,288 @@
+---
+"Test get sample for basic sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 2 }
+  - match: { sample.0.index: "sample_test" }
+  - match: { sample.0.source.animal: "dog" }
+  - match: { sample.0.source.foo: "bar" }
+  - match: { sample.1.source.animal: "cat" }
+  - match: { sample.1.source.foo: "baz" }
+
+---
+"Test get sample for conditional sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+          if: "ctx?.animal == 'dog'"
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 1 }
+  - match: { sample.0.index: "sample_test" }
+  - match: { sample.0.source.animal: "dog" }
+  - match: { sample.0.source.foo: "bar" }
+
+---
+"Test that deleting sample config deletes sample":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 1 }
+
+  - do:
+      indices.delete_sample_configuration:
+        index: sample_test
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+      catch: missing
+
+---
+"Test that deleting index deletes sample":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - match: { sample: [] }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+  - length: { sample: 2 }
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.get_sample_configuration:
+        index: sample_test
+      catch: missing
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+      catch: missing
+
+---
+teardown:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test*
+
+  - do:
+      indices.get_all_sample_configuration: {}
+  - length: { configurations: 0 }

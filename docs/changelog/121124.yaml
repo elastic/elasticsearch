@@ -1,5 +1,0 @@
-pr: 121124
-summary: Run `TransportGetEnrichPolicyAction` on local node
-area: Ingest Node
-type: enhancement
-issues: []

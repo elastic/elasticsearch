@@ -39,6 +39,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -758,8 +759,8 @@ public class HttpExporter extends Exporter {
             // This configuration uses secure settings. We cannot load a new SSL strategy, as the secure settings have already been closed.
             // Due to #registerSettingValidators we know that the settings not been dynamically updated, and the pre-configured strategy
             // is still the correct configuration for use in this exporter.
-            final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(concreteSetting.getKey());
-            sslStrategy = sslService.sslIOSessionStrategy(sslConfiguration);
+            final SslProfile profile = sslService.profile(concreteSetting.getKey());
+            sslStrategy = profile.ioSessionStrategy();
         }
         return sslStrategy;
     }

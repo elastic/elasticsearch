@@ -1,5 +1,0 @@
-pr: 118094
-summary: Update ASM 9.7 -> 9.7.1 to support JDK 24
-area: Infra/Core
-type: upgrade
-issues: []

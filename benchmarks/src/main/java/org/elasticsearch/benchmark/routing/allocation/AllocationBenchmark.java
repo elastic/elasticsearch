@@ -14,7 +14,10 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -126,19 +129,20 @@ public class AllocationBenchmark {
             Settings.builder().put("cluster.routing.allocation.awareness.attributes", "tag").build()
         );
 
-        Metadata.Builder mb = Metadata.builder();
+        final ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder pmb = ProjectMetadata.builder(projectId);
         for (int i = 1; i <= numIndices; i++) {
-            mb.put(
+            pmb.put(
                 IndexMetadata.builder("test_" + i)
                     .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
                     .numberOfShards(numShards)
                     .numberOfReplicas(numReplicas)
             );
         }
-        Metadata metadata = mb.build();
+        Metadata metadata = Metadata.builder().put(pmb).build();
         RoutingTable.Builder rb = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
         for (int i = 1; i <= numIndices; i++) {
-            rb.addAsNew(metadata.index("test_" + i));
+            rb.addAsNew(metadata.getProject(projectId).index("test_" + i));
         }
         RoutingTable routingTable = rb.build();
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
@@ -151,7 +155,7 @@ public class AllocationBenchmark {
         }
         initialClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
-            .routingTable(routingTable)
+            .routingTable(GlobalRoutingTable.builder().put(projectId, routingTable).build())
             .nodes(nb)
             .nodeIdsToCompatibilityVersions(compatibilityVersions)
             .build();

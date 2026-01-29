@@ -88,12 +88,35 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
         private final String typeName;
         private final boolean fetchChildInnerHits;
         private final Joiner joiner;
+        private final SearchExecutionContext searchExecutionContext;
 
         JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits, Joiner joiner) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
             this.joiner = joiner;
+            this.searchExecutionContext = null;
+        }
+
+        JoinFieldInnerHitSubContext(
+            JoinFieldInnerHitSubContext joinFieldInnerHitSubContext,
+            SearchExecutionContext searchExecutionContext
+        ) {
+            super(joinFieldInnerHitSubContext);
+            this.typeName = joinFieldInnerHitSubContext.typeName;
+            this.fetchChildInnerHits = joinFieldInnerHitSubContext.fetchChildInnerHits;
+            this.joiner = joinFieldInnerHitSubContext.joiner;
+            this.searchExecutionContext = searchExecutionContext;
+        }
+
+        @Override
+        public JoinFieldInnerHitSubContext copyWithSearchExecutionContext(SearchExecutionContext searchExecutionContext) {
+            return new JoinFieldInnerHitSubContext(this, searchExecutionContext);
+        }
+
+        @Override
+        public SearchExecutionContext getSearchExecutionContext() {
+            return searchExecutionContext != null ? searchExecutionContext : super.getSearchExecutionContext();
         }
 
         @Override
@@ -137,12 +160,12 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 TopDocsCollector<?> topDocsCollector;
                 MaxScoreCollector maxScoreCollector = null;
                 if (sort() != null) {
-                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE, false).newCollector();
+                    topDocsCollector = new TopFieldCollectorManager(sort().sort, topN, null, Integer.MAX_VALUE).newCollector();
                     if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
                 } else {
-                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE, false).newCollector();
+                    topDocsCollector = new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector();
                     maxScoreCollector = new MaxScoreCollector();
                 }
                 for (LeafReaderContext ctx : this.context.searcher().getIndexReader().leaves()) {

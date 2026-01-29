@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest.useragent;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.UpdateForV10;
@@ -191,7 +192,8 @@ public class UserAgentProcessor extends AbstractProcessor {
             Map<String, Processor.Factory> factories,
             String processorTag,
             String description,
-            Map<String, Object> config
+            Map<String, Object> config,
+            ProjectId projectId
         ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
@@ -259,7 +261,7 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
     }
 
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     // This can be removed in V10. It's not possible to create an instance with the ecs property in V9, and all instances created by V8 or
     // earlier will have been fixed when upgraded to V9.
     static boolean maybeUpgradeConfig(Map<String, Object> config) {

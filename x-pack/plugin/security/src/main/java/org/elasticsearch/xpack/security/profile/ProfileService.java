@@ -39,7 +39,10 @@ import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -74,6 +77,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -106,6 +110,15 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Avai
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 
 public class ProfileService {
+
+    public static final Setting<ByteSizeValue> MAX_SIZE_SETTING = Setting.byteSizeSetting(
+        "xpack.security.profile.max_size",
+        ByteSizeValue.of(10, ByteSizeUnit.MB), // default: 10 MB
+        ByteSizeValue.ZERO, // minimum: 0 bytes
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
     private static final String DOC_ID_PREFIX = "profile_";
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
@@ -118,6 +131,7 @@ public class ProfileService {
     private final SecurityIndexManager profileIndex;
     private final Function<String, DomainConfig> domainConfigLookup;
     private final Function<RealmConfig.RealmIdentifier, Authentication.RealmRef> realmRefLookup;
+    private final ByteSizeValue maxProfileSize;
 
     public ProfileService(Settings settings, Clock clock, Client client, SecurityIndexManager profileIndex, Realms realms) {
         this.settings = settings;
@@ -126,6 +140,7 @@ public class ProfileService {
         this.profileIndex = profileIndex;
         this.domainConfigLookup = realms::getDomainConfig;
         this.realmRefLookup = realms::getRealmRef;
+        this.maxProfileSize = MAX_SIZE_SETTING.get(settings);
     }
 
     public void getProfiles(List<String> uids, Set<String> dataKeys, ActionListener<ResultsAndErrors<Profile>> listener) {
@@ -240,10 +255,59 @@ public class ProfileService {
             return;
         }
 
-        doUpdate(
-            buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
-            listener.map(updateResponse -> AcknowledgedResponse.TRUE)
-        );
+        getVersionedDocument(request.getUid(), ActionListener.wrap(doc -> {
+            validateProfileSize(doc, request, maxProfileSize);
+
+            doUpdate(
+                buildUpdateRequest(request.getUid(), builder, request.getRefreshPolicy(), request.getIfPrimaryTerm(), request.getIfSeqNo()),
+                listener.map(updateResponse -> AcknowledgedResponse.TRUE)
+            );
+        }, listener::onFailure));
+    }
+
+    static void validateProfileSize(VersionedDocument doc, UpdateProfileDataRequest request, ByteSizeValue limit) {
+        if (doc == null) {
+            return;
+        }
+        Map<String, Object> labels = combineMaps(doc.doc.labels(), request.getLabels());
+        Map<String, Object> data = combineMaps(mapFromBytesReference(doc.doc.applicationData()), request.getData());
+        ByteSizeValue actualSize = ByteSizeValue.ofBytes(serializationSize(labels) + serializationSize(data));
+        if (actualSize.compareTo(limit) > 0) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "cannot update profile [%s] because the combined profile size of [%s] exceeds the maximum of [%s]",
+                    request.getUid(),
+                    actualSize,
+                    limit
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
+    }
+
+    static Map<String, Object> combineMaps(Map<String, Object> src, Map<String, Object> update) {
+        Map<String, Object> result = new HashMap<>(); // ensure mutable outer source map for update below
+        if (src != null) {
+            result.putAll(src);
+        }
+        XContentHelper.update(result, update, false);
+        return result;
+    }
+
+    static Map<String, Object> mapFromBytesReference(BytesReference bytesRef) {
+        if (bytesRef == null || bytesRef.length() == 0) {
+            return Map.of();
+        }
+        return XContentHelper.convertToMap(bytesRef, false, XContentType.JSON).v2();
+    }
+
+    static int serializationSize(Map<String, Object> map) {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.value(map);
+            return BytesReference.bytes(builder).length();
+        } catch (IOException e) {
+            throw new ElasticsearchException("Error occurred computing serialization size", e); // I/O error should never happen here
+        }
     }
 
     public void suggestProfile(SuggestProfilesRequest request, TaskId parentTaskId, ActionListener<SuggestProfilesResponse> listener) {
@@ -722,32 +786,33 @@ public class ProfileService {
                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                 .request()
         );
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_PROFILE_ORIGIN,
-                TransportBulkAction.TYPE,
-                bulkRequest,
-                TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
-                    assert docId.equals(indexResponse.getId());
-                    final VersionedDocument versionedDocument = new VersionedDocument(
-                        profileDocument,
-                        indexResponse.getPrimaryTerm(),
-                        indexResponse.getSeqNo()
-                    );
-                    listener.onResponse(versionedDocument.toProfile(Set.of()));
-                }, e -> {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                        // Document already exists with the specified ID, get the document with the ID
-                        // and check whether it is the right profile for the subject
-                        getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }))
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportBulkAction.TYPE,
+                    bulkRequest,
+                    TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
+                        assert docId.equals(indexResponse.getId());
+                        final VersionedDocument versionedDocument = new VersionedDocument(
+                            profileDocument,
+                            indexResponse.getPrimaryTerm(),
+                            indexResponse.getSeqNo()
+                        );
+                        listener.onResponse(versionedDocument.toProfile(Set.of()));
+                    }, e -> {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                            // Document already exists with the specified ID, get the document with the ID
+                            // and check whether it is the right profile for the subject
+                            getOrCreateProfileWithBackoff(subject, profileDocument, DEFAULT_BACKOFF.iterator(), listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    }))
+                )
+            );
     }
 
     // Package private for test
@@ -987,20 +1052,21 @@ public class ProfileService {
 
     // Package private for testing
     void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
-        profileIndex.prepareIndexIfNeededThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_PROFILE_ORIGIN,
-                TransportUpdateAction.TYPE,
-                updateRequest,
-                ActionListener.wrap(updateResponse -> {
-                    assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
-                        || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
-                    listener.onResponse(updateResponse);
-                }, listener::onFailure)
-            )
-        );
+        profileIndex.forCurrentProject()
+            .prepareIndexIfNeededThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    TransportUpdateAction.TYPE,
+                    updateRequest,
+                    ActionListener.wrap(updateResponse -> {
+                        assert updateResponse.getResult() == DocWriteResponse.Result.UPDATED
+                            || updateResponse.getResult() == DocWriteResponse.Result.NOOP;
+                        listener.onResponse(updateResponse);
+                    }, listener::onFailure)
+                )
+            );
     }
 
     private static String uidToDocId(String uid) {
@@ -1048,20 +1114,17 @@ public class ProfileService {
      * Freeze the profile index check its availability and return it if everything is ok.
      * Otherwise it calls the listener with null and returns an empty Optional.
      */
-    private <T> Optional<SecurityIndexManager> tryFreezeAndCheckIndex(
-        ActionListener<T> listener,
-        SecurityIndexManager.Availability availability
-    ) {
-        final SecurityIndexManager frozenProfileIndex = profileIndex.defensiveCopy();
-        if (false == frozenProfileIndex.indexExists()) {
+    private <T> Optional<IndexState> tryFreezeAndCheckIndex(ActionListener<T> listener, SecurityIndexManager.Availability availability) {
+        final IndexState projectSecurityIndex = profileIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             logger.debug("profile index does not exist");
             listener.onResponse(null);
             return Optional.empty();
-        } else if (false == frozenProfileIndex.isAvailable(availability)) {
-            listener.onFailure(frozenProfileIndex.getUnavailableReason(availability));
+        } else if (false == projectSecurityIndex.isAvailable(availability)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(availability));
             return Optional.empty();
         }
-        return Optional.of(frozenProfileIndex);
+        return Optional.of(projectSecurityIndex);
     }
 
     private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {

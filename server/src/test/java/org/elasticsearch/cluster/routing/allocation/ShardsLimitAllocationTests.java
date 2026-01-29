@@ -51,7 +51,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -92,7 +92,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
@@ -140,8 +140,6 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
                 .put("cluster.routing.allocation.balance.index", 0.0f)
-                .put("cluster.routing.allocation.balance.replica", 1.0f)
-                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build()
         );
 
@@ -152,7 +150,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
@@ -172,7 +170,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         RoutingTable updatedRoutingTable = RoutingTable.builder(
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY,
             clusterState.routingTable()
-        ).addAsNew(metadata.index("test1")).build();
+        ).addAsNew(metadata.getProject().index("test1")).build();
 
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(updatedRoutingTable).build();
 
@@ -194,7 +192,7 @@ public class ShardsLimitAllocationTests extends ESAllocationTestCase {
         logger.info("update {} for test, see that things move", ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey());
         metadata = Metadata.builder(clusterState.metadata())
             .put(
-                IndexMetadata.builder(clusterState.metadata().index("test"))
+                IndexMetadata.builder(clusterState.metadata().getProject().index("test"))
                     .settings(
                         indexSettings(IndexVersion.current(), 5, 0).put(
                             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),

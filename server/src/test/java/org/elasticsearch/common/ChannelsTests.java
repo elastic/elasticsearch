@@ -25,6 +25,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
@@ -42,7 +43,7 @@ public class ChannelsTests extends ESTestCase {
         Path tmpFile = createTempFile();
         FileChannel randomAccessFile = FileChannel.open(tmpFile, StandardOpenOption.READ, StandardOpenOption.WRITE);
         fileChannel = new MockFileChannel(randomAccessFile);
-        randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes("UTF-8");
+        randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes(StandardCharsets.UTF_8);
     }
 
     @Override

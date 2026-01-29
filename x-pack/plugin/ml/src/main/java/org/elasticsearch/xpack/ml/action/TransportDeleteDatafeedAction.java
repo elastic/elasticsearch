@@ -15,7 +15,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -39,6 +39,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     private final Client client;
     private final DatafeedManager datafeedManager;
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteDatafeedAction(
@@ -46,10 +47,10 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         PersistentTasksService persistentTasksService,
-        DatafeedManager datafeedManager
+        DatafeedManager datafeedManager,
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteDatafeedAction.NAME,
@@ -63,6 +64,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         this.client = client;
         this.persistentTasksService = persistentTasksService;
         this.datafeedManager = datafeedManager;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -98,7 +100,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> datafeedTask = MlTasks.getDatafeedTask(request.getDatafeedId(), tasks);
         if (datafeedTask == null) {
             listener.onResponse(true);
@@ -128,6 +130,6 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected ClusterBlockException checkBlock(DeleteDatafeedAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

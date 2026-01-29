@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesConsumer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -22,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -33,6 +35,7 @@ import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.LogConfigurator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,7 +51,28 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     private static final int NUM_DOCS = 10;
 
-    private final Codec codec = TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat());
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
+
+    public static class TestES87TSDBDocValuesFormat extends ES87TSDBDocValuesFormat {
+
+        TestES87TSDBDocValuesFormat() {
+            super();
+        }
+
+        public TestES87TSDBDocValuesFormat(int skipIndexIntervalSize) {
+            super(skipIndexIntervalSize);
+        }
+
+        @Override
+        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+            return new ES87TSDBDocValuesConsumer(state, skipIndexIntervalSize, DATA_CODEC, DATA_EXTENSION, META_CODEC, META_EXTENSION);
+        }
+    }
+
+    private final Codec codec = TestUtil.alwaysDocValuesFormat(new TestES87TSDBDocValuesFormat());
 
     @Override
     protected Codec getCodec() {
@@ -59,6 +83,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         try (Directory directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setCodec(getCodec());
             conf.setMergePolicy(newLogMergePolicy());
             try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -95,6 +120,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         try (Directory directory = newDirectory()) {
             Analyzer analyzer = new MockAnalyzer(random());
             IndexWriterConfig conf = newIndexWriterConfig(analyzer);
+            conf.setCodec(getCodec());
             conf.setMergePolicy(newLogMergePolicy());
             try (RandomIndexWriter iwriter = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < NUM_DOCS; i++) {
@@ -132,8 +158,10 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
 
     public void testOneDocManyValues() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig();
+        config.setCodec(getCodec());
         try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
-            int numValues = 128 + random().nextInt(1024); // > 2^7 to require two blocks
+            // requires two blocks
+            int numValues = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + random().nextInt(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE * 4);
             Document d = new Document();
             for (int i = 0; i < numValues; i++) {
                 d.add(new SortedSetDocValuesField("dv", new BytesRef("v-" + i)));
@@ -159,6 +187,7 @@ public class ES87TSDBDocValuesFormatTests extends BaseDocValuesFormatTestCase {
         final Map<String, long[]> sortedNumbers = new HashMap<>(); // key -> numbers
         try (Directory directory = newDirectory()) {
             IndexWriterConfig conf = newIndexWriterConfig();
+            conf.setCodec(getCodec());
             try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory, conf)) {
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();

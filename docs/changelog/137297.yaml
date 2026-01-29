@@ -1,0 +1,5 @@
+pr: 137297
+summary: Fixed inconsistency in the `isSyntheticSourceEnabled` flag
+area: Mapping
+type: bug
+issues: []

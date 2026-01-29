@@ -1,6 +1,0 @@
-pr: 120542
-summary: "Feat: add a user-configurable timeout parameter to the `_resolve/cluster`\
-  \ API"
-area: Search
-type: enhancement
-issues: []

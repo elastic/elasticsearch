@@ -7,20 +7,21 @@
 
 package org.elasticsearch.compute.data;
 
-import org.elasticsearch.TransportVersions;
+// begin generated imports
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Vector that stores int values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, ConstantNullVector {
-
+public sealed interface IntVector extends Vector permits ConstantIntVector, IntArrayVector, IntBigArrayVector, IntRangeVector,
+    ConstantNullVector {
     int getInt(int position);
 
     @Override
@@ -31,6 +32,19 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
 
     @Override
     IntBlock keepMask(BooleanVector mask);
+
+    /**
+     * Make a deep copy of this {@link Vector} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default IntVector deepCopy(BlockFactory blockFactory) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(getPositionCount())) {
+            builder.copyFrom(asBlock(), 0, getPositionCount());
+            builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+            return builder.build().asVector();
+        }
+    }
 
     @Override
     ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
@@ -114,10 +128,10 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         if (isConstant() && positions > 0) {
             out.writeByte(SERIALIZE_VECTOR_CONSTANT);
             out.writeInt(getInt(0));
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntArrayVector v) {
+        } else if (this instanceof IntArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_ARRAY);
             v.writeArrayVector(positions, out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof IntBigArrayVector v) {
+        } else if (this instanceof IntBigArrayVector v) {
             out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
             v.writeArrayVector(positions, out);
         } else {
@@ -139,15 +153,6 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
         for (int i = 0; i < positions; i++) {
             out.writeInt(v.getInt(i));
         }
-    }
-
-    /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
-        }
-        return blockFactory.newIntArrayVector(values, values.length);
     }
 
     /**

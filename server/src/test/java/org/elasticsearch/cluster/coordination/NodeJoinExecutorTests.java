@@ -22,6 +22,8 @@ import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -85,13 +87,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithNewerIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             IndexVersions.MINIMUM_COMPATIBLE,
@@ -113,13 +116,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedIndices() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(settings(IndexVersion.fromId(6080099))) // latest V6 released version
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId).put(indexMetadata, false));
         Metadata metadata = metaBuilder.build();
         expectThrows(
             IllegalStateException.class,
@@ -232,7 +236,6 @@ public class NodeJoinExecutorTests extends ESTestCase {
             );
         }
         var indexCreated = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             getPreviousVersion(IndexVersions.MINIMUM_COMPATIBLE)
         );
@@ -305,7 +308,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testPreventJoinClusterWithUnsupportedNodeVersions() {
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
-        final Version version = randomCompatibleVersion(random(), Version.CURRENT);
+        final Version version = randomCompatibleVersion(Version.CURRENT);
         builder.add(
             DiscoveryNodeUtils.builder(UUIDs.base64UUID())
                 .version(version, IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
@@ -313,7 +316,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
         );
         builder.add(
             DiscoveryNodeUtils.builder(UUIDs.base64UUID())
-                .version(randomCompatibleVersion(random(), version), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
+                .version(randomCompatibleVersion(version), IndexVersions.MINIMUM_COMPATIBLE, IndexVersion.current())
                 .build()
         );
         DiscoveryNodes nodes = builder.build();
@@ -332,14 +335,14 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final Version oldVersion = randomValueOtherThanMany(
             v -> v.onOrAfter(minNodeVersion),
-            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion(random())
+            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion()
         );
         expectThrows(IllegalStateException.class, () -> NodeJoinExecutor.ensureVersionBarrier(oldVersion, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
         // we have to stick with the same major
             minNodeVersion : maxNodeVersion.minimumCompatibilityVersion();
-        final Version justGood = randomVersionBetween(random(), minGoodVersion, maxCompatibleVersion(minNodeVersion));
+        final Version justGood = randomVersionBetween(minGoodVersion, maxCompatibleVersion(minNodeVersion));
 
         if (randomBoolean()) {
             NodeJoinExecutor.ensureNodesCompatibility(justGood, nodes);
@@ -639,19 +642,21 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
     public void testSuccess() {
         Settings.builder().build();
-        Metadata.Builder metaBuilder = Metadata.builder();
+        Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
+        final ProjectId projectId = randomProjectIdOrDefault();
+        metaBuilder.put(ProjectMetadata.builder(projectId));
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         indexMetadata = IndexMetadata.builder("test1")
             .settings(randomCompatibleVersionSettings())
             .numberOfShards(1)
             .numberOfReplicas(1)
             .build();
-        metaBuilder.put(indexMetadata, false);
+        metaBuilder.getProject(projectId).put(indexMetadata, false);
         Metadata metadata = metaBuilder.build();
         NodeJoinExecutor.ensureIndexCompatibility(
             // randomCompatibleVersionSettings() can set a version as low as MINIMUM_READONLY_COMPATIBLE
@@ -665,17 +670,17 @@ public class NodeJoinExecutorTests extends ESTestCase {
     public static Settings.Builder randomCompatibleVersionSettings() {
         Settings.Builder builder = Settings.builder();
         if (randomBoolean()) {
-            IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion(random());
+            IndexVersion createdVersion = IndexVersionUtils.randomCompatibleVersion();
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
             if (randomBoolean()) {
                 builder.put(
                     IndexMetadata.SETTING_VERSION_COMPATIBILITY,
-                    IndexVersionUtils.randomVersionBetween(random(), createdVersion, IndexVersion.current())
+                    IndexVersionUtils.randomVersionBetween(createdVersion, IndexVersion.current())
                 );
             }
         } else {
             builder.put(IndexMetadata.SETTING_VERSION_CREATED, randomFrom(Version.fromString("5.0.0"), Version.fromString("6.0.0")));
-            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersionUtils.randomCompatibleVersion(random()).id());
+            builder.put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, IndexVersionUtils.randomCompatibleVersion().id());
         }
         return builder;
     }
@@ -1253,7 +1258,8 @@ public class NodeJoinExecutorTests extends ESTestCase {
                         + node2.descriptionWithoutAttributes()
                         + "] with reason ["
                         + testReasonWithLink.message()
-                        + "]; for troubleshooting guidance, see https://www.elastic.co/guide/en/elasticsearch/reference/*"
+                        + "]; for troubleshooting guidance, see "
+                        + "https://www.elastic.co/docs/troubleshoot/elasticsearch/troubleshooting-unstable-cluster*"
                 )
             );
             assertNull(

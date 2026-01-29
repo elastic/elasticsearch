@@ -15,13 +15,15 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -32,7 +34,7 @@ import java.util.List;
  * is a compute-heavy process), and then outputs all data with the change points.
  */
 public class ChangePointOperator implements Operator {
-
+    private static final Logger logger = LogManager.getLogger(ChangePointOperator.class);
     public static final int INPUT_VALUE_COUNT_LIMIT = 1000;
 
     public record Factory(int channel, String sourceText, int sourceLine, int sourceColumn) implements OperatorFactory {
@@ -68,8 +70,8 @@ public class ChangePointOperator implements Operator {
         this.sourceColumn = sourceColumn;
 
         finished = false;
-        inputPages = new LinkedList<>();
-        outputPages = new LinkedList<>();
+        inputPages = new ArrayDeque<>();
+        outputPages = new ArrayDeque<>();
         warnings = null;
     }
 
@@ -189,17 +191,29 @@ public class ChangePointOperator implements Operator {
         }
 
         if (changeType instanceof ChangeType.Indeterminable indeterminable) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Change point indeterminable: {}", indeterminable.getReason());
+            }
             warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
         }
         if (tooManyValues) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Too many values: limit is {}, some values were ignored", INPUT_VALUE_COUNT_LIMIT);
+            }
             warnings(true).registerException(
                 new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
             );
         }
         if (hasNulls) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Values contain nulls; skipping them");
+            }
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
         }
         if (hasMultivalued) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("Values contain multivalued entries; skipping them");
+            }
             warnings(true).registerException(
                 new IllegalArgumentException(
                     "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"

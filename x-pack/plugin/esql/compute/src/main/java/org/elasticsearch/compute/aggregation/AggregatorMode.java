@@ -7,6 +7,32 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.topn.TopNOperator;
+
+/**
+ * "Modes" for running an aggregate function.
+ * <p>
+ *     Aggregations running on a single "stream" of {@link Block}s should run in
+ *     {@link #SINGLE} mode. This works for aggs that come after a
+ *     {@link TopNOperator} or another agg.
+ * </p>
+ * <p>
+ *     But all other aggregations run distributed. On many threads on each data node
+ *     we run in {@link #INITIAL} mode to consume raw data and output just enough to
+ *     finish the job later. All threads on a node dump the data into the same agg
+ *     run in {@link #INTERMEDIATE} mode to perform "node reduction". Then, on the
+ *     coordinating node, the outputs of the "node reduction" goes into the agg in
+ *     {@link #FINAL} mode.
+ * </p>
+ * <p>
+ *     Put another way, all data must flow throw aggregations in one of these two sequences:
+ * </p>
+ * <ul>
+ *     <li>{@link #SINGLE}</li>
+ *     <li>{@link #INITIAL} {@link #INTERMEDIATE}* {@link #FINAL}</li>
+ * </ul>
+ */
 public enum AggregatorMode {
 
     /**

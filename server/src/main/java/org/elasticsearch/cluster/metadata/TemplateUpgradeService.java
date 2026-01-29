@@ -99,7 +99,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             return;
         }
 
-        Map<String, IndexTemplateMetadata> templates = state.getMetadata().getTemplates();
+        Map<String, IndexTemplateMetadata> templates = state.getMetadata().getProject().templates();
 
         if (templates == lastTemplateMetadata) {
             // we already checked these sets of templates - no reason to check it again
@@ -193,7 +193,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
                 // Check upgraders are satisfied after the update completed. If they still
                 // report that changes are required, this might indicate a bug or that something
                 // else tinkering with the templates during the upgrade.
-                final Map<String, IndexTemplateMetadata> upgradedTemplates = clusterService.state().getMetadata().getTemplates();
+                final Map<String, IndexTemplateMetadata> upgradedTemplates = clusterService.state().getMetadata().getProject().templates();
                 final boolean changesRequired = calculateTemplateChanges(upgradedTemplates).isPresent();
                 if (changesRequired) {
                     logger.warn("Templates are still reported as out of date after the upgrade. The template upgrade will be retried.");

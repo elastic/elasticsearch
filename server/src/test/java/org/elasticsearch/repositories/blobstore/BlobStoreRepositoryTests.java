@@ -21,12 +21,18 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.RefCountingListener;
-import org.elasticsearch.action.support.RefCountingRunnable;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Numbers;
@@ -39,12 +45,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
@@ -59,7 +67,9 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 
@@ -79,10 +89,12 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
@@ -211,6 +223,89 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         assertEquals(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), repositoryData);
         assertThat(repository.latestIndexBlobId(), equalTo(expectedGeneration + 2L));
         assertThat(repository.readSnapshotIndexLatestBlob(), equalTo(expectedGeneration + 2L));
+
+        // adding more snapshots to check that writeIndexGen checks the actual repo metadata and fails on a readonly repository
+        final var newRepositoryData = addRandomSnapshotsToRepoData(ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository), true);
+        final var barrier = new CyclicBarrier(2);
+        final var setReadonlyPromise = blockAndSetRepositoryReadOnly(repository.getMetadata().name(), barrier);
+        safeAwait(barrier); // wait for set-readonly task to start executing
+        safeAwait(l -> {
+            repository.writeIndexGen(
+                newRepositoryData,
+                newRepositoryData.getGenId(),
+                IndexVersion.current(),
+                Function.identity(),
+                ActionTestUtils.assertNoSuccessListener(e -> {
+                    assertThat(
+                        asInstanceOf(RepositoryException.class, e).getMessage(),
+                        containsString("[test-repo] Failed to execute cluster state update [set pending repository generation")
+                    );
+                    assertThat(
+                        asInstanceOf(IllegalArgumentException.class, e.getCause()).getMessage(),
+                        containsString("[test-repo] repository is readonly, cannot update root blob")
+                    );
+                    l.onResponse(null);
+                })
+            );
+            safeAwait(barrier); // allow set-readonly task to proceed now that the set-pending-generation task is enqueued
+        });
+        safeAwait(setReadonlyPromise);
+    }
+
+    /**
+     * Submits a cluster state update which blocks on the {@code barrier} twice and then marks the given repository as readonly.
+     * @return a promise that is completed when the cluster state update finishes.
+     */
+    private SubscribableListener<Void> blockAndSetRepositoryReadOnly(String repositoryName, CyclicBarrier barrier) {
+        return SubscribableListener.newForked(
+            l -> getInstanceFromNode(ClusterService.class).submitUnbatchedStateUpdateTask(
+                "update readonly flag",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                        return new ClusterState.Builder(currentState).metadata(
+                            Metadata.builder(currentState.metadata())
+                                .putCustom(
+                                    RepositoriesMetadata.TYPE,
+                                    new RepositoriesMetadata(
+                                        RepositoriesMetadata.get(currentState)
+                                            .repositories()
+                                            .stream()
+                                            .map(
+                                                r -> r.name().equals(repositoryName)
+                                                    ? new RepositoryMetadata(
+                                                        r.name(),
+                                                        r.uuid(),
+                                                        r.type(),
+                                                        Settings.builder()
+                                                            .put(r.settings())
+                                                            .put(BlobStoreRepository.READONLY_SETTING_KEY, "true")
+                                                            .build(),
+                                                        r.generation(),
+                                                        r.pendingGeneration()
+                                                    )
+                                                    : r
+                                            )
+                                            .toList()
+                                    )
+                                )
+                        ).build();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        l.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                        l.onResponse(null);
+                    }
+                }
+            )
+        );
     }
 
     public void testCorruptIndexLatestFile() throws Exception {
@@ -421,7 +516,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             repoData = repoData.addSnapshot(
                 snapshotId,
                 details,
-                shardGenerations,
+                new UpdatedShardGenerations(shardGenerations, ShardGenerations.EMPTY),
                 indexLookup,
                 indexLookup.values().stream().collect(Collectors.toMap(Function.identity(), ignored -> UUIDs.randomBase64UUID(random())))
             );
@@ -430,10 +525,12 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
     }
 
     public void testEnsureUploadListenerIsResolvedWhenAFileSnapshotTaskFails() throws Exception {
+        final ProjectId projectId = randomProjectIdOrDefault();
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
-        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
+        final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(projectId, repositoryMetadata);
         final FsRepository repository = new FsRepository(
+            projectId,
             repositoryMetadata,
             createEnvironment(),
             xContentRegistry(),
@@ -538,57 +635,6 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testShardBlobsToDelete() {
-        final var repo = setupRepo();
-        try (var shardBlobsToDelete = repo.new ShardBlobsToDelete()) {
-            final var expectedShardGenerations = ShardGenerations.builder();
-            final var expectedBlobsToDelete = new HashSet<String>();
-
-            final var countDownLatch = new CountDownLatch(1);
-            int blobCount = 0;
-            try (var refs = new RefCountingRunnable(countDownLatch::countDown)) {
-                for (int index = between(0, 1000); index > 0; index--) {
-                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
-                    for (int shard = between(1, 30); shard > 0; shard--) {
-                        final var shardId = shard;
-                        final var shardGeneration = new ShardGeneration(randomUUID());
-                        expectedShardGenerations.put(indexId, shard, shardGeneration);
-                        final var blobsToDelete = randomList(
-                            100,
-                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
-                                "",
-                                METADATA_BLOB_NAME_SUFFIX
-                            )
-                        );
-                        blobCount += blobsToDelete.size();
-                        final var indexPath = repo.basePath()
-                            .add("indices")
-                            .add(indexId.getId())
-                            .add(Integer.toString(shard))
-                            .buildAsString();
-                        for (final var blobToDelete : blobsToDelete) {
-                            expectedBlobsToDelete.add(indexPath + blobToDelete);
-                        }
-
-                        repo.threadPool()
-                            .generic()
-                            .execute(
-                                ActionRunnable.run(
-                                    refs.acquireListener(),
-                                    () -> shardBlobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobsToDelete)
-                                )
-                            );
-                    }
-                }
-            }
-            safeAwait(countDownLatch);
-            assertEquals(expectedShardGenerations.build(), shardBlobsToDelete.getUpdatedShardGenerations());
-            shardBlobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(expectedBlobsToDelete.remove(s)));
-            assertThat(expectedBlobsToDelete, empty());
-            assertThat(shardBlobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
-        }
-    }
-
     public void testUuidCreationLogging() {
         final var repo = setupRepo();
         final var repoMetadata = repo.getMetadata();
@@ -607,7 +653,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "new repo uuid message",
                 BlobStoreRepository.class.getCanonicalName(),
                 Level.INFO,
-                Strings.format("Generated new repository UUID [*] for repository [%s] in generation [*]", repoName)
+                Strings.format("Generated new repository UUID [*] for repository %s in generation [*]", repo.toStringShort())
             )
         );
 
@@ -636,7 +682,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
 
@@ -692,7 +738,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         "existing repo uuid message",
                         RepositoriesService.class.getCanonicalName(),
                         Level.INFO,
-                        Strings.format("Registering repository [%s] with repository UUID *", repoName)
+                        Strings.format("Registering repository %s with repository UUID *", repo.toStringShort())
                     )
                 );
             },
@@ -704,5 +750,113 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                 "Generated new repository UUID*"
             )
         );
+    }
+
+    /**
+     * Tests writing to a {@link BlobStoreRepository.BlobsToDelete} until the configured capacity is exhausted.
+     * While there is capacity, the blobs-to-delete are compressed and written to the underlying stream.
+     * Once capacity is reached, we continue to write blobs, expecting that they will not be written to the underlying stream.
+     * When we read from the stream, we expect only the successful writes to be returned
+     */
+    @TestLogging(reason = "test includes assertions about logging", value = "org.elasticsearch.repositories.blobstore:WARN")
+    public void testBlobsToDeleteCapacity() {
+        int heapMemory = randomIntBetween(0, 20000);
+        int leakedBlobCount = 0;
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(
+                Settings.builder().put("repositories.blobstore.max_heap_size_for_snapshot_deletion", heapMemory + "b").build()
+            )
+            .get();
+
+        final var repo = setupRepo();
+        try (var blobsToDelete = repo.new BlobsToDelete()) {
+            try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+                final var expectedShardGenerations = ShardGenerations.builder();
+                final var expectedBlobsToDelete = new HashSet<String>();
+                int blobCount = 0;
+
+                // Write while there is capacity, and then bound the number of leaked blobs
+                while (leakedBlobCount < 100) {
+                    // Generate the next entry to write
+                    final var indexId = new IndexId(randomIdentifier(), randomUUID());
+
+                    final List<String> blobNames;
+                    final CheckedRunnable<Exception> addResult; // never an empty write, so the test always completes
+                    final UnaryOperator<String> blobNameOperator;
+                    // randomly choose between shard-level and index-level records
+                    if (randomBoolean()) {
+                        final var shardId = between(0, 10);
+                        final var shardGeneration = new ShardGeneration(randomUUID());
+                        expectedShardGenerations.put(indexId, shardId, shardGeneration);
+                        blobNames = randomList(
+                            1,
+                            100,
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
+                        );
+                        addResult = () -> blobsToDelete.addShardDeleteResult(indexId, shardId, shardGeneration, blobNames);
+                        final var shardPath = repo.basePath()
+                            .add("indices")
+                            .add(indexId.getId())
+                            .add(Integer.toString(shardId))
+                            .buildAsString();
+                        blobNameOperator = blobName -> shardPath + blobName;
+                    } else {
+                        blobNames = randomList(1, 100, ESTestCase::randomUUID);
+                        addResult = () -> blobsToDelete.addIndexDeleteResult(indexId, blobNames);
+                        final var indexPath = repo.basePath().add("indices").add(indexId.getId()).buildAsString();
+                        blobNameOperator = blobName -> indexPath + "meta-" + blobName + ".dat";
+                    }
+
+                    safeAwait(l -> repo.threadPool().generic().execute(ActionRunnable.run(l, addResult)));
+
+                    // The entire blob was written to memory, so we expect to see it returned
+                    if (blobsToDelete.sizeInBytes() < heapMemory && heapMemory != 0) {
+                        for (final var blobToDelete : blobNames) {
+                            expectedBlobsToDelete.add(blobNameOperator.apply(blobToDelete));
+                        }
+                        blobCount += blobNames.size();
+                    }
+                    // We've overflowed the stream with our latest write, and expect to see a WARN log
+                    else {
+                        leakedBlobCount += blobNames.size();
+                    }
+                }
+
+                // Since we're guaranteed to have exceeded capacity, we expect a WARN log
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "skipped cleanup warning",
+                        BlobStoreRepository.class.getCanonicalName(),
+                        Level.WARN,
+                        "*Skipped cleanup of "
+                            + leakedBlobCount
+                            + " dangling snapshot blobs due to memory constraints "
+                            + "on the master node. These blobs will be cleaned up automatically by future snapshot deletions. "
+                            + "If you routinely delete large snapshots, consider increasing the master node's heap size to allow "
+                            + "for more efficient cleanup."
+                    )
+                );
+
+                assertEquals(expectedShardGenerations.build(), blobsToDelete.getUpdatedShardGenerations());
+                blobsToDelete.getBlobPaths().forEachRemaining(s -> assertTrue(s, expectedBlobsToDelete.remove(s)));
+                assertThat(expectedBlobsToDelete, empty());
+                assertThat(blobsToDelete.sizeInBytes(), lessThanOrEqualTo(Math.max(ByteSizeUnit.KB.toIntBytes(1), 20 * blobCount)));
+
+                mockLog.assertAllExpectationsMatched();
+            }
+        }
+
+        // reset original default setting
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .setPersistentSettings(Settings.builder().putNull(MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING.getKey()).build())
+            .get();
     }
 }

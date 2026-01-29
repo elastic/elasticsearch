@@ -1,0 +1,5 @@
+pr: 138251
+summary: Added Groq chat completion support to the Inference plugin
+area: Machine Learning
+type: enhancement
+issues: []

@@ -16,10 +16,13 @@ import org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Request;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
+
+    private static final Set<String> SUPPORTED_CAPABILITIES = Set.of("data_streams", "ilm_policies", "templates");
 
     @Override
     public List<Route> routes() {
@@ -46,5 +49,10 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
             Strings.splitStringByCommaToArray(request.param("index"))
         );
         return channel -> client.execute(DeprecationInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return SUPPORTED_CAPABILITIES;
     }
 }

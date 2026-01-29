@@ -36,9 +36,4 @@ public class MvSliceSerializationTests extends AbstractExpressionSerializationTe
         }
         return new MvSlice(source, field, start, end);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.evaluator;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -16,8 +17,9 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -28,9 +30,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -42,17 +41,14 @@ public final class EvalMapper {
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
         new InsensitiveEqualsMapper(),
         new BooleanLogic(),
-        new Nots(),
         new Attributes(),
-        new Literals(),
-        new IsNotNulls(),
-        new IsNulls()
+        new Literals()
     );
 
     private EvalMapper() {}
 
     public static ExpressionEvaluator.Factory toEvaluator(FoldContext foldCtx, Expression exp, Layout layout) {
-        return toEvaluator(foldCtx, exp, layout, List.of());
+        return toEvaluator(foldCtx, exp, layout, EmptyIndexedByShardId.instance());
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
@@ -68,7 +64,7 @@ public final class EvalMapper {
         FoldContext foldCtx,
         Expression exp,
         Layout layout,
-        List<ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts
     ) {
         if (exp instanceof EvaluatorMapper m) {
             return m.toEvaluator(new EvaluatorMapper.ToEvaluator() {
@@ -83,7 +79,7 @@ public final class EvalMapper {
                 }
 
                 @Override
-                public List<ShardContext> shardContexts() {
+                public IndexedByShardId<? extends ShardContext> shardContexts() {
                     return shardContexts;
                 }
             });
@@ -98,7 +94,12 @@ public final class EvalMapper {
 
     static class BooleanLogic extends ExpressionMapper<BinaryLogic> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, BinaryLogic bc, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            BinaryLogic bc,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             var leftEval = toEvaluator(foldCtx, bc.left(), layout, shardContexts);
             var rightEval = toEvaluator(foldCtx, bc.right(), layout, shardContexts);
             /**
@@ -110,6 +111,11 @@ public final class EvalMapper {
             record BooleanLogicExpressionEvaluator(BinaryLogic bl, ExpressionEvaluator leftEval, ExpressionEvaluator rightEval)
                 implements
                     ExpressionEvaluator {
+
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(
+                    BooleanLogicExpressionEvaluator.class
+                );
+
                 @Override
                 public Block eval(Page page) {
                     try (Block lhs = leftEval.eval(page); Block rhs = rightEval.eval(page)) {
@@ -120,6 +126,11 @@ public final class EvalMapper {
                         }
                         return eval(lhs, rhs);
                     }
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED;
                 }
 
                 /**
@@ -170,31 +181,41 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
-        }
-    }
+            return new ExpressionEvaluator.Factory() {
+                @Override
+                public ExpressionEvaluator get(DriverContext driverContext) {
+                    return new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+                }
 
-    static class Nots extends ExpressionMapper<Not> {
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Not not, Layout layout, List<ShardContext> shardContexts) {
-            var expEval = toEvaluator(foldCtx, not.field(), layout);
-            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
-                not.source(),
-                expEval.get(dvrCtx),
-                dvrCtx
-            );
+                @Override
+                public String toString() {
+                    return "BooleanLogicExpressionEvaluator[" + "bl=" + bc + ", leftEval=" + leftEval + ", rightEval=" + rightEval + ']';
+                }
+            };
         }
     }
 
     static class Attributes extends ExpressionMapper<Attribute> {
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Attribute attr, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Attribute attr,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             record Attribute(int channel) implements ExpressionEvaluator {
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Attribute.class);
+
                 @Override
                 public Block eval(Page page) {
                     Block block = page.getBlock(channel);
                     block.incRef();
                     return block;
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED;
                 }
 
                 @Override
@@ -223,8 +244,15 @@ public final class EvalMapper {
     static class Literals extends ExpressionMapper<Literal> {
 
         @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, Literal lit, Layout layout, List<ShardContext> shardContexts) {
+        public ExpressionEvaluator.Factory map(
+            FoldContext foldCtx,
+            Literal lit,
+            Layout layout,
+            IndexedByShardId<? extends ShardContext> shardContexts
+        ) {
             record LiteralsEvaluator(DriverContext context, Literal lit) implements ExpressionEvaluator {
+                private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LiteralsEvaluator.class);
+
                 @Override
                 public Block eval(Page page) {
                     return block(lit, context.blockFactory(), page.getPositionCount());
@@ -233,6 +261,11 @@ public final class EvalMapper {
                 @Override
                 public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + ']';
+                }
+
+                @Override
+                public long baseRamBytesUsed() {
+                    return BASE_RAM_BYTES_USED + lit.ramBytesUsed();
                 }
 
                 @Override
@@ -274,103 +307,6 @@ public final class EvalMapper {
                 return wrapper.builder().build();
             }
             return BlockUtils.constantBlock(blockFactory, value, positions);
-        }
-    }
-
-    static class IsNulls extends ExpressionMapper<IsNull> {
-
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNull isNull, Layout layout, List<ShardContext> shardContexts) {
-            var field = toEvaluator(foldCtx, isNull.field(), layout);
-            return new IsNullEvaluatorFactory(field);
-        }
-
-        record IsNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNullEvaluator(context, field.get(context));
-            }
-
-            @Override
-            public String toString() {
-                return "IsNullEvaluator[field=" + field + ']';
-            }
-        }
-
-        record IsNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field) implements ExpressionEvaluator {
-            @Override
-            public Block eval(Page page) {
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantBooleanBlockWith(false, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(p, fieldBlock.isNull(p));
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
-            public void close() {
-                Releasables.closeExpectNoException(field);
-            }
-
-            @Override
-            public String toString() {
-                return "IsNullEvaluator[field=" + field + ']';
-            }
-        }
-    }
-
-    static class IsNotNulls extends ExpressionMapper<IsNotNull> {
-
-        @Override
-        public ExpressionEvaluator.Factory map(FoldContext foldCtx, IsNotNull isNotNull, Layout layout, List<ShardContext> shardContexts) {
-            return new IsNotNullEvaluatorFactory(toEvaluator(foldCtx, isNotNull.field(), layout));
-        }
-
-        record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
-            @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNotNullEvaluator(context, field.get(context));
-            }
-
-            @Override
-            public String toString() {
-                return "IsNotNullEvaluator[field=" + field + ']';
-            }
-        }
-
-        record IsNotNullEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field)
-            implements
-                EvalOperator.ExpressionEvaluator {
-            @Override
-            public Block eval(Page page) {
-                try (Block fieldBlock = field.eval(page)) {
-                    if (fieldBlock.asVector() != null) {
-                        return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
-                    }
-                    try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
-                        for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(p, fieldBlock.isNull(p) == false);
-                        }
-                        return builder.build().asBlock();
-                    }
-                }
-            }
-
-            @Override
-            public void close() {
-                Releasables.closeExpectNoException(field);
-            }
-
-            @Override
-            public String toString() {
-                return "IsNotNullEvaluator[field=" + field + ']';
-            }
         }
     }
 }

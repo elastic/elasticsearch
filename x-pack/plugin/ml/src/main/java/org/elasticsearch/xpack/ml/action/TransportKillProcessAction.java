@@ -96,7 +96,7 @@ public class TransportKillProcessAction extends TransportTasksAction<
     @Override
     protected void doExecute(Task task, KillProcessAction.Request request, ActionListener<KillProcessAction.Response> listener) {
         DiscoveryNodes nodes = clusterService.state().nodes();
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.get(clusterService.state().metadata().getDefaultProject());
         List<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasks;
         if (Strings.isAllOrWildcard(request.getJobId())) {
             jobTasks = MlTasks.openJobTasks(tasks).stream().filter(t -> t.getExecutorNode() != null).collect(Collectors.toList());

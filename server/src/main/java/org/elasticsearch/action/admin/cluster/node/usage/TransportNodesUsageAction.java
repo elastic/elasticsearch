@@ -21,7 +21,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.usage.UsageService;
 
@@ -85,7 +85,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         return new NodeUsage(clusterService.localNode(), System.currentTimeMillis(), sinceTime, restUsage, aggsUsage);
     }
 
-    public static class NodeUsageRequest extends TransportRequest {
+    public static class NodeUsageRequest extends AbstractTransportRequest {
 
         final boolean restActions;
         final boolean aggregations;

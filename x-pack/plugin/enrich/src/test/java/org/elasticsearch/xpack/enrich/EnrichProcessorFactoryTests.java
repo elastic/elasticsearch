@@ -11,13 +11,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -25,9 +25,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.profile.SearchProfileResults;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
@@ -50,10 +48,12 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
 
     private ScriptService scriptService;
     private EnrichCache enrichCache = new EnrichCache(0L);
+    private ProjectId projectId;
 
     @Before
     public void initializeScriptService() {
         scriptService = mock(ScriptService.class);
+        projectId = randomProjectIdOrDefault();
     }
 
     public void testCreateProcessorInstance() throws Exception {
@@ -90,7 +90,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                 randomValues.add(new Tuple<>(randomFrom(enrichValues), randomAlphaOfLength(4)));
             }
 
-            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config, projectId);
             assertThat(result, notNullValue());
             assertThat(result.getPolicyName(), equalTo("majestic"));
             assertThat(result.getField(), equalTo("host"));
@@ -113,7 +113,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
     public void testPolicyDoesNotExist() {
         List<String> enrichValues = List.of("globalRank", "tldRank", "tld");
         EnrichProcessorFactory factory = new EnrichProcessorFactory(null, scriptService, enrichCache);
-        factory.metadata = Metadata.builder().build();
+        factory.metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).build();
 
         Map<String, Object> config = new HashMap<>();
         config.put("policy_name", "majestic");
@@ -135,7 +135,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
         config.put("set_from", valuesConfig);
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> factory.create(Collections.emptyMap(), "_tag", null, config, projectId)
+        );
         assertThat(e.getMessage(), equalTo("no enrich index exists for policy with name [majestic]"));
     }
 
@@ -162,7 +165,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
         config.put("set_from", valuesConfig);
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(Collections.emptyMap(), "_tag", null, config, projectId)
+        );
         assertThat(e.getMessage(), equalTo("[policy_name] required property is missing"));
     }
 
@@ -183,7 +189,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                 config.put("ignore_missing", keyIgnoreMissing);
             }
 
-            Exception e = expectThrows(IllegalArgumentException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> factory.create(Collections.emptyMap(), "_tag", null, config, projectId)
+            );
             assertThat(e.getMessage(), equalTo("unsupported policy type [unsupported]"));
         }
     }
@@ -201,7 +210,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
             config.put("field", "host");
             config.put("target_field", "entry");
 
-            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+            MatchProcessor result = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config, projectId);
             assertThat(result, notNullValue());
             assertThat(result.getPolicyName(), equalTo("majestic"));
             assertThat(result.getField(), equalTo("host"));
@@ -219,7 +228,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config1.put("policy_name", "majestic");
         config1.put("field", "host");
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config1));
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(Collections.emptyMap(), "_tag", null, config1, projectId)
+        );
         assertThat(e.getMessage(), equalTo("[target_field] required property is missing"));
     }
 
@@ -235,7 +247,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         config.put("target_field", "entry");
         config.put("max_matches", randomBoolean() ? between(-2048, 0) : between(129, 2048));
 
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> factory.create(Collections.emptyMap(), "_tag", null, config));
+        Exception e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(Collections.emptyMap(), "_tag", null, config, projectId)
+        );
         assertThat(e.getMessage(), equalTo("[max_matches] should be between 1 and 128"));
     }
 
@@ -257,22 +272,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                     requestCounter[0]++;
                     ActionListener.respondAndRelease(
                         listener,
-                        (Response) new SearchResponse(
-                            SearchHits.EMPTY_WITH_TOTAL_HITS,
-                            InternalAggregations.EMPTY,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            "",
-                            1,
-                            1,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY
-                        )
+                        (Response) SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS)
                     );
                 }
             };
@@ -291,7 +291,7 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                 VersionType.INTERNAL,
                 Map.of("domain", "elastic.co")
             );
-            MatchProcessor processor = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config);
+            MatchProcessor processor = (MatchProcessor) factory.create(Collections.emptyMap(), "_tag", null, config, projectId);
 
             // A search is performed and that is cached:
             IngestDocument[] result = new IngestDocument[1];
@@ -325,14 +325,14 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    static Metadata createMetadata(String name, EnrichPolicy policy) {
+    private Metadata createMetadata(String name, EnrichPolicy policy) {
         IndexMetadata.Builder builder = IndexMetadata.builder(EnrichPolicy.getBaseName(name) + "-1");
         builder.settings(indexSettings(IndexVersion.current(), 1, 0));
         builder.putMapping(Strings.format("""
             {"_meta": {"enrich_match_field": "%s", "enrich_policy_type": "%s"}}
             """, policy.getMatchField(), policy.getType()));
         builder.putAlias(AliasMetadata.builder(EnrichPolicy.getBaseName(name)).build());
-        return Metadata.builder().put(builder).build();
+        return Metadata.builder().put(ProjectMetadata.builder(projectId).put(builder)).build();
     }
 
 }

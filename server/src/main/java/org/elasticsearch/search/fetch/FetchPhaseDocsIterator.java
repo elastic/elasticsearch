@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -30,6 +31,20 @@ import java.util.Arrays;
  * into an array and returns them in the order of the original doc ids.
  */
 abstract class FetchPhaseDocsIterator {
+
+    /**
+     * Accounts for FetchPhase memory usage.
+     * It gets cleaned up after each fetch phase and should not be accessed/modified by subclasses.
+     */
+    private long requestBreakerBytes;
+
+    public void addRequestBreakerBytes(long delta) {
+        requestBreakerBytes += delta;
+    }
+
+    public long getRequestBreakerBytes() {
+        return requestBreakerBytes;
+    }
 
     /**
      * Called when a new leaf reader is reached
@@ -99,6 +114,9 @@ abstract class FetchPhaseDocsIterator {
                 }
             }
         } catch (SearchTimeoutException e) {
+            throw e;
+        } catch (CircuitBreakingException e) {
+            purgeSearchHits(searchHits);
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);

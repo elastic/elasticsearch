@@ -31,8 +31,7 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
@@ -433,8 +432,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("p2"), equalTo("p1")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("p2"), equalTo("p1")));
 
-                Global global = response.getAggregations().get("global");
-                Filter filter = global.getAggregations().get("filter");
+                SingleBucketAggregation global = response.getAggregations().get("global");
+                SingleBucketAggregation filter = global.getAggregations().get("filter");
                 Terms termsFacet = filter.getAggregations().get("facet1");
                 assertThat(termsFacet.getBuckets().size(), equalTo(2));
                 assertThat(termsFacet.getBuckets().get(0).getKeyAsString(), equalTo("red"));
@@ -1811,9 +1810,13 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         refresh();
 
         assertAcked(
-            indicesAdmin().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery(), ScoreMode.None))
         );
-        assertAcked(indicesAdmin().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false)));
+        assertAcked(
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery(), false))
+        );
 
         assertResponse(prepareSearch("filter1"), response -> {
             assertHitCount(response, 1L);

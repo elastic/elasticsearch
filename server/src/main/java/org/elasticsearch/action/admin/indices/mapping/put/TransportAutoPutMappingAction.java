@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
@@ -36,6 +36,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportAutoPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
+    private final ProjectResolver projectResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -45,6 +46,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
         final ThreadPool threadPool,
         final MetadataMappingService metadataMappingService,
         final ActionFilters actionFilters,
+        final ProjectResolver projectResolver,
         final SystemIndices systemIndices
     ) {
         super(
@@ -54,9 +56,10 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             PutMappingRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.metadataMappingService = metadataMappingService;
+        this.projectResolver = projectResolver;
         this.systemIndices = systemIndices;
     }
 
@@ -72,7 +75,7 @@ public class TransportAutoPutMappingAction extends AcknowledgedTransportMasterNo
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
         String[] indices = new String[] { request.getConcreteIndex().getName() };
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indices);
+        return state.blocks().indicesBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE, indices);
     }
 
     @Override

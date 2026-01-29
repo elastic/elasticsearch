@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,6 +43,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver,
         ClusterService clusterService,
         ScriptService scriptService,
         AutoCreateIndex autoCreateIndex,
@@ -56,6 +58,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             threadPool,
             actionFilters,
             indexNameExpressionResolver,
+            projectResolver,
             clusterService,
             scriptService,
             autoCreateIndex,

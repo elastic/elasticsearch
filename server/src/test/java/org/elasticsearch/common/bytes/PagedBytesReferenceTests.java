@@ -15,6 +15,8 @@ import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+
 public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
 
     @Override
@@ -121,7 +123,7 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         // get refs & compare
         BytesReference pbr = BytesReference.fromByteArray(ba1, length);
         BytesReference pbr2 = BytesReference.fromByteArray(ba2, length);
-        assertEquals(pbr, pbr2);
+        assertThat(pbr2, equalBytes(pbr));
         int offsetToFlip = randomIntBetween(0, length - 1);
         int value = ~Byte.toUnsignedInt(ba1.get(offsetToFlip));
         ba2.set(offsetToFlip, (byte) value);

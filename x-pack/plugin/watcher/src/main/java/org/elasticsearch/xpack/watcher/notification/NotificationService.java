@@ -8,19 +8,15 @@ package org.elasticsearch.xpack.watcher.notification;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.InMemoryClonedSecureSettings;
 import org.elasticsearch.common.settings.SecureSettings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,7 +77,7 @@ public abstract class NotificationService<Account> {
         // `SecureSettings` are available here! cache them as they will be needed
         // whenever dynamic cluster settings change and we have to rebuild the accounts
         try {
-            this.cachedSecureSettings = extractSecureSettings(settings, pluginSecureSettings);
+            this.cachedSecureSettings = InMemoryClonedSecureSettings.cloneSecureSettings(settings, pluginSecureSettings);
         } catch (GeneralSecurityException e) {
             logger.error("Keystore exception while reloading watcher notification service", e);
             return;
@@ -179,71 +175,5 @@ public abstract class NotificationService<Account> {
             }
             return account;
         }
-    }
-
-    /**
-     * Extracts the {@link SecureSettings}` out of the passed in {@link Settings} object. The {@code Setting} argument has to have the
-     * {@code SecureSettings} open/available. Normally {@code SecureSettings} are available only under specific callstacks (eg. during node
-     * initialization or during a `reload` call). The returned copy can be reused freely as it will never be closed (this is a bit of
-     * cheating, but it is necessary in this specific circumstance). Only works for secure settings of type string (not file).
-     *
-     * @param source
-     *            A {@code Settings} object with its {@code SecureSettings} open/available.
-     * @param securePluginSettings
-     *            The list of settings to copy.
-     * @return A copy of the {@code SecureSettings} of the passed in {@code Settings} argument.
-     */
-    private static SecureSettings extractSecureSettings(Settings source, List<Setting<?>> securePluginSettings)
-        throws GeneralSecurityException {
-        // get the secure settings out
-        final SecureSettings sourceSecureSettings = Settings.builder().put(source, true).getSecureSettings();
-        // filter and cache them...
-        final Map<String, Tuple<SecureString, byte[]>> cache = new HashMap<>();
-        if (sourceSecureSettings != null && securePluginSettings != null) {
-            for (final String settingKey : sourceSecureSettings.getSettingNames()) {
-                for (final Setting<?> secureSetting : securePluginSettings) {
-                    if (secureSetting.match(settingKey)) {
-                        cache.put(
-                            settingKey,
-                            new Tuple<>(sourceSecureSettings.getString(settingKey), sourceSecureSettings.getSHA256Digest(settingKey))
-                        );
-                    }
-                }
-            }
-        }
-        return new SecureSettings() {
-            @Override
-            public boolean isLoaded() {
-                return true;
-            }
-
-            @Override
-            public SecureString getString(String setting) {
-                return cache.get(setting).v1();
-            }
-
-            @Override
-            public Set<String> getSettingNames() {
-                return cache.keySet();
-            }
-
-            @Override
-            public InputStream getFile(String setting) {
-                throw new IllegalStateException("A NotificationService setting cannot be File.");
-            }
-
-            @Override
-            public byte[] getSHA256Digest(String setting) {
-                return cache.get(setting).v2();
-            }
-
-            @Override
-            public void close() throws IOException {}
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                throw new IllegalStateException("Unsupported operation");
-            }
-        };
     }
 }

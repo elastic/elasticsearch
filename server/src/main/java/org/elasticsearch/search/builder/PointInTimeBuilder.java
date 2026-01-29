@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -63,21 +62,13 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     }
 
     public PointInTimeBuilder(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            encodedId = in.readBytesReference();
-        } else {
-            encodedId = new BytesArray(Base64.getUrlDecoder().decode(in.readString()));
-        }
+        encodedId = in.readBytesReference();
         keepAlive = in.readOptionalTimeValue();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            out.writeBytesReference(encodedId);
-        } else {
-            out.writeString(Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(encodedId)));
-        }
+        out.writeBytesReference(encodedId);
         out.writeOptionalTimeValue(keepAlive);
     }
 
@@ -122,14 +113,6 @@ public final class PointInTimeBuilder implements Writeable, ToXContentFragment {
     public PointInTimeBuilder setKeepAlive(TimeValue keepAlive) {
         this.keepAlive = keepAlive;
         return this;
-    }
-
-    /**
-     * If specified, the search layer will keep this point in time around for at least the given keep-alive.
-     * Otherwise, the point in time will be kept around until the original keep alive elapsed.
-     */
-    public PointInTimeBuilder setKeepAlive(String keepAlive) {
-        return setKeepAlive(TimeValue.parseTimeValue(keepAlive, "keep_alive"));
     }
 
     @Nullable

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -101,7 +101,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -133,7 +133,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
 
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
         assertResolvedIndices(prepareSearch(indices), Set.of(indices), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("test*"), Set.of("test*"), Set.of(indices), r -> {});
         assertResolvedIndices(prepareSearch("alias"), Set.of("alias"), Set.of(indices), r -> {});
@@ -155,8 +155,8 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
         assertAcked(
-            indicesAdmin().prepareAliases().addAlias("test1", "alias1"),
-            indicesAdmin().prepareAliases().addAlias(indices, "alias2")
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias("test1", "alias1"),
+            indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias2")
         );
 
         assertResolvedIndices(client().prepareExplain("test1", "1"), Set.of("test1"), Set.of("test1"), r -> {});
@@ -167,7 +167,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportValidateQueryAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias"));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indices, "alias"));
 
         Consumer<ValidateQueryResponse> responseAssertions = r -> {
             assertThat(r.getStatus(), equalTo(RestStatus.OK));

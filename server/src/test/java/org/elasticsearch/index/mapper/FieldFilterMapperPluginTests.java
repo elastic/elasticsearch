@@ -35,8 +35,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
-import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertLeafs;
+import static org.elasticsearch.cluster.metadata.ProjectMetadataTests.assertMultiField;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {

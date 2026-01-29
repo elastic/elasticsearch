@@ -1,8 +1,0 @@
-pr: 122074
-summary: If the Transform is configured to write to an alias as its destination index,
-  when the delete_dest_index parameter is set to true, then the Delete API will now
-  delete the write index backing the alias
-area: Transform
-type: bug
-issues:
- - 121913

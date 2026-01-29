@@ -62,11 +62,13 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_RECOVERY_STATE_FACTORY_KEY;
 import static org.hamcrest.Matchers.containsString;
@@ -103,7 +105,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, aliasName));
 
         populateIndex(indexName, 10_000);
 
@@ -147,6 +149,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .get()
                 .getState()
                 .metadata()
+                .getProject()
                 .index(indexName)
                 .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
@@ -295,6 +298,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                 .get()
                 .getState()
                 .metadata()
+                .getProject()
                 .index(restoredIndexName)
                 .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
@@ -302,11 +306,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         if (deletedBeforeMount) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-            assertAcked(indicesAdmin().prepareAliases().addAlias(restoredIndexName, aliasName));
+            assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(restoredIndexName, aliasName));
         } else if (indexName.equals(restoredIndexName) == false) {
             assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(1));
             assertAcked(
-                indicesAdmin().prepareAliases()
+                indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .addAliasAction(IndicesAliasesRequest.AliasActions.remove().index(indexName).alias(aliasName).mustExist(true))
                     .addAlias(restoredIndexName, aliasName)
             );
@@ -381,15 +385,15 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final String clonedIndexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         assertAcked(
-            indicesAdmin().prepareResizeIndex(restoredIndexName, clonedIndexName)
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                        .build()
-                )
+            executeResize(
+                ResizeType.CLONE,
+                restoredIndexName,
+                clonedIndexName,
+                Settings.builder()
+                    .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                    .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+            )
         );
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
@@ -406,7 +410,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         assertAcked(indicesAdmin().prepareDelete(restoredIndexName));
         assertThat(indicesAdmin().prepareGetAliases(TEST_REQUEST_TIMEOUT, aliasName).get().getAliases().size(), equalTo(0));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(clonedIndexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(clonedIndexName, aliasName));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
     }
 
@@ -519,6 +523,37 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         }
     }
 
+    public void testRefreshPartiallyMountedIndex() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        final var index = "index";
+        createIndex(index, 1, 0);
+        populateIndex(index, 1_000);
+
+        final var repository = "repository";
+        createRepository(repository, FsRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
+
+        final var snapshot = "repository";
+        createFullSnapshot(repository, snapshot);
+
+        assertAcked(indicesAdmin().prepareDelete(index));
+
+        final var partialIndex = "partial-" + index;
+        mountSnapshot(
+            repository,
+            snapshot,
+            index,
+            partialIndex,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(1)).build(),
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+        ensureGreen(partialIndex);
+
+        // before the fix this would have failed
+        var refreshResult = indicesAdmin().prepareRefresh(partialIndex).execute().actionGet();
+        assertNoFailures(refreshResult);
+    }
+
     public void testTierPreferenceCannotBeRemovedForFrozenIndex() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
@@ -530,7 +565,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         assertAcked(prepareCreate(indexName, originalIndexSettings));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
+        assertAcked(indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(indexName, aliasName));
 
         populateIndex(indexName, 100);
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);

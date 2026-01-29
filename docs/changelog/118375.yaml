@@ -1,5 +1,0 @@
-pr: 118375
-summary: Check for presence of error object when validating streaming responses from integrations in the inference API
-area: Machine Learning
-type: enhancement
-issues: []

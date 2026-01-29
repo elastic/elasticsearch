@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.Strings;
@@ -116,7 +117,7 @@ public class AllocationCommands implements ToXContentFragment {
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser, ProjectId projectId) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -142,7 +143,7 @@ public class AllocationCommands implements ToXContentFragment {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(parser.namedObject(AllocationCommand.class, commandName, null));
+                commands.add(parser.namedObject(AllocationCommand.class, commandName, projectId));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException(

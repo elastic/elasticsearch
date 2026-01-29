@@ -9,11 +9,10 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,20 +61,30 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         // Account different source modes based on index.mapping.source.mode setting:
         Map<String, Integer> sourceModeUsageCount = new HashMap<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
-        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
-        for (IndexMetadata indexMetadata : metadata) {
-            if (indexMetadata.isSystem()) {
-                // Don't include system indices in statistics about mappings,
-                // we care about the user's indices.
-                continue;
-            }
-            AnalysisStats.countMapping(mappingCounts, indexMetadata);
+        final int mappingCount = metadata.projects().values().stream().mapToInt(p -> p.getMappingsByHash().size()).sum();
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(mappingCount);
 
-            var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
-            sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
-        }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();
+        long totalMappingSizeBytes = 0L;
+
+        for (ProjectMetadata project : metadata.projects().values()) {
+            for (IndexMetadata indexMetadata : project) {
+                if (indexMetadata.isSystem()) {
+                    // Don't include system indices in statistics about mappings,
+                    // we care about the user's indices.
+                    continue;
+                }
+                AnalysisStats.countMapping(mappingCounts, indexMetadata);
+
+                var sourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
+                sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
+            }
+            for (MappingMetadata mappingMetadata : project.getMappingsByHash().values()) {
+                totalMappingSizeBytes += mappingMetadata.source().compressed().length;
+            }
+        }
+
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
             ensureNotCancelled.run();
             Set<String> indexFieldTypes = new HashSet<>();
@@ -182,10 +191,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                 }
             });
         }
-        long totalMappingSizeBytes = 0L;
-        for (MappingMetadata mappingMetadata : metadata.getMappingsByHash().values()) {
-            totalMappingSizeBytes += mappingMetadata.source().compressed().length;
-        }
 
         return new MappingStats(
             totalFieldCount.get(),
@@ -251,41 +256,23 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     }
 
     MappingStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            totalFieldCount = in.readOptionalVLong();
-            totalDeduplicatedFieldCount = in.readOptionalVLong();
-            totalMappingSizeBytes = in.readOptionalVLong();
-        } else {
-            totalFieldCount = null;
-            totalDeduplicatedFieldCount = null;
-            totalMappingSizeBytes = null;
-        }
+        totalFieldCount = in.readOptionalVLong();
+        totalDeduplicatedFieldCount = in.readOptionalVLong();
+        totalMappingSizeBytes = in.readOptionalVLong();
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
         var transportVersion = in.getTransportVersion();
-        sourceModeUsageCount = canReadOrWriteSourceModeTelemetry(transportVersion)
-            ? in.readImmutableMap(StreamInput::readString, StreamInput::readVInt)
-            : Map.of();
+        sourceModeUsageCount = in.readImmutableMap(StreamInput::readString, StreamInput::readVInt);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
-            out.writeOptionalVLong(totalFieldCount);
-            out.writeOptionalVLong(totalDeduplicatedFieldCount);
-            out.writeOptionalVLong(totalMappingSizeBytes);
-        }
+        out.writeOptionalVLong(totalFieldCount);
+        out.writeOptionalVLong(totalDeduplicatedFieldCount);
+        out.writeOptionalVLong(totalMappingSizeBytes);
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
-        var transportVersion = out.getTransportVersion();
-        if (canReadOrWriteSourceModeTelemetry(transportVersion)) {
-            out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
-        }
-    }
-
-    private static boolean canReadOrWriteSourceModeTelemetry(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SOURCE_MODE_TELEMETRY_FIX_8_17)
-            || version.onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY);
+        out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
     }
 
     private static OptionalLong ofNullable(Long l) {

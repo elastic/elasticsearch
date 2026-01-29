@@ -19,6 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.util.List;
@@ -44,6 +45,12 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
             )
         )
     );
+    public static final String FAILURES_LIFECYCLE_API_CAPABILITY = "failure_store.lifecycle";
+    private static final Set<String> CAPABILITIES = Set.of(
+        DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY,
+        FAILURES_LIFECYCLE_API_CAPABILITY,
+        "failure_store.lifecycle.default_retention"
+    );
 
     @Override
     public String getName() {
@@ -64,7 +71,11 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
         getDataStreamsRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getDataStreamsRequest.indicesOptions(IndicesOptions.fromRequest(request, getDataStreamsRequest.indicesOptions()));
         getDataStreamsRequest.verbose(request.paramAsBoolean("verbose", false));
-        return channel -> client.execute(GetDataStreamAction.INSTANCE, getDataStreamsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).execute(
+            GetDataStreamAction.INSTANCE,
+            getDataStreamsRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 
     @Override
@@ -74,7 +85,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedCapabilities() {
-        return Set.of(DataStreamLifecycle.EFFECTIVE_RETENTION_REST_API_CAPABILITY);
+        return CAPABILITIES;
     }
 
     @Override

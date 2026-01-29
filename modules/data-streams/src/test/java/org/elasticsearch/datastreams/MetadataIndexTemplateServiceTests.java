@@ -10,20 +10,20 @@
 package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -43,6 +43,8 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateTs
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.composeDataLifecycles;
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.datastreams.MetadataDataStreamRolloverServiceTests.createSettingsProvider;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomResettable;
+import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleFixtures.randomSamplingMethod;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,10 +59,11 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testRequireRoutingPath() throws Exception {
         final var service = getMetadataIndexTemplateService();
+        ProjectMetadata initialProject = ProjectMetadata.builder(randomProjectIdOrDefault()).build();
         {
             // Missing routing path should fail validation
             var componentTemplate = new ComponentTemplate(new Template(null, new CompressedXContent("{}"), null), null, null);
-            var state = service.addComponentTemplate(ClusterState.EMPTY_STATE, true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
@@ -68,18 +71,17 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(state, false, "1", indexTemplate));
+            var e = expectThrows(InvalidIndexTemplateException.class, () -> service.addIndexTemplateV2(project, false, "1", indexTemplate));
             assertThat(e.getMessage(), containsString("[index.mode=time_series] requires a non-empty [index.routing_path]"));
         }
         {
             // Routing path fetched from mapping of component template
-            var state = ClusterState.EMPTY_STATE;
             var componentTemplate = new ComponentTemplate(
                 new Template(null, new CompressedXContent(generateTsdbMapping()), null),
                 null,
                 null
             );
-            state = service.addComponentTemplate(state, true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(builder().put("index.mode", "time_series").build(), null, null))
@@ -87,18 +89,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
-            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+            project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
+            var actualTemplate = project.templatesV2().get("1");
+            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
         }
         {
             // Routing path defined in component template
-            var state = ClusterState.EMPTY_STATE;
             var componentTemplate = new ComponentTemplate(
                 new Template(builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null),
                 null,
                 null
             );
-            state = service.addComponentTemplate(state, true, "1", componentTemplate);
+            var project = service.addComponentTemplate(initialProject, true, "1", componentTemplate);
             var indexTemplate = ComposableIndexTemplate.builder()
                 .indexPatterns(Collections.singletonList("logs-*-*"))
                 .template(new Template(null, null, null))
@@ -106,8 +108,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            state = service.addIndexTemplateV2(state, false, "1", indexTemplate);
-            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+            project = service.addIndexTemplateV2(project, false, "1", indexTemplate);
+            var actualTemplate = project.templatesV2().get("1");
+            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
         }
         {
             // Routing path defined in index template
@@ -118,8 +121,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
-            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+            var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
+            var actualTemplate = project.templatesV2().get("1");
+            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
         }
         {
             // Routing fetched from mapping in index template
@@ -132,62 +136,93 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .priority(100L)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build();
-            var state = service.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "1", indexTemplate);
-            assertThat(state.getMetadata().templatesV2().get("1"), equalTo(indexTemplate));
+            var project = service.addIndexTemplateV2(initialProject, false, "1", indexTemplate);
+            var actualTemplate = project.templatesV2().get("1");
+            assertTemplateActualIsExpected(actualTemplate, indexTemplate);
         }
     }
 
     public void testLifecycleComposition() {
         // No lifecycles result to null
         {
-            List<DataStreamLifecycle> lifecycles = List.of();
+            List<DataStreamLifecycle.Template> lifecycles = List.of();
             assertThat(composeDataLifecycles(lifecycles), nullValue());
         }
-        // One lifecycle results to this lifecycle as the final
+        // One lifecycle results in this lifecycle as the final
         {
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsamplingRounds = randomDownsampling();
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+                .enabled(true)
                 .dataRetention(randomRetention())
-                .downsampling(randomDownsampling())
-                .build();
-            List<DataStreamLifecycle> lifecycles = List.of(lifecycle);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
+                .downsamplingRounds(downsamplingRounds)
+                .downsamplingMethod(randomResettable(() -> randomSamplingMethod(downsamplingRounds.get())))
+                .buildTemplate();
+            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle);
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
             // Defaults to true
-            assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
+            assertThat(result.enabled(), equalTo(true));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle.downsamplingMethod().get()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
         // Enabled is always true unless it's explicitly set to false
         {
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds = randomRounds();
+            DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                 .enabled(false)
-                .dataRetention(randomNonEmptyRetention())
-                .downsampling(randomNonEmptyDownsampling())
-                .build();
-            List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
-            assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
+                .dataRetention(randomPositiveTimeValue())
+                .downsamplingRounds(downsamplingRounds)
+                .downsamplingMethod(randomSamplingMethod(downsamplingRounds))
+                .buildTemplate();
+            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle, DataStreamLifecycle.Template.DATA_DEFAULT);
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
+            assertThat(result.enabled(), equalTo(true));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle.downsamplingMethod().get()));
         }
-        // If both lifecycle have all properties, then the latest one overwrites all the others
+        // If both lifecycles have all properties, then the latest one overwrites all the others
         {
-            DataStreamLifecycle lifecycle1 = DataStreamLifecycle.newBuilder()
+            DownsampleConfig.SamplingMethod downsamplingMethod1 = randomFrom(DownsampleConfig.SamplingMethod.LAST_VALUE);
+            DataStreamLifecycle.Template lifecycle1 = DataStreamLifecycle.dataLifecycleBuilder()
                 .enabled(false)
-                .dataRetention(randomNonEmptyRetention())
-                .downsampling(randomNonEmptyDownsampling())
-                .build();
-            DataStreamLifecycle lifecycle2 = DataStreamLifecycle.newBuilder()
+                .dataRetention(randomPositiveTimeValue())
+                .downsamplingRounds(randomRounds())
+                .downsamplingMethod(downsamplingMethod1)
+                .buildTemplate();
+            DataStreamLifecycle.Template lifecycle2 = DataStreamLifecycle.dataLifecycleBuilder()
                 .enabled(true)
-                .dataRetention(randomNonEmptyRetention())
-                .downsampling(randomNonEmptyDownsampling())
-                .build();
-            List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
-            DataStreamLifecycle result = composeDataLifecycles(lifecycles);
-            assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle2.getDataStreamRetention()));
-            assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
+                .dataRetention(randomPositiveTimeValue())
+                .downsamplingRounds(randomRounds())
+                .downsamplingMethod(
+                    downsamplingMethod1 == DownsampleConfig.SamplingMethod.LAST_VALUE
+                        ? DownsampleConfig.SamplingMethod.AGGREGATE
+                        : DownsampleConfig.SamplingMethod.LAST_VALUE
+                )
+                .buildTemplate();
+            List<DataStreamLifecycle.Template> lifecycles = List.of(lifecycle1, lifecycle2);
+            DataStreamLifecycle result = composeDataLifecycles(lifecycles).build();
+            assertThat(result.enabled(), equalTo(lifecycle2.enabled()));
+            assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention().get()));
+            assertThat(result.downsamplingRounds(), equalTo(lifecycle2.downsamplingRounds().get()));
+            assertThat(result.downsamplingMethod(), equalTo(lifecycle2.downsamplingMethod().get()));
         }
+    }
+
+    private void assertTemplateActualIsExpected(final ComposableIndexTemplate actual, final ComposableIndexTemplate expected) {
+        // make sure arguments passed in right order
+        assertTrue(actual.createdDateMillis().isPresent());
+        assertTrue(actual.modifiedDateMillis().isPresent());
+        assertTrue(expected.createdDateMillis().isEmpty());
+        assertTrue(expected.modifiedDateMillis().isEmpty());
+
+        var expectedWithDates = expected.toBuilder()
+            // can't inject timing into creation so carrying over the dates from created template
+            .createdDate(actual.createdDateMillis().orElse(null))
+            .modifiedDate(actual.modifiedDateMillis().orElse(null))
+            .build();
+        assertThat(actual, equalTo(expectedWithDates));
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
@@ -231,49 +266,42 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return new ShardLimitValidator(limitOnlySettings, clusterService);
     }
 
-    @Nullable
-    private static DataStreamLifecycle.Retention randomRetention() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Retention.NULL;
-            default -> randomNonEmptyRetention();
-        };
-    }
-
-    private static DataStreamLifecycle.Retention randomNonEmptyRetention() {
-        return new DataStreamLifecycle.Retention(TimeValue.timeValueMillis(randomMillisUpToYear9999()));
-    }
-
-    @Nullable
-    private static DataStreamLifecycle.Downsampling randomDownsampling() {
-        return switch (randomInt(2)) {
-            case 0 -> null;
-            case 1 -> DataStreamLifecycle.Downsampling.NULL;
-            default -> randomNonEmptyDownsampling();
-        };
-    }
-
-    private static DataStreamLifecycle.Downsampling randomNonEmptyDownsampling() {
+    private static List<DataStreamLifecycle.DownsamplingRound> randomRounds() {
         var count = randomIntBetween(0, 9);
-        List<DataStreamLifecycle.Downsampling.Round> rounds = new ArrayList<>();
-        var previous = new DataStreamLifecycle.Downsampling.Round(
+        List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
+        var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
-            DataStreamLifecycle.Downsampling.Round round = nextRound(previous);
+            DataStreamLifecycle.DownsamplingRound round = nextRound(previous);
             rounds.add(round);
             previous = round;
         }
-        return new DataStreamLifecycle.Downsampling(rounds);
+        return rounds;
     }
 
-    private static DataStreamLifecycle.Downsampling.Round nextRound(DataStreamLifecycle.Downsampling.Round previous) {
+    private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
-        return new DataStreamLifecycle.Downsampling.Round(after, fixedInterval);
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
+        return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    private static ResettableValue<TimeValue> randomRetention() {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> ResettableValue.undefined();
+            case 1 -> ResettableValue.reset();
+            case 2 -> ResettableValue.create(TimeValue.timeValueDays(randomIntBetween(1, 100)));
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
+    }
+
+    private static ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> randomDownsampling() {
+        return switch (randomIntBetween(0, 1)) {
+            case 0 -> ResettableValue.reset();
+            case 1 -> ResettableValue.create(randomRounds());
+            default -> throw new IllegalStateException("Unknown randomisation path");
+        };
     }
 }

@@ -1,0 +1,8 @@
+@timestamp:date         ,system:keyword,message:text
+2023-10-23T13:55:01.543Z,          ping,Pinging 192.168.86.046
+2023-10-23T13:55:01.544Z,          cron,Running cats (cycle 1)
+2023-10-23T13:55:01.545Z,          java,Doing java stuff for 192.168.86.038
+2023-10-23T13:55:01.546Z,          java,More java stuff
+2023-10-23T13:56:01.543Z,          ping,No response
+2023-10-23T13:56:01.544Z,          cron,Running cats (cycle 2)
+2023-10-23T13:57:01.544Z,          cron,Running cats (cycle 3)

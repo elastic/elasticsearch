@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
@@ -136,6 +137,16 @@ public class TestShardRouting {
         String currentNodeId,
         boolean primary,
         ShardRoutingState state,
+        RecoverySource recoverySource
+    ) {
+        return newShardRouting(shardId, currentNodeId, primary, state, recoverySource, ShardRouting.Role.DEFAULT);
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
         ShardRouting.Role role
     ) {
         assertNotEquals(ShardRoutingState.RELOCATING, state);
@@ -146,6 +157,30 @@ public class TestShardRouting {
             primary,
             state,
             buildRecoverySource(primary, state),
+            buildUnassignedInfo(state),
+            buildRelocationFailureInfo(state),
+            buildAllocationId(state),
+            ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+            role
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        RecoverySource recoverySource,
+        ShardRouting.Role role
+    ) {
+        assertNotEquals(ShardRoutingState.RELOCATING, state);
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            null,
+            primary,
+            state,
+            recoverySource,
             buildUnassignedInfo(state),
             buildRelocationFailureInfo(state),
             buildAllocationId(state),
@@ -173,7 +208,7 @@ public class TestShardRouting {
 
     public static ShardRouting newShardRouting(
         ShardId shardId,
-        String currentNodeId,
+        @Nullable String currentNodeId,
         String relocatingNodeId,
         boolean primary,
         ShardRoutingState state
@@ -275,7 +310,8 @@ public class TestShardRouting {
                 new Snapshot("repo", new SnapshotId(randomIdentifier(), randomUUID())),
                 IndexVersion.current(),
                 new IndexId("some_index", randomUUID())
-            )
+            ),
+            new RecoverySource.ReshardSplitRecoverySource(new ShardId("some_index", randomUUID(), randomIntBetween(0, 1000)))
         );
     }
 }

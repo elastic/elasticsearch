@@ -115,7 +115,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
+            final IndexVersion version = randomVersionBetween(IndexVersions.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -139,7 +139,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
                 ClusterStateResponse clusterStateResponse = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-                IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
+                IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().getProject().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
         }

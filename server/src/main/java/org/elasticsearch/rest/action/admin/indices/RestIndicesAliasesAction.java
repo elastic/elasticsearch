@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestUtils.getAckTimeout;
@@ -27,6 +28,8 @@ import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndicesAliasesAction extends BaseRestHandler {
+
+    private static final Set<String> CAPABILITIES = Set.of("fix_filtered_data_stream_alias_removal");
 
     @Override
     public String getName() {
@@ -40,9 +43,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        indicesAliasesRequest.ackTimeout(getAckTimeout(request));
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         try (XContentParser parser = request.contentParser()) {
             IndicesAliasesRequest.PARSER.parse(parser, indicesAliasesRequest, null);
         }
@@ -50,5 +51,10 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             throw new IllegalArgumentException("No action specified");
         }
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return CAPABILITIES;
     }
 }

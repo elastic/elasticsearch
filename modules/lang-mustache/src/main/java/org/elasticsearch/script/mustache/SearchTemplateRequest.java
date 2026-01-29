@@ -9,14 +9,17 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,7 +37,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A request to execute a search based on a search template.
  */
-public class SearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest, ToXContentObject {
+public class SearchTemplateRequest extends LegacyActionRequest
+    implements
+        CompositeIndicesRequest,
+        ToXContentObject,
+        IndicesRequest.CrossProjectCandidate {
 
     private SearchRequest request;
     private boolean simulate = false;
@@ -43,6 +50,11 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
+
+    @Nullable
+    private String projectRouting;
+
+    public static TransportVersion SEARCH_TEMPLATE_PROJECT_ROUTING = TransportVersion.fromName("search_template_project_routing");
 
     public SearchTemplateRequest() {}
 
@@ -56,6 +68,11 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         script = in.readOptionalString();
         if (in.readBoolean()) {
             scriptParams = in.readGenericMap();
+        }
+        if (in.getTransportVersion().supports(SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
         }
     }
 
@@ -138,6 +155,19 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         this.scriptParams = scriptParams;
     }
 
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing already set");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -169,8 +199,10 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField EXPLAIN_FIELD = new ParseField("explain");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
+    private static final ParseField PROJECT_ROUTING_FIELD = new ParseField("project_routing");
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
+
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) -> request.setScriptParams(parser.map()), PARAMS_FIELD, ObjectParser.ValueType.OBJECT);
@@ -193,6 +225,7 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
                 request.setScript(parser.text());
             }
         }, SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareString(SearchTemplateRequest::setProjectRouting, PROJECT_ROUTING_FIELD);
     }
 
     public static SearchTemplateRequest fromXContent(XContentParser parser) throws IOException {
@@ -231,5 +264,13 @@ public class SearchTemplateRequest extends ActionRequest implements CompositeInd
         if (hasParams) {
             out.writeGenericMap(scriptParams);
         }
+        if (out.getTransportVersion().supports(SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
+    }
+
+    @Override
+    public boolean allowsCrossProject() {
+        return true;
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -126,6 +127,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 hasDocValues.get(),
                 orientation.get().value(),
                 parser,
+                context.isSourceSynthetic(),
                 meta.get()
             );
             return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
@@ -142,6 +144,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     );
 
     public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
+        private final boolean isSyntheticSource;
 
         public ShapeFieldType(
             String name,
@@ -149,9 +152,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean hasDocValues,
             Orientation orientation,
             Parser<Geometry> parser,
+            boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
+            this.isSyntheticSource = isSyntheticSource;
         }
 
         @Override
@@ -175,7 +180,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 );
             }
             try {
-                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -193,9 +198,16 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
-                ? new CartesianBoundsBlockLoader(name())
-                : blockLoaderFromSource(blContext);
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS) {
+                return new CartesianBoundsBlockLoader(name());
+            }
+
+            // Multi fields don't have fallback synthetic source.
+            if (isSyntheticSource && blContext.parentField(name()) == null) {
+                return blockLoaderFromFallbackSyntheticSource(blContext);
+            }
+
+            return blockLoaderFromSource(blContext);
         }
 
         static class CartesianBoundsBlockLoader extends BoundsBlockLoader {
@@ -245,8 +257,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         if (geometry == null) {
             return;
         }
+        boolean indexed = fieldType().indexType().hasPoints();
         List<IndexableField> fields = indexer.indexShape(geometry);
-        if (fieldType().isIndexed()) {
+        if (indexed) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
@@ -257,7 +270,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);
-        } else if (fieldType().isIndexed()) {
+        } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }
     }

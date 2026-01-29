@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDocValuesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
@@ -35,12 +37,12 @@ import java.util.Set;
 /**
  * This rule is responsible for marking spatial fields to be extracted from doc-values instead of source values.
  * This is a very specific optimization that is only used in the context of spatial aggregations.
- * Normally spatial fields are extracted from source values because this maintains original precision, but is very slow.
- * Simply loading from doc-values loses precision for points, and loses the geometry topological information for shapes.
+ * Normally spatial fields are extracted from source values because this maintains original precision but is very slow.
+ * Simply loading from doc-values loses precision for points and loses the geometry topological information for shapes.
  * For this reason we only consider loading from doc values under very specific conditions:
  * <ul>
  *     <li>The spatial data is consumed by a spatial aggregation (eg. <code>ST_CENTROIDS_AGG</code>, negating the need for precision.</li>
- *     <li>This aggregation is planned to run on the data node, so the doc-values Blocks are never transmit to the coordinator node.</li>
+ *     <li>This aggregation is planned to run on the data node, so the doc-values Blocks are never transmitted to the coordinator node.</li>
  *     <li>The data node index in question has doc-values stored for the field in question.</li>
  * </ul>
  * While we do not support transmitting spatial doc-values to the coordinator node, it is still important on the data node to ensure
@@ -57,33 +59,34 @@ import java.util.Set;
  * </ul>
  * The question has been raised why the spatial functions need to know if they are using doc-values or not. At first glance one might
  * perceive ES|QL functions as being logical planning only constructs, reflecting only the intent of the user. This, however, is not true.
- * The ES|QL functions all contain the runtime implementation of the functions behaviour, in the form of one or more static methods,
+ * The ES|QL functions all contain the runtime implementation of the function's behaviour, in the form of one or more static methods,
  * as well as a <code>toEvaluator()</code> instance method that is used to generates Block traversal code to call these runtime
  * implementations, based on some internal state of the instance of the function. In most cases this internal state contains information
  * determined during the logical planning phase, such as the field name and type, and whether it is a literal and can be folded.
  * In the case of spatial functions, the internal state also contains information about whether the function is using doc-values or not.
- * This knowledge is determined in the class being described here, and is only determined during local physical planning on each data
+ * This knowledge is determined in the class being described here and is only determined during local physical planning on each data
  * node. This is because the decision to use doc-values is based on the local data node's index configuration, and the local physical plan
  * is the only place where this information is available. This also means that the knowledge of the usage of doc-values does not need
- * to be serialized between nodes, and is only used locally.
+ * to be serialized between nodes and is only used locally.
  */
 public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.ParameterizedOptimizerRule<
-    AggregateExec,
+    UnaryExec,
     LocalPhysicalOptimizerContext> {
     @Override
-    protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
-        var foundAttributes = new HashSet<FieldAttribute>();
+    protected PhysicalPlan rule(UnaryExec planNode, LocalPhysicalOptimizerContext ctx) {
+        var foundAttributes = findAttributesFromAggregatesAndEvals(planNode, ctx);
+        if (foundAttributes.isEmpty()) {
+            return planNode;
+        }
 
-        PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
+        return planNode.transformDown(UnaryExec.class, exec -> {
             if (exec instanceof AggregateExec agg) {
                 var orderedAggregates = new ArrayList<NamedExpression>();
                 var changedAggregates = false;
                 for (NamedExpression aggExpr : agg.aggregates()) {
                     if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                        if (af.field() instanceof FieldAttribute fieldAttribute
-                            && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
-                            // We need to both mark the field to load differently, and change the spatial function to know to use it
-                            foundAttributes.add(fieldAttribute);
+                        if (af.field() instanceof FieldAttribute fieldAttribute && foundAttributes.contains(fieldAttribute)) {
+                            // We need to both mark the field to load differently and change the spatial function to know to use it
                             changedAggregates = true;
                             orderedAggregates.add(
                                 as.replaceChild(af.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.DOC_VALUES))
@@ -96,21 +99,16 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     }
                 }
                 if (changedAggregates) {
-                    exec = new AggregateExec(
-                        agg.source(),
-                        agg.child(),
-                        agg.groupings(),
-                        orderedAggregates,
-                        agg.getMode(),
-                        agg.intermediateAttributes(),
-                        agg.estimatedRowSize()
-                    );
+                    exec = agg.withAggregates(orderedAggregates);
                 }
             }
             if (exec instanceof EvalExec evalExec) {
                 List<Alias> fields = evalExec.fields();
                 List<Alias> changed = fields.stream()
-                    .map(f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes)))
+                    .map(
+                        f -> (Alias) f.transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                            .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes))
+                    )
                     .toList();
                 if (changed.equals(fields) == false) {
                     exec = new EvalExec(exec.source(), exec.child(), changed);
@@ -119,7 +117,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
             if (exec instanceof FilterExec filterExec) {
                 // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
                 // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
-                var condition = filterExec.condition().transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes));
+                var condition = filterExec.condition()
+                    .transformDown(BinarySpatialFunction.class, s -> withDocValues(s, foundAttributes))
+                    .transformDown(SpatialDocValuesFunction.class, s -> withDocValues(s, foundAttributes));
                 if (filterExec.condition().equals(condition) == false) {
                     exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
                 }
@@ -137,9 +137,46 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                     exec = fieldExtractExec.withDocValuesAttributes(docValuesAttributes);
                 }
             }
+            if (exec instanceof TopNExec topNExec) {
+                exec = topNExec.withDocValuesAttributes(new HashSet<>(foundAttributes));
+            }
             return exec;
         });
-        return plan;
+    }
+
+    private Set<FieldAttribute> findAttributesFromAggregatesAndEvals(UnaryExec exec, LocalPhysicalOptimizerContext ctx) {
+        var foundAttributes = new HashSet<FieldAttribute>();
+        // Search for STATS with spatial aggregations
+        exec.forEachDown(AggregateExec.class, agg -> {
+            for (NamedExpression aggExpr : agg.aggregates()) {
+                if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                    if (af.field() instanceof FieldAttribute fieldAttribute
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
+                        foundAttributes.add(fieldAttribute);
+                    }
+                }
+            }
+        });
+        // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash
+        exec.forEachDown(EvalExec.class, evalExec -> {
+            for (Alias field : evalExec.fields()) {
+                field.forEachDown(SpatialDocValuesFunction.class, spatialFunction -> {
+                    if (spatialFunction.spatialField() instanceof FieldAttribute fieldAttribute
+                        && spatialFunction.prefersDocValuesExtraction()
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
+                        foundAttributes.add(fieldAttribute);
+                    }
+                });
+            }
+        });
+        // Remove any fields that will be returned to the coordinator, since we must use source for those
+        exec.output().forEach(attribute -> {
+            if (attribute instanceof FieldAttribute fieldAttribute) {
+                // Any field that will be returned to the coordinator cannot be loaded from doc-values
+                foundAttributes.remove(fieldAttribute);
+            }
+        });
+        return foundAttributes;
     }
 
     private BinarySpatialFunction withDocValues(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
@@ -147,6 +184,12 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         boolean foundLeft = foundField(spatial.left(), foundAttributes);
         boolean foundRight = foundField(spatial.right(), foundAttributes);
         return foundLeft || foundRight ? spatial.withDocValues(foundLeft, foundRight) : spatial;
+    }
+
+    private SpatialDocValuesFunction withDocValues(SpatialDocValuesFunction spatial, Set<FieldAttribute> foundAttributes) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean found = foundField(spatial.spatialField(), foundAttributes);
+        return found ? spatial.withDocValues(found) : spatial;
     }
 
     private boolean hasFieldAttribute(BinarySpatialFunction spatial, Set<FieldAttribute> foundAttributes) {
@@ -167,7 +210,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
         SearchStats stats,
-        AggregateExec agg,
+        UnaryExec exec,
         Set<FieldAttribute> foundAttributes
     ) {
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
@@ -179,7 +222,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
         candidateDocValuesAttributes.add(fieldAttribute);
         var spatialRelatesAttributes = new HashSet<FieldAttribute>();
-        agg.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
+        exec.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
             candidateDocValuesAttributes.forEach(candidate -> {
                 if (hasFieldAttribute(relatesFunction, Set.of(candidate))) {
                     spatialRelatesAttributes.add(candidate);

@@ -9,8 +9,11 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+import org.elasticsearch.env.Environment;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.File;
 import java.io.FileDescriptor;
@@ -21,17 +24,36 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URISyntaxException;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.UserPrincipal;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.Scanner;
+import java.util.jar.JarFile;
+import java.util.logging.FileHandler;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
+import javax.imageio.stream.FileImageInputStream;
+import javax.xml.parsers.SAXParserFactory;
+
+import static java.nio.charset.Charset.defaultCharset;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.WRITE;
+import static java.util.zip.ZipFile.OPEN_DELETE;
+import static java.util.zip.ZipFile.OPEN_READ;
+import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.createTempFileForWrite;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_ALLOWED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
+@SuppressWarnings({ "unused" /* called via reflection */, "ResultOfMethodCallIgnored" })
 class FileCheckActions {
 
     static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
@@ -53,17 +75,17 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanExecute() throws IOException {
+    static void fileCanExecute() {
         readFile().toFile().canExecute();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanRead() throws IOException {
+    static void fileCanRead() {
         readFile().toFile().canRead();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanWrite() throws IOException {
+    static void fileCanWrite() {
         readFile().toFile().canWrite();
     }
 
@@ -77,149 +99,143 @@ class FileCheckActions {
         File.createTempFile("prefix", "suffix", readWriteDir().toFile());
     }
 
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileSystemTempDirectory() throws IOException {
+        File.createTempFile("prefix", "suffix");
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void fileCreateTempFileNullDirectory() throws IOException {
+        // null directory = system temp directory
+        File.createTempFile("prefix", "suffix", null);
+    }
+
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDelete() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().delete();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileDeleteOnExit() throws IOException {
-        Path toDelete = readWriteDir().resolve("to_delete_on_exit");
-        EntitledActions.createFile(toDelete);
+        var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().deleteOnExit();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileExists() throws IOException {
+    static void fileExists() {
         readFile().toFile().exists();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsDirectory() throws IOException {
+    static void fileIsDirectory() {
         readFile().toFile().isDirectory();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsFile() throws IOException {
+    static void fileIsFile() {
         readFile().toFile().isFile();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsHidden() throws IOException {
+    static void fileIsHidden() {
         readFile().toFile().isHidden();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileLastModified() throws IOException {
+    static void fileLastModified() {
         readFile().toFile().lastModified();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileLength() throws IOException {
+    static void fileLength() {
         readFile().toFile().length();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileList() throws IOException {
+    static void fileList() {
         readDir().toFile().list();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListWithFilter() throws IOException {
+    static void fileListWithFilter() {
         readDir().toFile().list((dir, name) -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFiles() throws IOException {
+    static void fileListFiles() {
         readDir().toFile().listFiles();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFilesWithFileFilter() throws IOException {
+    static void fileListFilesWithFileFilter() {
         readDir().toFile().listFiles(pathname -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFilesWithFilenameFilter() throws IOException {
+    static void fileListFilesWithFilenameFilter() {
         readDir().toFile().listFiles((dir, name) -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileMkdir() throws IOException {
+    static void fileMkdir() {
         Path mkdir = readWriteDir().resolve("mkdir");
         mkdir.toFile().mkdir();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileMkdirs() throws IOException {
+    static void fileMkdirs() {
         Path mkdir = readWriteDir().resolve("mkdirs");
         mkdir.toFile().mkdirs();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileRenameTo() throws IOException {
-        Path toRename = readWriteDir().resolve("to_rename");
+        var dir = EntitledActions.createTempDirectoryForWrite();
+        Path toRename = dir.resolve("to_rename");
         EntitledActions.createFile(toRename);
-        toRename.toFile().renameTo(readWriteDir().resolve("renamed").toFile());
+        toRename.toFile().renameTo(dir.resolve("renamed").toFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetExecutable() throws IOException {
+    static void fileSetExecutable() {
         readWriteFile().toFile().setExecutable(false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetExecutableOwner() throws IOException {
+    static void fileSetExecutableOwner() {
         readWriteFile().toFile().setExecutable(false, false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetLastModified() throws IOException {
+    static void fileSetLastModified() {
         readWriteFile().toFile().setLastModified(System.currentTimeMillis());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetReadable() throws IOException {
+    static void fileSetReadable() {
         readWriteFile().toFile().setReadable(true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetReadableOwner() throws IOException {
+    static void fileSetReadableOwner() {
         readWriteFile().toFile().setReadable(true, false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileSetReadOnly() throws IOException {
-        Path readOnly = readWriteDir().resolve("read_only");
-        EntitledActions.createFile(readOnly);
+        Path readOnly = EntitledActions.createTempFileForWrite();
         readOnly.toFile().setReadOnly();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetWritable() throws IOException {
+    static void fileSetWritable() {
         readWriteFile().toFile().setWritable(true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetWritableOwner() throws IOException {
+    static void fileSetWritableOwner() {
         readWriteFile().toFile().setWritable(true, false);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFile() throws FileNotFoundException {
-        new Scanner(readFile().toFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFileWithCharset() throws IOException {
-        new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFileWithCharsetName() throws FileNotFoundException {
-        new Scanner(readFile().toFile(), "UTF-8");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -348,19 +364,295 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesGetOwner() throws IOException {
-        Files.getOwner(readFile());
+    static void keystoreGetInstance_FileCharArray() throws IOException {
+        try {
+            KeyStore.getInstance(readFile().toFile(), new char[0]);
+        } catch (GeneralSecurityException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesProbeContentType() throws IOException {
-        Files.probeContentType(readFile());
+    static void keystoreGetInstance_FileLoadStoreParameter() throws IOException {
+        try {
+            KeyStore.LoadStoreParameter loadStoreParameter = () -> null;
+            KeyStore.getInstance(readFile().toFile(), loadStoreParameter);
+        } catch (GeneralSecurityException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesSetOwner() throws IOException {
-        UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
-        Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
+    @SuppressWarnings("DataFlowIssue") // Passing null to a @NotNull parameter
+    static void keystoreBuilderNewInstance() {
+        try {
+            KeyStore.Builder.newInstance("", null, readFile().toFile(), null);
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_String() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toString()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_StringCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toString(), defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_File() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileReadOnly() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileReadAndDelete() throws IOException {
+        expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_ReadOnlyCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ, defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_ReadAndDeleteCharset() throws IOException {
+        expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE, defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_String() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toString()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_StringBoolean() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toString(), false).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileReadOnly() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileReadAndDelete() throws IOException {
+        expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileBooleanReadOnlyVersion() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ, Runtime.version()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileBooleanReadAndDeleteOnlyVersion() throws IOException {
+        expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE, Runtime.version()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_File() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFileFileBoolean() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false).close());
+    }
+
+    private static void expectZipException(CheckedRunnable<IOException> action) throws IOException {
+        try {
+            action.run();
+        } catch (ZipException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFile() throws FileNotFoundException {
+        new Scanner(readFile().toFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFileWithCharset() throws IOException {
+        new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFileWithCharsetName() throws FileNotFoundException {
+        new Scanner(readFile().toFile(), "UTF-8");
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler() throws IOException {
+        new FileHandler();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_String() throws IOException {
+        new FileHandler(readFile().toString());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringBoolean() throws IOException {
+        new FileHandler(readFile().toString(), false);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringIntInt() throws IOException {
+        new FileHandler(readFile().toString(), 1, 2);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringIntIntBoolean() throws IOException {
+        new FileHandler(readFile().toString(), 1, 2, false);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringLongIntBoolean() throws IOException {
+        new FileHandler(readFile().toString(), 1L, 2, false);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpRequestBodyPublishersOfFile() throws IOException {
+        HttpRequest.BodyPublishers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodyHandlersOfFile() {
+        HttpResponse.BodyHandlers.ofFile(readWriteFile());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodyHandlersOfFile_readOnly() {
+        HttpResponse.BodyHandlers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodyHandlersOfFileDownload() {
+        HttpResponse.BodyHandlers.ofFileDownload(readWriteDir());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodyHandlersOfFileDownload_readOnly() {
+        HttpResponse.BodyHandlers.ofFileDownload(readDir());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodySubscribersOfFile_File() {
+        HttpResponse.BodySubscribers.ofFile(readWriteFile());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodySubscribersOfFile_File_readOnly() {
+        HttpResponse.BodySubscribers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodySubscribersOfFile_FileOpenOptions() {
+        // Note that, unlike other methods like BodyHandlers.ofFile, this is indeed
+        // an overload distinct from ofFile with no OpenOptions, and so it needs its
+        // own instrumentation and its own test.
+        HttpResponse.BodySubscribers.ofFile(readWriteFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodySubscribersOfFile_FileOpenOptions_readOnly() {
+        // Note that, unlike other methods like BodyHandlers.ofFile, this is indeed
+        // an overload distinct from ofFile with no OpenOptions, and so it needs its
+        // own instrumentation and its own test.
+        HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessConfigDirectory(Environment environment) {
+        Files.exists(environment.configDir());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessConfigDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("to_create");
+        Files.createFile(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.readAllBytes(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void readAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d");
+        Files.isDirectory(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenJvmOptionsFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessForbiddenElasticsearchYmlFile(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("elasticsearch.yml");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writerAccessForbiddenJvmOptionsDirectory(Environment environment) throws IOException {
+        var file = environment.configDir().resolve("jvm.options.d").resolve("foo");
+        Files.newBufferedWriter(file).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
+    static void readAccessSourcePath() throws URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        Files.exists(sourcePath);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void writeAccessSourcePath() throws IOException, URISyntaxException {
+        var sourcePath = Paths.get(EntitlementTestPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+        var file = sourcePath.getParent().resolve("to_create");
+        Files.createFile(file);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaDesktopFileAccess() throws Exception {
+        // Test file access from a java.desktop class. We explicitly exclude that module from the "system modules", so we expect
+        // any sensitive operation from java.desktop to fail.
+        var file = EntitledActions.createTempFileForRead();
+        new FileImageInputStream(file.toFile()).close();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void javaXmlFileRequest() throws Exception {
+        // java.xml is part of the jdk, but not a system module. this checks it can't access files
+        var saxParser = SAXParserFactory.newInstance().newSAXParser();
+        saxParser.parse(readFile().toFile(), new DefaultHandler());
     }
 
     private FileCheckActions() {}

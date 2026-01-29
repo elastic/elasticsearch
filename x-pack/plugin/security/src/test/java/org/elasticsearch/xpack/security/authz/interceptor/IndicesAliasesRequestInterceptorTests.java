@@ -110,7 +110,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             dlsFlsFeatureEnabled
         );
 
-        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -128,7 +128,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }).when(mockEngine)
             .validateIndexPermissionsAreSubset(eq(requestInfo), eq(EmptyAuthorizationInfo.INSTANCE), anyMap(), anyActionListener());
         ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         });
         assertEquals(expectedErrorMessage, securityException.getMessage());
@@ -159,7 +159,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             false
         );
 
-        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             indicesAliasesRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -184,7 +184,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     anyActionListener()
                 );
             ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class, () -> {
-                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+                interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
                 plainActionFuture.actionGet();
             });
             assertEquals(
@@ -194,7 +194,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         }
 
         // swap target and source for success
-        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest();
+        final IndicesAliasesRequest successRequest = new IndicesAliasesRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         if (randomBoolean()) {
             successRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().index("bar").alias(randomAlphaOfLength(4)));
         }
@@ -217,7 +217,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
                     any(Map.class),
                     anyActionListener()
                 );
-            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
+            interceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE).addListener(plainActionFuture);
             plainActionFuture.actionGet();
         }
     }

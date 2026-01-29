@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.analytics.multiterms;
 
 import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DoubleValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -24,12 +23,11 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -169,20 +167,6 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     /**
-     * Packs a list of terms into ByteRef so we can use BytesKeyedBucketOrds
-     *
-     * TODO: this is a temporary solution, we should replace it with a more optimal mechanism instead of relying on BytesKeyedBucketOrds
-     */
-    static BytesRef packKey(List<Object> terms) {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeCollection(terms, StreamOutput::writeGenericValue);
-            return output.bytes().toBytesRef();
-        } catch (IOException ex) {
-            throw ExceptionsHelper.convertToRuntime(ex);
-        }
-    }
-
-    /**
      * Unpacks ByteRef back into a list of terms
      *
      * TODO: this is a temporary solution, we should replace it with a more optimal mechanism instead of relying on BytesKeyedBucketOrds
@@ -198,36 +182,39 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         List<TermValues> termValuesList = termValuesList(aggCtx.getLeafReaderContext());
-
+        BytesStreamOutput output = new BytesStreamOutput();
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 List<List<Object>> terms = docTerms(termValuesList, doc);
                 if (terms != null) {
-                    List<Object> path = new ArrayList<>(terms.size());
-                    new CheckedConsumer<Integer, IOException>() {
-                        @Override
-                        public void accept(Integer start) throws IOException {
-                            for (Object term : terms.get(start)) {
-                                if (start == path.size()) {
-                                    path.add(term);
-                                } else {
-                                    path.set(start, term);
-                                }
-                                if (start < terms.size() - 1) {
-                                    this.accept(start + 1);
-                                } else {
-                                    long bucketOrd = bucketOrds.add(owningBucketOrd, packKey(path));
-                                    if (bucketOrd < 0) { // already seen
-                                        bucketOrd = -1 - bucketOrd;
-                                        collectExistingBucket(sub, doc, bucketOrd);
-                                    } else {
-                                        collectBucket(sub, doc, bucketOrd);
-                                    }
-                                }
-                            }
+                    doCollect(terms, new ArrayList<>(terms.size()), owningBucketOrd, doc, 0);
+                }
+            }
+
+            private void doCollect(List<List<Object>> terms, List<Object> path, long owningBucketOrd, int doc, int start)
+                throws IOException {
+                for (Object term : terms.get(start)) {
+                    if (start == path.size()) {
+                        path.add(term);
+                    } else {
+                        path.set(start, term);
+                    }
+                    if (start < terms.size() - 1) {
+                        doCollect(terms, path, owningBucketOrd, doc, start + 1);
+                    } else {
+                        // TODO: this is a temporary solution, we should replace it with a more optimal mechanism instead of relying on
+                        // BytesKeyedBucketOrds
+                        output.seek(0L);
+                        output.writeCollection(path, StreamOutput::writeGenericValue);
+                        long bucketOrd = bucketOrds.add(owningBucketOrd, output.bytes().toBytesRef());
+                        if (bucketOrd < 0) { // already seen
+                            bucketOrd = -1 - bucketOrd;
+                            collectExistingBucket(sub, doc, bucketOrd);
+                        } else {
+                            collectBucket(sub, doc, bucketOrd);
                         }
-                    }.accept(0);
+                    }
                 }
             }
         };
@@ -405,12 +392,12 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
-            final SortedNumericDocValues values = source.longValues(ctx);
-            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            final SortedNumericLongValues values = source.longValues(ctx);
+            final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 
-        public TermValues getValues(SortedNumericDocValues values) {
+        public TermValues getValues(SortedNumericLongValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     final List<Object> objects = new ArrayList<>();
@@ -430,7 +417,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             };
         }
 
-        public TermValues getValues(NumericDocValues values) {
+        public TermValues getValues(LongValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     return List.of(values.longValue());
@@ -459,7 +446,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
         @Override
         public TermValues getValues(LeafReaderContext ctx) throws IOException {
             final SortedNumericDoubleValues values = source.doubleValues(ctx);
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
             return singleton != null ? getValues(singleton) : getValues(values);
         }
 
@@ -483,7 +470,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             };
         }
 
-        public TermValues getValues(NumericDoubleValues values) {
+        public TermValues getValues(DoubleValues values) {
             return doc -> {
                 if (values.advanceExact(doc)) {
                     return List.of(values.doubleValue());

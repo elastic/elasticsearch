@@ -9,16 +9,15 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
@@ -41,20 +40,15 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         CompressedXContent expectedMockMapping = new CompressedXContent(Map.of("key", "value"));
 
         boolean isDslOnlyMode = false;
-        ClusterState simulatedState = ClusterState.builder(new ClusterName("test_cluster"))
-            .metadata(
-                Metadata.builder()
-                    .indexTemplates(
-                        Map.of(
-                            matchingTemplate,
-                            ComposableIndexTemplate.builder()
-                                .indexPatterns(List.of("test_index*"))
-                                .template(
-                                    new Template(Settings.builder().put("test-setting", 1).put("test-setting-2", 2).build(), null, null)
-                                )
-                                .build()
-                        )
-                    )
+        ProjectMetadata simulatedProject = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .indexTemplates(
+                Map.of(
+                    matchingTemplate,
+                    ComposableIndexTemplate.builder()
+                        .indexPatterns(List.of("test_index*"))
+                        .template(new Template(Settings.builder().put("test-setting", 1).put("test-setting-2", 2).build(), null, null))
+                        .build()
+                )
             )
             .build();
 
@@ -69,29 +63,33 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         // Create a setting provider that sets the test-setting to 0
         Set<IndexSettingProvider> indexSettingsProviders = Set.of(new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
-                Metadata metadata,
+                ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings allSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
-                return Settings.builder().put("test-setting", 0).build();
+                additionalSettings.put("test-setting", 0);
             }
         }, new IndexSettingProvider() {
             @Override
-            public Settings getAdditionalIndexSettings(
+            public void provideAdditionalSettings(
                 String indexName,
                 String dataStreamName,
                 IndexMode templateIndexMode,
-                Metadata metadata,
+                ProjectMetadata projectMetadata,
                 Instant resolvedAt,
                 Settings indexTemplateAndCreateRequestSettings,
-                List<CompressedXContent> combinedTemplateMappings
+                List<CompressedXContent> combinedTemplateMappings,
+                IndexVersion indexVersion,
+                Settings.Builder additionalSettings
             ) {
-                return Settings.builder().put("test-setting-2", 10).build();
+                additionalSettings.put("test-setting-2", 10);
             }
 
             @Override
@@ -103,7 +101,8 @@ public class TransportSimulateIndexTemplateActionTests extends ESTestCase {
         Template resolvedTemplate = TransportSimulateIndexTemplateAction.resolveTemplate(
             matchingTemplate,
             indexName,
-            simulatedState,
+            simulatedProject,
+            null,
             isDslOnlyMode,
             xContentRegistry(),
             indicesService,

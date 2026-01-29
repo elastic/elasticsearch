@@ -103,7 +103,7 @@ public class IteratorAppendPageTests extends OperatorTestCase {
     }
 
     @Override
-    protected Operator.OperatorFactory simple() {
+    protected Operator.OperatorFactory simple(SimpleOptions options) {
         return new IteratorAppendPage.Factory();
     }
 

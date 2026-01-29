@@ -10,12 +10,11 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -146,7 +146,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return shardRoutingTable == null ? null : shardRoutingTable.getByAllocationId(allocationId);
     }
 
-    public boolean validate(Metadata metadata) {
+    public boolean validate(ProjectMetadata metadata) {
         for (IndexRoutingTable indexRoutingTable : this) {
             if (indexRoutingTable.validate(metadata) == false) {
                 return false;
@@ -241,6 +241,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, Predicates.always(), false);
     }
 
+    /**
+     * Returns an iterator over all shard routing entries that are searchable (i.e., on a node that can service searches).
+     */
+    public ShardsIterator allSearchableShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, ShardRouting::isSearchable, false);
+    }
+
     public ShardsIterator allActiveShards(String[] indices) {
         return allShardsSatisfyingPredicate(indices, ShardRouting::active, false);
     }
@@ -320,9 +327,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public static RoutingTable readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            in.readLong(); // previously 'version', unused in all applicable versions so any number will do
-        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexRoutingTable index = IndexRoutingTable.readFrom(in);
@@ -334,9 +338,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
-        }
         out.writeCollection(indicesRouting.values());
     }
 
@@ -352,14 +353,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             new DiffableUtils.DiffableValueReader<>(IndexRoutingTable::readFrom, IndexRoutingTable::readDiffFrom);
 
         RoutingTableDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                in.readLong(); // previously 'version', unused in all applicable versions so any number will do
-            }
             indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DIFF_VALUE_READER);
         }
 
         @Override
         public RoutingTable apply(RoutingTable part) {
+            if (part == null) {
+                part = EMPTY_ROUTING_TABLE;
+            }
             final ImmutableOpenMap<String, IndexRoutingTable> updatedRouting = indicesRouting.apply(part.indicesRouting);
             if (updatedRouting == part.indicesRouting) {
                 return part;
@@ -369,27 +370,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
-            }
             indicesRouting.writeTo(out);
         }
     }
 
-    public static RoutingTable of(RoutingNodes routingNodes) {
+    static RoutingTable of(Collection<ShardRouting> shardRouting) {
         Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders = new HashMap<>();
-        for (RoutingNode routingNode : routingNodes) {
-            for (ShardRouting shardRoutingEntry : routingNode) {
-                // every relocating shard has a double entry, ignore the target one.
-                if (shardRoutingEntry.initializing() && shardRoutingEntry.relocatingNodeId() != null) continue;
-                Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
-            }
-        }
-
-        for (ShardRouting shardRoutingEntry : routingNodes.unassigned()) {
-            Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
-        }
-        for (ShardRouting shardRoutingEntry : routingNodes.unassigned().ignored()) {
+        for (ShardRouting shardRoutingEntry : shardRouting) {
             Builder.addShard(indexRoutingTableBuilders, shardRoutingEntry);
         }
 
@@ -441,6 +428,14 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         public Builder(ShardRoutingRoleStrategy shardRoutingRoleStrategy, RoutingTable routingTable) {
             this.shardRoutingRoleStrategy = shardRoutingRoleStrategy;
             this.indicesRouting = ImmutableOpenMap.builder(routingTable.indicesRouting);
+        }
+
+        public IndexRoutingTable getIndexRoutingTable(String index) {
+            return indicesRouting.get(index);
+        }
+
+        public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+            return shardRoutingRoleStrategy;
         }
 
         private static void addShard(

@@ -10,9 +10,14 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
-import org.elasticsearch.logsdb.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.DataGeneratorSpecification;
+import org.elasticsearch.datageneration.DocumentGenerator;
+import org.elasticsearch.datageneration.FieldType;
+import org.elasticsearch.datageneration.MappingGenerator;
+import org.elasticsearch.datageneration.TemplateGenerator;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -220,11 +225,11 @@ public class DataGenerationSnapshotTests extends ESTestCase {
             return new DataSourceResponse.FieldTypeGenerator(() -> {
                 if (fieldType == FieldType.KEYWORD) {
                     fieldType = FieldType.LONG;
-                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD);
+                    return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.KEYWORD.toString());
                 }
 
                 fieldType = FieldType.KEYWORD;
-                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG);
+                return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(FieldType.LONG.toString());
             });
         }
 
@@ -235,11 +240,11 @@ public class DataGenerationSnapshotTests extends ESTestCase {
 
         @Override
         public DataSourceResponse.LeafMappingParametersGenerator handle(DataSourceRequest.LeafMappingParametersGenerator request) {
-            if (request.fieldType() == FieldType.KEYWORD) {
+            if (request.fieldType().equals(FieldType.KEYWORD.toString())) {
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("store", "true"));
             }
 
-            if (request.fieldType() == FieldType.LONG) {
+            if (request.fieldType().equals(FieldType.LONG.toString())) {
                 return new DataSourceResponse.LeafMappingParametersGenerator(() -> Map.of("index", "false"));
             }
 

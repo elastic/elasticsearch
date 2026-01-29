@@ -8,16 +8,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -176,8 +175,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             toAsStr = in.readOptionalString();
             from = in.readDouble();
             to = in.readDouble();
-            originalFrom = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(from);
-            originalTo = in.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0) ? in.readOptionalDouble() : Double.valueOf(to);
+            originalFrom = in.readOptionalDouble();
+            originalTo = in.readOptionalDouble();
         }
 
         @Override
@@ -187,10 +186,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             out.writeOptionalString(toAsStr);
             out.writeDouble(from);
             out.writeDouble(to);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_17_0)) {
-                out.writeOptionalDouble(originalFrom);
-                out.writeOptionalDouble(originalTo);
-            }
+            out.writeOptionalDouble(originalFrom);
+            out.writeOptionalDouble(originalTo);
         }
 
         public double getFrom() {
@@ -370,7 +367,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (false == valuesSourceConfig.alignesWithSearchIndex()) {
+        if (false == valuesSourceConfig.alignsWithSearchIndex()) {
             return null;
         }
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
@@ -646,7 +643,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         @Override
         public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
             final SortedNumericDoubleValues values = ((ValuesSource.Numeric) this.valuesSource).doubleValues(aggCtx.getLeafReaderContext());
-            final NumericDoubleValues singleton = FieldData.unwrapSingleton(values);
+            final DoubleValues singleton = FieldData.unwrapSingleton(values);
 
             if (singleton != null) {
                 super.singletonRanges++;

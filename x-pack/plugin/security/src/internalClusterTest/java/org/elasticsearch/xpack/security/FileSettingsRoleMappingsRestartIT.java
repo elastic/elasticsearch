@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.integration.RoleMappingFileSettingsIT;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
@@ -112,7 +113,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     public void testReservedStatePersistsOnRestart() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
-        final String masterNode = internalCluster().getMasterName();
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        awaitMasterNode();
         var savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
 
         awaitFileSettingsWatcher();
@@ -192,7 +194,8 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     public void testFileSettingsReprocessedOnRestartWithoutVersionChange() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
 
-        final String masterNode = internalCluster().getMasterName();
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        awaitMasterNode();
 
         Tuple<CountDownLatch, AtomicLong> savedClusterState = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         awaitFileSettingsWatcher();
@@ -272,9 +275,10 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
     }
 
     private void assertRoleMappingsInClusterState(ClusterState clusterState, ExpressionRoleMapping... expectedRoleMappings) {
+        final var project = clusterState.metadata().getProject(ProjectId.DEFAULT);
         String[] expectedRoleMappingNames = Arrays.stream(expectedRoleMappings).map(ExpressionRoleMapping::getName).toArray(String[]::new);
         assertRoleMappingReservedMetadata(clusterState, expectedRoleMappingNames);
-        var actualRoleMappings = new ArrayList<>(RoleMappingMetadata.getFromClusterState(clusterState).getRoleMappings());
+        var actualRoleMappings = new ArrayList<>(RoleMappingMetadata.getFromProject(project).getRoleMappings());
         assertThat(actualRoleMappings, containsInAnyOrder(expectedRoleMappings));
     }
 

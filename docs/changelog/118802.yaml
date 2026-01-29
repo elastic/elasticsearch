@@ -1,5 +1,0 @@
-pr: 118802
-summary: ST_EXTENT_AGG optimize envelope extraction from doc-values for cartesian_shape
-area: "ES|QL"
-type: enhancement
-issues: []

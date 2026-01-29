@@ -45,7 +45,7 @@ public final class InferenceProcessorInfoExtractor {
         if (metadata == null) {
             return 0;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getDefaultProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return 0;
         }
@@ -95,7 +95,7 @@ public final class InferenceProcessorInfoExtractor {
         if (metadata == null) {
             return pipelineIdsByModelIds;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return pipelineIdsByModelIds;
         }
@@ -116,17 +116,16 @@ public final class InferenceProcessorInfoExtractor {
     }
 
     /**
-     * @param state Current {@link ClusterState}
+     * @param metadata Current cluster state {@link Metadata}
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
-    public static Set<String> pipelineIdsForResource(ClusterState state, Set<String> ids) {
+    public static Set<String> pipelineIdsForResource(Metadata metadata, Set<String> ids) {
         assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Set<String> pipelineIds = new HashSet<>();
-        Metadata metadata = state.metadata();
         if (metadata == null) {
             return pipelineIds;
         }
-        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        IngestMetadata ingestMetadata = metadata.getProject().custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
             return pipelineIds;
         }

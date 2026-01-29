@@ -14,15 +14,17 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.BitSet;
 
 public class BlockFactory {
     public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(4);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(8);
 
     public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
-    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(512);
 
     public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
     public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
@@ -413,15 +415,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesUsedWithLength(value);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -432,34 +432,146 @@ public class BlockFactory {
         return b;
     }
 
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
         return new AggregateMetricDoubleBlockBuilder(estimatedSize, this);
     }
 
-    public final Block newConstantAggregateMetricDoubleBlock(
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        Block minBlock,
+        Block maxBlock,
+        Block sumBlock,
+        Block countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(
+            (DoubleBlock) minBlock,
+            (DoubleBlock) maxBlock,
+            (DoubleBlock) sumBlock,
+            (IntBlock) countBlock
+        );
+    }
+
+    public final AggregateMetricDoubleBlock newConstantAggregateMetricDoubleBlock(
         AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral value,
         int positions
     ) {
         try (AggregateMetricDoubleBlockBuilder builder = newAggregateMetricDoubleBlockBuilder(positions)) {
-            if (value.min() != null) {
-                builder.min().appendDouble(value.min());
-            } else {
-                builder.min().appendNull();
+            for (int i = 0; i < positions; i++) {
+                if (value.min() != null) {
+                    builder.min().appendDouble(value.min());
+                } else {
+                    builder.min().appendNull();
+                }
+                if (value.max() != null) {
+                    builder.max().appendDouble(value.max());
+                } else {
+                    builder.max().appendNull();
+                }
+                if (value.sum() != null) {
+                    builder.sum().appendDouble(value.sum());
+                } else {
+                    builder.sum().appendNull();
+                }
+                if (value.count() != null) {
+                    builder.count().appendInt(value.count());
+                } else {
+                    builder.count().appendNull();
+                }
             }
-            if (value.max() != null) {
-                builder.max().appendDouble(value.max());
-            } else {
-                builder.max().appendNull();
-            }
-            if (value.sum() != null) {
-                builder.sum().appendDouble(value.sum());
-            } else {
-                builder.sum().appendNull();
-            }
-            if (value.count() != null) {
-                builder.count().appendInt(value.count());
-            } else {
-                builder.count().appendNull();
+            return builder.build();
+        }
+    }
+
+    public BlockLoader.Block newAggregateMetricDoubleBlockFromDocValues(
+        DoubleBlock minBlock,
+        DoubleBlock maxBlock,
+        DoubleBlock sumBlock,
+        IntBlock countBlock
+    ) {
+        return new AggregateMetricDoubleArrayBlock(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
+    public ExponentialHistogramBlockBuilder newExponentialHistogramBlockBuilder(int estimatedSize) {
+        return new ExponentialHistogramBlockBuilder(estimatedSize, this);
+    }
+
+    public TDigestBlockBuilder newTDigestBlockBuilder(int estimatedSize) {
+        return new TDigestBlockBuilder(estimatedSize, this);
+    }
+
+    public final ExponentialHistogramBlock newConstantExponentialHistogramBlock(ExponentialHistogram value, int positionCount) {
+        return ExponentialHistogramArrayBlock.createConstant(value, positionCount, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlock(TDigestHolder value, int positions) {
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
+    public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        DoubleBlock valueCounts,
+        DoubleBlock zeroThresholds,
+        BytesRefBlock encodedHistograms
+    ) {
+        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+    }
+
+    public BlockLoader.Block newTDigestBlockFromDocValues(
+        BytesRefBlock encodedDigests,
+        DoubleBlock minima,
+        DoubleBlock maxima,
+        DoubleBlock sums,
+        LongBlock counts
+    ) {
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+    }
+
+    public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
+        double[] minValues,
+        double[] maxValues,
+        double[] sumValues,
+        int[] countValues,
+        int positions
+    ) {
+        DoubleBlock min = newDoubleArrayVector(minValues, positions).asBlock();
+        DoubleBlock max = newDoubleArrayVector(maxValues, positions).asBlock();
+        DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
+        IntBlock count = newIntArrayVector(countValues, positions).asBlock();
+        return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
             }
             return builder.build();
         }
@@ -471,4 +583,5 @@ public class BlockFactory {
     public long maxPrimitiveArrayBytes() {
         return maxPrimitiveArrayBytes;
     }
+
 }

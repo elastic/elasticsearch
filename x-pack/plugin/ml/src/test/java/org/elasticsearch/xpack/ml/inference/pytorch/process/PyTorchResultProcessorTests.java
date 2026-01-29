@@ -134,11 +134,16 @@ public class PyTorchResultProcessorTests extends ESTestCase {
     public void testPendingRequestAreCalledAtShutdown() {
         var processor = new PyTorchResultProcessor("foo", s -> {});
 
+        Consumer<PyTorchResult> resultChecker = r -> {
+            assertTrue(r.errorResult().isStopping());
+            assertEquals(r.errorResult().error(), "inference canceled as process is stopping");
+        };
+
         var listeners = List.of(
-            new AssertingResultListener(r -> assertEquals(r.errorResult().error(), "inference canceled as process is stopping")),
-            new AssertingResultListener(r -> assertEquals(r.errorResult().error(), "inference canceled as process is stopping")),
-            new AssertingResultListener(r -> assertEquals(r.errorResult().error(), "inference canceled as process is stopping")),
-            new AssertingResultListener(r -> assertEquals(r.errorResult().error(), "inference canceled as process is stopping"))
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker)
         );
 
         int i = 0;
@@ -147,6 +152,33 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         }
 
         processor.process(mockNativeProcess(Collections.emptyIterator()));
+
+        for (var l : listeners) {
+            assertTrue(l.hasResponse);
+        }
+    }
+
+    public void testPendingRequestAreCalledOnException() {
+        var processor = new PyTorchResultProcessor("foo", s -> {});
+
+        Consumer<PyTorchResult> resultChecker = r -> {
+            assertFalse(r.errorResult().isStopping());
+            assertEquals(r.errorResult().error(), "inference native process died unexpectedly with failure [mocked exception]");
+        };
+
+        var listeners = List.of(
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker),
+            new AssertingResultListener(resultChecker)
+        );
+
+        int i = 0;
+        for (var l : listeners) {
+            processor.registerRequest(Integer.toString(i++), l);
+        }
+
+        processor.process(throwingNativeProcess());
 
         for (var l : listeners) {
             assertTrue(l.hasResponse);
@@ -377,6 +409,12 @@ public class PyTorchResultProcessorTests extends ESTestCase {
     private NativePyTorchProcess mockNativeProcess(Iterator<PyTorchResult> results) {
         var process = mock(NativePyTorchProcess.class);
         when(process.readResults()).thenReturn(results);
+        return process;
+    }
+
+    private NativePyTorchProcess throwingNativeProcess() {
+        var process = mock(NativePyTorchProcess.class);
+        when(process.readResults()).thenThrow(new RuntimeException("mocked exception"));
         return process;
     }
 }

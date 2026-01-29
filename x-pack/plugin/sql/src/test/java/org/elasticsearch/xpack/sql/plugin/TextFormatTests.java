@@ -97,7 +97,7 @@ public class TextFormatTests extends ESTestCase {
         List<String> expectedTerms = terms.stream()
             .map(x -> x.contains(String.valueOf(delim)) ? '"' + x + '"' : x)
             .collect(Collectors.toList());
-        StringBuffer sb = new StringBuffer();
+        StringBuilder sb = new StringBuilder();
         do {
             sb.append(expectedTerms.remove(0));
             sb.append(delim);

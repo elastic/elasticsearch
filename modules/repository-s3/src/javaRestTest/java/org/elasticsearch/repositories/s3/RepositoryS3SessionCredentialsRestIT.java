@@ -9,6 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -20,6 +21,7 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import static fixture.aws.AwsCredentialsUtils.ANY_REGION;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKeyAndToken;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
@@ -38,7 +40,8 @@ public class RepositoryS3SessionCredentialsRestIT extends AbstractRepositoryS3Re
         true,
         BUCKET,
         BASE_PATH,
-        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN)
+        S3ConsistencyModel::randomConsistencyModel,
+        fixedAccessKeyAndToken(ACCESS_KEY, SESSION_TOKEN, ANY_REGION, "s3")
     );
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

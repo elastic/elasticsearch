@@ -7,16 +7,15 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Block that stores BytesRef values.
@@ -38,6 +37,26 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
      */
     BytesRef getBytesRef(int valueIndex, BytesRef dest);
 
+    /**
+     * Checks if this block has the given value at position. If at this index we have a
+     * multivalue, then it returns true if any values match.
+     *
+     * @param position the index at which we should check the value(s)
+     * @param value the value to check against
+     * @param scratch the scratch BytesRef to use for this operation
+     */
+    default boolean hasValue(int position, BytesRef value, BytesRef scratch) {
+        final var count = getValueCount(position);
+        final var startIndex = getFirstValueIndex(position);
+        for (int index = startIndex; index < startIndex + count; index++) {
+            var ref = getBytesRef(index, scratch);
+            if (value.equals(ref)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     BytesRefVector asVector();
 
@@ -50,6 +69,19 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefBlock filter(int... positions);
 
+    /**
+     * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},
+     * likely copying all data.
+     */
+    @Override
+    default BytesRefBlock deepCopy(BlockFactory blockFactory) {
+        try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(getPositionCount())) {
+            builder.copyFrom(this, 0, getPositionCount());
+            builder.mvOrdering(mvOrdering());
+            return builder.build();
+        }
+    }
+
     @Override
     BytesRefBlock keepMask(BooleanVector mask);
 
@@ -58,17 +90,6 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
 
     @Override
     BytesRefBlock expand();
-
-    @Override
-    default String getWriteableName() {
-        return "BytesRefBlock";
-    }
-
-    NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Block.class, "BytesRefBlock", BytesRefBlock::readFrom);
-
-    private static BytesRefBlock readFrom(StreamInput in) throws IOException {
-        return readFrom((BlockStreamInput) in);
-    }
 
     static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
@@ -110,10 +131,10 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
         if (vector != null) {
             out.writeByte(SERIALIZE_BLOCK_VECTOR);
             vector.writeTo(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof BytesRefArrayBlock b) {
+        } else if (this instanceof BytesRefArrayBlock b) {
             out.writeByte(SERIALIZE_BLOCK_ARRAY);
             b.writeArrayBlock(out);
-        } else if (version.onOrAfter(TransportVersions.V_8_14_0) && this instanceof OrdinalBytesRefBlock b && b.isDense()) {
+        } else if (this instanceof OrdinalBytesRefBlock b && b.isDense()) {
             out.writeByte(SERIALIZE_BLOCK_ORDINAL);
             b.writeOrdinalBlock(out);
         } else {

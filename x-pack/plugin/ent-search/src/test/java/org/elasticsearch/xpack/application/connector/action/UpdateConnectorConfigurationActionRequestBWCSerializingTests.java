@@ -11,9 +11,11 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.connector.ConnectorConfiguration;
 import org.elasticsearch.xpack.application.connector.ConnectorTestUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class UpdateConnectorConfigurationActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     UpdateConnectorConfigurationAction.Request> {
@@ -38,7 +40,19 @@ public class UpdateConnectorConfigurationActionRequestBWCSerializingTests extend
     @Override
     protected UpdateConnectorConfigurationAction.Request mutateInstance(UpdateConnectorConfigurationAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String originalConnectorId = instance.getConnectorId();
+        Map<String, ConnectorConfiguration> configuration = instance.getConfiguration();
+        Map<String, Object> configurationValues = instance.getConfigurationValues();
+        switch (between(0, 2)) {
+            case 0 -> originalConnectorId = randomValueOtherThan(originalConnectorId, () -> randomUUID());
+            case 1 -> configuration = randomValueOtherThan(configuration, ConnectorTestUtils::getRandomConnectorConfiguration);
+            case 2 -> configurationValues = randomValueOtherThan(
+                configurationValues,
+                ConnectorTestUtils::getRandomConnectorConfigurationValues
+            );
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UpdateConnectorConfigurationAction.Request(originalConnectorId, configuration, configurationValues);
     }
 
     @Override

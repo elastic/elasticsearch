@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,7 +51,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
     /**
      * Rate limits are defined at
      * <a href="https://www.ibm.com/docs/en/watsonx/saas?topic=learning-watson-machine-plans">Watson Machine Learning plans</a>.
-     * For Lite plan, you've 120 requests per minute.
+     * For the Lite plan, the limit is 120 requests per minute.
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
@@ -207,7 +206,7 @@ public class IbmWatsonxEmbeddingsServiceSettings extends FilteredXContentObject
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

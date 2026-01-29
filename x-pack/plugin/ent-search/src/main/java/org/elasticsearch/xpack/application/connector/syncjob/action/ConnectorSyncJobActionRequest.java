@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -15,7 +15,7 @@ import java.io.IOException;
 /**
  * Abstract base class for action requests targeting the connector sync job index.
  */
-public abstract class ConnectorSyncJobActionRequest extends ActionRequest {
+public abstract class ConnectorSyncJobActionRequest extends LegacyActionRequest {
 
     public ConnectorSyncJobActionRequest() {
         super();

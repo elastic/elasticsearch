@@ -15,6 +15,8 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -50,7 +52,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -66,6 +67,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * The {@code IN} operator.
@@ -115,6 +117,7 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
  */
 public class In extends EsqlScalarFunction implements TranslationAware.SingleValueTranslationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "In", In::new);
+    private static final Logger logger = LogManager.getLogger(In.class);
 
     private final Expression value;
     private final List<Expression> list;
@@ -137,6 +140,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -154,6 +160,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -233,7 +242,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
+        if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -336,7 +345,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG
+            || commonType == DATETIME
+            || commonType == DATE_NANOS
+            || commonType == UNSIGNED_LONG
+            || DataType.isGeoGrid(commonType)) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -359,7 +372,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (DataType.isSpatial(commonType)) {
+            if (DataType.isSpatialOrGrid(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {
@@ -458,28 +471,29 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list());
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list()) ? Translatable.YES : Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return translate(handler);
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return translate(pushdownPredicates, handler);
     }
 
-    private Query translate(TranslatorHandler handler) {
+    private Query translate(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        logger.trace("Attempting to generate lucene query for IN expression");
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
         Set<Object> terms = new LinkedHashSet<>();
         List<Query> queries = new ArrayList<>();
 
         for (Expression rhs : list()) {
-            if (DataType.isNull(rhs.dataType()) == false) {
+            if (Expressions.isGuaranteedNull(rhs) == false) {
                 if (needsTypeSpecificValueHandling(attribute.dataType())) {
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(new Equals(source(), value(), rhs));
+                    Query query = handler.asQuery(pushdownPredicates, new Equals(source(), value(), rhs));
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());
@@ -487,7 +501,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                         queries.add(query);
                     }
                 } else {
-                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                    terms.add(literalValueOf(rhs));
                 }
             }
         }
@@ -501,7 +515,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {
-        return DataType.isDateTime(fieldType) || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
+        return fieldType == DATETIME || fieldType == DATE_NANOS || fieldType == IP || fieldType == VERSION || fieldType == UNSIGNED_LONG;
     }
 
     private static Query or(Source source, Query left, Query right) {

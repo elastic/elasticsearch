@@ -21,6 +21,8 @@ public class Clusters {
             .module("test-esql-heap-attack")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
+            .setting("esql.query.allow_partial_results", "false")
+            .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
             .jvmArg("-Xmx512m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {

@@ -19,7 +19,9 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -83,6 +85,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
@@ -96,8 +99,10 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -133,6 +138,7 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -1290,7 +1296,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
@@ -1412,6 +1418,82 @@ public class RBACEngineTests extends ESTestCase {
         }
     }
 
+    public void testBuildUserPrivilegeResponseCombinesIndexPrivileges() {
+        final BytesArray query = new BytesArray("""
+            {"term":{"public":true}}""");
+        final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
+            .add(IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilege.ALL, "index-2")
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilege.MANAGE,
+                true,
+                "index-1",
+                "index-2"
+            )
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read", "write")),
+                true,
+                "index-2",
+                "index-1"
+            )
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read_failure_store", "manage_failure_store")),
+                true,
+                "index-2",
+                "index-1"
+            )
+            .add(
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilegeTests.resolvePrivilegeAndAssertSingleton(Sets.newHashSet("read_failure_store")),
+                false,
+                "index-2",
+                "index-1"
+            )
+            .build();
+
+        final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
+
+        final GetUserPrivilegesResponse.Indices index1 = findIndexPrivilege(response.getIndexPrivileges(), Set.of("index-1"), false);
+        assertThat(index1.getIndices(), containsInAnyOrder("index-1"));
+        assertThat(index1.getPrivileges(), containsInAnyOrder("read", "write"));
+        assertThat(index1.getFieldSecurity(), emptyIterable());
+        assertThat(index1.getQueries(), emptyIterable());
+
+        final GetUserPrivilegesResponse.Indices index2 = findIndexPrivilege(response.getIndexPrivileges(), Set.of("index-2"), false);
+        assertThat(index2.getIndices(), containsInAnyOrder("index-2"));
+        assertThat(index2.getPrivileges(), containsInAnyOrder("all"));
+        assertThat(index2.getFieldSecurity(), emptyIterable());
+        assertThat(index2.getQueries(), emptyIterable());
+
+        Set<GetUserPrivilegesResponse.Indices> actualIndexPrivileges = response.getIndexPrivileges();
+        assertThat(actualIndexPrivileges, iterableWithSize(4));
+        final GetUserPrivilegesResponse.Indices index1And2 = findIndexPrivilege(actualIndexPrivileges, Set.of("index-1", "index-2"), true);
+        assertThat(index1And2.getIndices(), containsInAnyOrder("index-1", "index-2"));
+        assertThat(index1And2.getPrivileges(), containsInAnyOrder("read", "write", "read_failure_store", "manage_failure_store", "manage"));
+        assertThat(
+            index1And2.getFieldSecurity(),
+            containsInAnyOrder(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]))
+        );
+        assertThat(index1And2.getQueries(), containsInAnyOrder(query));
+
+        final GetUserPrivilegesResponse.Indices index1And2NotRestricted = findIndexPrivilege(
+            actualIndexPrivileges,
+            Set.of("index-1", "index-2"),
+            false
+        );
+        assertThat(index1And2NotRestricted.getIndices(), containsInAnyOrder("index-1", "index-2"));
+        assertThat(index1And2NotRestricted.getPrivileges(), containsInAnyOrder("read_failure_store"));
+        assertThat(index1And2NotRestricted.getFieldSecurity(), emptyIterable());
+        assertThat(index1And2NotRestricted.getQueries(), emptyIterable());
+    }
+
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
         final String dataStreamName = "my_data_stream";
         User user = new User(randomAlphaOfLengthBetween(4, 12));
@@ -1442,14 +1524,14 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all().get(), hasItem(dataStreamName));
-        assertThat(authorizedIndices.check(dataStreamName), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA), hasItem(dataStreamName));
+        assertThat(authorizedIndices.check(dataStreamName, IndexComponentSelector.DATA), is(true));
         assertThat(
-            authorizedIndices.all().get(),
-            hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
+            authorizedIndices.all(IndexComponentSelector.DATA),
+            hasItems(backingIndices.stream().map(im -> im.getIndex().getName()).toList().toArray(Strings.EMPTY_ARRAY))
         );
         for (String index : backingIndices.stream().map(im -> im.getIndex().getName()).toList()) {
-            assertThat(authorizedIndices.check(index), is(true));
+            assertThat(authorizedIndices.check(index, IndexComponentSelector.DATA), is(true));
         }
     }
 
@@ -1485,7 +1567,8 @@ public class RBACEngineTests extends ESTestCase {
             lookup,
             () -> ignore -> {}
         );
-        assertThat(authorizedIndices.all().get().isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.DATA).isEmpty(), is(true));
+        assertThat(authorizedIndices.all(IndexComponentSelector.FAILURES).isEmpty(), is(true));
     }
 
     public void testNoInfiniteRecursionForRBACAuthorizationInfoHashCode() {
@@ -1516,7 +1599,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.getUserPrivileges(authorizationInfo, future);
+        engine.getUserPrivileges(authorizationInfo, null, future);
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, future::actionGet);
 
@@ -1528,6 +1611,63 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         assertThat(e.getCause(), sameInstance(unsupportedOperationException));
+    }
+
+    public void testGetUserPrivilegesUnwrapsLimitedRole() {
+        final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
+        final Role assignedRole = Role.builder(RESTRICTED_INDICES, "assigned")
+            .cluster(Set.of("monitor"), List.of())
+            .add(IndexPrivilege.READ, "*")
+            .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app", "read", "action:read"), Set.of("*"))
+            .build();
+        final Role userRole = Role.builder(RESTRICTED_INDICES, "user")
+            .cluster(Set.of("manage"), List.of())
+            .add(IndexPrivilege.ALL, "index-*")
+            .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app", "all", "action:*"), Set.of("org:1"))
+            .build();
+
+        final LimitedRole limitedRole;
+        if (randomBoolean()) {
+            limitedRole = new LimitedRole(assignedRole, userRole);
+        } else {
+            final Role otherRole = Role.builder(RESTRICTED_INDICES, "other").build();
+            limitedRole = new LimitedRole(new LimitedRole(assignedRole, otherRole), new LimitedRole(otherRole, userRole));
+        }
+
+        when(authorizationInfo.getRole()).thenReturn(limitedRole);
+
+        for (var unwrapRole : RoleReference.ApiKeyRoleType.values()) {
+            final PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
+            engine.getUserPrivileges(authorizationInfo, unwrapRole, future);
+
+            final GetUserPrivilegesResponse response = future.actionGet();
+            assertThat(response.getRunAs(), emptyIterable());
+            assertThat(response.getConditionalClusterPrivileges(), emptyIterable());
+            assertThat(response.getClusterPrivileges(), iterableWithSize(1));
+            assertThat(response.getIndexPrivileges(), iterableWithSize(1));
+            assertThat(response.getApplicationPrivileges(), iterableWithSize(1));
+            final var indexPrivilege = response.getIndexPrivileges().iterator().next();
+            final var appPrivilege = response.getApplicationPrivileges().iterator().next();
+            assertThat(appPrivilege.getApplication(), equalTo("app"));
+
+            switch (unwrapRole) {
+                case ASSIGNED -> {
+                    assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor"));
+                    assertThat(indexPrivilege.getPrivileges(), containsInAnyOrder("read"));
+                    assertThat(indexPrivilege.getIndices(), containsInAnyOrder("*"));
+                    assertThat(appPrivilege.getPrivileges(), arrayContainingInAnyOrder("read"));
+                    assertThat(appPrivilege.getResources(), arrayContainingInAnyOrder("*"));
+                }
+                case LIMITED_BY -> {
+                    assertThat(response.getClusterPrivileges(), containsInAnyOrder("manage"));
+                    assertThat(indexPrivilege.getPrivileges(), containsInAnyOrder("all"));
+                    assertThat(indexPrivilege.getIndices(), containsInAnyOrder("index-*"));
+                    assertThat(appPrivilege.getPrivileges(), arrayContainingInAnyOrder("all"));
+                    assertThat(appPrivilege.getResources(), arrayContainingInAnyOrder("org:1"));
+                }
+                default -> fail("Unexpected enum type: " + unwrapRole);
+            }
+        }
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {
@@ -1614,23 +1754,34 @@ public class RBACEngineTests extends ESTestCase {
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
+        int extraGroups = 0;
         for (int i = 0; i < numGroups; i++) {
-            remoteIndicesBuilder.addGroup(
-                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                IndexPrivilege.get(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
-                new FieldPermissions(
-                    new FieldPermissionsDefinition(
-                        Set.of(
-                            randomBoolean()
-                                ? randomFieldGrantExcludeGroup()
-                                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
-                        )
-                    )
-                ),
-                randomBoolean() ? Set.of(randomDlsQuery()) : null,
-                randomBoolean(),
-                generateRandomStringArray(3, 10, false, false)
+            Set<IndexPrivilege> splitBySelector = IndexPrivilege.resolveBySelectorAccess(
+                Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
+            // If we end up with failure and data access (or failure, data and failure and data access),
+            // we will split and end up with extra groups. Need to account for this for the final assertion
+            if (splitBySelector.size() >= 2) {
+                extraGroups += splitBySelector.size() - 1;
+            }
+            for (var privilege : splitBySelector) {
+                remoteIndicesBuilder.addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    privilege,
+                    new FieldPermissions(
+                        new FieldPermissionsDefinition(
+                            Set.of(
+                                randomBoolean()
+                                    ? randomFieldGrantExcludeGroup()
+                                    : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
+                            )
+                        )
+                    ),
+                    randomBoolean() ? Set.of(randomDlsQuery()) : null,
+                    randomBoolean(),
+                    generateRandomStringArray(3, 10, false, false)
+                );
+            }
         }
         final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
         List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
@@ -1672,7 +1823,10 @@ public class RBACEngineTests extends ESTestCase {
         final RoleDescriptorsIntersection actual2 = future2.get();
 
         assertThat(actual1, equalTo(actual2));
-        assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
+        assertThat(
+            actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length,
+            equalTo(numGroups + extraGroups)
+        );
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
@@ -1970,7 +2124,7 @@ public class RBACEngineTests extends ESTestCase {
         final ResolvedIndices resolvedIndices = new ResolvedIndices(List.of(indices), List.of());
         final TransportRequest searchRequest = new SearchRequest(indices);
         final RequestInfo requestInfo = createRequestInfo(searchRequest, action, parentAuthorization);
-        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = s -> s.onResponse(resolvedIndices);
+        final AsyncSupplier<ResolvedIndices> indicesAsyncSupplier = () -> SubscribableListener.newSucceeded(resolvedIndices);
 
         Metadata.Builder metadata = Metadata.builder();
         Stream.of(indices)
@@ -1981,7 +2135,7 @@ public class RBACEngineTests extends ESTestCase {
                 )
             );
 
-        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build(), listener);
+        engine.authorizeIndexAction(requestInfo, authzInfo, indicesAsyncSupplier, metadata.build().getProject()).addListener(listener);
     }
 
     private static RequestInfo createRequestInfo(TransportRequest request, String action, ParentActionAuthorization parentAuthorization) {
@@ -1997,6 +2151,21 @@ public class RBACEngineTests extends ESTestCase {
             null,
             parentAuthorization
         );
+    }
+
+    private GetUserPrivilegesResponse.Indices findIndexPrivilege(
+        Set<GetUserPrivilegesResponse.Indices> indices,
+        Set<String> indexNames,
+        boolean allowRestrictedIndices
+    ) {
+        return indices.stream()
+            .filter(
+                i -> i.allowRestrictedIndices() == allowRestrictedIndices
+                    && i.getIndices().containsAll(indexNames)
+                    && indexNames.containsAll(i.getIndices())
+            )
+            .findFirst()
+            .get();
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

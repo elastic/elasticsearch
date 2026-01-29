@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -49,7 +48,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivilegesBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -578,7 +576,7 @@ public class RoleDescriptorTests extends ESTestCase {
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         RoleDescriptor.setFieldPermissionsCache(fieldPermissionsCache);
 
-        final Cache.CacheStats beforeStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats beforeStats = fieldPermissionsCache.getCacheStats();
 
         final String json = """
             {
@@ -604,7 +602,7 @@ public class RoleDescriptorTests extends ESTestCase {
         RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
 
         final int numberOfFieldSecurityBlocks = 2;
-        final Cache.CacheStats betweenStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats betweenStats = fieldPermissionsCache.getCacheStats();
         assertThat(betweenStats.getMisses(), equalTo(beforeStats.getMisses() + numberOfFieldSecurityBlocks));
         assertThat(betweenStats.getHits(), equalTo(beforeStats.getHits()));
 
@@ -613,25 +611,23 @@ public class RoleDescriptorTests extends ESTestCase {
             RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(json), XContentType.JSON);
         }
 
-        final Cache.CacheStats afterStats = fieldPermissionsCache.getCacheStats();
+        final Cache.Stats afterStats = fieldPermissionsCache.getCacheStats();
         assertThat(afterStats.getMisses(), equalTo(betweenStats.getMisses()));
         assertThat(afterStats.getHits(), equalTo(beforeStats.getHits() + numberOfFieldSecurityBlocks * iterations));
     }
 
     public void testSerializationForCurrentVersion() throws Exception {
-        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
-        final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
-        final boolean canIncludeRemoteClusters = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
-        final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
-        final boolean canIncludeDescription = version.onOrAfter(SECURITY_ROLE_DESCRIPTION);
+        final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        final boolean canIncludeRemoteClusters = version.supports(ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeDescription = version.supports(SECURITY_ROLE_DESCRIPTION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
 
         final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
             .allowReservedMetadata(true)
-            .allowRemoteIndices(canIncludeRemoteIndices)
-            .allowRestriction(canIncludeWorkflows)
+            .allowRemoteIndices(true)
+            .allowRestriction(true)
             .allowDescription(canIncludeDescription)
             .allowRemoteClusters(canIncludeRemoteClusters)
             .build();
@@ -645,158 +641,6 @@ public class RoleDescriptorTests extends ESTestCase {
         final RoleDescriptor serialized = new RoleDescriptor(streamInput);
 
         assertThat(serialized, equalTo(descriptor));
-    }
-
-    public void testSerializationWithRemoteIndicesWithElderVersion() throws IOException {
-        final TransportVersion versionBeforeRemoteIndices = TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_8_0);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            versionBeforeRemoteIndices
-        );
-        final BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-
-        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(true)
-            .allowRestriction(false)
-            .allowDescription(false)
-            .allowRemoteClusters(false)
-            .build();
-
-        descriptor.writeTo(output);
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry
-        );
-        streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        if (descriptor.hasRemoteIndicesPrivileges()) {
-            assertThat(
-                serialized,
-                equalTo(
-                    new RoleDescriptor(
-                        descriptor.getName(),
-                        descriptor.getClusterPrivileges(),
-                        descriptor.getIndicesPrivileges(),
-                        descriptor.getApplicationPrivileges(),
-                        descriptor.getConditionalClusterPrivileges(),
-                        descriptor.getRunAs(),
-                        descriptor.getMetadata(),
-                        descriptor.getTransientMetadata(),
-                        null,
-                        null,
-                        descriptor.getRestriction(),
-                        descriptor.getDescription()
-                    )
-                )
-            );
-        } else {
-            assertThat(descriptor, equalTo(serialized));
-        }
-    }
-
-    public void testSerializationWithRemoteClusterWithElderVersion() throws IOException {
-        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            versionBeforeRemoteCluster
-        );
-        final BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-
-        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(false)
-            .allowRestriction(false)
-            .allowDescription(false)
-            .allowRemoteClusters(true)
-            .build();
-        descriptor.writeTo(output);
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry
-        );
-        streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        if (descriptor.hasRemoteClusterPermissions()) {
-            assertThat(
-                serialized,
-                equalTo(
-                    new RoleDescriptor(
-                        descriptor.getName(),
-                        descriptor.getClusterPrivileges(),
-                        descriptor.getIndicesPrivileges(),
-                        descriptor.getApplicationPrivileges(),
-                        descriptor.getConditionalClusterPrivileges(),
-                        descriptor.getRunAs(),
-                        descriptor.getMetadata(),
-                        descriptor.getTransientMetadata(),
-                        descriptor.getRemoteIndicesPrivileges(),
-                        null,
-                        descriptor.getRestriction(),
-                        descriptor.getDescription()
-                    )
-                )
-            );
-        } else {
-            assertThat(descriptor, equalTo(serialized));
-            assertThat(descriptor.getRemoteClusterPermissions(), equalTo(RemoteClusterPermissions.NONE));
-        }
-    }
-
-    public void testSerializationWithWorkflowsRestrictionAndUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeWorkflowsRestriction = TransportVersionUtils.getPreviousVersion(WORKFLOWS_RESTRICTION_VERSION);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            versionBeforeWorkflowsRestriction
-        );
-        final BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-
-        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(false)
-            .allowRestriction(true)
-            .allowDescription(false)
-            .allowRemoteClusters(false)
-            .build();
-        descriptor.writeTo(output);
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry
-        );
-        streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        if (descriptor.hasWorkflowsRestriction()) {
-            assertThat(
-                serialized,
-                equalTo(
-                    new RoleDescriptor(
-                        descriptor.getName(),
-                        descriptor.getClusterPrivileges(),
-                        descriptor.getIndicesPrivileges(),
-                        descriptor.getApplicationPrivileges(),
-                        descriptor.getConditionalClusterPrivileges(),
-                        descriptor.getRunAs(),
-                        descriptor.getMetadata(),
-                        descriptor.getTransientMetadata(),
-                        descriptor.getRemoteIndicesPrivileges(),
-                        descriptor.getRemoteClusterPermissions(),
-                        null,
-                        descriptor.getDescription()
-                    )
-                )
-            );
-        } else {
-            assertThat(descriptor, equalTo(serialized));
-        }
     }
 
     public void testParseRoleWithRestrictionFailsWhenAllowRestrictionIsFalse() {
@@ -842,50 +686,6 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(role.hasRestriction(), equalTo(true));
         assertThat(role.hasWorkflowsRestriction(), equalTo(true));
         assertThat(role.getRestriction().getWorkflows(), arrayContaining("search_application"));
-    }
-
-    public void testSerializationWithDescriptionAndUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(SECURITY_ROLE_DESCRIPTION);
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.V_7_17_0,
-            versionBeforeRoleDescription
-        );
-        final BytesStreamOutput output = new BytesStreamOutput();
-        output.setTransportVersion(version);
-
-        final RoleDescriptor descriptor = RoleDescriptorTestHelper.builder().allowDescription(true).build();
-        descriptor.writeTo(output);
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
-        StreamInput streamInput = new NamedWriteableAwareStreamInput(
-            ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
-            registry
-        );
-        streamInput.setTransportVersion(version);
-        final RoleDescriptor serialized = new RoleDescriptor(streamInput);
-        if (descriptor.hasDescription()) {
-            assertThat(
-                serialized,
-                equalTo(
-                    new RoleDescriptor(
-                        descriptor.getName(),
-                        descriptor.getClusterPrivileges(),
-                        descriptor.getIndicesPrivileges(),
-                        descriptor.getApplicationPrivileges(),
-                        descriptor.getConditionalClusterPrivileges(),
-                        descriptor.getRunAs(),
-                        descriptor.getMetadata(),
-                        descriptor.getTransientMetadata(),
-                        descriptor.getRemoteIndicesPrivileges(),
-                        descriptor.getRemoteClusterPermissions(),
-                        descriptor.getRestriction(),
-                        null
-                    )
-                )
-            );
-        } else {
-            assertThat(descriptor, equalTo(serialized));
-        }
     }
 
     public void testParseRoleWithDescriptionFailsWhenAllowDescriptionIsFalse() {

@@ -191,10 +191,12 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
             repo.metadataSources(IvyArtifactRepository.MetadataSources::artifact);
             repo.patternLayout(layout -> layout.artifact("/downloads/elasticsearch/[module]-[revision](-[classifier]).[ext]"));
         });
-        project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
-            exclusiveContentRepository.filter(config -> config.includeGroup(group));
-            exclusiveContentRepository.forRepositories(ivyRepo);
-        });
+        if (project != project.getRootProject()) {
+            project.getRepositories().exclusiveContent(exclusiveContentRepository -> {
+                exclusiveContentRepository.filter(config -> config.includeGroup(group));
+                exclusiveContentRepository.forRepositories(ivyRepo);
+            });
+        }
     }
 
     private static void setupDownloadServiceRepo(Project project) {

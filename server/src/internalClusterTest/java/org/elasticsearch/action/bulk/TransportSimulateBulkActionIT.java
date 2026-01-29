@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -60,7 +61,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             }
             """;
         indicesAdmin().create(new CreateIndexRequest(indexName).mapping(mapping)).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -85,7 +86,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
+        final var project = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+        Map<String, Object> indexMapping = project.index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }
@@ -142,7 +144,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         searchResponse.decRef();
         ClusterStateResponse clusterStateResponse = admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
-        Map<String, Object> indexMapping = clusterStateResponse.getState().metadata().index(indexName).mapping().sourceAsMap();
+        final var project = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+        Map<String, Object> indexMapping = project.index(indexName).mapping().sourceAsMap();
         Map<String, Object> fields = (Map<String, Object>) indexMapping.get("properties");
         assertThat(fields.size(), equalTo(1));
     }
@@ -160,7 +163,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
             """, XContentType.JSON).id(randomUUID());
         {
             // First we use the original component template, and expect a failure in the second document:
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
             BulkResponse response = client().execute(new ActionType<BulkResponse>(SimulateBulkAction.NAME), bulkRequest).actionGet();
@@ -194,7 +197,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                     )
                 ),
                 Map.of(),
-                Map.of()
+                Map.of(),
+                null
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
@@ -232,7 +236,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                     indexTemplateName,
                     Map.of("index_patterns", List.of(indexName), "composed_of", List.of("test-component-template-2"))
                 ),
-                Map.of()
+                Map.of(),
+                null
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
@@ -255,7 +260,8 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
                 Map.of(
                     "_doc",
                     Map.of("dynamic", "strict", "properties", Map.of("foo1", Map.of("type", "text"), "foo3", Map.of("type", "text")))
-                )
+                ),
+                null
             );
             bulkRequest.add(indexRequest1);
             bulkRequest.add(indexRequest2);
@@ -274,7 +280,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
          * mapping-less "random-index-template" created by the parent class), so we expect no mapping validation failure.
          */
         String indexName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -321,7 +327,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         request.indexTemplate(composableIndexTemplate);
 
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -353,7 +359,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         indicesAdmin().putTemplate(
             new PutIndexTemplateRequest("test-template").patterns(List.of("my-index-*")).mapping("foo1", "type=integer")
         ).actionGet();
-        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
         bulkRequest.add(new IndexRequest(indexName).source("""
             {
               "foo1": "baz"
@@ -407,7 +413,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
         {
             // First, try with no @timestamp to make sure we're picking up data-stream-specific templates
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "foo1": "baz"
@@ -434,7 +440,7 @@ public class TransportSimulateBulkActionIT extends ESIntegTestCase {
         }
         {
             // Now with @timestamp
-            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
+            BulkRequest bulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of(), null);
             bulkRequest.add(new IndexRequest(indexName).source("""
                 {
                   "@timestamp": "2024-08-27",

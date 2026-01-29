@@ -1,5 +1,0 @@
-pr: 118058
-summary: Grant necessary Kibana application privileges to `reporting_user` role
-area: Authorization
-type: enhancement
-issues: []

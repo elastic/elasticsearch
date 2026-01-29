@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -14,6 +16,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -21,14 +24,22 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToStringFromDateNanosEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToStringFromDateNanosEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator datetime;
+
+  private final DateFormatter formatter;
+
+  public ToStringFromDateNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
+      DateFormatter formatter, DriverContext driverContext) {
+    super(driverContext, source);
+    this.datetime = datetime;
+    this.formatter = formatter;
   }
 
   @Override
-  public String name() {
-    return "ToStringFromDateNanos";
+  public EvalOperator.ExpressionEvaluator next() {
+    return datetime;
   }
 
   @Override
@@ -46,9 +57,9 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
     }
   }
 
-  private static BytesRef evalValue(LongVector container, int index) {
+  private BytesRef evalValue(LongVector container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
   }
 
   @Override
@@ -81,29 +92,50 @@ public final class ToStringFromDateNanosEvaluator extends AbstractConvertFunctio
     }
   }
 
-  private static BytesRef evalValue(LongBlock container, int index) {
+  private BytesRef evalValue(LongBlock container, int index) {
     long value = container.getLong(index);
-    return ToString.fromDateNanos(value);
+    return ToString.fromDateNanos(value, this.formatter);
+  }
+
+  @Override
+  public String toString() {
+    return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(datetime);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += datetime.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory datetime;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory datetime,
+        DateFormatter formatter) {
       this.source = source;
+      this.datetime = datetime;
+      this.formatter = formatter;
     }
 
     @Override
     public ToStringFromDateNanosEvaluator get(DriverContext context) {
-      return new ToStringFromDateNanosEvaluator(field.get(context), source, context);
+      return new ToStringFromDateNanosEvaluator(source, datetime.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToStringFromDateNanosEvaluator[field=" + field + "]";
+      return "ToStringFromDateNanosEvaluator[" + "datetime=" + datetime + ", formatter=" + formatter + "]";
     }
   }
 }

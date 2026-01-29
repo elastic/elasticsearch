@@ -18,7 +18,6 @@ module org.elasticsearch.inference {
     requires org.apache.httpcomponents.httpcore.nio;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
-    requires com.ibm.icu;
     requires com.google.auth.oauth2;
     requires com.google.auth;
     requires com.google.api.client;
@@ -35,14 +34,20 @@ module org.elasticsearch.inference {
     requires org.reactivestreams;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.sslconfig;
+    requires org.apache.commons.text;
+    requires software.amazon.awssdk.services.sagemakerruntime;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
     exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.services;
+    exports org.elasticsearch.xpack.inference.services.elastic.ccm;
+    exports org.elasticsearch.xpack.inference.services.elastic.authorization;
     exports org.elasticsearch.xpack.inference;
     exports org.elasticsearch.xpack.inference.action.task;
     exports org.elasticsearch.xpack.inference.telemetry;
+    exports org.elasticsearch.xpack.inference.external.http.sender;
+    exports org.elasticsearch.xpack.inference.services.elastic;
 
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.xpack.inference.InferenceFeatures;
 }

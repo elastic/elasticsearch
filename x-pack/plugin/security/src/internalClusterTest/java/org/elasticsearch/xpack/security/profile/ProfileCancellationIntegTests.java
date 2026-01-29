@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -18,7 +19,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 
 import java.nio.file.Path;
@@ -406,14 +408,13 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void authorizeIndexAction(
+                public SubscribableListener<IndexAuthorizationResult> authorizeIndexAction(
                     RequestInfo requestInfo,
                     AuthorizationInfo authorizationInfo,
                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                    Metadata metadata,
-                    ActionListener<IndexAuthorizationResult> listener
+                    ProjectMetadata metadata
                 ) {
-                    listener.onResponse(IndexAuthorizationResult.ALLOW_NO_INDICES);
+                    return SubscribableListener.newSucceeded(IndexAuthorizationResult.ALLOW_NO_INDICES);
                 }
 
                 @Override
@@ -459,7 +460,11 @@ public class ProfileCancellationIntegTests extends AbstractProfileIntegTestCase 
                 }
 
                 @Override
-                public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
+                public void getUserPrivileges(
+                    AuthorizationInfo authorizationInfo,
+                    RoleReference.ApiKeyRoleType unwrapLimitedRole,
+                    ActionListener<GetUserPrivilegesResponse> listener
+                ) {
                     listener.onFailure(new UnsupportedOperationException("not implemented"));
                 }
             };

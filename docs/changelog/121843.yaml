@@ -1,6 +1,0 @@
-pr: 121843
-summary: Fix async stop sometimes not properly collecting result
-area: ES|QL
-type: bug
-issues:
- - 121249

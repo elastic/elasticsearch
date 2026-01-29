@@ -246,99 +246,6 @@ setup:
         allow_no_match: false
 
 ---
-"Test reading v54 data counts and model size stats":
-
-  - do:
-      ml.put_job:
-        job_id: job-stats-v54-bwc-test
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "analysis_limits" : {
-                "model_memory_limit": "10mb"
-            },
-            "data_description" : {
-            }
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh:
-        index: ".ml-anomalies*"
-
-  # This is testing that the documents with v5.4 IDs are fetched.
-  # Ideally we would use the v5.4 type but we can't put a mapping
-  # for another type into the single type indices. Type isn't used
-  # in the query so the test is valid
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
-      index:
-        index: .ml-anomalies-shared
-        id: job-stats-v54-bwc-test-data-counts
-        body:
-          {
-            job_id : job-stats-v54-bwc-test,
-            processed_record_count : 10,
-            processed_field_count : 0,
-            input_bytes : 0,
-            input_field_count : 0,
-            invalid_date_count : 0,
-            missing_field_count : 0,
-            out_of_order_timestamp_count : 0,
-            empty_bucket_count : 0,
-            sparse_bucket_count : 0,
-            bucket_count : 0,
-            input_record_count : 0,
-            latest_record_timestamp: 2000000000000
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-        Content-Type: application/json
-      index:
-        index: .ml-anomalies-shared
-        id: job-stats-v54-bwc-test-model_size_stats
-        body:
-          {
-            job_id : job-stats-v54-bwc-test,
-            result_type : model_size_stats,
-            model_bytes : 0,
-            total_by_field_count : 101,
-            total_over_field_count : 0,
-            total_partition_field_count : 0,
-            bucket_allocation_failures_count : 0,
-            memory_status : ok,
-            categorized_doc_count : 0,
-            total_category_count : 0,
-            frequent_category_count : 0,
-            rare_category_count : 0,
-            dead_category_count : 0,
-            failed_category_count : 0,
-            categorization_status : ok,
-            log_time : 1495808248662
-          }
-
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh:
-        index: [.ml-anomalies-shared]
-
-  - do:
-      ml.get_job_stats:
-        job_id: job-stats-v54-bwc-test
-  - match: { jobs.0.job_id : job-stats-v54-bwc-test }
-  - match: { jobs.0.data_counts.processed_record_count: 10 }
-  - match: { jobs.0.model_size_stats.total_by_field_count: 101 }
-
----
 "Test no exception on get job stats with missing index":
 
   - skip:
@@ -366,7 +273,7 @@ setup:
 
   - do:
       indices.delete:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
   - do:
       ml.get_job_stats: {}
@@ -440,11 +347,11 @@ setup:
 
   - do:
       indices.close:
-        index: .ml-anomalies-shared
+        index: .ml-anomalies-shared-000001
 
   # With the index closed the low level ML API reports a problem
   - do:
-      catch: /type=cluster_block_exception, reason=index \[.ml-anomalies-shared\] blocked by. \[FORBIDDEN\/.\/index closed\]/
+      catch: /type=cluster_block_exception, reason=index \[.ml-anomalies-shared.*?\] blocked by. \[FORBIDDEN\/.\/index closed\]/
       ml.get_job_stats: {}
 
   # But the high level X-Pack API returns what it can - we do this

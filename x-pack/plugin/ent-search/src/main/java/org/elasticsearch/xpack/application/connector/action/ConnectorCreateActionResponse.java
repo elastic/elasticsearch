@@ -24,7 +24,6 @@ public class ConnectorCreateActionResponse extends ActionResponse implements ToX
     private final DocWriteResponse.Result result;
 
     public ConnectorCreateActionResponse(StreamInput in) throws IOException {
-        super(in);
         this.id = in.readString();
         this.result = DocWriteResponse.Result.readFrom(in);
     }

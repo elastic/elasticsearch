@@ -18,40 +18,44 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description = 'The GCS repository plugin adds Google Cloud Storage support for repositories.'
-  classname ='org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
+  classname = 'org.elasticsearch.repositories.gcs.GoogleCloudStoragePlugin'
 }
 
 dependencies {
-  api 'com.google.cloud:google-cloud-storage:2.13.1'
-  api 'com.google.cloud:google-cloud-core:2.8.28'
-  api 'com.google.cloud:google-cloud-core-http:2.8.28'
-  runtimeOnly 'com.google.guava:guava:32.0.1-jre'
-  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
-  api "commons-logging:commons-logging:${versions.commonslogging}"
-  api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'com.google.api:api-common:2.3.1'
-  api 'com.google.api:gax:2.20.1'
-  api 'org.threeten:threetenbp:1.6.5'
-  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
-  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
-  api 'com.google.code.gson:gson:2.10'
-  api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
-  api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
-  api 'com.google.auth:google-auth-library-credentials:1.11.0'
-  api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
-  api "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}"
-  api 'com.google.api-client:google-api-client:2.1.1'
-  api 'com.google.http-client:google-http-client:1.42.3'
-  api 'com.google.http-client:google-http-client-gson:1.42.3'
-  api 'com.google.http-client:google-http-client-appengine:1.42.3'
-  api 'com.google.http-client:google-http-client-jackson2:1.42.3'
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api 'com.google.api:gax-httpjson:0.105.1'
-  api 'io.grpc:grpc-context:1.49.2'
-  api 'io.opencensus:opencensus-api:0.31.1'
-  api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
-  api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
+  // dependencies consistent with 'com.google.cloud:google-cloud-storage-bom:2.50.0'
+  implementation 'com.google.cloud:google-cloud-storage:2.50.0'
+  implementation 'com.google.cloud:google-cloud-core:2.53.1'
+  implementation 'com.google.cloud:google-cloud-core-http:2.53.1'
+  runtimeOnly 'com.google.guava:guava:33.4.0-jre'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.2'
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
+  implementation 'com.google.api:api-common:2.46.1'
+  implementation 'com.google.api:gax:2.63.1'
+  implementation 'org.threeten:threetenbp:1.7.0'
+  runtimeOnly "com.google.protobuf:protobuf-java-util:${versions.protobuf}" // 3.25.5 in bom
+  runtimeOnly "com.google.protobuf:protobuf-java:${versions.protobuf}"
+  runtimeOnly 'com.google.code.gson:gson:2.12.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.54.1'
+  runtimeOnly 'com.google.api.grpc:proto-google-iam-v1:1.49.1'
+  implementation 'com.google.auth:google-auth-library-credentials:1.33.1'
+  implementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
+  runtimeOnly "com.google.oauth-client:google-oauth-client:${versions.google_oauth_client}" // 1.37.0 in bom
+  implementation 'com.google.api-client:google-api-client:2.7.2'
+  implementation 'com.google.http-client:google-http-client:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-gson:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-appengine:1.46.3'
+  runtimeOnly 'com.google.http-client:google-http-client-jackson2:1.46.3'
+  runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}" // 2.18.2 in bom
+  runtimeOnly 'com.google.api:gax-httpjson:2.63.1'
+  runtimeOnly 'io.opencensus:opencensus-api:0.31.1'
+  runtimeOnly 'io.opencensus:opencensus-contrib-http-util:0.31.1'
+  implementation 'com.google.apis:google-api-services-storage:v1-rev20250224-2.0.0'
+  implementation 'org.checkerframework:checker-qual:3.49.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-api:1.47.0'
+  runtimeOnly 'io.opentelemetry:opentelemetry-context:1.47.0'
+  runtimeOnly 'com.google.api.grpc:proto-google-cloud-storage-v2:2.50.0'
+  runtimeOnly 'io.grpc:grpc-api:1.70.0'
 
   testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
@@ -62,7 +66,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'nodes', 'snapshot','indices', 'index', 'bulk', 'count'
+    include '_common', 'cluster', 'nodes', 'snapshot', 'indices', 'index', 'bulk', 'count'
   }
 }
 
@@ -123,11 +127,6 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
-    // commons-logging optional dependencies
-    'org.apache.avalon.framework.logger.Logger',
-    'org.apache.log.Hierarchy',
-    'org.apache.log.Logger',
-    'javax.jms.Message',
 
     // optional apache http client dependencies
     'org.apache.http.ConnectionReuseStrategy',
@@ -171,19 +170,59 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.http.protocol.HttpProcessor',
     'org.apache.http.protocol.HttpRequestExecutor',
 
-    // commons-logging provided dependencies
-    'javax.servlet.ServletContextEvent',
-    'javax.servlet.ServletContextListener'
+    // grpc/proto stuff
+    'com.google.api.gax.grpc.GrpcCallContext',
+    'com.google.api.gax.grpc.GrpcCallSettings',
+    'com.google.api.gax.grpc.GrpcCallSettings$Builder',
+    'com.google.api.gax.grpc.GrpcInterceptorProvider',
+    'com.google.api.gax.grpc.GrpcStatusCode',
+    'com.google.api.gax.grpc.GrpcStubCallableFactory',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
+    'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider$Builder',
+    'com.google.cloud.grpc.GrpcTransportOptions',
+    'com.google.cloud.grpc.GrpcTransportOptions$Builder',
+    'com.google.cloud.opentelemetry.metric.GoogleCloudMetricExporter',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration',
+    'com.google.cloud.opentelemetry.metric.MetricConfiguration$Builder',
+    'com.google.storage.v2.StorageClient',
+    'com.google.storage.v2.StorageClient$ListBucketsPagedResponse',
+    'com.google.storage.v2.StorageSettings',
+    'com.google.storage.v2.StorageSettings$Builder',
+    'com.google.storage.v2.stub.GrpcStorageStub',
+    'com.google.storage.v2.stub.StorageStubSettings',
+    // opentelemetry implementation stuff
+    'io.grpc.opentelemetry.GrpcOpenTelemetry',
+    'io.grpc.opentelemetry.GrpcOpenTelemetry$Builder',
+    'io.grpc.protobuf.ProtoUtils',
+    'io.opentelemetry.contrib.gcp.resource.GCPResourceProvider',
+    'io.opentelemetry.sdk.OpenTelemetrySdk',
+    'io.opentelemetry.sdk.OpenTelemetrySdkBuilder',
+    'io.opentelemetry.sdk.common.CompletableResultCode',
+    'io.opentelemetry.sdk.common.export.MemoryMode',
+    'io.opentelemetry.sdk.metrics.Aggregation',
+    'io.opentelemetry.sdk.metrics.InstrumentSelector',
+    'io.opentelemetry.sdk.metrics.InstrumentSelectorBuilder',
+    'io.opentelemetry.sdk.metrics.InstrumentType',
+    'io.opentelemetry.sdk.metrics.SdkMeterProvider',
+    'io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder',
+    'io.opentelemetry.sdk.metrics.View',
+    'io.opentelemetry.sdk.metrics.ViewBuilder',
+    'io.opentelemetry.sdk.metrics.data.AggregationTemporality',
+    'io.opentelemetry.sdk.metrics.export.DefaultAggregationSelector',
+    'io.opentelemetry.sdk.metrics.export.MetricExporter',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReader',
+    'io.opentelemetry.sdk.metrics.export.PeriodicMetricReaderBuilder',
+    'io.opentelemetry.sdk.resources.Resource',
   )
 
 
-  if(buildParams.graalVmRuntime == false) {
+  if (buildParams.graalVmRuntime == false) {
     ignoreMissingClasses(
-        'org.graalvm.nativeimage.hosted.Feature',
-        'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
-        'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
-        'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
-        'org.graalvm.nativeimage.hosted.RuntimeReflection'
+      'org.graalvm.nativeimage.hosted.Feature',
+      'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
+      'org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess',
+      'org.graalvm.nativeimage.hosted.Feature$FeatureAccess',
+      'org.graalvm.nativeimage.hosted.RuntimeReflection'
     )
   }
 }
@@ -213,7 +252,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  filter("tokens" : expansions, ReplaceTokens.class)
+  filter("tokens": expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

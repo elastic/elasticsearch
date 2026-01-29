@@ -40,7 +40,6 @@ import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 /** Unit tests for {@link TcpTransport} */
@@ -606,7 +605,7 @@ public class TcpTransportTests extends ESTestCase {
 
             if (expectClosed) {
                 assertTrue(listener.isDone());
-                assertThat(listener.actionGet(), nullValue());
+                expectThrows(Exception.class, () -> listener.get());
             } else {
                 assertFalse(listener.isDone());
             }

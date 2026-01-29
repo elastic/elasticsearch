@@ -11,8 +11,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final ClusterService clusterService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public LogsDBUsageTransportAction(
@@ -39,15 +40,16 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Client client,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.LOGSDB.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,
@@ -55,7 +57,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
     ) {
         int numIndices = 0;
         int numIndicesWithSyntheticSources = 0;
-        for (IndexMetadata indexMetadata : state.metadata()) {
+        for (IndexMetadata indexMetadata : projectResolver.getProjectMetadata(state)) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
                 if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {

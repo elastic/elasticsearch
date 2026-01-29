@@ -1,0 +1,6 @@
+pr: 137920
+summary: Avoid retrieving unnecessary fields on node-reduce phase
+area: "ES|QL"
+type: enhancement
+issues:
+ - 134363

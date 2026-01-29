@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 
 import java.util.function.Supplier;
 
-record ExecutableInferenceRequest(
+public record ExecutableInferenceRequest(
     RequestSender requestSender,
     Logger logger,
     Request request,

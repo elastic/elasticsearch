@@ -12,6 +12,7 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -83,7 +84,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             baseSettings,
             Collections.singletonMap(engine.getType(), engine),
             ScriptModule.CORE_CONTEXTS,
-            () -> 1L
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
@@ -181,14 +183,22 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext() {
-        return createMockSearchExecutionContext(null);
+        return createMockSearchExecutionContext(null, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexVersion indexVersion) {
+        return createMockSearchExecutionContext(null, indexVersion);
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
+        return createMockSearchExecutionContext(searcher, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher, IndexVersion indexVersion) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {

@@ -22,7 +22,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,7 +43,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     }
 
     public void testGetHealthNoRepos() {
-        when(repositoriesService.getRepositories()).thenReturn(Map.of());
+        when(repositoriesService.getRepositories()).thenReturn(List.of());
 
         var health = repositoriesHealthTracker.determineCurrentHealth();
 
@@ -58,7 +57,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
         when(metadata.generation()).thenReturn(randomNonNegativeLong());
         var repo = mock(Repository.class);
         when(repo.getMetadata()).thenReturn(metadata);
-        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), repo));
+        when(repositoriesService.getRepositories()).thenReturn(List.of(repo));
 
         var health = repositoriesHealthTracker.determineCurrentHealth();
 
@@ -68,7 +67,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
 
     public void testGetHealthUnknownType() {
         var repo = createRepositoryMetadata();
-        when(repositoriesService.getRepositories()).thenReturn(Map.of(randomAlphaOfLength(10), new UnknownTypeRepository(repo)));
+        when(repositoriesService.getRepositories()).thenReturn(List.of(new UnknownTypeRepository(randomProjectIdOrDefault(), repo)));
 
         var health = repositoriesHealthTracker.determineCurrentHealth();
 
@@ -80,7 +79,7 @@ public class RepositoriesHealthTrackerTests extends ESTestCase {
     public void testGetHealthInvalid() {
         var repo = createRepositoryMetadata();
         when(repositoriesService.getRepositories()).thenReturn(
-            Map.of(repo.name(), new InvalidRepository(repo, new RepositoryException(repo.name(), "Test")))
+            List.of(new InvalidRepository(randomProjectIdOrDefault(), repo, new RepositoryException(repo.name(), "Test")))
         );
 
         var health = repositoriesHealthTracker.determineCurrentHealth();

@@ -12,7 +12,6 @@ package org.elasticsearch.common.hash;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.math.BigInteger;
-import java.util.Objects;
 
 /**
  * MurmurHash3 hashing functions.
@@ -28,6 +27,13 @@ public enum MurmurHash3 {
         public long h1;
         /** higher 64 bits part **/
         public long h2;
+
+        public Hash128() {}
+
+        public Hash128(long h1, long h2) {
+            this.h1 = h1;
+            this.h2 = h2;
+        }
 
         public byte[] getBytes() {
             byte[] hash = new byte[16];
@@ -49,12 +55,12 @@ public enum MurmurHash3 {
                 return false;
             }
             Hash128 that = (Hash128) other;
-            return Objects.equals(this.h1, that.h1) && Objects.equals(this.h2, that.h2);
+            return this.h1 == that.h1 && this.h2 == that.h2;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(h1, h2);
+            return Long.hashCode(h1 ^ h2);
         }
 
         @Override
@@ -81,7 +87,7 @@ public enum MurmurHash3 {
     private static long C1 = 0x87c37b91114253d5L;
     private static long C2 = 0x4cf5ad432745937fL;
 
-    protected static long fmix(long k) {
+    public static long fmix(long k) {
         k ^= k >>> 33;
         k *= 0xff51afd7ed558ccdL;
         k ^= k >>> 33;

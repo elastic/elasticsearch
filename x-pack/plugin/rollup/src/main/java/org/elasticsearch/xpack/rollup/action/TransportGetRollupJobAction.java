@@ -14,7 +14,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -47,8 +49,15 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(TransportGetRollupCapsAction.class);
 
+    private final ProjectResolver projectResolver;
+
     @Inject
-    public TransportGetRollupJobAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
+    public TransportGetRollupJobAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
         super(
             GetRollupJobsAction.NAME,
             clusterService,
@@ -58,6 +67,7 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
             GetRollupJobsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -67,7 +77,8 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
         final DiscoveryNodes nodes = state.nodes();
 
         if (nodes.isLocalNodeElectedMaster()) {
-            if (stateHasRollupJobs(request, state)) {
+            final ProjectMetadata project = projectResolver.getProjectMetadata(state);
+            if (stateHasRollupJobs(request, project)) {
                 super.doExecute(task, request, listener);
             } else {
                 // If we couldn't find the job in the persistent task CS, it means it was deleted prior to this GET
@@ -99,9 +110,9 @@ public class TransportGetRollupJobAction extends TransportTasksAction<
     /**
      * Check to see if the PersistentTask's cluster state contains the rollup job(s) we are interested in
      */
-    static boolean stateHasRollupJobs(GetRollupJobsAction.Request request, ClusterState state) {
+    static boolean stateHasRollupJobs(GetRollupJobsAction.Request request, ProjectMetadata project) {
         boolean hasRollupJobs = false;
-        PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata pTasksMeta = project.custom(PersistentTasksCustomMetadata.TYPE);
 
         if (pTasksMeta != null) {
             // If the request was for _all rollup jobs, we need to look through the list of

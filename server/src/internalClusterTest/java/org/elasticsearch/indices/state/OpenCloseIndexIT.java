@@ -192,7 +192,11 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        AcknowledgedResponse aliasesResponse = client.admin().indices().prepareAliases().addAlias("test1", "test1-alias").get();
+        AcknowledgedResponse aliasesResponse = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test1", "test1-alias")
+            .get();
         assertThat(aliasesResponse.isAcknowledged(), equalTo(true));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test1-alias").get();
@@ -211,9 +215,17 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForGreenStatus().get();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-        AcknowledgedResponse aliasesResponse1 = client.admin().indices().prepareAliases().addAlias("test1", "test-alias").get();
+        AcknowledgedResponse aliasesResponse1 = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test1", "test-alias")
+            .get();
         assertThat(aliasesResponse1.isAcknowledged(), equalTo(true));
-        AcknowledgedResponse aliasesResponse2 = client.admin().indices().prepareAliases().addAlias("test2", "test-alias").get();
+        AcknowledgedResponse aliasesResponse2 = client.admin()
+            .indices()
+            .prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+            .addAlias("test2", "test-alias")
+            .get();
         assertThat(aliasesResponse2.isAcknowledged(), equalTo(true));
 
         AcknowledgedResponse closeIndexResponse = client.admin().indices().prepareClose("test-alias").get();
@@ -241,7 +253,15 @@ public class OpenCloseIndexIT extends ESIntegTestCase {
         assertThat(response.isShardsAcknowledged(), equalTo(false));
         assertBusy(
             () -> assertThat(
-                client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test").getState(),
+                client.admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .get()
+                    .getState()
+                    .metadata()
+                    .getProject()
+                    .index("test")
+                    .getState(),
                 equalTo(IndexMetadata.State.OPEN)
             )
         );

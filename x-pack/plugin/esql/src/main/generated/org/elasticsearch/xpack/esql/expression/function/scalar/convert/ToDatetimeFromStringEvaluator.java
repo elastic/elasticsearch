@@ -8,6 +8,8 @@ import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
@@ -15,6 +17,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
@@ -22,14 +25,22 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
-  public ToDatetimeFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDatetimeFromStringEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator in;
+
+  private final DateFormatter formatter;
+
+  public ToDatetimeFromStringEvaluator(Source source, EvalOperator.ExpressionEvaluator in,
+      DateFormatter formatter, DriverContext driverContext) {
+    super(driverContext, source);
+    this.in = in;
+    this.formatter = formatter;
   }
 
   @Override
-  public String name() {
-    return "ToDatetimeFromString";
+  public EvalOperator.ExpressionEvaluator next() {
+    return in;
   }
 
   @Override
@@ -58,9 +69,9 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
+  private long evalValue(BytesRefVector container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDatetime.fromKeyword(value, this.formatter);
   }
 
   @Override
@@ -98,29 +109,50 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     }
   }
 
-  private static long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
+  private long evalValue(BytesRefBlock container, int index, BytesRef scratchPad) {
     BytesRef value = container.getBytesRef(index, scratchPad);
-    return ToDatetime.fromKeyword(value);
+    return ToDatetime.fromKeyword(value, this.formatter);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDatetimeFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(in);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += in.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory field;
+    private final EvalOperator.ExpressionEvaluator.Factory in;
 
-    public Factory(EvalOperator.ExpressionEvaluator.Factory field, Source source) {
-      this.field = field;
+    private final DateFormatter formatter;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory in,
+        DateFormatter formatter) {
       this.source = source;
+      this.in = in;
+      this.formatter = formatter;
     }
 
     @Override
     public ToDatetimeFromStringEvaluator get(DriverContext context) {
-      return new ToDatetimeFromStringEvaluator(field.get(context), source, context);
+      return new ToDatetimeFromStringEvaluator(source, in.get(context), formatter, context);
     }
 
     @Override
     public String toString() {
-      return "ToDatetimeFromStringEvaluator[field=" + field + "]";
+      return "ToDatetimeFromStringEvaluator[" + "in=" + in + ", formatter=" + formatter + "]";
     }
   }
 }

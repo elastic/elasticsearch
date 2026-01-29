@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A retriever represents an API element that returns an ordered list of top
@@ -55,10 +56,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
 
     public static final ParseField NAME_FIELD = new ParseField("_name");
 
-    protected static void declareBaseParserFields(
-        String name,
-        AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser
-    ) {
+    protected static void declareBaseParserFields(AbstractObjectParser<? extends RetrieverBuilder, RetrieverParserContext> parser) {
         parser.declareObjectArray(
             (r, v) -> r.preFilterQueryBuilders = new ArrayList<>(v),
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p, c::trackQueryUsage),
@@ -135,7 +133,7 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
             throw new ParsingException(new XContentLocation(nonfe.getLineNumber(), nonfe.getColumnNumber()), message, nonfe);
         }
 
-        context.trackRetrieverUsage(retrieverName);
+        context.trackRetrieverUsage(retrieverBuilder);
 
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(
@@ -244,6 +242,16 @@ public abstract class RetrieverBuilder implements Rewriteable<RetrieverBuilder>,
         boolean allowPartialSearchResults
     ) {
         return validationException;
+    }
+
+    /**
+     * @return Additional fields associated with this retriever that we want to track in
+     * {@link org.elasticsearch.action.admin.cluster.stats.SearchUsageStats}.
+     *
+     * Individual retrievers should override this to add their own specific custom fields.
+     */
+    public Set<String> getExtendedUsageFields() {
+        return Set.of();
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

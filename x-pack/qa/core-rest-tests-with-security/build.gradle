@@ -33,8 +33,10 @@ tasks.named("yamlRestTest").configure {
     'index/10_with_id/Index with ID',
     'indices.get_alias/10_basic/Get alias against closed indices',
   ];
-  if (buildParams.isSnapshotBuild() == false) {
+  if (buildParams.snapshotBuild == false) {
     blacklist += [
+      // doc_values.cardinality option not available in snapshots
+      "search/395_binary_doc_values_search/*",
       'synonyms_privileges/10_synonyms_with_privileges/*',
       'synonyms_privileges/20_synonyms_no_privileges/*'
     ];

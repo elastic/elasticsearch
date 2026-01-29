@@ -9,8 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +26,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.NODE_SHUTDOWN_EPHEMERAL_ID_ADDED;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -36,16 +33,15 @@ import static org.elasticsearch.core.Strings.format;
  */
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
-    public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersions.V_7_16_0;
-    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_9_X;
-    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
-
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField NODE_EPHEMERAL_ID_FIELD = new ParseField("node_ephemeral_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
-    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(STARTED_AT_READABLE_FIELD + "millis");
+    public static final ParseField STARTED_AT_MILLIS_FIELD = new ParseField(
+        STARTED_AT_READABLE_FIELD + "_millis",
+        STARTED_AT_READABLE_FIELD + "millis"
+    );
     public static final ParseField ALLOCATION_DELAY_FIELD = new ParseField("allocation_delay");
     public static final ParseField NODE_SEEN_FIELD = new ParseField("node_seen");
     public static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
@@ -170,26 +166,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
-        if (in.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
-            this.nodeEphemeralId = in.readOptionalString();
-        } else {
-            this.nodeEphemeralId = null; // empty when talking to old nodes, meaning the persistent node id is the only differentiator
-        }
+        this.nodeEphemeralId = in.readOptionalString();
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
         this.nodeSeen = in.readBoolean();
         this.allocationDelay = in.readOptionalTimeValue();
-        if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-            this.targetNodeName = in.readOptionalString();
-        } else {
-            this.targetNodeName = null;
-        }
-        if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-            this.gracePeriod = in.readOptionalTimeValue();
-        } else {
-            this.gracePeriod = null;
-        }
+        this.targetNodeName = in.readOptionalString();
+        this.gracePeriod = in.readOptionalTimeValue();
     }
 
     /**
@@ -268,25 +252,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
-        if (out.getTransportVersion().onOrAfter(NODE_SHUTDOWN_EPHEMERAL_ID_ADDED)) {
-            out.writeOptionalString(nodeEphemeralId);
-        }
-        if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
-            || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
-            out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
-        } else {
-            out.writeEnum(type);
-        }
+        out.writeOptionalString(nodeEphemeralId);
+        out.writeEnum(type);
         out.writeString(reason);
         out.writeVLong(startedAtMillis);
         out.writeBoolean(nodeSeen);
         out.writeOptionalTimeValue(allocationDelay);
-        if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-            out.writeOptionalString(targetNodeName);
-        }
-        if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-            out.writeOptionalTimeValue(gracePeriod);
-        }
+        out.writeOptionalString(targetNodeName);
+        out.writeOptionalTimeValue(gracePeriod);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@ESTestCase.WithoutEntitlements // CLI tools don't run with entitlements enforced
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort) throws Exception {
@@ -137,10 +139,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
                 .build()
         );
-        assertBusy(() -> {
-            ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setLocal(true).get().getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(node, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
 
@@ -242,16 +241,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         internalCluster().stopNode(masterNodes.get(2));
 
         logger.info("--> ensure NO_MASTER_BLOCK on data-only node");
-        assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode)
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
-            assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-        });
+        awaitClusterState(dataNode, state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         logger.info("--> try to unsafely bootstrap 1st master-eligible node, while node lock is held");
         Environment environmentMaster1 = TestEnvironment.newEnvironment(
@@ -294,21 +284,15 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         String dataNode2 = internalCluster().startDataOnlyNode(dataNodeDataPathSettings);
 
         logger.info("--> ensure there is no NO_MASTER_BLOCK and unsafe-bootstrap is reflected in cluster state");
-        assertBusy(() -> {
-            ClusterState state = internalCluster().client(dataNode2)
-                .admin()
-                .cluster()
-                .prepareState(TEST_REQUEST_TIMEOUT)
-                .setLocal(true)
-                .get()
-                .getState();
-            assertFalse(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
-            assertTrue(state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false));
-        });
+        awaitClusterState(
+            dataNode2,
+            state -> state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false
+                && state.metadata().persistentSettings().getAsBoolean(UnsafeBootstrapMasterCommand.UNSAFE_BOOTSTRAP.getKey(), false)
+        );
 
         logger.info("--> ensure index test is green");
         ensureGreen("test");
-        IndexMetadata indexMetadata = clusterService().state().metadata().index("test");
+        IndexMetadata indexMetadata = clusterService().state().metadata().getProject().index("test");
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), notNullValue());
 
         logger.info("--> detach-cluster on 2nd and 3rd master-eligible nodes");
@@ -346,13 +330,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
                 .build()
         );
 
-        ClusterState state = internalCluster().client()
-            .admin()
-            .cluster()
-            .prepareState(TEST_REQUEST_TIMEOUT)
-            .setLocal(true)
-            .get()
-            .getState();
+        ClusterState state = internalCluster().client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertTrue(state.blocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID));
 
         internalCluster().stopNode(node);

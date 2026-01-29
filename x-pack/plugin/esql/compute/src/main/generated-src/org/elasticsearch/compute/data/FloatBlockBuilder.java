@@ -7,12 +7,16 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
+// end generated imports
 
 /**
  * Block build of FloatBlocks.
@@ -25,7 +29,7 @@ final class FloatBlockBuilder extends AbstractBlockBuilder implements FloatBlock
     FloatBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
         super(blockFactory);
         int initialSize = Math.max(estimatedSize, 2);
-        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + initialSize * elementSize());
+        adjustBreaker(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) initialSize * elementSize());
         values = new float[initialSize];
     }
 

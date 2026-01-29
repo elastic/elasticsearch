@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -24,6 +26,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
 public final class DateDiffConstantNanosEvaluator implements EvalOperator.ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DateDiffConstantNanosEvaluator.class);
+
   private final Source source;
 
   private final DateDiff.Part datePartFieldUnit;
@@ -32,17 +36,20 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
 
   private final EvalOperator.ExpressionEvaluator endTimestamp;
 
+  private final ZoneId zoneId;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateDiffConstantNanosEvaluator(Source source, DateDiff.Part datePartFieldUnit,
       EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator endTimestamp, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.datePartFieldUnit = datePartFieldUnit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -63,34 +70,44 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
     }
   }
 
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += startTimestamp.baseRamBytesUsed();
+    baseRamBytesUsed += endTimestamp.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
   public IntBlock eval(int positionCount, LongBlock startTimestampBlock,
       LongBlock endTimestampBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (startTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (startTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startTimestampBlock.getValueCount(p) != 1) {
-          if (startTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (endTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (endTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampBlock.getValueCount(p) != 1) {
-          if (endTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
+        long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,8 +121,10 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
       LongVector endTimestampVector) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
+        long startTimestamp = startTimestampVector.getLong(p);
+        long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.processNanos(this.datePartFieldUnit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -117,7 +136,7 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
 
   @Override
   public String toString() {
-    return "DateDiffConstantNanosEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffConstantNanosEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -146,23 +165,26 @@ public final class DateDiffConstantNanosEvaluator implements EvalOperator.Expres
 
     private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
 
+    private final ZoneId zoneId;
+
     public Factory(Source source, DateDiff.Part datePartFieldUnit,
         EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
+        EvalOperator.ExpressionEvaluator.Factory endTimestamp, ZoneId zoneId) {
       this.source = source;
       this.datePartFieldUnit = datePartFieldUnit;
       this.startTimestamp = startTimestamp;
       this.endTimestamp = endTimestamp;
+      this.zoneId = zoneId;
     }
 
     @Override
     public DateDiffConstantNanosEvaluator get(DriverContext context) {
-      return new DateDiffConstantNanosEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), context);
+      return new DateDiffConstantNanosEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffConstantNanosEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffConstantNanosEvaluator[" + "datePartFieldUnit=" + datePartFieldUnit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
     }
   }
 }

@@ -21,9 +21,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin.replaceStub;
+import static org.elasticsearch.xpack.esql.plan.logical.join.StubRelation.computeOutput;
+
 /**
  * Replace any evaluation from the inlined aggregation side (right side) to the left side (source) to perform the matching.
- * In INLINE m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
+ * In INLINE STATS m = MIN(x) BY a + b the right side contains STATS m = MIN(X) BY a + b.
  * As the grouping key is used to perform the join, the evaluation required for creating it has to be copied to the left side
  * as well.
  */
@@ -34,19 +37,18 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         // check if there's any grouping that uses a reference on the right side
         // if so, look for the source until finding a StubReference
         // then copy those on the left side as well
-
         LogicalPlan left = plan.left();
         LogicalPlan right = plan.right();
 
         // grouping references
         List<Alias> groupingAlias = new ArrayList<>();
+        // TODO: replace this with AttributeSet
         Map<String, ReferenceAttribute> groupingRefs = new LinkedHashMap<>();
 
         // perform only one iteration that does two things
         // first checks any aggregate that declares expressions inside the grouping
         // second that checks any found references to collect their declaration
         right = right.transformDown(p -> {
-
             if (p instanceof Aggregate aggregate) {
                 // collect references
                 for (Expression g : aggregate.groupings()) {
@@ -56,23 +58,25 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
                 }
             }
 
+            if (groupingRefs.isEmpty()) {
+                return p;
+            }
+
             // find their declaration and remove it
-            // TODO: this doesn't take into account aliasing
             if (p instanceof Eval eval) {
-                if (groupingRefs.size() > 0) {
-                    List<Alias> fields = eval.fields();
-                    List<Alias> remainingEvals = new ArrayList<>(fields.size());
-                    for (Alias f : fields) {
-                        if (groupingRefs.remove(f.name()) != null) {
-                            groupingAlias.add(f);
-                        } else {
-                            remainingEvals.add(f);
-                        }
+                List<Alias> fields = eval.fields();
+                List<Alias> remainingEvals = new ArrayList<>(fields.size());
+                for (Alias f : fields) {
+                    // TODO: look into identifying refs by their NameIds instead
+                    if (groupingRefs.remove(f.name()) != null) {
+                        groupingAlias.add(f);
+                    } else {
+                        remainingEvals.add(f);
                     }
-                    if (remainingEvals.size() != fields.size()) {
-                        // if all fields are moved, replace the eval
-                        p = remainingEvals.size() == 0 ? eval.child() : new Eval(eval.source(), eval.child(), remainingEvals);
-                    }
+                }
+                if (remainingEvals.size() != fields.size()) {
+                    // if all fields are moved, replace the eval
+                    p = remainingEvals.size() == 0 ? eval.child() : new Eval(eval.source(), eval.child(), remainingEvals);
                 }
             }
             return p;
@@ -82,8 +86,7 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         if (groupingAlias.size() > 0) {
             left = new Eval(plan.source(), plan.left(), groupingAlias);
         }
-
         // replace the old stub with the new out to capture the new output
-        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right));
+        return plan.replaceChildren(left, replaceStub(new StubRelation(right.source(), computeOutput(right, left)), right));
     }
 }

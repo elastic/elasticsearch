@@ -8,8 +8,8 @@
  */
 package org.elasticsearch.action.index;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
@@ -48,6 +48,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -191,6 +192,8 @@ public class IndexRequestTests extends ESTestCase {
             .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
         indexRequest.source("{}", XContentType.JSON);
         indexRequest.setDynamicTemplates(dynamicTemplates);
+        Map<String, Map<String, String>> dynamicTemplateParams = createRandomDynamicTemplateParams(0, 10);
+        indexRequest.setDynamicTemplateParams(dynamicTemplateParams);
         indexRequest.setRequireAlias(isRequireAlias);
         assertEquals(XContentType.JSON, indexRequest.getContentType());
 
@@ -199,9 +202,15 @@ public class IndexRequestTests extends ESTestCase {
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         IndexRequest serialized = new IndexRequest(in);
         assertEquals(XContentType.JSON, serialized.getContentType());
-        assertEquals(new BytesArray("{}"), serialized.source());
+        assertThat(serialized.source(), equalBytes(new BytesArray("{}")));
         assertEquals(isRequireAlias, serialized.isRequireAlias());
         assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+    }
+
+    private static Map<String, Map<String, String>> createRandomDynamicTemplateParams(int min, int max) {
+        return IntStream.range(0, randomIntBetween(min, max))
+            .boxed()
+            .collect(Collectors.toMap(n -> "field-" + n, n -> Map.of("key-" + n, "value-" + n)));
     }
 
     // reindex makes use of index requests without a source so this needs to be handled
@@ -228,7 +237,7 @@ public class IndexRequestTests extends ESTestCase {
             if (randomBoolean()) {
                 indexRequest.setDynamicTemplates(Map.of());
             }
-            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion(random());
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);
@@ -243,11 +252,7 @@ public class IndexRequestTests extends ESTestCase {
                 .boxed()
                 .collect(Collectors.toMap(n -> "field-" + n, n -> "name-" + n));
             indexRequest.setDynamicTemplates(dynamicTemplates);
-            TransportVersion ver = TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_7_13_0,
-                TransportVersion.current()
-            );
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
             BytesStreamOutput out = new BytesStreamOutput();
             out.setTransportVersion(ver);
             indexRequest.writeTo(out);
@@ -255,6 +260,50 @@ public class IndexRequestTests extends ESTestCase {
             in.setTransportVersion(ver);
             IndexRequest serialized = new IndexRequest(in);
             assertThat(serialized.getDynamicTemplates(), equalTo(dynamicTemplates));
+        }
+    }
+
+    public void testSerializeDynamicTemplateParams() throws Exception {
+        IndexRequest indexRequest = new IndexRequest("foo").id("1");
+        indexRequest.source("{}", XContentType.JSON);
+        // Empty dynamic templates
+        {
+            if (randomBoolean()) {
+                indexRequest.setDynamicTemplateParams(Map.of());
+            }
+            TransportVersion ver = TransportVersionUtils.randomCompatibleVersion();
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), anEmptyMap());
+        }
+        // old version
+        {
+            indexRequest.setDynamicTemplateParams(createRandomDynamicTemplateParams(1, 10));
+            TransportVersion ver = TransportVersionUtils.randomVersionNotSupporting(IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), anEmptyMap());
+        }
+        // new version
+        {
+            Map<String, Map<String, String>> dynamicTemplateParams = createRandomDynamicTemplateParams(0, 10);
+            indexRequest.setDynamicTemplateParams(dynamicTemplateParams);
+            TransportVersion ver = TransportVersionUtils.randomVersionSupporting(IndexRequest.INGEST_REQUEST_DYNAMIC_TEMPLATE_PARAMS);
+            BytesStreamOutput out = new BytesStreamOutput();
+            out.setTransportVersion(ver);
+            indexRequest.writeTo(out);
+            StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+            in.setTransportVersion(ver);
+            IndexRequest serialized = new IndexRequest(in);
+            assertThat(serialized.getDynamicTemplateParams(), equalTo(dynamicTemplateParams));
         }
     }
 
@@ -302,6 +351,7 @@ public class IndexRequestTests extends ESTestCase {
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
         var metadata = clusterState.getMetadata();
+        var project = metadata.getProject();
 
         String source = """
             {
@@ -312,16 +362,16 @@ public class IndexRequestTests extends ESTestCase {
             IndexRequest request = new IndexRequest(tsdbDataStream);
             request.source(renderSource(source, start1), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
-            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project);
+            assertThat(result, equalTo(project.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
         {
             // Target is a regular index => resolve to this index only
-            String indexName = metadata.getIndices().keySet().iterator().next();
+            String indexName = project.indices().keySet().iterator().next();
             IndexRequest request = new IndexRequest(indexName);
             request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(indexName), metadata);
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(indexName), project);
             assertThat(result.getName(), equalTo(indexName));
         }
         {
@@ -340,11 +390,12 @@ public class IndexRequestTests extends ESTestCase {
                     )
                 )
                 .build();
+            var project2 = metadata2.getProject();
             // Target is a regular data stream => always resolve to the latest backing index
             IndexRequest request = new IndexRequest(regularDataStream);
             request.source(renderSource(source, randomFrom(start1, end1, start2, end2)), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata2.getIndicesLookup().get(regularDataStream), metadata2);
+            var result = request.getConcreteWriteIndex(project2.getIndicesLookup().get(regularDataStream), project2);
             assertThat(result.getName(), equalTo(backingIndex2.getIndex().getName()));
         }
         {
@@ -353,8 +404,8 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start1), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
-            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project);
+            assertThat(result, equalTo(project.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
             // provided timestamp as millis since epoch resolves to the first backing index
@@ -362,8 +413,8 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(source.replace("$time", "" + start1.toEpochMilli()), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
-            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project);
+            assertThat(result, equalTo(project.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
             IndexRequest request = new IndexRequest(tsdbDataStream);
@@ -373,8 +424,8 @@ public class IndexRequestTests extends ESTestCase {
                 XContentType.JSON
             );
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
-            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project);
+            assertThat(result, equalTo(project.dataStreams().get(tsdbDataStream).getIndices().get(0)));
         }
         {
             // provided timestamp resolves to the latest backing index
@@ -382,8 +433,8 @@ public class IndexRequestTests extends ESTestCase {
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start2), XContentType.JSON);
 
-            var result = request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata);
-            assertThat(result, equalTo(metadata.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+            var result = request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project);
+            assertThat(result, equalTo(project.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
         {
             // provided timestamp resolves to no index => fail with an exception
@@ -393,7 +444,7 @@ public class IndexRequestTests extends ESTestCase {
 
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project)
             );
             assertThat(
                 e.getMessage(),
@@ -415,7 +466,7 @@ public class IndexRequestTests extends ESTestCase {
             request.source(Map.of("foo", randomAlphaOfLength(5)), XContentType.JSON);
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project)
             );
             assertThat(
                 e.getMessage(),
@@ -434,7 +485,7 @@ public class IndexRequestTests extends ESTestCase {
             request.setRawTimestamp(10.0d);
             var e = expectThrows(
                 IllegalArgumentException.class,
-                () -> request.getConcreteWriteIndex(metadata.getIndicesLookup().get(tsdbDataStream), metadata)
+                () -> request.getConcreteWriteIndex(project.getIndicesLookup().get(tsdbDataStream), project)
             );
             assertThat(
                 e.getMessage(),
@@ -448,17 +499,18 @@ public class IndexRequestTests extends ESTestCase {
             var metadataBuilder3 = Metadata.builder(metadata);
             metadataBuilder3.put(alias.getName(), tsdbDataStream, true, null);
             var metadata3 = metadataBuilder3.build();
+            var project3 = metadata3.getProject();
             IndexRequest request = new IndexRequest(alias.getName());
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start1), XContentType.JSON);
-            var result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
-            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
+            var result = request.getConcreteWriteIndex(project3.getIndicesLookup().get(alias.getName()), project3);
+            assertThat(result, equalTo(project3.dataStreams().get(tsdbDataStream).getIndices().get(0)));
 
             request = new IndexRequest(alias.getName());
             request.opType(DocWriteRequest.OpType.CREATE);
             request.source(renderSource(source, start2), XContentType.JSON);
-            result = request.getConcreteWriteIndex(metadata3.getIndicesLookup().get(alias.getName()), metadata3);
-            assertThat(result, equalTo(metadata3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
+            result = request.getConcreteWriteIndex(project3.getIndicesLookup().get(alias.getName()), project3);
+            assertThat(result, equalTo(project3.dataStreams().get(tsdbDataStream).getIndices().get(1)));
         }
     }
 
@@ -482,6 +534,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(copy.getFinalPipeline(), equalTo(indexRequest.getFinalPipeline()));
         assertThat(copy.ifPrimaryTerm(), equalTo(indexRequest.ifPrimaryTerm()));
         assertThat(copy.isRequireDataStream(), equalTo(indexRequest.isRequireDataStream()));
+        assertThat(copy.tsid(), equalTo(indexRequest.tsid()));
     }
 
     private IndexRequest createTestInstance() {
@@ -497,6 +550,7 @@ public class IndexRequestTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 20); i++) {
             indexRequest.addPipeline(randomAlphaOfLength(20));
         }
+        indexRequest.tsid(randomFrom(new BytesRef(randomAlphaOfLength(20)), null));
         return indexRequest;
     }
 }

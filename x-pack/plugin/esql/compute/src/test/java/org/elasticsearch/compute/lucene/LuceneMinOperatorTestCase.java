@@ -12,18 +12,19 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -42,7 +43,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
+public abstract class LuceneMinOperatorTestCase extends SourceOperatorTestCase {
 
     protected interface NumberTypeTest {
 
@@ -72,7 +73,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
     }
 
     @Override
-    protected LuceneMinFactory simple() {
+    protected LuceneMinFactory simple(SimpleOptions options) {
         return simple(getNumberTypeTest(), randomFrom(DataPartitioning.values()), between(1, 10_000), 100);
     }
 
@@ -111,11 +112,19 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         final ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
         final Query query;
         if (enableShortcut && randomBoolean()) {
-            query = new MatchAllDocsQuery();
+            query = Queries.ALL_DOCS_INSTANCE;
         } else {
             query = SortedNumericDocValuesField.newSlowRangeQuery(FIELD_NAME, Long.MIN_VALUE, Long.MAX_VALUE);
         }
-        return new LuceneMinFactory(List.of(ctx), c -> query, dataPartitioning, between(1, 8), FIELD_NAME, getNumberType(), limit);
+        return new LuceneMinFactory(
+            new IndexedByShardIdFromSingleton<>(ctx),
+            c -> List.of(new LuceneSliceQueue.QueryAndTags(query, List.of())),
+            dataPartitioning,
+            between(1, 8),
+            FIELD_NAME,
+            getNumberType(),
+            limit
+        );
     }
 
     public void testSimple() {
@@ -166,7 +175,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         int taskConcurrency = between(1, 8);
         for (int i = 0; i < taskConcurrency; i++) {
             DriverContext ctx = contexts.get();
-            drivers.add(new Driver("test", ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add), () -> {}));
+            drivers.add(TestDriverFactory.create(ctx, factory.get(ctx), List.of(), new TestResultPageSinkOperator(results::add)));
         }
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
@@ -194,7 +203,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneMinMaxOperator\\[maxPageSize = \\d+, remainingDocs=100]");
+        return matchesRegex("LuceneMinMaxOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs=100]");
     }
 
     @Override
@@ -202,7 +211,7 @@ public abstract class LuceneMinOperatorTestCase extends AnyOperatorTestCase {
         return matchesRegex(
             "LuceneMinOperator\\[type = "
                 + getNumberType().name()
-                + ", dataPartitioning = (DOC|SHARD|SEGMENT), fieldName = "
+                + ", dataPartitioning = (AUTO|DOC|SHARD|SEGMENT), fieldName = "
                 + FIELD_NAME
                 + ", limit = 100]"
         );

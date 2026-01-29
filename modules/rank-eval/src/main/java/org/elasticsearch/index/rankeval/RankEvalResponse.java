@@ -44,7 +44,6 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
     }
 
     RankEvalResponse(StreamInput in) throws IOException {
-        super(in);
         this.metricScore = in.readDouble();
         int partialResultSize = in.readVInt();
         this.details = Maps.newMapWithExpectedSize(partialResultSize);

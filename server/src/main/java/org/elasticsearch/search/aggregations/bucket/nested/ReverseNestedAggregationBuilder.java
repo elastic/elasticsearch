@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -83,6 +82,18 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
             throw new IllegalArgumentException("Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation");
+        }
+
+        if (path != null) {
+            NestedObjectMapper currentParent = context.nestedScope().getObjectMapper();
+            if (currentParent != null) {
+                String parentPath = currentParent.fullPath();
+                if (parentPath.equals(path) == false && parentPath.startsWith(path + ".") == false) {
+                    throw new IllegalArgumentException(
+                        "Reverse nested path [" + path + "] is not a parent of the current nested scope [" + parentPath + "]"
+                    );
+                }
+            }
         }
 
         NestedObjectMapper nestedMapper = null;
@@ -172,6 +183,6 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

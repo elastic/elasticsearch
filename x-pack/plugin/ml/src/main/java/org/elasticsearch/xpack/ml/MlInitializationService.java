@@ -26,6 +26,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -67,9 +68,11 @@ public final class MlInitializationService implements ClusterStateListener {
         Client client,
         AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         MlAssignmentNotifier mlAssignmentNotifier,
+        IndexNameExpressionResolver indexNameExpressionResolver,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
-        boolean isNlpEnabled
+        boolean isNlpEnabled,
+        boolean isIlmEnabled
     ) {
         this(
             client,
@@ -81,9 +84,11 @@ public final class MlInitializationService implements ClusterStateListener {
                 client,
                 clusterService,
                 mlAssignmentNotifier,
+                indexNameExpressionResolver,
                 isAnomalyDetectionEnabled,
                 isDataFrameAnalyticsEnabled,
-                isNlpEnabled
+                isNlpEnabled,
+                isIlmEnabled
             ),
             adaptiveAllocationsScalerService,
             clusterService
@@ -111,6 +116,12 @@ public final class MlInitializationService implements ClusterStateListener {
                         MachineLearning.NIGHTLY_MAINTENANCE_REQUESTS_PER_SECOND,
                         mlDailyMaintenanceService::setDeleteExpiredDataRequestsPerSecond
                     );
+                clusterService.getClusterSettings()
+                    .addSettingsUpdateConsumer(
+                        MachineLearning.RESULTS_INDEX_ROLLOVER_MAX_SIZE,
+                        mlDailyMaintenanceService::setRolloverMaxSize
+                    );
+
             }
 
             @Override
@@ -193,7 +204,10 @@ public final class MlInitializationService implements ClusterStateListener {
 
         // Step 4: Extract ML internal aliases that are not hidden and make them hidden.
         ActionListener<GetAliasesResponse> getAliasesResponseListener = ActionListener.wrap(getAliasesResponse -> {
-            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
+            IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest(
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT
+            );
             for (var entry : getAliasesResponse.getAliases().entrySet()) {
                 for (AliasMetadata existingAliasMetadata : entry.getValue()) {
                     if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {

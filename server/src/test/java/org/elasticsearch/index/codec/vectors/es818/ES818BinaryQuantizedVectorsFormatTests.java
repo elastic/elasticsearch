@@ -19,12 +19,17 @@
  */
 package org.elasticsearch.index.codec.vectors.es818;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.KnnVectorsReader;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
@@ -32,21 +37,39 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SoftDeletesRetentionMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.CheckJoinIndex;
+import org.apache.lucene.search.join.DiversifyingChildrenFloatKnnVectorQuery;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
+import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
+import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
+import static org.apache.lucene.index.VectorSimilarityFunction.DOT_PRODUCT;
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
@@ -58,14 +81,75 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    static final Codec codec = TestUtil.alwaysKnnVectorsFormat(new ES818BinaryQuantizedRWVectorsFormat());
+
     @Override
     protected Codec getCodec() {
-        return new Lucene101Codec() {
-            @Override
-            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES818BinaryQuantizedVectorsFormat();
+        return codec;
+    }
+
+    @Override
+    protected VectorSimilarityFunction randomSimilarity() {
+        return RandomPicks.randomFrom(
+            random(),
+            List.of(
+                VectorSimilarityFunction.DOT_PRODUCT,
+                VectorSimilarityFunction.EUCLIDEAN,
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT
+            )
+        );
+    }
+
+    static String encodeInts(int[] i) {
+        return Arrays.toString(i);
+    }
+
+    static BitSetProducer parentFilter(IndexReader r) throws IOException {
+        // Create a filter that defines "parent" documents in the index
+        BitSetProducer parentsFilter = new QueryBitSetProducer(new TermQuery(new Term("docType", "_parent")));
+        CheckJoinIndex.check(r, parentsFilter);
+        return parentsFilter;
+    }
+
+    Document makeParent(int[] children) {
+        Document parent = new Document();
+        parent.add(newStringField("docType", "_parent", Field.Store.NO));
+        parent.add(newStringField("id", encodeInts(children), Field.Store.YES));
+        return parent;
+    }
+
+    public void testEmptyDiversifiedChildSearch() throws Exception {
+        String fieldName = "field";
+        int dims = random().nextInt(4, 65);
+        float[] vector = randomVector(dims);
+        VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
+        try (Directory d = newDirectory()) {
+            IndexWriterConfig iwc = newIndexWriterConfig().setCodec(codec);
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
+            try (IndexWriter w = new IndexWriter(d, iwc)) {
+                List<Document> toAdd = new ArrayList<>();
+                for (int j = 1; j <= 5; j++) {
+                    Document doc = new Document();
+                    doc.add(new KnnFloatVectorField(fieldName, vector, similarityFunction));
+                    doc.add(newStringField("id", Integer.toString(j), Field.Store.YES));
+                    toAdd.add(doc);
+                }
+                toAdd.add(makeParent(new int[] { 1, 2, 3, 4, 5 }));
+                w.addDocuments(toAdd);
+                w.addDocuments(List.of(makeParent(new int[] { 6, 7, 8, 9, 10 })));
+                w.deleteDocuments(new FieldExistsQuery(fieldName), new TermQuery(new Term("id", encodeInts(new int[] { 1, 2, 3, 4, 5 }))));
+                w.flush();
+                w.commit();
+                w.forceMerge(1);
+                try (IndexReader reader = DirectoryReader.open(w)) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    BitSetProducer parentFilter = parentFilter(searcher.getIndexReader());
+                    Query query = new DiversifyingChildrenFloatKnnVectorQuery(fieldName, vector, null, 1, parentFilter);
+                    assertTrue(searcher.search(query, 1).scoreDocs.length == 0);
+                }
             }
-        };
+
+        }
     }
 
     public void testSearch() throws Exception {
@@ -156,26 +240,84 @@ public class ES818BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                     assertEquals(centroid.length, dims);
 
                     OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
-                    byte[] quantizedVector = new byte[dims];
+                    int[] quantizedVector = new int[dims];
                     byte[] expectedVector = new byte[BQVectorUtils.discretize(dims, 64) / 8];
                     if (similarityFunction == VectorSimilarityFunction.COSINE) {
                         vectorValues = new ES818BinaryQuantizedVectorsWriter.NormalizedFloatVectorValues(vectorValues);
                     }
                     KnnVectorValues.DocIndexIterator docIndexIterator = vectorValues.iterator();
 
+                    float[] scratch = new float[dims];
                     while (docIndexIterator.nextDoc() != NO_MORE_DOCS) {
                         OptimizedScalarQuantizer.QuantizationResult corrections = quantizer.scalarQuantize(
                             vectorValues.vectorValue(docIndexIterator.index()),
+                            scratch,
                             quantizedVector,
                             (byte) 1,
                             centroid
                         );
-                        BQVectorUtils.packAsBinary(quantizedVector, expectedVector);
+                        ESVectorUtil.packAsBinary(quantizedVector, expectedVector);
                         assertArrayEquals(expectedVector, qvectorValues.vectorValue(docIndexIterator.index()));
-                        assertEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
+                        assertQuantizationResultEquals(corrections, qvectorValues.getCorrectiveTerms(docIndexIterator.index()));
                     }
                 }
             }
         }
+    }
+
+    static void assertQuantizationResultEquals(
+        OptimizedScalarQuantizer.QuantizationResult expected,
+        OptimizedScalarQuantizer.QuantizationResult obj
+    ) {
+        assertEquals(expected.lowerInterval(), obj.lowerInterval(), 0.000001f);
+        assertEquals(expected.upperInterval(), obj.upperInterval(), 0.000001f);
+        assertEquals(expected.additionalCorrection(), obj.additionalCorrection(), 0.00001f);
+        assertEquals(expected.quantizedComponentSum(), obj.quantizedComponentSum());
+    }
+
+    public void testSimpleOffHeapSize() throws IOException {
+        try (Directory dir = newDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeMMapDir() throws IOException {
+        try (Directory dir = newMMapDirectory()) {
+            testSimpleOffHeapSizeImpl(dir, newIndexWriterConfig(), true);
+        }
+    }
+
+    public void testSimpleOffHeapSizeImpl(Directory dir, IndexWriterConfig config, boolean expectVecOffHeap) throws IOException {
+        float[] vector = randomVector(random().nextInt(12, 500));
+        try (IndexWriter w = new IndexWriter(dir, config)) {
+            Document doc = new Document();
+            doc.add(new KnnFloatVectorField("f", vector, DOT_PRODUCT));
+            w.addDocument(doc);
+            w.commit();
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                LeafReader r = getOnlyLeafReader(reader);
+                if (r instanceof CodecReader codecReader) {
+                    KnnVectorsReader knnVectorsReader = codecReader.getVectorReader();
+                    if (knnVectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
+                        knnVectorsReader = fieldsReader.getFieldReader("f");
+                    }
+                    var fieldInfo = r.getFieldInfos().fieldInfo("f");
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
+                    assertEquals(expectVecOffHeap ? 2 : 1, offHeap.size());
+                    assertTrue(offHeap.get("veb") > 0L);
+                    if (expectVecOffHeap) {
+                        assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
+                    }
+                }
+            }
+        }
+    }
+
+    static Directory newMMapDirectory() throws IOException {
+        Directory dir = new MMapDirectory(createTempDir("ES818BinaryQuantizedVectorsFormatTests"));
+        if (random().nextBoolean()) {
+            dir = new MockDirectoryWrapper(random(), dir);
+        }
+        return dir;
     }
 }

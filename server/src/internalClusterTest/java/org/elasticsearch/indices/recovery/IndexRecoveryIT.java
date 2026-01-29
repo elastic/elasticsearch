@@ -1764,7 +1764,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .getIndices();
                     assertThat(nodeIndicesStats.getStore().reservedSizeInBytes(), equalTo(0L));
                     assertThat(
-                        nodeIndicesStats.getShardStats(clusterState.metadata().index(indexName).getIndex())
+                        nodeIndicesStats.getShardStats(clusterState.metadata().getProject().index(indexName).getIndex())
                             .stream()
                             .flatMap(s -> Arrays.stream(s.getShards()))
                             .map(s -> s.getStats().getStore().reservedSizeInBytes())
@@ -1979,7 +1979,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         if (randomBoolean()) {
             indexSettingsBuilder.put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current())
             );
         }
         createIndex(indexName, indexSettingsBuilder.build());
@@ -2064,7 +2064,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                 .put(
                     IndexMetadata.SETTING_VERSION_CREATED,
                     IndexVersionUtils.randomVersionBetween(
-                        random(),
                         IndexVersionUtils.getLowestWriteCompatibleVersion(),
                         IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
                     )

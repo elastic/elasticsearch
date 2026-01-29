@@ -1,5 +1,0 @@
-pr: 120546
-summary: Restrict agent entitlements to the system classloader unnamed module
-area: Infra/Plugins
-type: bug
-issues: []

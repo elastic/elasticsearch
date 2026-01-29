@@ -13,7 +13,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -163,14 +162,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Joiner joiner = Joiner.getJoiner(context);
         if (joiner == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "[" + NAME + "] no join field has been configured");
             }
         }
         if (joiner.parentTypeExists(parentType) == false) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(
                     context,
@@ -315,6 +314,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

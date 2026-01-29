@@ -1,0 +1,6 @@
+pr: 127053
+summary: Add missing fields to the Logstash Stack Monitoring Template
+area: Monitoring
+type: enhancement
+issues:
+  - 125499

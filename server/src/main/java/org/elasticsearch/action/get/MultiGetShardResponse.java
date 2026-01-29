@@ -31,7 +31,6 @@ public class MultiGetShardResponse extends ActionResponse {
     }
 
     MultiGetShardResponse(StreamInput in) throws IOException {
-        super(in);
         int size = in.readVInt();
         locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);

@@ -109,7 +109,9 @@ public class SecurityMigrationsTests extends ESTestCase {
     public void testCleanupRoleMappingDuplicatesMigrationPartialFailure() {
         // Make sure migration continues even if a duplicate is not found
         SecurityIndexManager securityIndexManager = mock(SecurityIndexManager.class);
-        when(securityIndexManager.getRoleMappingsCleanupMigrationStatus()).thenReturn(
+        SecurityIndexManager.IndexState projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndexManager.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.getRoleMappingsCleanupMigrationStatus()).thenReturn(
             SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY
         );
         doAnswer(inv -> {

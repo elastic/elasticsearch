@@ -134,8 +134,11 @@ custom behaviour in the
 
 We go to some lengths to try and make the Docker build resilient to transient
 network errors. This is why, when browsing the
-[Dockerfile](src/docker/Dockerfile), you'll see many commands wrapped in looping
-logic, so that if e.g. package installation fails, we try again. We also perform
+[Dockerfile](src/docker/dockerfiles/wolfi/Dockerfile), you'll see many commands wrapped in looping
+logic, so that if e.g. package installation fails, we try again.
+Our default docker image and the Iron Bank image do not have this retry logic,
+because Dockerhub and Iron Bank asked for as concise as possible Dockerfiles.
+We also perform
 explicit `docker pull` commands instead of relying on `docker run` to pull an
 image down automatically, so that we can wrap the `pull` part in a retry.
 

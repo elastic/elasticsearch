@@ -13,7 +13,7 @@ $endif$
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.$Hash$;
+import org.elasticsearch.common.util.$Hash$Table;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 $if(BytesRef)$
@@ -63,7 +63,7 @@ $endif$
  */
 final class $Type$BlockHash extends BlockHash {
     private final int channel;
-    final $Hash$ hash;
+    final $Hash$Table hash;
 
     /**
      * Have we seen any {@code null} values?
@@ -77,7 +77,7 @@ final class $Type$BlockHash extends BlockHash {
     $Type$BlockHash(int channel, BlockFactory blockFactory) {
         super(blockFactory);
         this.channel = channel;
-        this.hash = new $Hash$(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.new$Hash$(blockFactory);
     }
 
     @Override
@@ -104,8 +104,16 @@ final class $Type$BlockHash extends BlockHash {
         }
     }
 
+    /**
+     *  Adds the vector values to the hash, and returns a new vector with the group IDs for those positions.
+     */
     IntVector add($Type$Vector vector) {
 $if(BytesRef)$
+        if (vector.isConstant()) {
+            BytesRef v = vector.getBytesRef(0, new BytesRef());
+            int groupId = Math.toIntExact(hashOrdToGroupNullReserved(hash.add(v)));
+            return blockFactory.newConstantIntVector(groupId, vector.getPositionCount());
+        }
         var ordinals = vector.asOrdinals();
         if (ordinals != null) {
             return addOrdinalsVector(ordinals);
@@ -128,6 +136,12 @@ $endif$
         }
     }
 
+    /**
+     *  Adds the block values to the hash, and returns a new vector with the group IDs for those positions.
+     * <p>
+     *     For nulls, a 0 group ID is used. For multivalues, a multivalue is used with all the group IDs.
+     * </p>
+     */
     IntBlock add($Type$Block block) {
 $if(BytesRef)$
         var ordinals = block.asOrdinals();
@@ -159,15 +173,18 @@ $endif$
 $if(BytesRef)$
     private IntVector addOrdinalsVector(OrdinalBytesRefVector inputBlock) {
         IntVector inputOrds = inputBlock.getOrdinalsVector();
-        try (
-            var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount());
-            var hashOrds = add(inputBlock.getDictionaryVector())
-        ) {
-            for (int p = 0; p < inputOrds.getPositionCount(); p++) {
-                int ord = hashOrds.getInt(inputOrds.getInt(p));
-                builder.appendInt(ord);
+        try (var hashOrds = add(inputBlock.getDictionaryVector())) {
+            if (inputOrds.isConstant()) {
+                int ord = hashOrds.getInt(inputOrds.getInt(0));
+                return blockFactory.newConstantIntVector(ord, inputOrds.getPositionCount());
             }
-            return builder.build();
+            try (var builder = blockFactory.newIntVectorBuilder(inputOrds.getPositionCount())) {
+                for (int p = 0; p < inputOrds.getPositionCount(); p++) {
+                    int ord = hashOrds.getInt(inputOrds.getInt(p));
+                    builder.appendInt(ord);
+                }
+                return builder.build();
+            }
         }
     }
 
@@ -298,7 +315,16 @@ $endif$
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1), blockFactory);
+        return blockFactory.newIntRangeVector(seenNull ? 0 : 1, Math.toIntExact(hash.size() + 1));
+    }
+
+    @Override
+    public int numKeys() {
+        if (seenNull) {
+            return Math.toIntExact(hash.size() + 1);
+        } else {
+            return Math.toIntExact(hash.size());
+        }
     }
 
     @Override

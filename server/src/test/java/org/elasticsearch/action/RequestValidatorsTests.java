@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.arrayWithSize;
 
 public class RequestValidatorsTests extends ESTestCase {
 
-    private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, state, indices) -> Optional.empty();
-    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL = (request, state, indices) -> Optional.of(
+    private final RequestValidators.RequestValidator<PutMappingRequest> EMPTY = (request, projectMetadata, indices) -> Optional.empty();
+    private final RequestValidators.RequestValidator<PutMappingRequest> FAIL = (request, projectMetadata, indices) -> Optional.of(
         new Exception("failure")
     );
 

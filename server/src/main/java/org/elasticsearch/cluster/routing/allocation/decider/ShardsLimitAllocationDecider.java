@@ -81,7 +81,7 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return doDecide(
-            allocation.metadata().getIndexSafe(shardRouting.index()),
+            allocation.metadata().indexMetadata(shardRouting.index()),
             shardRouting,
             node,
             allocation,

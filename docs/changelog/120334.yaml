@@ -1,5 +1,0 @@
-pr: 120334
-summary: Introduce `IndexSettingDeprecatedInV8AndRemovedInV9` Setting property
-area: Infra/Settings
-type: enhancement
-issues: []

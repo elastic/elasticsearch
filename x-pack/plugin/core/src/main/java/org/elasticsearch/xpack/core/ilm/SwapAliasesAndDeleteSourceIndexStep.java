@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
@@ -73,13 +73,13 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
     @Override
     public void performAction(
         IndexMetadata indexMetadata,
-        ClusterState currentClusterState,
+        ProjectState currentState,
         ClusterStateObserver observer,
         ActionListener<Void> listener
     ) {
         String originalIndex = indexMetadata.getIndex().getName();
         final String targetIndexName = targetIndexNameSupplier.apply(originalIndex, indexMetadata.getLifecycleExecutionState());
-        IndexMetadata targetIndexMetadata = currentClusterState.metadata().index(targetIndexName);
+        IndexMetadata targetIndexMetadata = currentState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
             String policyName = indexMetadata.getLifecyclePolicyName();
@@ -94,7 +94,13 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
             return;
         }
 
-        deleteSourceIndexAndTransferAliases(getClient(), indexMetadata, targetIndexName, listener, createSourceIndexAlias);
+        deleteSourceIndexAndTransferAliases(
+            getClient(currentState.projectId()),
+            indexMetadata,
+            targetIndexName,
+            listener,
+            createSourceIndexAlias
+        );
     }
 
     /**
@@ -113,8 +119,9 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
         boolean createSourceIndexAlias
     ) {
         String sourceIndexName = sourceIndex.getIndex().getName();
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().masterNodeTimeout(TimeValue.MAX_VALUE)
-            .addAliasAction(IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName));
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest(TimeValue.MAX_VALUE, TimeValue.THIRTY_SECONDS).addAliasAction(
+            IndicesAliasesRequest.AliasActions.removeIndex().index(sourceIndexName)
+        );
 
         if (createSourceIndexAlias) {
             // create an alias with the same name as the source index and link it to the target index

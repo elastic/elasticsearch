@@ -41,6 +41,13 @@ public class BlockBuilderTests extends ESTestCase {
         return params;
     }
 
+    private static boolean supportsVectors(ElementType type) {
+        return switch (type) {
+            case AGGREGATE_METRIC_DOUBLE, EXPONENTIAL_HISTOGRAM, TDIGEST, LONG_RANGE -> false;
+            default -> true;
+        };
+    }
+
     private final ElementType elementType;
 
     BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofGb(1));
@@ -98,18 +105,22 @@ public class BlockBuilderTests extends ESTestCase {
     }
 
     public void testBuildSmallMultiValued() {
+        assumeMultiValued();
         testBuild(between(1, 100), false, 3);
     }
 
     public void testBuildHugeMultiValued() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), false, 3);
     }
 
     public void testBuildSmallMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1, 100), true, 3);
     }
 
     public void testBuildHugeMultiValuedNullable() {
+        assumeMultiValued();
         testBuild(between(1_000, 50_000), true, 3);
     }
 
@@ -179,7 +190,10 @@ public class BlockBuilderTests extends ESTestCase {
                     RandomBlock random = RandomBlock.randomBlock(elementType, 1, false, 1, 1, 0, 0);
                     builder.copyFrom(random.block(), 0, random.block().getPositionCount());
                     try (Block built = builder.build()) {
-                        assertThat(built.asVector().isConstant(), is(true));
+                        Vector vector = built.asVector();
+                        if (supportsVectors(elementType)) {
+                            assertThat(vector.isConstant(), is(true));
+                        }
                         assertThat(built, equalTo(random.block()));
                     }
                 }
@@ -190,5 +204,12 @@ public class BlockBuilderTests extends ESTestCase {
             }
             assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
         }
+    }
+
+    private void assumeMultiValued() {
+        assumeTrue(
+            "Type must support multi-values",
+            elementType != ElementType.AGGREGATE_METRIC_DOUBLE && elementType != ElementType.LONG_RANGE
+        );
     }
 }

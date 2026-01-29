@@ -37,7 +37,7 @@ public class RepositoryS3RegionalStsClientYamlTestSuiteIT extends AbstractReposi
         // Run just the basic sanity test to make sure ES starts up and loads the S3 repository with a regional endpoint without an error.
         // It would be great to make actual requests against a test fixture, but setting the region means using a production endpoint.
         // See #102230 for more details.
-        return createParameters(new String[] { "repository_s3/10_basic" });
+        return createParameters("repository_s3/10_basic");
     }
 
     public RepositoryS3RegionalStsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -76,9 +77,12 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     private ThreadPool threadPool;
     private MockClient client;
     private EnterpriseGeoIpDownloader geoIpDownloader;
+    private ProjectId projectId;
 
     @Before
     public void setup() throws IOException {
+        // TODO: change to random projectId
+        projectId = ProjectId.DEFAULT;
         httpClient = mock(HttpClient.class);
         when(httpClient.getBytes(any(), anyString())).thenReturn(
             "e4a3411cdd7b21eaf18675da5a7f9f360d33c6882363b2c19c38715834c9e836  GeoIP2-City_20240709.tar.gz".getBytes(StandardCharsets.UTF_8)
@@ -92,7 +96,7 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, Set.of(GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING))
         );
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
         when(clusterService.state()).thenReturn(state);
         client = new MockClient(threadPool);
         geoIpDownloader = new EnterpriseGeoIpDownloader(
@@ -440,10 +444,15 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabasesWriteBlock() {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()));
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
+            .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         var e = expectThrows(ClusterBlockException.class, () -> geoIpDownloader.updateDatabases());
@@ -462,10 +471,15 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
     }
 
     public void testUpdateDatabasesIndexNotReady() throws IOException {
-        ClusterState state = createClusterState(new PersistentTasksCustomMetadata(1L, Map.of()), true);
-        var geoIpIndex = state.getMetadata().getIndicesLookup().get(EnterpriseGeoIpDownloader.DATABASES_INDEX).getWriteIndex().getName();
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()), true);
+        var geoIpIndex = state.getMetadata()
+            .getProject(projectId)
+            .getIndicesLookup()
+            .get(EnterpriseGeoIpDownloader.DATABASES_INDEX)
+            .getWriteIndex()
+            .getName();
         state = ClusterState.builder(state)
-            .blocks(new ClusterBlocks.Builder().addIndexBlock(geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            .blocks(new ClusterBlocks.Builder().addIndexBlock(projectId, geoIpIndex, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .build();
         when(clusterService.state()).thenReturn(state);
         geoIpDownloader.updateDatabases();
@@ -516,6 +530,84 @@ public class EnterpriseGeoIpDownloaderTests extends ESTestCase {
             String url = "https://ipinfo.io/data/standard_asn.mmdb/checksums";
             assertThat(download2.url("mmdb/checksums"), equalTo(url));
         }
+    }
+
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runOnDemand()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRequestRunOnDemandReleasesLock() throws Exception {
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.requestRunOnDemand();
+        assertBusy(() -> assertEquals(2, calls.get()));
+    }
+
+    /**
+     * Tests that if an exception is thrown while {@link EnterpriseGeoIpDownloader#runPeriodic()} is running subsequent calls still proceed.
+     * This ensures that the "lock" mechanism used to prevent concurrent runs is released properly.
+     */
+    public void testRestartPeriodicRunReleasesLock() throws Exception {
+        ClusterState state = createClusterState(projectId, new PersistentTasksCustomMetadata(1L, Map.of()));
+        when(clusterService.state()).thenReturn(state);
+        // Track the number of calls to runDownloader.
+        AtomicInteger calls = new AtomicInteger();
+        // Create a GeoIpDownloader that throws an exception on the first call to runDownloader.
+        geoIpDownloader = new EnterpriseGeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            1,
+            "",
+            "",
+            "",
+            EMPTY_TASK_ID,
+            Map.of(),
+            () -> GeoIpDownloaderTaskExecutor.POLL_INTERVAL_SETTING.getDefault(Settings.EMPTY),
+            (type) -> "password".toCharArray()
+        ) {
+            @Override
+            synchronized void runDownloader() {
+                if (calls.incrementAndGet() == 1) {
+                    throw new RuntimeException("test exception");
+                }
+                super.runDownloader();
+            }
+        };
+        geoIpDownloader.setState(EnterpriseGeoIpTaskState.EMPTY);
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(1, calls.get()));
+        geoIpDownloader.restartPeriodicRun();
+        assertBusy(() -> assertEquals(2, calls.get()));
     }
 
     private static class MockClient extends NoOpClient {

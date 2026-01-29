@@ -7,9 +7,13 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.ReleasableIterator;
+// end generated imports
 
 /**
  * Vector implementation that stores a constant float value.
@@ -97,6 +101,11 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public FloatVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantFloatVector(value, getPositionCount());
     }
 
     @Override

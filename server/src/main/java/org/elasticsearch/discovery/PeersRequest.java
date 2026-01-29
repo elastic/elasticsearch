@@ -12,13 +12,13 @@ package org.elasticsearch.discovery;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class PeersRequest extends TransportRequest {
+public class PeersRequest extends AbstractTransportRequest {
     private final DiscoveryNode sourceNode;
     private final List<DiscoveryNode> knownPeers;
 

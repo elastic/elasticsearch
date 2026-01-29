@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -23,8 +22,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
-import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue.Level;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -50,8 +47,6 @@ import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTest
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
@@ -851,47 +846,6 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
         assertThat(transformConfig.getAdditionalSourceDestValidations(), is(empty()));
-    }
-
-    public void testGetAdditionalSourceDestValidations_WithRuntimeMappings() throws IOException {
-        String json = """
-            {
-              "id": "body_id",
-              "source": {
-                "index": "src",
-                "runtime_mappings": {
-                  "some-field": "some-value"
-                }
-              },
-              "dest": {
-                "index": "dest"
-              },
-              "pivot": {
-                "group_by": {
-                  "id": {
-                    "terms": {
-                      "field": "id"
-                    }
-                  }
-                },
-                "aggs": {
-                  "avg": {
-                    "avg": {
-                      "field": "points"
-                    }
-                  }
-                }
-              }
-            }""";
-
-        TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
-        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalSourceDestValidations();
-        assertThat(additiionalValidations, hasSize(1));
-        assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
-        RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
-            (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
-        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedTransportVersion(), is(equalTo(TransportVersions.V_7_12_0)));
-        assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
     }
 
     public void testGroupByStayInOrder() throws IOException {

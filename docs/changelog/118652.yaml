@@ -1,5 +1,0 @@
-pr: 118652
-summary: Add Jina AI API to do inference for Embedding and Rerank models
-area: Machine Learning
-type: enhancement
-issues: []

@@ -39,4 +39,3 @@ tasks.register("loadCsvSpecData", JavaExec) {
   classpath = sourceSets.main.runtimeClasspath
   mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
 }
-

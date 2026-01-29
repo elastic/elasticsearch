@@ -77,6 +77,48 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
+    public void testRemovedAffixSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.a.value", "value").build();
+        final Setting<?> removedSetting = Setting.affixKeySetting(
+            "node.removed_setting.",
+            "value",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope)
+        );
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.*.value] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.*.value] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testRemovedGroupSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.v", "value").build();
+        final Setting<?> removedSetting = Setting.groupSetting("node.removed_setting.", Setting.Property.NodeScope);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
     public void testMultipleRemovedSettings() {
         final Settings clusterSettings = Settings.EMPTY;
         final Settings nodeSettings = Settings.builder()
@@ -111,7 +153,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";
@@ -136,7 +178,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue.getDetails(),
             equalTo(
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
-                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0. "
+                    + "features to utilize multiple disks. If multiple data paths are configured, the node will fail to start in 8.0."
             )
         );
         String url = "https://ela.st/es-deprecation-7-multiple-paths";
@@ -160,8 +202,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             SINGLE_NODE_CHECKS,
             c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
         );
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+        final String expectedUrl = "https://ela.st/es-deprecation-7-shared-data-path";
         assertThat(
             issues,
             contains(
@@ -220,10 +261,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
-        assertEquals(
-            "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
-            deprecationIssue.getUrl()
-        );
+        assertEquals("https://ela.st/es-deprecation-7-realm-prefix", deprecationIssue.getUrl());
         assertEquals(
             "Found realm "
                 + (invalidRealmNames.size() == 1 ? "name" : "names")
@@ -591,8 +629,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.field.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release.",
-            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.score.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -628,8 +667,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         assertWarnings(
             "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
-                + " removed in a future release.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " removed in a future release. See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -665,8 +705,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release."
+            "[script.context.update.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version."
         );
     }
 
@@ -702,8 +744,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
 
         assertWarnings(
-            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release.",
+            "[script.context.interval.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the deprecation documentation for the next major version.",
             "[script.context.moving-function.cache_expire] setting was deprecated in Elasticsearch and will be removed in a future release."
+                + " See the deprecation documentation for the next major version."
         );
     }
 
@@ -760,7 +804,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[indices.lifecycle.step.master_timeout] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
     }
@@ -772,7 +817,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Setting [xpack.eql.enabled] is deprecated",
-            "https://ela.st/es-deprecation-8-eql-enabled-setting",
+            "https://ela.st/es-deprecation-7-eql-enabled-setting",
             "Remove the [xpack.eql.enabled] setting. As of 7.9.2 basic license level features are always enabled.",
             false,
             null
@@ -782,7 +827,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             true,
             new DeprecationWarning(
                 Level.WARN,
-                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release."
+                "[xpack.eql.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                    + "See the deprecation documentation for the next major version."
             )
         );
     }

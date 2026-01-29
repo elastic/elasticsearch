@@ -275,6 +275,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         newSettings.remove("index.uuid");
         newSettings.remove("index.creation_date");
         newSettings.remove("index.version.created");
+        newSettings.remove("index.transport_version.created");
 
         assertAcked(indicesAdmin().prepareCreate(to).setMapping(mapping.sourceAsMap()).setSettings(newSettings));
         ensureGreen(to);
@@ -293,7 +294,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             });
         }
         indicesAdmin().prepareDelete(originalIndex.get()).get();
-        indicesAdmin().prepareAliases().addAlias(to, originalIndexOrAlias).get();
+        indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).addAlias(to, originalIndexOrAlias).get();
     }
 
     protected TimeWarp timeWarp() {

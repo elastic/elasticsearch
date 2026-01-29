@@ -54,7 +54,6 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         if (length > 3) {
             suppliers.add(supplier("ascii", DataType.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
             suppliers.add(supplier("unicode", DataType.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
-            suppliers.add(supplier("unicode", DataType.SEMANTIC_TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
         } else {
             add(suppliers, "ascii", length, () -> randomAlphaOfLengthBetween(1, 10));
             add(suppliers, "unicode", length, () -> randomRealisticUnicodeOfLengthBetween(1, 10));

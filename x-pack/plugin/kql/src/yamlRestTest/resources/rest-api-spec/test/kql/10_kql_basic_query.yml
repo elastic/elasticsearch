@@ -47,7 +47,7 @@ setup:
           }
   - match: { hits.total: 2 }
 
-  # Using the *:* syntax
+  # Using the *: syntax
   - do:
       search:
         index: test-index
@@ -58,7 +58,7 @@ setup:
           }
   - match: { hits.total: 2 }
 
-  # Using the *:* syntax
+  # Using the *: syntax
   - do:
       search:
         index: test-index
@@ -210,3 +210,65 @@ setup:
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: "doc-1" }
 
+
+---
+"KQL boolean expressions withing field queries":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ kql_query_boolean_field_query ]
+      test_runner_features: capabilities
+      reason: Support for boolean expression within field query is not available.
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:(foo AND bar)" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:(bar OR baz)" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "text_field:(foo AND NOT baz)" } }
+          }
+  - match: { hits.total: 1 }
+  - match: { hits.hits.0._id: "doc-1" }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field:(\"foo bar\" OR \"foo baz\")" } }
+          }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        index: test-index
+        rest_total_hits_as_int: true
+        body: >
+          {
+            "query": { "kql": { "query": "keyword_field:(\"foo bar\" AND \"foo baz\")" } }
+          }
+  - match: { hits.total: 0 }

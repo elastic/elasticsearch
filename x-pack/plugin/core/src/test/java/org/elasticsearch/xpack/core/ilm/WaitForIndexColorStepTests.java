@@ -9,10 +9,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -86,13 +87,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(true));
         assertThat(result.informationContext(), nullValue());
     }
@@ -112,13 +115,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
@@ -132,13 +137,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
@@ -160,13 +162,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(true));
         assertThat(result.informationContext(), nullValue());
     }
@@ -186,13 +190,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(shardRouting).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
@@ -206,13 +212,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
             .numberOfReplicas(0)
             .build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .routingTable(RoutingTable.builder().build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, false));
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
-        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
@@ -236,13 +239,15 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(originalIndex.getIndex()).addShard(shardRouting).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put(originalIndex, true).build())
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
-            .build();
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault()).put(originalIndex, false).build();
+        ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(project)
+            .putRoutingTable(project.id(), RoutingTable.builder().add(indexRoutingTable).build())
+            .build()
+            .projectState(project.id());
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN, indexPrefix);
-        ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         String targetIndex = indexPrefix + originalIndex.getIndex().getName();
@@ -296,13 +301,18 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
                 .addShard(targetShardRouting)
                 .build();
 
-            ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
-                .routingTable(RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+            final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(originalIndex, false)
+                .put(targetIndex, false)
                 .build();
+            ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(project)
+                .putRoutingTable(project.id(), RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+                .build()
+                .projectState(project.id());
 
             WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
-            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
+            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), state);
             assertThat(result.complete(), is(false));
             SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
             assertThat(info.message(), is("index is not green; not all shards are active"));
@@ -319,13 +329,18 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
                 .addShard(targetShardRouting)
                 .build();
 
-            ClusterState clusterTargetInitializing = ClusterState.builder(new ClusterName("_name"))
-                .metadata(Metadata.builder().put(originalIndex, true).put(targetIndex, true).build())
-                .routingTable(RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+            final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+                .put(originalIndex, false)
+                .put(targetIndex, false)
                 .build();
+            ProjectState state = ClusterState.builder(ClusterName.DEFAULT)
+                .putProjectMetadata(project)
+                .putRoutingTable(project.id(), RoutingTable.builder().add(originalIndexRoutingTable).add(targetIndexRoutingTable).build())
+                .build()
+                .projectState(project.id());
 
             WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
-            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
+            ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), state);
             assertThat(result.complete(), is(true));
             assertThat(result.informationContext(), nullValue());
         }

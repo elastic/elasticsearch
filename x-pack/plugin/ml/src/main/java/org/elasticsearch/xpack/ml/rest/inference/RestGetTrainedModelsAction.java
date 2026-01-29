@@ -9,9 +9,6 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -38,7 +35,6 @@ import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Includes.DEFINITION;
 import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction.Request.ALLOW_NO_MATCH;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
@@ -46,27 +42,11 @@ import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetTrainedModelsAction extends BaseRestHandler {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetTrainedModelsAction.class);
-    private static final String INCLUDE_MODEL_DEFINITION = "include_model_definition";
-
-    @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
-    // one or more routes use ".replaces" with RestApiVersion.V_8 which will require use of REST API compatibility headers to access
-    // that route in v9. It is unclear if this was intentional for v9, and the code has been updated to ".deprecateAndKeep" which will
-    // continue to emit deprecations warnings but will not require any special headers to access the API in v9.
-    // Please review and update the code and tests as needed. The original code remains commented out below for reference.
     @Override
     public List<Route> routes() {
         return List.of(
-            // Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-            // .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
-            // .build(),
-            // Route.builder(GET, BASE_PATH + "trained_models").replaces(GET, BASE_PATH + "inference", RestApiVersion.V_8).build()
             new Route(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}"),
-            Route.builder(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}")
-                .deprecateAndKeep("Use the trained_models API instead.")
-                .build(),
-            new Route(GET, BASE_PATH + "trained_models"),
-            Route.builder(GET, BASE_PATH + "inference").deprecateAndKeep("Use the trained_models API instead.").build()
+            new Route(GET, BASE_PATH + "trained_models")
         );
     }
 
@@ -90,22 +70,9 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         Set<String> includes = new HashSet<>(
             asList(restRequest.paramAsStringArray(GetTrainedModelsAction.Request.INCLUDE.getPreferredName(), Strings.EMPTY_ARRAY))
         );
-        final GetTrainedModelsAction.Request request;
-        if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                INCLUDE_MODEL_DEFINITION,
-                "[{}] parameter is deprecated! Use [include=definition] instead.",
-                INCLUDE_MODEL_DEFINITION
-            );
-            request = new GetTrainedModelsAction.Request(
-                modelId,
-                tags,
-                restRequest.paramAsBoolean(INCLUDE_MODEL_DEFINITION, false) ? Set.of(DEFINITION) : Set.of()
-            );
-        } else {
-            request = new GetTrainedModelsAction.Request(modelId, tags, includes);
-        }
+
+        final GetTrainedModelsAction.Request request = new GetTrainedModelsAction.Request(modelId, tags, includes);
+
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
                 new PageParams(

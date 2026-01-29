@@ -58,6 +58,20 @@ class ActionListenerImplementations {
         };
     }
 
+    static CheckedRunnable<Exception> checkedRunnableFromReleasable(Releasable releasable) {
+        return new CheckedRunnable<>() {
+            @Override
+            public void run() {
+                Releasables.closeExpectNoException(releasable);
+            }
+
+            @Override
+            public String toString() {
+                return "release[" + releasable + "]";
+            }
+        };
+    }
+
     static void safeAcceptException(Consumer<Exception> consumer, Exception e) {
         assert e != null;
         try {

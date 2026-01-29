@@ -114,7 +114,7 @@ public class GetShardSnapshotRequest extends MasterNodeRequest<GetShardSnapshotR
     @Override
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("shard").append(shardId).append(", repositories[");
-        Strings.collectionToDelimitedStringWithLimit(repositories, ",", "", "", 1024, stringBuilder);
+        Strings.collectionToDelimitedStringWithLimit(repositories, ",", 1024, stringBuilder);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }

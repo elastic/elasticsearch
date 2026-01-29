@@ -64,7 +64,7 @@ public class RepositoriesStats implements Writeable, ToXContentFragment {
         long totalUploadReadTimeInMillis
     ) implements ToXContentObject, Writeable {
 
-        static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
+        private static final TransportVersion EXTENDED_SNAPSHOT_STATS_IN_NODE_INFO = TransportVersion.fromName(
             "extended_snapshot_stats_in_node_info"
         );
 

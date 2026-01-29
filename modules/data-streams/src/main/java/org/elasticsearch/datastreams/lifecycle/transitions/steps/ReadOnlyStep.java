@@ -110,7 +110,7 @@ public class ReadOnlyStep implements DlmStep {
         @Override
         public void onResponse(AddIndexBlockResponse addIndexBlockResponse) {
             if (addIndexBlockResponse.isAcknowledged()) {
-                logger.info("DLM successfully added block [{}] for index index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
+                logger.info("DLM successfully added block [{}] for index [{}]", addIndexBlockRequest.getBlock(), targetIndex);
                 listener.onResponse(null);
             } else {
                 Optional<AddIndexBlockResponse.AddBlockResult> resultForTargetIndex = addIndexBlockResponse.getIndices()

@@ -162,7 +162,7 @@ public class DataStreamLifecycleErrorStore {
 
     /**
      * Records the provided error for the index in the error store and logs the error message at `ERROR` level if the error for the index
-     * is different to what's already in the error store or if the same error was in the error store for a number of retries divible by
+     * is different to what's already in the error store or if the same error was in the error store for a number of retries divisible by
      * the provided signallingErrorRetryThreshold (i.e. we log to level `error` every signallingErrorRetryThreshold retries, if the error
      * stays the same)
      * This allows us to not spam the logs, but signal to the logs if DSL is not making progress.

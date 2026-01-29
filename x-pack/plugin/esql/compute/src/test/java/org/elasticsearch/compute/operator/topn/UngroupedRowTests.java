@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -104,16 +105,21 @@ public class UngroupedRowTests extends ESTestCase {
     }
 
     private long expectedRamBytesUsed(UngroupedRow row) {
-        long expected = RamUsageTester.ramUsed(row);
-        if (row.values().bytes().length == 0) {
-            // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.
-            expected += RamUsageTester.ramUsed(new byte[0]);
-        }
-        // The breaker is shared infrastructure so we don't count it but RamUsageTester does
-        expected -= RamUsageTester.ramUsed(breaker);
-        expected -= RamUsageTester.ramUsed("topn");
-        // the sort orders are shared
-        expected -= RamUsageTester.ramUsed(row.bytesOrder().sortOrders);
-        return expected;
+        var overcount = RamUsageTester.ramUsed(breaker) + sharedRowBytes(row) - undercountBytesPerRow(row);
+        return RamUsageTester.ramUsed(row) - overcount;
+    }
+
+    // These are shared between all rows, so we shouldn't count them.
+    static long sharedRowBytes(Row row) {
+        return RamUsageTester.ramUsed("topn") + RamUsageTester.ramUsed(row.bytesOrder().sortOrders);
+    }
+
+    static long undercountBytesPerRow(Row row) {
+        return emptyByteArrayOverhead(row.values());
+    }
+
+    // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.
+    static long emptyByteArrayOverhead(BreakingBytesRefBuilder builder) {
+        return builder.bytes().length == 0 ? RamUsageTester.ramUsed(new byte[0]) : 0L;
     }
 }

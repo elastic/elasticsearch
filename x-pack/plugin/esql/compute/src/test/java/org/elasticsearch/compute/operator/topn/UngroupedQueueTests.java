@@ -117,11 +117,11 @@ public class UngroupedQueueTests extends ESTestCase {
             IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(value).build();
             IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(value * 2).build()
         ) {
-            Row row = new UngroupedRow(breaker, List.of(UngroupedQueueTests.SORT_ORDER), 32, 64);
+            Row row = new UngroupedRow(breaker, SORT_ORDERS, 32, 64);
             var filler = new UngroupedRowFiller(
                 List.of(ElementType.INT, ElementType.INT),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
-                List.of(SORT_ORDER),
+                SORT_ORDERS,
                 new Page(keyBlock, valueBlock)
             );
             filler.writeKey(0, row);
@@ -161,7 +161,7 @@ public class UngroupedQueueTests extends ESTestCase {
         assertThat(queue.size(), equalTo(values.length));
     }
 
-    private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(0, true, false);
+    private static final List<TopNOperator.SortOrder> SORT_ORDERS = List.of(new TopNOperator.SortOrder(0, true, false));
 
     private static void assertQueueContents(UngroupedQueue queue, List<Integer> expectedKeys) {
         assertThat(queue.size(), equalTo(expectedKeys.size()));
@@ -177,18 +177,13 @@ public class UngroupedQueueTests extends ESTestCase {
         long expected = RamUsageTester.ramUsed(queue);
         expected -= RamUsageTester.ramUsed(breaker);
         if (queue.size() > 0) {
-            var size = queue.size();
-            // Account for the discrepancy for each row.
             List<Row> allRows = queue.popAll();
             Row rowSample = allRows.getFirst();
-            expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
-            // The breaker is already accounted for in for each RamUsageTester.ramUsed(rowSample), but is only counted once by ramBytesUsed.
-            expected += size * RamUsageTester.ramUsed(breaker);
-            // These are shared, but are only counted once by ramBytesUsed.
-            // FIXME(gal, NOCOMMIT) Reduce duplication with UngroupedRowTests
-            expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
+            expected -= UngroupedRowTests.sharedRowBytes(rowSample);
+            expected += allRows.stream().mapToLong(UngroupedRowTests::undercountBytesPerRow).sum();
             allRows.forEach(queue::addRow);
         }
         return expected;
     }
+
 }

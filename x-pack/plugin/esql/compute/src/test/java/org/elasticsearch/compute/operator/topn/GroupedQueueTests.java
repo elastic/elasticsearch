@@ -184,11 +184,11 @@ public class GroupedQueueTests extends ESTestCase {
             IntBlock keyBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey).build();
             IntBlock valueBlock = blockFactory.newIntBlockBuilder(1).appendInt(sortKey * 2).build()
         ) {
-            Row row = new GroupedRow(breaker, List.of(SORT_ORDER), 32, 64, 0);
+            Row row = new GroupedRow(breaker, SORT_ORDERS, 32, 64, 0);
             var filler = new GroupedRowFiller(
                 List.of(ElementType.INT, ElementType.INT, ElementType.INT),
                 List.of(TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_SORTABLE, TopNEncoder.DEFAULT_UNSORTABLE),
-                List.of(SORT_ORDER),
+                SORT_ORDERS,
                 new int[] { 0 },
                 new Page(groupKeyBlock, keyBlock, valueBlock)
             );
@@ -235,7 +235,7 @@ public class GroupedQueueTests extends ESTestCase {
         }
     }
 
-    private static final TopNOperator.SortOrder SORT_ORDER = new TopNOperator.SortOrder(1, true, false);
+    private static final List<TopNOperator.SortOrder> SORT_ORDERS = List.of(new TopNOperator.SortOrder(1, true, false));
 
     private static void assertQueueContents(GroupedQueue queue, List<Tuple<Integer, Integer>> groupAndSortKeys) {
         assertThat(queue.size(), equalTo(groupAndSortKeys.size()));
@@ -258,14 +258,11 @@ public class GroupedQueueTests extends ESTestCase {
         expected += numGroups * HASH_MAP_NODE_SIZE;
 
         if (queue.size() > 0) {
-            var size = queue.size();
             List<Row> allRows = queue.popAll();
             Row rowSample = allRows.getFirst();
-            // FIXME(gal, NOCOMMIT) Reduce code duplication with UngroupedQueueTests.expectedRamBytesUsed
-            expected -= size * (RamUsageTester.ramUsed(rowSample) - rowSample.ramBytesUsed());
-            expected += size * RamUsageTester.ramUsed(breaker);
-            expected += (size - 1) * (RamUsageTester.ramUsed(SORT_ORDER) + RamUsageTester.ramUsed("topn"));
-            allRows.forEach(Releasables::close);
+            expected -= UngroupedRowTests.sharedRowBytes(rowSample);
+            expected += allRows.stream().map(r -> (GroupedRow) r).mapToLong(GroupedRowTests::undercountedBytesForRow).sum();
+            allRows.forEach(queue::addRow);
         }
         return expected;
     }

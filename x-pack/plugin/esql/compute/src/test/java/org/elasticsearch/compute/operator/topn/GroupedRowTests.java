@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-// FIXME(gal, NOCOMMIT) reduce duplication with UngroupedRowTests
 public class GroupedRowTests extends ESTestCase {
     private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
 
@@ -78,20 +77,14 @@ public class GroupedRowTests extends ESTestCase {
     }
 
     private long expectedRamBytesUsed(GroupedRow row) {
-        long expected = RamUsageTester.ramUsed(row);
-        if (row.values().bytes().length == 0) {
-            // We double count the shared empty array for empty rows. This overcounting is *fine*, but throws off the test.
-            expected += RamUsageTester.ramUsed(new byte[0]);
-        }
-        if (row.groupKey().bytes().length == 0) {
-            // We double count the shared empty array for empty group keys. This overcounting is *fine*, but throws off the test.
-            expected += RamUsageTester.ramUsed(new byte[0]);
-        }
-        // The breaker is shared infrastructure so we don't count it but RamUsageTester does.
+        var expected = RamUsageTester.ramUsed(row);
         expected -= RamUsageTester.ramUsed(breaker);
-        expected -= RamUsageTester.ramUsed("topn");
-        // the sort orders are shared too.
-        expected -= RamUsageTester.ramUsed(sortOrders());
+        expected -= UngroupedRowTests.sharedRowBytes(row);
+        expected += undercountedBytesForRow(row);
         return expected;
+    }
+
+    static long undercountedBytesForRow(GroupedRow row) {
+        return UngroupedRowTests.undercountBytesPerRow(row) + UngroupedRowTests.emptyByteArrayOverhead(row.groupKey());
     }
 }

@@ -15,7 +15,6 @@ import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 
-// FIXME(gal, NOCOMMIT) document
 final class GroupedRow implements Row {
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(GroupedRow.class);
     private final UngroupedRow row;

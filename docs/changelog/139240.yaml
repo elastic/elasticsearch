@@ -1,0 +1,5 @@
+pr: 139240
+summary: Don't use index() to populate rerank score array
+area: Relevance
+type: bug
+issues: []

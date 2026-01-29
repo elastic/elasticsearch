@@ -297,8 +297,9 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
     }
 
     /**
-     * Test that the service is disabled by setting
-     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} to false.
+     * Test that the service is disabled by setting both
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} and
+     * {@link AllocationBalancingRoundSummaryService#ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING} to false.
      */
     public void testEnableAndThenDisableService() {
         var recordingMeterRegistry = new RecordingMeterRegistry();

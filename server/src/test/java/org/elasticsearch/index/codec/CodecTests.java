@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -66,11 +67,16 @@ public class CodecTests extends ESTestCase {
 
     public void testTSDBDefault() throws Exception {
         assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-        CodecService codecService = createCodecService(true);
+        boolean syntheticIdEnabled = randomBoolean();
+        CodecService codecService = createCodecService(syntheticIdEnabled);
         Codec codec = codecService.codec("default");
         assertThat(codec, instanceOf(CodecService.DeduplicateFieldInfosCodec.class));
         CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec = (CodecService.DeduplicateFieldInfosCodec) codec;
-        assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
+        if (syntheticIdEnabled) {
+            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(ES93TSDBDefaultCompressionLucene103Codec.class));
+        } else {
+            assertThat(deduplicateFieldInfosCodec.delegate(), instanceOf(Lucene103Codec.class));
+        }
     }
 
     public void testBestCompression() throws Exception {
@@ -139,7 +145,7 @@ public class CodecTests extends ESTestCase {
         var indexSettings = Settings.builder().put(nodeSettings);
         if (syntheticIdEnabled) {
             assertTrue(IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-            indexSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), syntheticIdEnabled)
+            indexSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "hostname");
         }

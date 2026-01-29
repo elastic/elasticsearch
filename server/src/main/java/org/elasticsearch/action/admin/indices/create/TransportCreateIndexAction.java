@@ -153,12 +153,15 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             updateRequest = buildUpdateRequest(request, cause, indexName, resolvedAt, projectId);
         }
 
+        int total = clusterService.state().metadata().getProject(projectResolver.getProjectId()).getConcreteAllIndices().length + 1;
+        CreateIndexResponse.IndexLimitTier tier = CreateIndexResponse.IndexLimitTier.parse(total);
+
         createIndexService.createIndex(
             request.masterNodeTimeout(),
             request.ackTimeout(),
             request.ackTimeout(),
             updateRequest,
-            listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName))
+            listener.map(response -> new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName, tier))
         );
     }
 

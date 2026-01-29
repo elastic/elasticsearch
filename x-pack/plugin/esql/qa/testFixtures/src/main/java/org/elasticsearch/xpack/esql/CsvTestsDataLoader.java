@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -383,6 +384,7 @@ public class CsvTestsDataLoader {
                 true,
                 true,
                 true,
+                true,
                 (restClient, indexName, indexMapping, indexSettings) -> {
                     // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                     StringBuilder jsonBody = new StringBuilder("{");
@@ -411,7 +413,8 @@ public class CsvTestsDataLoader {
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported
+        boolean bFloat16ElementTypeSupported,
+        boolean amdAvgMetricSupported
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -423,7 +426,8 @@ public class CsvTestsDataLoader {
                 && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
                 && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
                 && (histogramFieldSupported || containsHistogramFields(dataset) == false)
-                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
+                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)
+                && (amdAvgMetricSupported || containsAggregateMetricDoubleFields(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -499,6 +503,35 @@ public class CsvTestsDataLoader {
         return false;
     }
 
+    private static boolean containsAggregateMetricDoubleFields(TestDataset dataset) throws IOException {
+        if (dataset.mappingFileName() == null) {
+            return false;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
+        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        return loopConditionCheck(mappingNode, fieldProperties -> {
+            JsonNode typeNode = fieldProperties.get("type");
+            return typeNode != null && typeNode.asText().equals("aggregate_metric_double");
+        });
+    }
+
+    private static boolean loopConditionCheck(JsonNode topNode, Predicate<JsonNode> check) {
+        if (topNode == null) {
+            return false;
+        }
+        JsonNode properties = topNode.get("properties");
+        if (properties == null) {
+            return false;
+        }
+        for (var fieldWithValue : properties.properties()) {
+            JsonNode fieldProperties = fieldWithValue.getValue();
+            if (loopConditionCheck(fieldProperties, check) || check.test(fieldProperties)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.readSettingsFile();
         String mode = settings.get("index.mode");
@@ -511,7 +544,18 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, false, false, false, false);
+        loadDataSetIntoEs(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            inferenceEnabled,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+        );
     }
 
     public static void loadDataSetIntoEs(
@@ -523,7 +567,8 @@ public class CsvTestsDataLoader {
         boolean exponentialHistogramFieldSupported,
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported
+        boolean bFloat16ElementTypeSupported,
+        boolean amdAvgMetricSupported
     ) throws IOException {
         loadDataSetIntoEs(
             client,
@@ -535,6 +580,7 @@ public class CsvTestsDataLoader {
             tDigestFieldSupported,
             histogramFieldSupported,
             bFloat16ElementTypeSupported,
+            amdAvgMetricSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             }
@@ -551,6 +597,7 @@ public class CsvTestsDataLoader {
         boolean tDigestFieldSupported,
         boolean histogramFieldSupported,
         boolean bFloat16ElementTypeSupported,
+        boolean amdAvgMetricSupported,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
@@ -565,7 +612,8 @@ public class CsvTestsDataLoader {
             exponentialHistogramFieldSupported,
             tDigestFieldSupported,
             histogramFieldSupported,
-            bFloat16ElementTypeSupported
+            bFloat16ElementTypeSupported,
+            amdAvgMetricSupported
         )) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);

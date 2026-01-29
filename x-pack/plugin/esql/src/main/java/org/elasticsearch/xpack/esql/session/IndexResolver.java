@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResolvedIndexExpressions;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.IndicesOptions.CrossProjectModeOptions;
 import org.elasticsearch.client.internal.Client;
@@ -28,6 +30,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
@@ -50,12 +53,16 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.BinaryOperator;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.combine;
 
 public class IndexResolver {
 
@@ -87,6 +94,10 @@ public class IndexResolver {
      */
     private static final IndicesOptions FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
         .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .crossProjectModeOptions(new CrossProjectModeOptions(true))
+        .build();
+    private static final IndicesOptions LENIENT_FLAT_WORLD_OPTIONS = IndicesOptions.builder(DEFAULT_OPTIONS)
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
         .crossProjectModeOptions(new CrossProjectModeOptions(true))
         .build();
 
@@ -157,8 +168,8 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
-            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
-                indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(indexPattern1), false),
+            (innerIndexPattern, fieldCapabilitiesResponse) -> Maps.transformValues(
+                indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, Strings.splitStringByCommaToArray(innerIndexPattern), false),
                 v -> List.of(v.indices())
             ),
             listener
@@ -166,8 +177,7 @@ public class IndexResolver {
     }
 
     /**
-     * Like {@code IndexResolver#resolveIndicesVersioned}
-     * but for flat world queries.
+     * Like {@code IndexResolver#resolveIndicesVersioned} but for flat world queries.
      */
     public void resolveMainFlatWorldIndicesVersioned(
         String indexPattern,
@@ -191,7 +201,7 @@ public class IndexResolver {
             minimumVersion,
             useAggregateMetricDoubleWhenNotSupported,
             useDenseVectorWhenNotSupported,
-            (indexPattern1, fieldCapabilitiesResponse) -> Maps.transformValues(
+            (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
                 EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
                 v -> List.copyOf(v.expression())
             ),
@@ -237,6 +247,122 @@ public class IndexResolver {
                 new Versioned<>(mergedMappings(indexPattern, allowEmpty, info, originalIndexExtractor), info.minTransportVersion())
             );
         }));
+    }
+
+    public void resolveMainFlatWorldIndicesVersioned(
+        String requiredIndexPattern,
+        String optionalIndexPattern,
+        String projectRouting,
+        Set<String> fieldNames,
+        QueryBuilder requestFilter,
+        boolean includeAllDimensions,
+        TransportVersion minimumVersion,
+        // Used for bwc with 9.2.0, which supports aggregate_metric_double but doesn't provide its version in the field
+        // caps response. We'll just assume the type is supported based on usage in the query to not break compatibility
+        // with 9.2.0.
+        boolean useAggregateMetricDoubleWhenNotSupported,
+        // Same as above
+        boolean useDenseVectorWhenNotSupported,
+        ActionListener<Versioned<IndexResolution>> listener
+    ) {
+
+        var mergeResponsesListener = new GroupedActionListener<EsqlResolveFieldsResponse>(
+            2,
+            listener.delegateFailureAndWrap((l, responses) -> {
+
+                var response = responses.stream()
+                    .map(EsqlResolveFieldsResponse::caps)
+                    .reduce(
+                        (r1, r2) -> FieldCapabilitiesResponse.builder()
+                            .withResolvedLocally(ResolvedIndexExpressions.merge(r1.getResolvedLocally(), r2.getResolvedLocally()))
+                            .withResolvedRemotely(
+                                merge(r1.getResolvedRemotely(), r2.getResolvedRemotely(), ResolvedIndexExpressions::merge)
+                            )
+                            .withFields(
+                                merge(
+                                    r1.get(),
+                                    r2.get(),
+                                    (f1, f2) -> merge(
+                                        f1,
+                                        f2,
+                                        (fc1, fc2) -> /*same field from the same concrete index. Safe to pick any*/ fc1
+                                    )
+                                )
+                            )
+                            .withIndexResponses(combine(r1.getIndexResponses(), r2.getIndexResponses()))
+                            .withFailures(combine(r1.getFailures(), r2.getFailures()))
+                            // minTransportVersion is always present with CPS
+                            .withMinTransportVersion(TransportVersion.min(r1.minTransportVersion(), r2.minTransportVersion()))
+                            .build()
+                    )
+                    .get(); // at least one response should be present
+
+                var overallMinimumVersion = TransportVersion.min(minimumVersion, response.minTransportVersion());
+                var indexPattern = String.join(",", requiredIndexPattern, optionalIndexPattern);
+
+                FieldsInfo info = new FieldsInfo(
+                    response,
+                    overallMinimumVersion,
+                    Build.current().isSnapshot(),
+                    useAggregateMetricDoubleWhenNotSupported,
+                    useDenseVectorWhenNotSupported
+                );
+
+                l.onResponse(
+                    new Versioned<>(
+                        mergedMappings(
+                            indexPattern,
+                            true,
+                            info,
+                            (ignored, fieldCapabilitiesResponse) -> Maps.transformValues(
+                                EsqlResolvedIndexExpression.from(fieldCapabilitiesResponse),
+                                v -> List.copyOf(v.expression())
+                            )
+                        ),
+                        info.minTransportVersion()
+                    )
+                );
+            })
+        );
+
+        if (requiredIndexPattern.isEmpty()) {
+            mergeResponsesListener.onResponse(null);
+        } else {
+            client.execute(
+                EsqlResolveFieldsAction.TYPE,
+                createFieldCapsRequest(
+                    FLAT_WORLD_OPTIONS,
+                    requiredIndexPattern,
+                    projectRouting,
+                    fieldNames,
+                    requestFilter,
+                    includeAllDimensions,
+                    true
+                ),
+                mergeResponsesListener
+            );
+        }
+        if (optionalIndexPattern.isEmpty()) {
+            mergeResponsesListener.onResponse(null);
+        } else {
+            client.execute(
+                EsqlResolveFieldsAction.TYPE,
+                createFieldCapsRequest(
+                    LENIENT_FLAT_WORLD_OPTIONS,
+                    optionalIndexPattern,
+                    projectRouting,
+                    fieldNames,
+                    requestFilter,
+                    includeAllDimensions,
+                    true
+                ),
+                mergeResponsesListener
+            );
+        }
+    }
+
+    private static <T> Map<String, T> merge(Map<String, T> m1, Map<String, T> m2, BinaryOperator<T> merger) {
+        return Stream.concat(m1.entrySet().stream(), m2.entrySet().stream()).collect(toMap(Map.Entry::getKey, Map.Entry::getValue, merger));
     }
 
     /**

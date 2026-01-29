@@ -16,7 +16,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
@@ -30,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
-public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, MixedbreadRateLimitServiceSettings {
+public class MixedbreadRerankServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     public static final String NAME = "mixedbread_rerank_service_settings";
     public static final String WINDOWS_SIZE = "windows_size";

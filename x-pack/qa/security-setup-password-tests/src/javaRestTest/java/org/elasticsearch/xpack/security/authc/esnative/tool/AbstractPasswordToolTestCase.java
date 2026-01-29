@@ -88,7 +88,12 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
         Map<String, Object> firstNodeHttp = (Map<String, Object>) firstNode.get("http");
         String nodePublishAddress = (String) firstNodeHttp.get("publish_address");
         final int lastColonIndex = nodePublishAddress.lastIndexOf(':');
-        InetAddress actualPublishAddress = InetAddresses.forString(nodePublishAddress.substring(0, lastColonIndex));
+        String addressPart = nodePublishAddress.substring(0, lastColonIndex);
+        // Strip brackets from IPv6 addresses (e.g., "[::1]" -> "::1")
+        if (addressPart.startsWith("[") && addressPart.endsWith("]")) {
+            addressPart = addressPart.substring(1, addressPart.length() - 1);
+        }
+        InetAddress actualPublishAddress = InetAddresses.forString(addressPart);
         InetAddress expectedPublishAddress = new NetworkService(Collections.emptyList()).resolvePublishHostAddresses(Strings.EMPTY_ARRAY);
         final int port = Integer.valueOf(nodePublishAddress.substring(lastColonIndex + 1));
 

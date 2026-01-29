@@ -2018,7 +2018,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     commonFields.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getAddress().getAddress());
                 }
                 if (EMIT_HOST_NAME_SETTING.get(settings)) {
-                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().address().getHostString());
+                    // Use getAddress() which uses NetworkAddress.format() for consistent IPv6 formatting
+                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().getAddress());
                 }
                 if (EMIT_NODE_ID_SETTING.get(settings)) {
                     commonFields.put(NODE_ID_FIELD_NAME, newLocalNode.getId());

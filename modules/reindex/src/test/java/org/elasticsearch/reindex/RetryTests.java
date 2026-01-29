@@ -18,6 +18,7 @@ import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -40,6 +41,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.junit.After;
 
+import java.net.Inet6Address;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -118,9 +121,14 @@ public class RetryTests extends ESIntegTestCase {
             assertNotNull(masterNode);
 
             TransportAddress address = masterNode.getInfo(HttpInfo.class).getAddress().publishAddress();
+            // For IPv6 addresses, we need to use toUriString which wraps in brackets, matching the whitelist format [::1]:*
+            InetAddress inetAddress = address.address().getAddress();
+            String host = inetAddress instanceof Inet6Address
+                ? InetAddresses.toUriString(inetAddress)
+                : inetAddress.getHostAddress();
             RemoteInfo remote = new RemoteInfo(
                 "http",
-                address.getAddress(),
+                host,
                 address.getPort(),
                 null,
                 new BytesArray("{\"match_all\":{}}"),

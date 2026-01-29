@@ -183,7 +183,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             null
         );
         assertThat(e.getMessage(), containsString("connect_exception"));
-        assertThat(e.getMessage(), containsString("[" + NetworkAddress.format(loopback) + ":9876]"));
+        assertThat(e.getMessage(), containsString("[" + NetworkAddress.format(loopback, 9876) + "]"));
         Throwable cause = ExceptionsHelper.unwrap(e, IOException.class);
         assertThat(cause, instanceOf(IOException.class));
     }

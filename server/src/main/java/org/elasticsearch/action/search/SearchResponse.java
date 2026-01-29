@@ -190,6 +190,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             pointInTimeId
         );
         this.timeRangeFilterFromMillis = searchResponseSections.timeRangeFilterFromMillis;
+        searchResponseSections.aggregations = null;
     }
 
     public SearchResponse(

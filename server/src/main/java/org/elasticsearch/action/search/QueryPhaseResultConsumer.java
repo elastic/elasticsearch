@@ -298,7 +298,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
-            // aggs.forEach(agg -> {agg.close();});
+//            aggs.close();
         }
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyFinalReduce(

@@ -143,9 +143,9 @@ public final class FetchSearchResult extends SearchPhaseResult {
         if (hits != null) {
             hits.decRef();
             hits = null;
-            aggragations.forEach(agg -> { agg.close(); });
-            aggragations.clear();
         }
+        aggragations.forEach(agg -> { agg.close(); });
+        aggragations.clear();
     }
 
     @Override

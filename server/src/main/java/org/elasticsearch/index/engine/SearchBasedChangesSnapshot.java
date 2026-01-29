@@ -35,6 +35,7 @@ import org.elasticsearch.search.lookup.Source;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -230,8 +231,9 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
         if (values.isEmpty()) {
             return originalSource;
         }
-        originalSource.source().put(InferenceMetadataFieldsMapper.NAME, values.get(0));
-        return Source.fromMap(originalSource.source(), originalSource.sourceContentType());
+        var newSource = new HashMap<>(originalSource.source());
+        newSource.put(InferenceMetadataFieldsMapper.NAME, values.get(0));
+        return Source.fromMap(newSource, originalSource.sourceContentType());
     }
 
     static IndexSearcher newIndexSearcher(Engine.Searcher engineSearcher) throws IOException {

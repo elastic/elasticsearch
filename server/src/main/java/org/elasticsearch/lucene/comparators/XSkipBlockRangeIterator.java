@@ -65,8 +65,7 @@ public class XSkipBlockRangeIterator extends AbstractDocIdSetIterator {
     public int docIDRunEnd() throws IOException {
         int maxDoc = skipper.maxDocID(0);
         int nextLevel = 1;
-        while (nextLevel < skipper.numLevels() && skipper.minValue(nextLevel) < maxValue
-            && skipper.maxValue(nextLevel) > minValue) {
+        while (nextLevel < skipper.numLevels() && skipper.minValue(nextLevel) < maxValue && skipper.maxValue(nextLevel) > minValue) {
             maxDoc = skipper.maxDocID(nextLevel);
             nextLevel++;
         }

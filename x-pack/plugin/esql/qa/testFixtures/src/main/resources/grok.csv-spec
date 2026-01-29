@@ -347,3 +347,29 @@ BkQXJRMeAM:long
 4325287503714500302
 ;
 
+
+pruneAllGrokFields
+ROW message = "2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42"
+| GROK message "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}"
+| KEEP message
+;
+
+message:keyword
+2023-01-23T12:15:00Z 192.168.1.1 user@example.com 42
+;
+
+
+pruneAllGrokFieldsFromEmployees
+FROM employees
+| EVAL full_name = CONCAT(first_name, " ", last_name)
+| GROK full_name "%{WORD:extracted_first} %{WORD:extracted_last}"
+| KEEP emp_no, full_name
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | full_name:keyword
+10001          | Georgi Facello
+10002          | Bezalel Simmel
+10003          | Parto Bamford
+;

@@ -93,7 +93,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(aggregators, blockHash, driverContext);
+        super(aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }
@@ -102,6 +102,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     public void finish() {
         expandWindowBuckets();
         super.finish();
+    }
+
+    @Override
+    protected boolean shouldEmitPartialResultsPeriodically() {
+        return false;
     }
 
     private long largestWindowMillis() {

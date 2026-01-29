@@ -17,6 +17,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -30,6 +31,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +65,8 @@ public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
 
     public void testEC2DiscoveryRetriesOnRateLimiting() throws IOException {
         final String accessKey = "ec2_access";
-        final List<String> hosts = List.of("127.0.0.1:9300");
+        final String loopbackAddress = NetworkAddress.format(InetAddress.getLoopbackAddress());
+        final List<String> hosts = List.of(loopbackAddress + ":9300");
         final Map<String, Integer> failedRequests = new ConcurrentHashMap<>();
         // retry the same request 5 times at most
         final int maxRetries = randomIntBetween(1, 5);

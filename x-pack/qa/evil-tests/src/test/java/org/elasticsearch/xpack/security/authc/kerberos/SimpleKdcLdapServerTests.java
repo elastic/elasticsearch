@@ -27,6 +27,8 @@ import java.util.Base64;
 
 import javax.security.auth.login.LoginException;
 
+import java.net.InetAddress;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -40,7 +42,10 @@ public class SimpleKdcLdapServerTests extends KerberosTestCase {
         assertTrue(Files.exists(workDir.resolve("p1p2.keytab")));
         try (
             LDAPConnection ldapConn = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection("localhost", simpleKdcLdapServer.getLdapListenPort())
+                () -> new LDAPConnection(
+                    InetAddress.getLoopbackAddress().getHostAddress(),
+                    simpleKdcLdapServer.getLdapListenPort()
+                )
             );
         ) {
             assertThat(ldapConn.isConnected(), is(true));

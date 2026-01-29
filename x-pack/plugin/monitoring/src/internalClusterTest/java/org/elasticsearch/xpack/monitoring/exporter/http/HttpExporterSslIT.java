@@ -65,7 +65,7 @@ public class HttpExporterSslIT extends MonitoringIntegTestCase {
             }
         }
 
-        final String address = "https://" + webServer.getHostName() + ":" + webServer.getPort();
+        final String address = "https://" + webServer.getHttpAddress();
         final Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.monitoring.exporters.plaintext.type", "http")

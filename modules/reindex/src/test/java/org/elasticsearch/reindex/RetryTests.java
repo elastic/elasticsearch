@@ -91,7 +91,7 @@ public class RetryTests extends ESIntegTestCase {
     final Settings nodeSettings() {
         return Settings.builder()
             // whitelist reindexing from the HTTP host we're going to use
-            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*")
+            .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "127.0.0.1:*,[::1]:*")
             .build();
     }
 

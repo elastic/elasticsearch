@@ -34,7 +34,9 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -91,7 +93,7 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         Supplier<BlockHash> blockHash,
         DriverContext driverContext
     ) {
-        super(aggregators, blockHash, driverContext);
+        super(aggregators, blockHash, Integer.MAX_VALUE, 1.0, driverContext);
         this.timeBucket = timeBucket;
         this.timeResolution = timeResolution;
     }
@@ -100,6 +102,11 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
     public void finish() {
         expandWindowBuckets();
         super.finish();
+    }
+
+    @Override
+    protected boolean shouldEmitPartialResultsPeriodically() {
+        return false;
     }
 
     private long largestWindowMillis() {
@@ -311,8 +318,12 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
         final BytesRefLongBlockHash hash = (BytesRefLongBlockHash) blockHash;
 
         final LongBlock timestamps = keys[0].elementType() == ElementType.LONG ? (LongBlock) keys[0] : (LongBlock) keys[1];
+
         // block hash so that we can look key
         return new TimeSeriesGroupingAggregatorEvaluationContext(driverContext) {
+            IntArray prevGroupIds;
+            IntArray nextGroupIds;
+
             @Override
             public long rangeStartInMillis(int groupId) {
                 return timeResolution.roundDownToMillis(timestamps.getLong(groupId));
@@ -341,19 +352,40 @@ public class TimeSeriesAggregationOperator extends HashAggregationOperator {
 
             @Override
             public int previousGroupId(int currentGroupId) {
-                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
-                long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
-                long previousBucketTS = currentBucketTs - (nextBucketTs - currentBucketTs);
-                return Math.toIntExact(hash.getGroupId(tsid, previousBucketTS));
+                return prevGroupIds.get(currentGroupId);
             }
 
             @Override
             public int nextGroupId(int currentGroupId) {
-                long tsid = hash.getBytesRefKeyFromGroup(currentGroupId);
-                long currentBucketTs = timestamps.getLong(currentGroupId);
-                long nextBucketTs = timeBucket.nextRoundingValue(currentBucketTs);
-                return Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                return nextGroupIds.get(currentGroupId);
+            }
+
+            @Override
+            public void computeAdjacentGroupIds() {
+                if (nextGroupIds != null) {
+                    return;
+                }
+                long numGroups = hash.numGroups();
+                nextGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                nextGroupIds.fill(0, numGroups, -1);
+                prevGroupIds = driverContext.bigArrays().newIntArray(numGroups);
+                prevGroupIds.fill(0, numGroups, -1);
+                Map<Long, Long> nextTimestamps = new HashMap<>(); // cached the rounded up timestamps
+                for (int groupId = 0; groupId < numGroups; groupId++) {
+                    long tsid = hash.getBytesRefKeyFromGroup(groupId);
+                    long bucketTs = hash.getLongKeyFromGroup(groupId);
+                    long nextBucketTs = nextTimestamps.computeIfAbsent(bucketTs, timeBucket::nextRoundingValue);
+                    int nextGroupId = Math.toIntExact(hash.getGroupId(tsid, nextBucketTs));
+                    if (nextGroupId >= 0) {
+                        nextGroupIds.set(groupId, nextGroupId);
+                        prevGroupIds.set(nextGroupId, groupId);
+                    }
+                }
+            }
+
+            @Override
+            public void close() {
+                Releasables.close(nextGroupIds, prevGroupIds, super::close);
             }
         };
     }

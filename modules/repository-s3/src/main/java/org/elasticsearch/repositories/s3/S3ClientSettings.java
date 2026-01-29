@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 
@@ -27,6 +28,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
+import static org.elasticsearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 
 /**
  * A container for settings used to create an S3 client.
@@ -202,6 +206,17 @@ final class S3ClientSettings {
         key -> Setting.timeSetting(key, Defaults.CONNECTION_MAX_IDLE_TIME, Property.NodeScope)
     );
 
+    /**
+     * Maximum size allowed for copy without multipart.
+     * Objects larger than this will be copied using multipart copy. S3 enforces a minimum multipart size of 5 MiB and a maximum
+     * non-multipart copy size of 5 GiB. The default is to use the maximum allowable size in order to minimize request count.
+     */
+    static final Setting.AffixSetting<ByteSizeValue> MAX_COPY_SIZE_BEFORE_MULTIPART = Setting.affixKeySetting(
+        PREFIX,
+        "max_copy_size_before_multipart",
+        key -> Setting.byteSizeSetting(key, MAX_FILE_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_FILE_SIZE, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -259,6 +274,9 @@ final class S3ClientSettings {
     /** Region to use for signing requests or empty string to use default. */
     final String region;
 
+    /** Maximum size allowed for copy without multipart */
+    final ByteSizeValue maxCopySizeBeforeMultipart;
+
     private S3ClientSettings(
         AwsCredentials credentials,
         HttpScheme protocol,
@@ -276,7 +294,8 @@ final class S3ClientSettings {
         boolean pathStyleAccess,
         boolean disableChunkedEncoding,
         boolean addPurposeCustomQueryParameter,
-        String region
+        String region,
+        ByteSizeValue maxCopySizeBeforeMultipart
     ) {
         this.credentials = credentials;
         this.protocol = protocol;
@@ -295,6 +314,7 @@ final class S3ClientSettings {
         this.disableChunkedEncoding = disableChunkedEncoding;
         this.addPurposeCustomQueryParameter = addPurposeCustomQueryParameter;
         this.region = region;
+        this.maxCopySizeBeforeMultipart = maxCopySizeBeforeMultipart;
     }
 
     /**
@@ -344,6 +364,11 @@ final class S3ClientSettings {
             normalizedSettings,
             TimeValue.timeValueMillis(connectionMaxIdleTimeMillis)
         ).millis();
+        final ByteSizeValue newMaxCopySizeBeforeMultipart = getRepoSettingOrDefault(
+            MAX_COPY_SIZE_BEFORE_MULTIPART,
+            normalizedSettings,
+            maxCopySizeBeforeMultipart
+        );
         if (Objects.equals(protocol, newProtocol)
             && Objects.equals(endpoint, newEndpoint)
             && Objects.equals(proxyHost, newProxyHost)
@@ -358,7 +383,8 @@ final class S3ClientSettings {
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && newAddPurposeCustomQueryParameter == addPurposeCustomQueryParameter
-            && Objects.equals(region, newRegion)) {
+            && Objects.equals(region, newRegion)
+            && Objects.equals(maxCopySizeBeforeMultipart, newMaxCopySizeBeforeMultipart)) {
             return this;
         }
         return new S3ClientSettings(
@@ -378,7 +404,8 @@ final class S3ClientSettings {
             newPathStyleAccess,
             newDisableChunkedEncoding,
             newAddPurposeCustomQueryParameter,
-            newRegion
+            newRegion,
+            newMaxCopySizeBeforeMultipart
         );
     }
 
@@ -488,7 +515,8 @@ final class S3ClientSettings {
                 getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
                 getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
                 getConfigValue(settings, clientName, ADD_PURPOSE_CUSTOM_QUERY_PARAMETER),
-                getConfigValue(settings, clientName, REGION)
+                getConfigValue(settings, clientName, REGION),
+                getConfigValue(settings, clientName, MAX_COPY_SIZE_BEFORE_MULTIPART)
             );
         }
     }
@@ -517,7 +545,8 @@ final class S3ClientSettings {
             && Objects.equals(proxyPassword, that.proxyPassword)
             && Objects.equals(disableChunkedEncoding, that.disableChunkedEncoding)
             && Objects.equals(addPurposeCustomQueryParameter, that.addPurposeCustomQueryParameter)
-            && Objects.equals(region, that.region);
+            && Objects.equals(region, that.region)
+            && Objects.equals(maxCopySizeBeforeMultipart, that.maxCopySizeBeforeMultipart);
     }
 
     @Override
@@ -538,7 +567,8 @@ final class S3ClientSettings {
             maxConnections,
             disableChunkedEncoding,
             addPurposeCustomQueryParameter,
-            region
+            region,
+            maxCopySizeBeforeMultipart
         );
     }
 

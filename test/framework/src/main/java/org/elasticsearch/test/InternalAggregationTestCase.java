@@ -230,6 +230,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
         assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
+        List<T> reducedList = new ArrayList<>();
         toReduce.addAll(inputs.toReduce());
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -249,6 +250,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) reduce(toPartialReduce, context);
+            reducedList.add(reduced);
             int initialBucketCount = 0;
             for (InternalAggregation internalAggregation : toPartialReduce) {
                 initialBucketCount += countInnerBucket(internalAggregation);
@@ -263,6 +265,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
              */
             if (randomBoolean()) {
                 reduced = copyNamedWriteable(reduced, getNamedWriteableRegistry(), categoryClass());
+                reducedList.add(reduced);
             }
             toReduce = new ArrayList<>(toReduce.subList(r, toReduce.size()));
             toReduce.add(reduced);
@@ -281,6 +284,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         );
         @SuppressWarnings("unchecked")
         T reduced = (T) reduce(toReduce, context);
+        reducedList.add(reduced);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
         assertReduced(reduced, inputs.toReduce());
         if (supportsSampling()) {
@@ -293,6 +297,8 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             T sampled = (T) reduced.finalizeSampling(randomContext);
             assertSampled(sampled, reduced, randomContext);
         }
+        inputs.toReduce().forEach(this::dispose);
+        reducedList.forEach(this::dispose);
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {

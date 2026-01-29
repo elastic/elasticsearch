@@ -252,4 +252,11 @@ public abstract class InternalMultiBucketAggregation<
     /** A {@link InternalBucket} that implements the {@link Writeable} interface. Most implementation might want
      * to use this one except when specific logic is need to write into the stream. */
     public abstract static class InternalBucketWritable extends InternalBucket implements Writeable {}
+
+    @Override
+    public void close() {
+        for (Bucket b : getBuckets()) {
+            b.getAggregations().asList().forEach(agg -> { agg.close(); });
+        }
+    }
 }

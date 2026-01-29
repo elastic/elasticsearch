@@ -59,6 +59,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals("2", searchHits.getAt(1).getId());
         assertEquals("1", searchHits.getAt(2).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
+        result.close();
     }
 
     public void testNoResults() throws Exception {
@@ -66,6 +67,7 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         SearchHits searchHits = result.getHits();
         assertEquals(0L, searchHits.getTotalHits().value());
         assertFalse(AggregationInspectionHelper.hasValue(((InternalTopHits) result)));
+        result.close();
     }
 
     /**
@@ -111,6 +113,8 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(1L, searchHits.getTotalHits().value());
         assertEquals("3", searchHits.getAt(0).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
+
+        result.close();
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");
@@ -181,11 +185,12 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(3, result.getHits().getTotalHits().value());
         reader.close();
         directory.close();
+        result.close();
     }
 
     public void testSortByScore() throws Exception {
         // just check that it does not fail with exceptions
-        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score", SortOrder.DESC));
-        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score"));
+        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score", SortOrder.DESC)).close();
+        testCase(Queries.ALL_DOCS_INSTANCE, topHits("_name").sort("_score")).close();
     }
 }

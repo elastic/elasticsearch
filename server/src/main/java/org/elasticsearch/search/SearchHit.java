@@ -239,7 +239,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             clusterAlias = shardTarget.getClusterAlias();
         }
 
-        boolean isPooled = pooled && source != null;
+        boolean isPooled = pooled;
         final Map<String, SearchHits> innerHits;
         int size = in.readVInt();
         if (size > 0) {

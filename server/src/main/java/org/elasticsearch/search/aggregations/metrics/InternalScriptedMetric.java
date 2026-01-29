@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -154,5 +155,14 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     @Override
     public String toString() {
         return "InternalScriptedMetric{" + reduceScript + "}";
+    }
+
+    @Override
+    public void close() {
+        aggregations.forEach(obj -> {
+            if (obj instanceof Aggregation agg) {
+                agg.close();
+            }
+        });
     }
 }

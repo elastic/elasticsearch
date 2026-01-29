@@ -222,7 +222,8 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(
+
+        final InternalTopHits internalTopHits = new InternalTopHits(
             name,
             subSearchContext.from(),
             subSearchContext.size(),
@@ -230,6 +231,11 @@ class TopHitsAggregator extends MetricsAggregator {
             fetchResult.hits(),
             metadata()
         );
+        internalTopHits.incRef();
+        fetchResult.hits().incRef();
+
+        subSearchContext.addReleasable(internalTopHits::decRef);
+        return internalTopHits;
     }
 
     private FetchSearchResult runFetchPhase(int[] docIdsToLoad, IntConsumer memoryChecker) {
@@ -299,7 +305,8 @@ class TopHitsAggregator extends MetricsAggregator {
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(
+
+        final InternalTopHits internalTopHits = new InternalTopHits(
             name,
             subSearchContext.from(),
             subSearchContext.size(),
@@ -307,6 +314,9 @@ class TopHitsAggregator extends MetricsAggregator {
             SearchHits.EMPTY_WITH_TOTAL_HITS,
             metadata()
         );
+        internalTopHits.incRef();
+        subSearchContext.addReleasable(internalTopHits::decRef);
+        return internalTopHits;
     }
 
     @Override

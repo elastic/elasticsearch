@@ -107,6 +107,11 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         return new BuilderAndToReduce<>(mock(AggregationBuilder.class), Stream.generate(supplier).limit(size).collect(toList()));
     }
 
+    @Override
+    protected void dispose(InternalTopHits t) {
+        t.close();
+    }
+
     private InternalTopHits createTestInstanceSortedByFields(
         String name,
         int requestedSize,
@@ -158,13 +163,13 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
 
             Map<String, DocumentField> searchHitFields = new HashMap<>();
             scoreDocs[i] = docBuilder.apply(docId, score);
-            hits[i] = SearchHit.unpooled(docId, Integer.toString(i));
+            hits[i] = new SearchHit(docId, Integer.toString(i));
             hits[i].addDocumentFields(searchHitFields, Collections.emptyMap());
             hits[i].score(score);
         }
         int totalHits = between(actualSize, 500000);
         sort(hits, scoreDocs, comparator);
-        SearchHits searchHits = SearchHits.unpooled(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), maxScore);
 
         TopDocs topDocs = topDocsBuilder.apply(new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), scoreDocs);
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
@@ -239,6 +244,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         SearchHit[] expectedHitsHits = new SearchHit[min(inputs.get(0).getSize(), allHits.size())];
         for (int i = 0; i < expectedHitsHits.length; i++) {
             expectedHitsHits[i] = allHits.get(i).v2();
+            expectedHitsHits[i].incRef();
         }
         // Lucene's TopDocs initializes the maxScore to Float.NaN, if there is no maxScore
         SearchHits expectedHits = new SearchHits(
@@ -273,11 +279,12 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Sort value retrieval requires a single value.
         hit.sortValues(new Object[] { 10.0, 20.0 }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW });
         expectThrows(IllegalArgumentException.class, () -> internalTopHits.getProperty(List.of("_sort")));
-
+        internalTopHits.decRef();
         // Two SearchHit instances are not allowed, only the first will be used without assertion.
         hits = SearchHits.unpooled(new SearchHit[] { hit, hit }, null, 0);
         InternalTopHits internalTopHits3 = new InternalTopHits("test", 0, 0, null, hits, null);
         expectThrows(IllegalArgumentException.class, () -> internalTopHits3.getProperty(List.of("foo")));
+        internalTopHits3.decRef();
     }
 
     @Override

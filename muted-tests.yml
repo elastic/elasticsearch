@@ -333,6 +333,9 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470
+- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
+  method: testHighNodeWriteLoadPreventsNewShardAllocation
+  issue: https://github.com/elastic/elasticsearch/issues/141493
 
 # Examples:
 #

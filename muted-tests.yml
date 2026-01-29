@@ -351,9 +351,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=esql/40_unsupported_types/unsupported with sort}
   issue: https://github.com/elastic/elasticsearch/issues/139702
-- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
-  method: testIndexingSyntheticSource
-  issue: https://github.com/elastic/elasticsearch/issues/139482
 - class: org.elasticsearch.persistent.PersistentTasksCustomMetadataTests
   method: testMinVersionSerialization
   issue: https://github.com/elastic/elasticsearch/issues/139740

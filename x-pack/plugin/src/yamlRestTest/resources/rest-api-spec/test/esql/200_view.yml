@@ -216,7 +216,7 @@ setup:
           query: 'FROM test | WHERE animal == "dog"'
 
   - do:
-      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      catch: /Invalid index name \[myview\], already exists as an ESQL view|is not available when running in serverless mode/
       indices.create:
         index: myview
 
@@ -225,13 +225,13 @@ setup:
         index: myindex
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myindex
         name: myview
 
   - do:
-      catch: /Invalid index name \[myview\], already exists as an ESQL view/
+      catch: /Invalid index name \[myview\], already exists as an ESQL view|is not available when running in serverless mode/
       indices.clone:
         index: myindex
         target: myview
@@ -246,7 +246,7 @@ setup:
           data_stream: {}
 
   - do:
-      catch: /data_stream \[myview\] already exists as an ESQL view/
+      catch: /data_stream \[myview\] already exists as an ESQL view|is not available when running in serverless mode/
       indices.create_data_stream:
         name: myview
 
@@ -255,7 +255,7 @@ setup:
         name: myviewds
 
   - do:
-      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias/
+      catch: /Invalid alias name \[myview\]. an index, data stream, or ESQL view exists with the same name as the alias|is not available when running in serverless mode/
       indices.put_alias:
         index: myviewds
         name: myview

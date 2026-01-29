@@ -31,6 +31,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchContextSourcePrinter;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 import org.elasticsearch.search.fetch.chunk.FetchPhaseResponseChunk;
@@ -455,6 +456,9 @@ public final class FetchPhase {
             // completing until we explicitly signal success/failure after iteration finishes.
             final ActionListener<Void> mainBuildListener = chunkCompletionRefs.acquire();
 
+            int maxInFlightChunks = SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(
+                context.getSearchExecutionContext().getIndexSettings().getSettings());
+
             docsIterator.iterateAsync(
                 context.shardTarget(),
                 context.searcher().getIndexReader(),
@@ -462,7 +466,7 @@ public final class FetchPhase {
                 writer,
                 targetChunkBytes,
                 chunkCompletionRefs,
-                3, // maxInFlightChunks - TODO make configurable
+                maxInFlightChunks,
                 context.circuitBreaker(),
                 sendFailure,
                 context::isCancelled,

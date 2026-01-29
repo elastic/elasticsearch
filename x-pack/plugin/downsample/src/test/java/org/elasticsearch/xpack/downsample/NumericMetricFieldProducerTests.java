@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.stream.IntStream;
 
 public class NumericMetricFieldProducerTests extends AggregatorTestCase {
 
@@ -178,7 +179,7 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertNull(lastValueProducer.lastValue());
     }
 
-    public void testCounterMetricFieldProducer() throws IOException {
+    public void testLastValueMetricFieldProducer() throws IOException {
         final String field = "field";
         var producer = new NumericMetricFieldProducer.LastValue(field);
         assertTrue(producer.isEmpty());
@@ -214,6 +215,125 @@ public class NumericMetricFieldProducerTests extends AggregatorTestCase {
         assertEquals("{\"field\":{\"min\":5.5,\"max\":55.0,\"sum\":72.7,\"value_count\":3}}", Strings.toString(builder));
 
         assertEquals(field, producer.name());
+    }
+
+    public void testCounterMetricFieldProducer_noReset() throws IOException {
+        final String field = "field";
+        var producer = new NumericMetricFieldProducer.AggregateCounter(field);
+        assertTrue(producer.isEmpty());
+        var docIdBuffer = IntArrayList.from(IntStream.range(0, 6).toArray());
+        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1, 2, 3, 6, 10, 11);
+
+        producer.collect(valuesInstance, docIdBuffer.reverse());
+
+        assertFalse(producer.isEmpty());
+        assertEquals(1.0, producer.firstValue(), 0);
+        assertEquals(11.0, producer.lastValue(), 0);
+        assertEquals(0.0, producer.resetValue(), 0);
+        assertEquals("field", producer.name());
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":1.0}", Strings.toString(builder));
+        builder = JsonXContent.contentBuilder().startObject();
+        producer.writeLastValue(builder);
+        builder.endObject();
+        assertEquals("{\"field\":11.0}", Strings.toString(builder));
+    }
+
+    public void testCounterMetricFieldProducer_oneReset() throws IOException {
+        final String field = "field";
+        var producer = new NumericMetricFieldProducer.AggregateCounter(field);
+        assertTrue(producer.isEmpty());
+        // Last value greater than first
+        var docIdBuffer = IntArrayList.from(IntStream.range(0, 8).toArray());
+        var valuesInstance = createNumericValuesInstance(docIdBuffer, 1, 2, 5, 8, 3, 6, 10, 11);
+
+        producer.collect(valuesInstance, docIdBuffer.reverse());
+
+        assertFalse(producer.isEmpty());
+        assertEquals(1.0, producer.firstValue(), 0);
+        assertEquals(11.0, producer.lastValue(), 0);
+        assertEquals(8.0, producer.resetValue(), 0);
+        assertEquals("field", producer.name());
+
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":1.0}", Strings.toString(builder));
+        builder = JsonXContent.contentBuilder().startObject();
+        producer.writeLastValue(builder);
+        builder.endObject();
+        assertEquals("{\"field\":11.0}", Strings.toString(builder));
+
+        // Last value less than first
+        producer.reset();
+        assertTrue(producer.isEmpty());
+        docIdBuffer = IntArrayList.from(IntStream.range(0, 10).toArray());
+        valuesInstance = createNumericValuesInstance(docIdBuffer, 1000, 1003, 1010, 1040, 1060, 20, 30, 40, 70, 80);
+
+        producer.collect(valuesInstance, docIdBuffer.reverse());
+
+        assertFalse(producer.isEmpty());
+        assertEquals(1000.0, producer.firstValue(), 0);
+        assertEquals(80.0, producer.lastValue(), 0);
+        assertEquals(1060.0, producer.resetValue(), 0);
+        assertEquals("field", producer.name());
+
+        builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":1000.0}", Strings.toString(builder));
+        builder = JsonXContent.contentBuilder().startObject();
+        producer.writeLastValue(builder);
+        builder.endObject();
+        assertEquals("{\"field\":80.0}", Strings.toString(builder));
+    }
+
+    public void testCounterMetricFieldProducer_multipleResets() throws IOException {
+        final String field = "field";
+        var producer = new NumericMetricFieldProducer.AggregateCounter(field);
+        assertTrue(producer.isEmpty());
+        var docIdBuffer = IntArrayList.from(IntStream.range(0, 18).toArray());
+        var valuesInstance = createNumericValuesInstance(
+            docIdBuffer,
+            1000,
+            1003,
+            1010,
+            1040,
+            1060,
+            20,
+            30,
+            40,
+            70,
+            80,
+            20,
+            10,
+            20,
+            40,
+            60,
+            5,
+            10,
+            20
+        );
+
+        producer.collect(valuesInstance, docIdBuffer.reverse());
+
+        assertFalse(producer.isEmpty());
+        assertEquals(1000.0, producer.firstValue(), 0);
+        assertEquals(20.0, producer.lastValue(), 0);
+        assertEquals(1220.0, producer.resetValue(), 0);
+        assertEquals("field", producer.name());
+
+        var builder = JsonXContent.contentBuilder().startObject();
+        producer.write(builder);
+        builder.endObject();
+        assertEquals("{\"field\":1000.0}", Strings.toString(builder));
+        builder = JsonXContent.contentBuilder().startObject();
+        producer.writeLastValue(builder);
+        builder.endObject();
+        assertEquals("{\"field\":20.0}", Strings.toString(builder));
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {

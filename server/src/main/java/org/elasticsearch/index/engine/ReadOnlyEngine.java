@@ -481,6 +481,12 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public boolean preForceMergeNoOpCheck(int maxNumSegments, boolean onlyExpungeDeletes) {
+        // We'll let the forceMerge method take care of throwing an exception if necessary.
+        return false;
+    }
+
+    @Override
     public IndexCommitRef acquireLastIndexCommit(boolean flushFirst) {
         store.incRef();
         return new IndexCommitRef(indexCommit, store::decRef);

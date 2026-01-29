@@ -1860,6 +1860,81 @@ public class InternalEngineTests extends EngineTestCase {
 
     }
 
+    /**
+     * Test that {@link InternalEngine#preForceMergeNoOpCheck(int, boolean)} checks for uncommitted changes. If there are uncommitted
+     * changes, we can't guarantee that a subsequent force-merge call would be a no-op, and thus preForceMergeNoOpCheck should return false.
+     */
+    public void testPreForceMergeNoOpCheckUncommittedChanges() throws Exception {
+        // Create a simple InternalEngine.
+        try (Store store = createStore(); InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), newMergePolicy())) {
+            // Index some documents without flushing to create uncommitted changes.
+            int numDocs = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < numDocs; i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // Verify that the test setup is correct; we should have uncommitted changes.
+            assertTrue(engine.hasUncommittedChanges());
+
+            // Since there are uncommitted changes, preForceMergeNoOpCheck should return false to indicate that we can't guarantee that
+            // a subsequent force-merge call would be a no-op.
+            assertFalse(engine.preForceMergeNoOpCheck(1, false));
+        }
+    }
+
+    /**
+     * Test that {@link InternalEngine#preForceMergeNoOpCheck(int, boolean)} checks for new commits made after initially reading the last
+     * commit. If new commits were written to disk after reading the last commit, we can't guarantee that a subsequent force-merge call
+     * would be a no-op, and thus preForceMergeNoOpCheck should return false.
+     */
+    public void testPreForceMergeNoOpCheckLastCommit() throws Exception {
+        // Create the necessary store and config to create an InternalEngine.
+        try (Store store = createStore()) {
+            store.createEmpty();
+            final var config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null);
+            final String translogUuid = Translog.createEmptyTranslog(
+                config.getTranslogConfig().getTranslogPath(),
+                SequenceNumbers.NO_OPS_PERFORMED,
+                shardId,
+                primaryTerm.get()
+            );
+            store.associateIndexWithNewTranslog(translogUuid);
+            // A flag to indicate whether we should create a new commit when hasUncommittedChanges is called.
+            AtomicBoolean shouldCreateCommit = new AtomicBoolean();
+            // Create an InternalEngine that can create a new commit right before checking for uncommitted changes.
+            try (InternalEngine engine = new InternalEngine(config) {
+                @Override
+                protected boolean hasUncommittedChanges() {
+                    if (shouldCreateCommit.compareAndSet(true, false)) {
+                        // Index some documents and flush them to create a new commit.
+                        int numDocs = scaledRandomIntBetween(10, 100);
+                        for (int i = 0; i < numDocs; i++) {
+                            try {
+                                index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+                            } catch (IOException e) {
+                                fail(e);
+                            }
+                        }
+                        flush(true, true);
+                    }
+                    return super.hasUncommittedChanges();
+                }
+            }) {
+                // Required for constructing the engine.
+                recoverFromTranslog(engine, translogHandler, Long.MAX_VALUE);
+
+                // Verify that the test setup is correct; we should have _no_ uncommitted changes - no docs were indexed yet.
+                assertFalse(engine.hasUncommittedChanges());
+
+                // In the next call to hasUncommittedChanges (inside preForceMergeNoOpCheck), we index some documents and flush them to
+                // create a new commit and write it to disk.
+                shouldCreateCommit.set(true);
+                // Since the initial commit we read is no longer the last commit, preForceMergeNoOpCheck should return false to indicate
+                // that we can't guarantee that a subsequent force-merge call would be a no-op.
+                assertFalse(engine.preForceMergeNoOpCheck(1, false));
+            }
+        }
+    }
+
     public void testVersioningCreateExistsException() throws IOException {
         ParsedDocument doc = testParsedDocument("1", null, testDocument(), B_1, null);
         Engine.Index create = new Engine.Index(

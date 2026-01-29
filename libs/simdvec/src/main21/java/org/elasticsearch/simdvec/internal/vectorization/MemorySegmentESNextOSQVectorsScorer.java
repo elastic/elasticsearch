@@ -103,6 +103,45 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         );
     }
 
+    @Override
+    public float scoreBulk(
+        byte[] q,
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        float[] scores,
+        int bulkSize
+    ) throws IOException {
+        float score = scorer.scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+        if (score != Float.NEGATIVE_INFINITY) {
+            return score;
+        }
+        return super.scoreBulk(
+            q,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
+    }
+
     abstract static sealed class MemorySegmentScorer permits MSBitToInt4ESNextOSQVectorsScorer, MSDibitToInt4ESNextOSQVectorsScorer,
         MSInt4SymmetricESNextOSQVectorsScorer {
 
@@ -139,7 +178,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
         abstract boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException;
 
-        abstract float scoreBulk(
+        float scoreBulk(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -148,6 +187,30 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
             VectorSimilarityFunction similarityFunction,
             float centroidDp,
             float[] scores
+        ) throws IOException {
+            return scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                BULK_SIZE
+            );
+        }
+
+        abstract float scoreBulk(
+            byte[] q,
+            float queryLowerInterval,
+            float queryUpperInterval,
+            int queryComponentSum,
+            float queryAdditionalCorrection,
+            VectorSimilarityFunction similarityFunction,
+            float centroidDp,
+            float[] scores,
+            int bulkSize
         ) throws IOException;
     }
 }

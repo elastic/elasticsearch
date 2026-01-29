@@ -233,7 +233,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         assert q.length == length * 2;
         // 128 / 8 == 16
@@ -247,7 +248,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                     queryAdditionalCorrection,
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    bulkSize
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 return score128Bulk(
@@ -258,7 +260,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                     queryAdditionalCorrection,
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    bulkSize
                 );
             }
         }
@@ -273,7 +276,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         quantizeScore128Bulk(q, bulkSize, scores);
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
@@ -348,7 +352,8 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         quantizeScore256Bulk(q, bulkSize, scores);
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);

@@ -235,7 +235,8 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         assert q.length == length;
         // 128 / 8 == 16
@@ -249,7 +250,8 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
                     queryAdditionalCorrection,
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    bulkSize
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                 return score128Bulk(
@@ -260,7 +262,8 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
                     queryAdditionalCorrection,
                     similarityFunction,
                     centroidDp,
-                    scores
+                    scores,
+                    bulkSize
                 );
             }
         }
@@ -275,7 +278,8 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         quantizeScore128Bulk(q, bulkSize, scores);
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
@@ -350,7 +354,8 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         quantizeScore256Bulk(q, bulkSize, scores);
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);

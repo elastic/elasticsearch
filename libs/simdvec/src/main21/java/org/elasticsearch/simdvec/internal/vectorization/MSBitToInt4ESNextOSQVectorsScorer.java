@@ -398,7 +398,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         assert q.length == length * 4;
         // 128 / 8 == 16
@@ -420,7 +421,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         queryAdditionalCorrection,
                         similarityFunction,
                         centroidDp,
-                        scores
+                        scores,
+                        bulkSize
                     );
                 } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
                     return score128Bulk(
@@ -430,7 +432,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
                         queryAdditionalCorrection,
                         similarityFunction,
                         centroidDp,
-                        scores
+                        scores,
+                        bulkSize
                     );
                 }
             }
@@ -445,7 +448,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         int limit = FLOAT_SPECIES_128.loopBound(bulkSize);
         int i = 0;
@@ -518,7 +522,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
         int limit = FLOAT_SPECIES_256.loopBound(bulkSize);
         int i = 0;

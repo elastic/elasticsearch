@@ -2534,8 +2534,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             String indexModeString = settings.get(IndexSettings.MODE.getKey());
             final IndexMode indexMode = indexModeString != null ? IndexMode.fromString(indexModeString.toLowerCase(Locale.ROOT)) : null;
             final boolean isTsdb = indexMode == IndexMode.TIME_SERIES;
-            boolean useTimeSeriesSyntheticId = settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey())
-                .equalsIgnoreCase(Boolean.TRUE.toString());
+            boolean useTimeSeriesSyntheticId = Boolean.parseBoolean(settings.get(IndexSettings.USE_SYNTHETIC_ID.getKey()));
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

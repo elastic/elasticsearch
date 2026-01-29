@@ -215,7 +215,8 @@ public class InferenceFunctionEvaluator {
                     case CompletionFunction completion -> new CompletionOperator.Factory(
                         inferenceService,
                         inferenceId(inferenceFunction, foldContext),
-                        expressionEvaluatorFactory(completion.prompt(), foldContext)
+                        expressionEvaluatorFactory(completion.prompt(), foldContext),
+                        completion.taskSettings().toFoldedMap(foldContext)
                     );
                     default -> throw new IllegalArgumentException("Unknown inference function: " + inferenceFunction.getClass().getName());
                 };

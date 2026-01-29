@@ -117,19 +117,28 @@ public abstract class InternalMappedRareTerms<A extends InternalRareTerms<A, B>,
             @Override
             public InternalAggregation get() {
                 final List<B> rare = new ArrayList<>();
-                for (List<B> sameTermBuckets : buckets.values()) {
-                    final B b = reduceBucket(sameTermBuckets, reduceContext);
-                    if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
-                        rare.add(b);
-                        reduceContext.consumeBucketsAndMaybeBreak(1);
-                    } else if (b.getDocCount() > maxDocCount) {
-                        // this term has gone over threshold while merging, so add it to the filter.
-                        // Note this may happen during incremental reductions too
-                        addToFilter(filter, b);
+                try {
+                    for (List<B> sameTermBuckets : buckets.values()) {
+                        final B b = reduceBucket(sameTermBuckets, reduceContext);
+                        if ((b.getDocCount() <= maxDocCount && containsTerm(filter, b) == false)) {
+                            rare.add(b);
+                            reduceContext.consumeBucketsAndMaybeBreak(1);
+                        } else if (b.getDocCount() > maxDocCount) {
+                            // this term has gone over threshold while merging, so add it to the filter.
+                            // Note this may happen during incremental reductions too
+                            addToFilter(filter, b);
+                        }
                     }
+                    CollectionUtil.introSort(rare, order.comparator());
+                    return createWithFilter(name, rare, filter);
+                } catch (Exception e) {
+                    for (B bucket : rare) {
+                        for (InternalAggregation agg : bucket.getAggregations()) {
+                            agg.close();
+                        }
+                    }
+                    throw e;
                 }
-                CollectionUtil.introSort(rare, order.comparator());
-                return createWithFilter(name, rare, filter);
             }
         };
     }

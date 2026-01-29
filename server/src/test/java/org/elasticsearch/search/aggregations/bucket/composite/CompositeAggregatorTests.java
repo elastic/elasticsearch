@@ -3689,8 +3689,12 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < create.size(); i++) {
-                    verify.get(i)
-                        .accept(searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                    V result = searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query));
+                    try {
+                        verify.get(i).accept(result);
+                    } finally {
+                        result.close();
+                    }
                 }
             }
         }

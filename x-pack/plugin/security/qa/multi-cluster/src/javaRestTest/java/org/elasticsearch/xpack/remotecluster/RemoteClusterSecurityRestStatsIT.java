@@ -224,7 +224,7 @@ public class RemoteClusterSecurityRestStatsIT extends AbstractRemoteClusterSecur
               "remote_indices": [
                 {
                   "names": ["*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["*"]
                 }
               ],

@@ -105,7 +105,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
               "indices": [
                 {
                   "names": [ "*" ],
-                  "privileges": [ "read", "read_cross_cluster", "view_index_metadata" ]
+                  "privileges": [ "read", "view_index_metadata" ]
                 }
               ]
             }""");
@@ -171,7 +171,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
                 {
                   "clusters": [ "*" ],
                   "names": [ "*" ],
-                  "privileges": [ "read", "read_cross_cluster", "view_index_metadata" ]
+                  "privileges": [ "read", "view_index_metadata" ]
                 }
               ]
             }""");

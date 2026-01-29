@@ -1,0 +1,5 @@
+pr: 141376
+summary: Merge `read_cross_cluster` privileges into read
+area: Security
+type: enhancement
+issues: []

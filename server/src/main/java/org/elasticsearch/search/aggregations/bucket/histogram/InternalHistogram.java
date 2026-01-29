@@ -318,44 +318,12 @@ public class InternalHistogram extends InternalMultiBucketAggregation<InternalHi
     }
 
     private void addEmptyBuckets(List<Bucket> list, AggregationReduceContext reduceContext) {
-        /*
-         * Make sure we have space for the empty buckets we're going to add by
-         * counting all of the empties we plan to add and firing them into
-         * consumeBucketsAndMaybeBreak.
-         */
-        class Counter implements DoubleConsumer {
-            private int size = 0;
-
-            @Override
-            public void accept(double key) {
-                size++;
-                if (size >= REPORT_EMPTY_EVERY) {
-                    reduceContext.consumeBucketsAndMaybeBreak(size);
-                    size = 0;
-                }
-            }
-        }
-        Counter counter = new Counter();
-        iterateEmptyBuckets(list, list.listIterator(), counter);
-        reduceContext.consumeBucketsAndMaybeBreak(counter.size);
-
-        /*
-         * Now that we're sure we have space we allocate all the buckets.
-         */
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(emptyBucketInfo.subAggregations, reduceContext);
+        int count = reducedEmptySubAggs.asList().stream().mapToInt(InternalMultiBucketAggregation::countInnerBucket).sum() + 1;
         ListIterator<Bucket> iter = list.listIterator();
-        iterateEmptyBuckets(list, iter, new DoubleConsumer() {
-            private int size;
-
-            @Override
-            public void accept(double key) {
-                size++;
-                if (size >= REPORT_EMPTY_EVERY) {
-                    reduceContext.consumeBucketsAndMaybeBreak(size);
-                    size = 0;
-                }
-                iter.add(new Bucket(key, 0, format, reducedEmptySubAggs));
-            }
+        iterateEmptyBuckets(list, iter, key -> {
+            reduceContext.consumeBucketsAndMaybeBreak(count);
+            iter.add(new Bucket(key, 0, format, reducedEmptySubAggs));
         });
     }
 

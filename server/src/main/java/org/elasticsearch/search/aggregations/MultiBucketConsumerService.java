@@ -116,7 +116,7 @@ public class MultiBucketConsumerService {
         public void accept(int value) {
             if (value != 0) {
                 count += value;
-                if (count > limit) {
+                if (count < 0 || count > limit) {
                     logger.warn("Too many buckets (max [{}], count [{}])", limit, count);
                     throw new TooManyBucketsException(
                         "Trying to create too many buckets. Must be less than or equal to: ["

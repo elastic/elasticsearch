@@ -238,6 +238,7 @@ javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX
 javaRestTest  |logs_unsigned_long |TABLE  |INDEX
+javaRestTest  |sorted_longs       |TABLE  |INDEX
 javaRestTest  |test_alias         |VIEW   |ALIAS
 javaRestTest  |test_alias_emp     |VIEW   |ALIAS
 javaRestTest  |test_emp           |TABLE  |INDEX
@@ -290,6 +291,7 @@ javaRestTest  |empty_mapping      |TABLE  |INDEX
 javaRestTest  |logs               |TABLE  |INDEX
 javaRestTest  |logs_nanos         |TABLE  |INDEX
 javaRestTest  |logs_unsigned_long |TABLE  |INDEX
+javaRestTest  |sorted_longs       |TABLE  |INDEX
 javaRestTest  |test_alias         |VIEW   |ALIAS
 javaRestTest  |test_alias_emp     |VIEW   |ALIAS
 javaRestTest  |test_emp           |TABLE  |INDEX

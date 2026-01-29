@@ -1197,7 +1197,7 @@ public class VerifierTests extends ESTestCase {
             error("FROM test | STATS count(network.bytes_out)", tsdb),
             equalTo(
                 "1:19: argument of [count(network.bytes_out)] must be"
-                    + " [any type except counter types, tdigest, histogram, exponential_histogram, or date_range],"
+                    + " [any type except counter types, histogram, or date_range],"
                     + " found value [network.bytes_out] type [counter_long]"
             )
         );

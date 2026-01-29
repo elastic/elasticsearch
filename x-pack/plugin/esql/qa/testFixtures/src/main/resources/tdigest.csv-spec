@@ -31,7 +31,75 @@ min:double | max:double | p90:double | sum:double  | avg:double
 2.17E-4    | 6.786232   | 0.4       | 1536.648714 | 0.0993245
 ;
 
+// -------------------------------------------------------------------------------
 
+Count ungrouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (standard mode)
+required_capability: count_of_histogram_types
+
+FROM tdigest_standard_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
+
+Count ungrouped (timeseries mode)
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+TS tdigest_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled") 
+ | STATS cnt = Count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long 
+15471
+;
+
+// -------------------------------------------------------------------------------
+
+Count grouped (timeseries mode)
+required_capability: ts_command_v0
+required_capability: count_of_histogram_types
+
+TS tdigest_timeseries_index 
+ | WHERE NOT STARTS_WITH(instance, "hand-rolled")
+ | STATS cnt = Count(responseTime) BY instance
+ | KEEP instance, cnt
+;
+ignoreOrder:true
+
+instance:keyword |cnt:long 
+instance-0       | 8841
+instance-1       | 3250
+instance-2       | 3380
+;
+
+// -------------------------------------------------------------------------------
 
 allAggsGrouped
 required_capability: tdigest_tech_preview
@@ -55,6 +123,37 @@ instance-1       | 2.17E-4    | 3.190723   | 0.1        | 36.198484   | 0.011138
 instance-2       | 2.2E-4     | 2.744054   | 0.1        | 27.706021   | 0.008197
 ;
 
+// -------------------------------------------------------------------------------
+
+Count of tdigest with no matching rows (standard mode)
+required_capability: tdigest_tech_preview
+required_capability: count_of_histogram_types
+
+FROM tdigest_standard_index 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long
+0
+;
+
+// -------------------------------------------------------------------------------
+
+Count of tdigest with no matching rows (time series mode)
+required_capability: tdigest_tech_preview
+required_capability: count_of_histogram_types
+
+TS tdigest_timeseries_index 
+ | WHERE instance == "does-not-exist"
+ | STATS cnt = count(responseTime)
+ | KEEP cnt
+;
+
+cnt:long
+0
+;
 
 
 ungroupedPercentiles

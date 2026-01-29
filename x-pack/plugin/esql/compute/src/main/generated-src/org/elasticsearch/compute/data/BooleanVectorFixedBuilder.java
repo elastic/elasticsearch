@@ -29,6 +29,7 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
 
     private boolean seenFalse = false;
     private boolean seenTrue = false;
+
     BooleanVectorFixedBuilder(int size, BlockFactory blockFactory) {
         preAdjustedBytes = ramBytesUsed(size);
         blockFactory.adjustBreaker(preAdjustedBytes);

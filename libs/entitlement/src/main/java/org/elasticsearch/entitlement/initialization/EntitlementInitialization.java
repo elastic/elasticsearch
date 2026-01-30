@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.initialization;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.entitlement.bridge.registry.InstrumentationRegistry;
 import org.elasticsearch.entitlement.rules.EntitlementRule;
-import org.elasticsearch.entitlement.rules.EntitlementRules;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyCheckerImpl;

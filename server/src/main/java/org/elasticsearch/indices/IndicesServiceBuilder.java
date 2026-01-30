@@ -83,8 +83,7 @@ public class IndicesServiceBuilder {
     MergeMetrics mergeMetrics;
     List<SearchOperationListener> searchOperationListener = List.of();
     QueryRewriteInterceptor queryRewriteInterceptor = null;
-    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {
-    };
+    ActionLoggingFieldsProvider loggingFieldsProvider = (context) -> new ActionLoggingFields(context) {};
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;

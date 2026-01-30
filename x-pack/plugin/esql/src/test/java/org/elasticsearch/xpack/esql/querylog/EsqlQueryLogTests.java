@@ -92,8 +92,7 @@ public class EsqlQueryLogTests extends ESTestCase {
     }
 
     public static ActionLoggingFieldsProvider mockLogFieldProvider() {
-        return context -> new ActionLoggingFields(context) {
-        };
+        return context -> new ActionLoggingFields(context) {};
     }
 
     public void testPrioritiesOnSuccess() {

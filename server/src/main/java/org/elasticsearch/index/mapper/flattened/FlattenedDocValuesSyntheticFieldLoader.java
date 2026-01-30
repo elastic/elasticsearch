@@ -33,7 +33,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
     private final String leafName;
     private final boolean usesBinaryDocValues;
 
-    private DocValuesFieldValues docValues = NO_VALUES;
+    protected DocValuesFieldValues docValues = NO_VALUES;
     private List<Object> ignoredValues = List.of();
 
     /**
@@ -134,7 +134,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         ignoredValues = List.of();
     }
 
-    private interface DocValuesFieldValues {
+    protected interface DocValuesFieldValues {
         int count();
 
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues getValues();

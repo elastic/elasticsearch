@@ -34,6 +34,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -67,11 +68,14 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -83,6 +87,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -855,6 +860,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // TODO: Blockloaders can load from stored fields. If we synthetic source, we should still be able to use the docValuesBlock
+            // loader even if ignoreAbove is set.
+            if (hasDocValues() && ignoreAbove.valuesPotentiallyIgnored() == false) {
+                return docValuesBlockLoader(blContext);
+            }
+
             SourceValueFetcher fetcher = new SourceValueFetcher(
                 blContext.sourcePaths(name()),
                 nullValue,
@@ -872,6 +883,62 @@ public final class FlattenedFieldMapper extends FieldMapper {
             };
 
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
+        }
+
+        private BlockLoader docValuesBlockLoader(BlockLoaderContext blContext) {
+            SourceLoader.SyntheticFieldLoader fieldLoader = new FlattenedDocValuesSyntheticFieldLoader(
+                name(),
+                name() + KEYED_FIELD_SUFFIX,
+                null,
+                name(),
+                usesBinaryDocValues
+            ) {
+                @Override
+                public void write(XContentBuilder b) throws IOException {
+                    if (docValues.count() == 0) {
+                        return;
+                    }
+                    FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
+                    var writer = new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+                    b.startObject();
+                    writer.write(b);
+                    b.endObject();
+                }
+            };
+            return new BlockDocValuesReader.DocValuesBlockLoader() {
+                @Override
+                public AllReader reader(LeafReaderContext context) throws IOException {
+                    var reader = fieldLoader.docValuesLoader(context.reader(), null);
+                    // TODO: null is evil
+                    return new BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary(null) {
+                        @Override
+                        public void read(int docId, BytesRefBuilder builder) throws IOException {
+                            if (reader == null) {
+                                builder.appendNull();
+                                return;
+                            }
+                            var hasValues = reader.advanceToDoc(docId);
+                            if (hasValues == false) {
+                                builder.appendNull();
+                                return;
+                            }
+                            var jsonBuilder = XContentFactory.jsonBuilder();
+                            fieldLoader.write(jsonBuilder);
+                            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+                        }
+
+                        @Override
+                        public String toString() {
+                            return getClass().getSimpleName();
+                        }
+                    };
+                }
+
+                @Override
+                public Builder builder(BlockFactory factory, int expectedCount) {
+                    return factory.bytesRefs(expectedCount);
+                }
+            };
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {

@@ -92,17 +92,14 @@ public final class LocalPrimarySnapshotShardContext extends SnapshotShardContext
         return store.shardId();
     }
 
-    @Override
     public Store store() {
         return store;
     }
 
-    @Override
     public MapperService mapperService() {
         return mapperService;
     }
 
-    @Override
     public IndexCommit indexCommit() {
         return commitRef.indexCommit();
     }

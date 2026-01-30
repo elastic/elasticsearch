@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -19,7 +18,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -98,12 +96,6 @@ public abstract class SnapshotShardContext extends DelegatingActionListener<Shar
     }
 
     public abstract ShardId shardId();
-
-    public abstract Store store();
-
-    public abstract MapperService mapperService();
-
-    public abstract IndexCommit indexCommit();
 
     public abstract Releasable withCommitRef();
 

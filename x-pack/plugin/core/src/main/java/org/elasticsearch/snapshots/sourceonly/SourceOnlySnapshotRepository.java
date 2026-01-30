@@ -144,7 +144,9 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
     }
 
     @Override
-    public void snapshotShard(SnapshotShardContext context) {
+    public void snapshotShard(SnapshotShardContext snapshotShardContext) {
+        assert snapshotShardContext instanceof LocalPrimarySnapshotShardContext : snapshotShardContext;
+        final var context = (LocalPrimarySnapshotShardContext) snapshotShardContext;
         final MapperService mapperService = context.mapperService();
         if ((mapperService.documentMapper() != null // if there is no mapping this is null
             && mapperService.documentMapper().sourceMapper().isComplete() == false)

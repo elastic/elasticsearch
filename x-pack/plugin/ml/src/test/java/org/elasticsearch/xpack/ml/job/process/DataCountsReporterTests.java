@@ -363,9 +363,21 @@ public class DataCountsReporterTests extends ESTestCase {
 
             // Check that all reads complete promptly, even though persistence is ongoing and blocked
             long startTime = System.nanoTime();
-            for (Future<DataCounts> future : futures) {
-                DataCounts counts = future.get(500, TimeUnit.MILLISECONDS);
-                assertNotNull(counts);
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    DataCounts counts = futures.get(i).get(500, TimeUnit.MILLISECONDS);
+                    assertNotNull(counts);
+                } catch (java.util.concurrent.TimeoutException e) {
+                    fail(
+                        "Read #"
+                            + (i + 1)
+                            + " of "
+                            + futures.size()
+                            + " timed out after 500ms. "
+                            + "This suggests runningTotalStats() is blocked by the persistence thread. "
+                            + "Expected all reads to complete quickly while writeUnreportedCounts() is blocked on persistence."
+                    );
+                }
             }
             long duration = System.nanoTime() - startTime;
 

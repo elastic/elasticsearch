@@ -89,6 +89,13 @@ public class WriteLoadConstraintDecider extends AllocationDecider {
             } else {
                 return Decision.NOT_PREFERRED;
             }
+        } else if (allocation.clusterInfo().nodeIsWriteLoadHotspotting(node.nodeId())) {
+            return allocation.decision(
+                Decision.NOT_PREFERRED,
+                NAME,
+                "Node [%s] is currently hotspotting or in a waiting period, and does not prefer shards moved onto it",
+                node.nodeId()
+            );
         }
 
         var allShardWriteLoads = allocation.clusterInfo().getShardWriteLoads();

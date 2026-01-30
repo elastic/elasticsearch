@@ -340,26 +340,12 @@ public class LocalExecutionPlanner {
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
             return source.with(
-                new RrfScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    rrfConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig, fuse.source()),
                 source.layout
             );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
             return source.with(
-                new LinearScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    linearConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig, fuse.source()),
                 source.layout
             );
         }
@@ -873,19 +859,19 @@ public class LocalExecutionPlanner {
             new FilterOperatorFactory(EvalMapper.toEvaluator(context.foldCtx(), filter.condition(), source.layout, context.shardContexts)),
             source.layout
         );
-        if (PlannerUtils.usesScoring(filter)) {
+        // Add ScoreOperator only on data nodes. Data nodes are able to calculate scores running queries on the resulting docs.
+        if (context.shardContexts.isEmpty() == false && PlannerUtils.usesScoring(filter)) {
             // Add scorer operator to add the filter expression scores to the overall scores
-            int scoreBlock = 0;
-            for (Attribute attribute : filter.output()) {
-                if (MetadataAttribute.SCORE.equals(attribute.name())) {
-                    break;
-                }
-                scoreBlock++;
-            }
-            if (scoreBlock == filter.output().size()) {
-                throw new IllegalStateException("Couldn't find _score attribute in a WHERE clause");
-            }
+            Attribute scoreAttribute = null;
 
+            for (Attribute attribute : filter.output()) {
+                if (attribute instanceof MetadataAttribute && MetadataAttribute.SCORE.equals(attribute.name())) {
+                    scoreAttribute = attribute;
+                }
+            }
+            assert scoreAttribute != null : "Couldn't find _score attribute in a WHERE clause";
+
+            int scoreBlock = filterOperation.layout.get(scoreAttribute.id()).channel();
             filterOperation = filterOperation.with(
                 new ScoreOperator.ScoreOperatorFactory(ScoreMapper.toScorer(filter.condition(), context.shardContexts), scoreBlock),
                 filterOperation.layout
@@ -913,15 +899,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
-        return source.with(
-            new ChangePointOperator.Factory(
-                layout.get(changePoint.value().id()).channel(),
-                changePoint.sourceText(),
-                changePoint.sourceLocation().getLineNumber(),
-                changePoint.sourceLocation().getColumnNumber()
-            ),
-            layout
-        );
+        return source.with(new ChangePointOperator.Factory(layout.get(changePoint.value().id()).channel(), changePoint.source()), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

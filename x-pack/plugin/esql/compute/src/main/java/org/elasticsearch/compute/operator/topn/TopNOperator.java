@@ -448,16 +448,12 @@ public class TopNOperator implements Operator, Accountable {
                     spare = nextSpare;
                 } else if (inputOrdering == InputOrdering.SORTED) {
                     /*
-                     The queue (min-heap) is full and we have sorted input for the input page.
-                     Any other element that comes after the one we just compared will be
-                     greater or equal than any other one in the queue, so we can shortcircuit
-                     the execution here.
+                     The queue (min-heap) is full and we have sorted input for the input page. Any other element that comes after the one
+                     we just compared will be greater or equal than any other one in the queue, so we can short circuit the execution here.
 
-                     Note we always need to check whether the min-heap top's is
-                     greater or equal than the current element. For example: we could have
-                     processed all the data from a first data node, have a full queue
-                     (a partial result), but a page from a second data node could interleave
-                     with our partial result in arbitrary ways
+                     Note we always need to check whether the min-heap top's is greater or equal than the current element. For example: we
+                     could have processed all the data from a first data node, have a full queue (a partial result), but a page from a
+                     second data node could interleave with our partial result in arbitrary ways.
                      */
                     break;
                 }

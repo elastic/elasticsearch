@@ -53,8 +53,7 @@ public class TopNExecSerializationTests extends AbstractPhysicalPlanSerializatio
             default -> throw new UnsupportedOperationException();
         }
         var result = new TopNExec(instance.source(), child, order, limit, estimatedRowSize);
-        result = (inputOrdering == InputOrdering.SORTED ? result.withSortedInput() : result.withNonSortedInput());
-        return result;
+        return inputOrdering == InputOrdering.SORTED ? result.withSortedInput() : result.withNonSortedInput();
     }
 
     @Override

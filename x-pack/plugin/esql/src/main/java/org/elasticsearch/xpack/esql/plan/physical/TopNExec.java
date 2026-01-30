@@ -94,7 +94,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
             in.readCollectionAsList(org.elasticsearch.xpack.esql.expression.Order::new),
             in.readNamedWriteable(Expression.class),
             in.readOptionalVInt(),
-            in.getTransportVersion().supports(ESQL_TOPN_AVOID_RESORTING) ? in.readEnum(InputOrdering.class) : InputOrdering.NOT_SORTED
+            in.getTransportVersion().supports(ESQL_TOPN_AVOID_RESORTING) ? InputOrdering.valueOf(in.readString()) : InputOrdering.NOT_SORTED
         );
         // docValueAttributes are only used on the data node and never serialized.
     }
@@ -107,7 +107,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(limit());
         out.writeOptionalVInt(estimatedRowSize());
         if (out.getTransportVersion().supports(ESQL_TOPN_AVOID_RESORTING)) {
-            out.writeEnum(inputOrdering);
+            out.writeString(inputOrdering.toString());
         }
         // docValueAttributes are only used on the data node and never serialized.
     }

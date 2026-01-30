@@ -116,10 +116,10 @@ public class IndicesAllocationStats {
             }
         }
 
-        // only whole shard can be moved, a fractional part here indicates normal inequality
-        // that cannot be further improved, for example [3,3,1] has avg=2.33..
-        // sum of positive diffs = (3-2.33..) + (3 - 2.33..) ~= 1.34,
-        // moving one shard would achieve balance [3,2,2]
+        // Only whole shard can be moved, a fractional part here indicates normal inequality that
+        // cannot be further improved. For example, [3,3,1] has avg=2.33.. and sum of positive
+        // diffs = (3-2.33..) + (3 - 2.33..) ~= 1.34, at least one shard. Moving one shard would
+        // achieve balance [3,2,2].
         offBalanceShards = (float) Math.floor(offBalanceShards);
 
         return offBalanceShards / totalShards;
@@ -136,8 +136,8 @@ public class IndicesAllocationStats {
     }
 
     /**
-     * Calculates imbalance ratios for index and search tiers in Serverless.
-     * Assuming primaries should be assigned across nodes with {@link org.elasticsearch.cluster.node.DiscoveryNodeRole#INDEX_ROLE}
+     * Calculates imbalance ratios for index and search tiers in Serverless. Assuming primaries
+     * should be assigned across nodes with {@link org.elasticsearch.cluster.node.DiscoveryNodeRole#INDEX_ROLE}
      * and replicas across nodes with {@link org.elasticsearch.cluster.node.DiscoveryNodeRole#SEARCH_ROLE}.
      */
     static ServerlessIndexImbalance calculateServerlessIndexImbalance(
@@ -153,11 +153,9 @@ public class IndicesAllocationStats {
     }
 
     /**
-     * Calculate a histogram of index shards imbalance across all indices for Serverless.
-     * A histogram contains ranges with 0.1 increment, from 0 to 1, 10 buckets in total.
-     * An increment in histogram means an index has imbalance in that range.
-     * For example, [0,0,1,2,1,0,0,0,0,0] means one index with 0.2-0.3, two indices with 0.3-0.4,
-     * and one index with 0.4-0.5 imbalance.
+     * Calculate a histogram of indices and their imbalance ratio for entire cluster. A histogram
+     * starts at 0 and ends at 1, with 0.1 step. For example, [0,0,1,2,1,0,0,0,0,0] means one index
+     * with 0.2-0.3, two indices with 0.3-0.4,and one index with 0.4-0.5 imbalance ratio.
      */
     public static ServerlessIndicesImbalanceHistogram calculateServerlessIndicesImbalanceHistogram(RoutingTable rt, DiscoveryNodes nodes) {
         final var indexFreqMap = indexTierEmptyFreqMap(nodes);

@@ -1,0 +1,6 @@
+area: Infra/Core
+issues:
+ - 141442
+pr: 141612
+summary: Update x-content jackson versions to 2.21.0
+type: upgrade

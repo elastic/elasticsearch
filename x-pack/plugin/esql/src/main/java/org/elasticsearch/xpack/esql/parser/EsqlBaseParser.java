@@ -83,7 +83,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_rerankCommand = 62, RULE_completionCommand = 63, RULE_inlineStatsCommand = 64, 
     RULE_fuseCommand = 65, RULE_fuseConfiguration = 66, RULE_fuseKeyByFields = 67, 
     RULE_lookupCommand = 68, RULE_insistCommand = 69, RULE_setCommand = 70, 
-    RULE_setField = 71, RULE_mmrQueryVectorParams = 72, RULE_mmrCommand = 73, 
+    RULE_setField = 71, RULE_mmrCommand = 72, RULE_mmrQueryVectorParams = 73, 
     RULE_booleanExpression = 74, RULE_regexBooleanExpression = 75, RULE_matchBooleanExpression = 76, 
     RULE_valueExpression = 77, RULE_operatorExpression = 78, RULE_primaryExpression = 79, 
     RULE_functionExpression = 80, RULE_functionName = 81, RULE_mapExpression = 82, 
@@ -113,7 +113,7 @@ public class EsqlBaseParser extends ParserConfig {
       "forkSubQueries", "forkSubQuery", "forkSubQueryCommand", "forkSubQueryProcessingCommand", 
       "rerankCommand", "completionCommand", "inlineStatsCommand", "fuseCommand", 
       "fuseConfiguration", "fuseKeyByFields", "lookupCommand", "insistCommand", 
-      "setCommand", "setField", "mmrQueryVectorParams", "mmrCommand", "booleanExpression", 
+      "setCommand", "setField", "mmrCommand", "mmrQueryVectorParams", "booleanExpression", 
       "regexBooleanExpression", "matchBooleanExpression", "valueExpression", 
       "operatorExpression", "primaryExpression", "functionExpression", "functionName", 
       "mapExpression", "entryExpression", "mapValue", "constant", "booleanValue", 
@@ -5396,6 +5396,87 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
+  public static class MmrCommandContext extends ParserRuleContext {
+    public MmrQueryVectorParamsContext queryVector;
+    public QualifiedNameContext diversifyField;
+    public IntegerValueContext limitValue;
+    public TerminalNode DEV_MMR() { return getToken(EsqlBaseParser.DEV_MMR, 0); }
+    public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
+    public TerminalNode MMR_LIMIT() { return getToken(EsqlBaseParser.MMR_LIMIT, 0); }
+    public CommandNamedParametersContext commandNamedParameters() {
+      return getRuleContext(CommandNamedParametersContext.class,0);
+    }
+    public QualifiedNameContext qualifiedName() {
+      return getRuleContext(QualifiedNameContext.class,0);
+    }
+    public IntegerValueContext integerValue() {
+      return getRuleContext(IntegerValueContext.class,0);
+    }
+    public MmrQueryVectorParamsContext mmrQueryVectorParams() {
+      return getRuleContext(MmrQueryVectorParamsContext.class,0);
+    }
+    @SuppressWarnings("this-escape")
+    public MmrCommandContext(ParserRuleContext parent, int invokingState) {
+      super(parent, invokingState);
+    }
+    @Override public int getRuleIndex() { return RULE_mmrCommand; }
+    @Override
+    public void enterRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMmrCommand(this);
+    }
+    @Override
+    public void exitRule(ParseTreeListener listener) {
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMmrCommand(this);
+    }
+    @Override
+    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMmrCommand(this);
+      else return visitor.visitChildren(this);
+    }
+  }
+
+  public final MmrCommandContext mmrCommand() throws RecognitionException {
+    MmrCommandContext _localctx = new MmrCommandContext(_ctx, getState());
+    enterRule(_localctx, 144, RULE_mmrCommand);
+    try {
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(699);
+      match(DEV_MMR);
+      setState(701);
+      _errHandler.sync(this);
+      switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
+      case 1:
+        {
+        setState(700);
+        ((MmrCommandContext)_localctx).queryVector = mmrQueryVectorParams();
+        }
+        break;
+      }
+      setState(703);
+      match(ON);
+      setState(704);
+      ((MmrCommandContext)_localctx).diversifyField = qualifiedName();
+      setState(705);
+      match(MMR_LIMIT);
+      setState(706);
+      ((MmrCommandContext)_localctx).limitValue = integerValue();
+      setState(707);
+      commandNamedParameters();
+      }
+    }
+    catch (RecognitionException re) {
+      _localctx.exception = re;
+      _errHandler.reportError(this, re);
+      _errHandler.recover(this, re);
+    }
+    finally {
+      exitRule();
+    }
+    return _localctx;
+  }
+
+  @SuppressWarnings("CheckReturnValue")
   public static class MmrQueryVectorParamsContext extends ParserRuleContext {
     @SuppressWarnings("this-escape")
     public MmrQueryVectorParamsContext(ParserRuleContext parent, int invokingState) {
@@ -5454,16 +5535,16 @@ public class EsqlBaseParser extends ParserConfig {
 
   public final MmrQueryVectorParamsContext mmrQueryVectorParams() throws RecognitionException {
     MmrQueryVectorParamsContext _localctx = new MmrQueryVectorParamsContext(_ctx, getState());
-    enterRule(_localctx, 144, RULE_mmrQueryVectorParams);
+    enterRule(_localctx, 146, RULE_mmrQueryVectorParams);
     try {
-      setState(701);
+      setState(711);
       _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,55,_ctx) ) {
+      switch ( getInterpreter().adaptivePredict(_input,56,_ctx) ) {
       case 1:
         _localctx = new MmrQueryVectorParameterContext(_localctx);
         enterOuterAlt(_localctx, 1);
         {
-        setState(699);
+        setState(709);
         parameter();
         }
         break;
@@ -5471,91 +5552,10 @@ public class EsqlBaseParser extends ParserConfig {
         _localctx = new MmrQueryVectorExpressionContext(_localctx);
         enterOuterAlt(_localctx, 2);
         {
-        setState(700);
+        setState(710);
         primaryExpression(0);
         }
         break;
-      }
-    }
-    catch (RecognitionException re) {
-      _localctx.exception = re;
-      _errHandler.reportError(this, re);
-      _errHandler.recover(this, re);
-    }
-    finally {
-      exitRule();
-    }
-    return _localctx;
-  }
-
-  @SuppressWarnings("CheckReturnValue")
-  public static class MmrCommandContext extends ParserRuleContext {
-    public MmrQueryVectorParamsContext queryVector;
-    public QualifiedNameContext diversifyField;
-    public IntegerValueContext limitValue;
-    public TerminalNode DEV_MMR() { return getToken(EsqlBaseParser.DEV_MMR, 0); }
-    public TerminalNode ON() { return getToken(EsqlBaseParser.ON, 0); }
-    public TerminalNode MMR_LIMIT() { return getToken(EsqlBaseParser.MMR_LIMIT, 0); }
-    public CommandNamedParametersContext commandNamedParameters() {
-      return getRuleContext(CommandNamedParametersContext.class,0);
-    }
-    public QualifiedNameContext qualifiedName() {
-      return getRuleContext(QualifiedNameContext.class,0);
-    }
-    public IntegerValueContext integerValue() {
-      return getRuleContext(IntegerValueContext.class,0);
-    }
-    public MmrQueryVectorParamsContext mmrQueryVectorParams() {
-      return getRuleContext(MmrQueryVectorParamsContext.class,0);
-    }
-    @SuppressWarnings("this-escape")
-    public MmrCommandContext(ParserRuleContext parent, int invokingState) {
-      super(parent, invokingState);
-    }
-    @Override public int getRuleIndex() { return RULE_mmrCommand; }
-    @Override
-    public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterMmrCommand(this);
-    }
-    @Override
-    public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitMmrCommand(this);
-    }
-    @Override
-    public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitMmrCommand(this);
-      else return visitor.visitChildren(this);
-    }
-  }
-
-  public final MmrCommandContext mmrCommand() throws RecognitionException {
-    MmrCommandContext _localctx = new MmrCommandContext(_ctx, getState());
-    enterRule(_localctx, 146, RULE_mmrCommand);
-    try {
-      enterOuterAlt(_localctx, 1);
-      {
-      setState(703);
-      match(DEV_MMR);
-      setState(705);
-      _errHandler.sync(this);
-      switch ( getInterpreter().adaptivePredict(_input,56,_ctx) ) {
-      case 1:
-        {
-        setState(704);
-        ((MmrCommandContext)_localctx).queryVector = mmrQueryVectorParams();
-        }
-        break;
-      }
-      setState(707);
-      match(ON);
-      setState(708);
-      ((MmrCommandContext)_localctx).diversifyField = qualifiedName();
-      setState(709);
-      match(MMR_LIMIT);
-      setState(710);
-      ((MmrCommandContext)_localctx).limitValue = integerValue();
-      setState(711);
-      commandNamedParameters();
       }
     }
     catch (RecognitionException re) {
@@ -9342,8 +9342,8 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0001B\u0001B\u0001B\u0001B\u0001B\u0001B\u0001B\u0003B\u02a0\bB\u0001"+
     "C\u0001C\u0001C\u0005C\u02a5\bC\nC\fC\u02a8\tC\u0001D\u0001D\u0001D\u0001"+
     "D\u0001D\u0001E\u0001E\u0001E\u0001F\u0001F\u0001F\u0001F\u0001G\u0001"+
-    "G\u0001G\u0001G\u0003G\u02ba\bG\u0001H\u0001H\u0003H\u02be\bH\u0001I\u0001"+
-    "I\u0003I\u02c2\bI\u0001I\u0001I\u0001I\u0001I\u0001I\u0001I\u0001J\u0001"+
+    "G\u0001G\u0001G\u0003G\u02ba\bG\u0001H\u0001H\u0003H\u02be\bH\u0001H\u0001"+
+    "H\u0001H\u0001H\u0001H\u0001H\u0001I\u0001I\u0003I\u02c8\bI\u0001J\u0001"+
     "J\u0001J\u0001J\u0001J\u0001J\u0001J\u0003J\u02d1\bJ\u0001J\u0001J\u0001"+
     "J\u0001J\u0001J\u0005J\u02d8\bJ\nJ\fJ\u02db\tJ\u0001J\u0001J\u0001J\u0001"+
     "J\u0001J\u0003J\u02e2\bJ\u0001J\u0001J\u0001J\u0003J\u02e7\bJ\u0001J\u0001"+
@@ -9422,7 +9422,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u029f\u0001\u0000\u0000\u0000\u0086\u02a1\u0001\u0000\u0000\u0000\u0088"+
     "\u02a9\u0001\u0000\u0000\u0000\u008a\u02ae\u0001\u0000\u0000\u0000\u008c"+
     "\u02b1\u0001\u0000\u0000\u0000\u008e\u02b5\u0001\u0000\u0000\u0000\u0090"+
-    "\u02bd\u0001\u0000\u0000\u0000\u0092\u02bf\u0001\u0000\u0000\u0000\u0094"+
+    "\u02bb\u0001\u0000\u0000\u0000\u0092\u02c7\u0001\u0000\u0000\u0000\u0094"+
     "\u02e6\u0001\u0000\u0000\u0000\u0096\u0321\u0001\u0000\u0000\u0000\u0098"+
     "\u0323\u0001\u0000\u0000\u0000\u009a\u0330\u0001\u0000\u0000\u0000\u009c"+
     "\u0336\u0001\u0000\u0000\u0000\u009e\u034b\u0001\u0000\u0000\u0000\u00a0"+
@@ -9468,7 +9468,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0003|>\u0000\u0108\u0111\u0003\u0080@\u0000\u0109\u0111\u0003\u0082"+
     "A\u0000\u010a\u010b\u0004\u0004\u0002\u0000\u010b\u0111\u0003\u0088D\u0000"+
     "\u010c\u010d\u0004\u0004\u0003\u0000\u010d\u0111\u0003\u008aE\u0000\u010e"+
-    "\u010f\u0004\u0004\u0004\u0000\u010f\u0111\u0003\u0092I\u0000\u0110\u00f6"+
+    "\u010f\u0004\u0004\u0004\u0000\u010f\u0111\u0003\u0090H\u0000\u0110\u00f6"+
     "\u0001\u0000\u0000\u0000\u0110\u00f7\u0001\u0000\u0000\u0000\u0110\u00f8"+
     "\u0001\u0000\u0000\u0000\u0110\u00f9\u0001\u0000\u0000\u0000\u0110\u00fa"+
     "\u0001\u0000\u0000\u0000\u0110\u00fb\u0001\u0000\u0000\u0000\u0110\u00fc"+
@@ -9702,13 +9702,13 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0003<\u001e\u0000\u02b6\u02b9\u0005:\u0000\u0000\u02b7\u02ba\u0003\u00aa"+
     "U\u0000\u02b8\u02ba\u0003\u00a4R\u0000\u02b9\u02b7\u0001\u0000\u0000\u0000"+
     "\u02b9\u02b8\u0001\u0000\u0000\u0000\u02ba\u008f\u0001\u0000\u0000\u0000"+
-    "\u02bb\u02be\u0003@ \u0000\u02bc\u02be\u0003\u009eO\u0000\u02bd\u02bb"+
-    "\u0001\u0000\u0000\u0000\u02bd\u02bc\u0001\u0000\u0000\u0000\u02be\u0091"+
-    "\u0001\u0000\u0000\u0000\u02bf\u02c1\u0005\u001d\u0000\u0000\u02c0\u02c2"+
-    "\u0003\u0090H\u0000\u02c1\u02c0\u0001\u0000\u0000\u0000\u02c1\u02c2\u0001"+
-    "\u0000\u0000\u0000\u02c2\u02c3\u0001\u0000\u0000\u0000\u02c3\u02c4\u0005"+
-    "K\u0000\u0000\u02c4\u02c5\u00032\u0019\u0000\u02c5\u02c6\u0005\u0088\u0000"+
-    "\u0000\u02c6\u02c7\u0003\u00b2Y\u0000\u02c7\u02c8\u0003\\.\u0000\u02c8"+
+    "\u02bb\u02bd\u0005\u001d\u0000\u0000\u02bc\u02be\u0003\u0092I\u0000\u02bd"+
+    "\u02bc\u0001\u0000\u0000\u0000\u02bd\u02be\u0001\u0000\u0000\u0000\u02be"+
+    "\u02bf\u0001\u0000\u0000\u0000\u02bf\u02c0\u0005K\u0000\u0000\u02c0\u02c1"+
+    "\u00032\u0019\u0000\u02c1\u02c2\u0005\u0088\u0000\u0000\u02c2\u02c3\u0003"+
+    "\u00b2Y\u0000\u02c3\u02c4\u0003\\.\u0000\u02c4\u0091\u0001\u0000\u0000"+
+    "\u0000\u02c5\u02c8\u0003@ \u0000\u02c6\u02c8\u0003\u009eO\u0000\u02c7"+
+    "\u02c5\u0001\u0000\u0000\u0000\u02c7\u02c6\u0001\u0000\u0000\u0000\u02c8"+
     "\u0093\u0001\u0000\u0000\u0000\u02c9\u02ca\u0006J\uffff\uffff\u0000\u02ca"+
     "\u02cb\u0005H\u0000\u0000\u02cb\u02e7\u0003\u0094J\b\u02cc\u02e7\u0003"+
     "\u009aM\u0000\u02cd\u02e7\u0003\u0096K\u0000\u02ce\u02d0\u0003\u009aM"+
@@ -9917,7 +9917,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0191\u0197\u01a0\u01a7\u01af\u01b7\u01bb\u01bf\u01c4\u01c8\u01d3\u01d8"+
     "\u01dc\u01ea\u01f5\u01fb\u0202\u020b\u0214\u0228\u0230\u0233\u023a\u0245"+
     "\u024c\u0254\u0262\u026b\u0276\u0280\u0286\u0288\u028c\u0291\u029f\u02a6"+
-    "\u02b9\u02bd\u02c1\u02d0\u02d9\u02e1\u02e6\u02ee\u02f0\u02f5\u02fc\u0303"+
+    "\u02b9\u02bd\u02c7\u02d0\u02d9\u02e1\u02e6\u02ee\u02f0\u02f5\u02fc\u0303"+
     "\u030c\u0313\u031c\u0321\u0326\u0330\u0336\u033e\u0340\u034b\u0352\u035d"+
     "\u0362\u0364\u036b\u0373\u0376\u0380\u0391\u039c\u03a7\u03ac\u03b2\u03b5"+
     "\u03ba\u03ca\u03cf\u03d7\u03de\u03e4\u03ea\u03f2\u03f8\u03fa\u0409\u040e"+

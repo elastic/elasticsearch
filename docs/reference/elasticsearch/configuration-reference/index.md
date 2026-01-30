@@ -19,7 +19,7 @@ In {{serverless-full}}, cluster-level settings and node-level settings are not r
 Certain [project settings](docs-content://deploy-manage/deploy/elastic-cloud/project-settings.md) allow you to customize your project’s performance and general data retention, and enable or disable project features.
 :::
 
-For information about index-level settings, refer to [](/reference/elasticsearch/index-settings.md).
+For information about index-level settings, refer to [](/reference/elasticsearch/index-settings/index.md).
 
 The settings are grouped by feature or purpose, for example:
 

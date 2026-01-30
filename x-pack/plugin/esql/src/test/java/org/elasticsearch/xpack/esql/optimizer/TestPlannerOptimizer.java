@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
@@ -94,10 +93,6 @@ public class TestPlannerOptimizer {
     }
 
     private PhysicalPlan optimizedPlan(PhysicalPlan plan, SearchStats searchStats, EsqlFlags esqlFlags) {
-        return optimizedPlan(plan, TEST_PLANNER_SETTINGS, searchStats, esqlFlags);
-    }
-
-    public PhysicalPlan optimizedPlan(PhysicalPlan plan, PlannerSettings plannerSettings, SearchStats searchStats, EsqlFlags esqlFlags) {
         // System.out.println("* Physical Before\n" + plan);
         var physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(plan));
         // System.out.println("* Physical After\n" + physicalPlan);
@@ -109,7 +104,7 @@ public class TestPlannerOptimizer {
             new LocalLogicalOptimizerContext(config, FoldContext.small(), searchStats)
         );
         var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, esqlFlags, config, FoldContext.small(), searchStats),
+            new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, esqlFlags, config, FoldContext.small(), searchStats),
             true
         );
         var l = PlannerUtils.localPlan(physicalPlan, logicalTestOptimizer, physicalTestOptimizer, null);
@@ -121,7 +116,7 @@ public class TestPlannerOptimizer {
         return l;
     }
 
-    public PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
+    private PhysicalPlan physicalPlan(String query, Analyzer analyzer) {
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(EsqlParser.INSTANCE.parseQuery(query)));
         // System.out.println("Logical\n" + logical);
         return mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));

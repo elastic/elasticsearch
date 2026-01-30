@@ -182,6 +182,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.capabilities.TranslationAware.translatable;
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.toReferenceAttributes;
 import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -1070,7 +1071,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 List<String> subPlanColumns = logicalPlan.output().stream().map(Attribute::name).toList();
                 // We need to add an explicit projection to align the outputs.
-                if (logicalPlan instanceof Project == false || subPlanColumns.equals(forkColumns) == false) {
+                // If the branch already has a Project on top, and the output of the branch is empty,
+                // don't add another Project with only NO_FIELDS on top of it,
+                // otherwise it will cause an infinite loop in the analyzer, this happens to subquery so far.
+                // forkColumns do not contain NO_FIELD because Fork.outputUnion removes it.
+                if (logicalPlan instanceof Project == false
+                    || (subPlanColumns.equals(forkColumns) == false
+                        && subqueryReferencingIndexWithEmptyMapping(fork, logicalPlan, forkColumns) == false)) {
                     changed = true;
                     List<Attribute> newOutput = new ArrayList<>();
                     for (String attrName : forkColumns) {
@@ -1090,17 +1097,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return fork;
             }
 
-            List<Attribute> newOutput = new ArrayList<>();
+            return fork.replaceSubPlansAndOutput(newSubPlans, toReferenceAttributes(outputUnion));
+        }
 
-            // We don't want to keep the same attributes that are outputted by the FORK branches.
-            // Keeping the same attributes can have unintended side effects when applying optimizations like constant folding.
-            for (Attribute attr : outputUnion) {
-                newOutput.add(
-                    new ReferenceAttribute(attr.source(), null, attr.name(), attr.dataType(), Nullability.FALSE, null, attr.synthetic())
-                );
-            }
-
-            return fork.replaceSubPlansAndOutput(newSubPlans, newOutput);
+        /*
+         * Returns true if a subquery references an index with empty mapping.
+         */
+        private static boolean subqueryReferencingIndexWithEmptyMapping(
+            LogicalPlan unionAll,
+            LogicalPlan subquery,
+            List<String> outputColumns
+        ) {
+            return unionAll instanceof UnionAll && outputColumns.isEmpty() && subquery.output().equals(NO_FIELDS);
         }
 
         private LogicalPlan resolveRerank(Rerank rerank, List<Attribute> childrenOutput, AnalyzerContext context) {
@@ -2806,8 +2814,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> newChildOutput = new ArrayList<>(childOutput.size());
                 for (Attribute oldAttr : childOutput) {
                     newChildOutput.add(oldAttr);
-                    if (oldOutputToConvertFunctions.containsKey(oldAttr.name())) {
-                        Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                    Set<AbstractConvertFunction> converts = oldOutputToConvertFunctions.get(oldAttr.name());
+                    if (converts != null) {
                         // create a new alias for each conversion function and add it to the new aliases list
                         for (AbstractConvertFunction convert : converts) {
                             // create a new alias for the conversion function
@@ -2815,7 +2823,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Alias newAlias = new Alias(
                                 oldAttr.source(),
                                 newAliasName, // oldAttrName$$converted_to$$targetType
-                                convert.replaceChildren(Collections.singletonList(oldAttr))
+                                convert.replaceChildren(Collections.singletonList(oldAttr)),
+                                null, // generate a new id
+                                true // this'll be used to Project the synthetic attributes out when finishing analysis
                             );
                             newAliases.add(newAlias);
                             newChildOutput.add(newAlias.toAttribute());

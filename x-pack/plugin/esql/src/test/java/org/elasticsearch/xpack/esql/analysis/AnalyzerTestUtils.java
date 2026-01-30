@@ -447,6 +447,15 @@ public final class AnalyzerTestUtils {
     }
 
     public static Map<IndexPattern, IndexResolution> defaultSubqueryResolution() {
+        String NO_FIELDS_INDEX = "no_fields_index";
+        EsIndex noFieldsIndex = new EsIndex(
+            NO_FIELDS_INDEX,
+            Map.of(),
+            Map.of(NO_FIELDS_INDEX, IndexMode.STANDARD),
+            Map.of("", List.of(NO_FIELDS_INDEX)),
+            Map.of("", List.of(NO_FIELDS_INDEX)),
+            Set.of()
+        );
         return Map.of(
             new IndexPattern(Source.EMPTY, "languages"),
             loadMapping("mapping-languages.json", "languages"),
@@ -459,7 +468,11 @@ public final class AnalyzerTestUtils {
             new IndexPattern(Source.EMPTY, "k8s"),
             loadMapping("k8s-downsampled-mappings.json", "k8s", IndexMode.TIME_SERIES),
             new IndexPattern(Source.EMPTY, "remote:missingIndex"),
-            IndexResolution.EMPTY_SUBQUERY
+            IndexResolution.EMPTY_SUBQUERY,
+            new IndexPattern(Source.EMPTY, "empty_index"),
+            IndexResolution.empty("empty_index"),
+            new IndexPattern(Source.EMPTY, NO_FIELDS_INDEX),
+            IndexResolution.valid(noFieldsIndex)
         );
     }
 

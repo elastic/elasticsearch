@@ -692,7 +692,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
-    private static Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
+    private Tuple<Mode, String> parsePolicyName(EsqlBaseParser.EnrichPolicyNameContext ctx) {
         String stringValue;
         if (ctx.ENRICH_POLICY_NAME() != null) {
             stringValue = ctx.ENRICH_POLICY_NAME().getText();
@@ -1093,7 +1093,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(source, "RERANK command is disabled in settings.");
         }
 
-        List<Alias> rerankFields = visitRerankFields(ctx.rerankFields());
+        List<Alias> rerankFields = visitFields(ctx.rerankFields);
         Expression queryText = expression(ctx.queryText);
         Attribute scoreAttribute = visitQualifiedName(ctx.targetField, new UnresolvedAttribute(source, MetadataAttribute.SCORE));
         if (scoreAttribute.qualifier() != null) {
@@ -1193,7 +1193,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new ParsingException(
                 inferenceId.source(),
                 "Option [{}] must be a valid string, found [{}]",
-                Completion.INFERENCE_ID_OPTION_NAME,
+                InferencePlan.INFERENCE_ID_OPTION_NAME,
                 inferenceId.source().text()
             );
         }

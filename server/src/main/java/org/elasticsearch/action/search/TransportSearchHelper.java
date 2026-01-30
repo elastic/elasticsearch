@@ -11,13 +11,12 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.VersionCheckingStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -40,34 +39,27 @@ public final class TransportSearchHelper {
         return new InternalScrollSearchRequest(request, id);
     }
 
-    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults) {
-        final BytesReference bytesReference;
-        try (var encodedStreamOutput = new BytesStreamOutput()) {
-            try (var out = new OutputStreamStreamOutput(Base64.getUrlEncoder().wrap(encodedStreamOutput))) {
-                out.writeString(INCLUDE_CONTEXT_UUID);
-                out.writeString(
-                    searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE
-                );
-                out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
-                    o.writeString(searchPhaseResult.getContextId().getSessionId());
-                    o.writeLong(searchPhaseResult.getContextId().getId());
-                    SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
-                    if (searchShardTarget.getClusterAlias() != null) {
-                        o.writeString(
-                            RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
-                        );
-                    } else {
-                        o.writeString(searchShardTarget.getNodeId());
-                    }
-                });
-            }
-            bytesReference = encodedStreamOutput.bytes();
+    static String buildScrollId(AtomicArray<? extends SearchPhaseResult> searchPhaseResults, Recycler<BytesRef> bytesRefRecycler) {
+        try (var out = new RecyclerBytesStreamOutput(bytesRefRecycler)) {
+            out.writeString(INCLUDE_CONTEXT_UUID);
+            out.writeString(searchPhaseResults.length() == 1 ? ParsedScrollId.QUERY_AND_FETCH_TYPE : ParsedScrollId.QUERY_THEN_FETCH_TYPE);
+            out.writeCollection(searchPhaseResults.asList(), (o, searchPhaseResult) -> {
+                o.writeString(searchPhaseResult.getContextId().getSessionId());
+                o.writeLong(searchPhaseResult.getContextId().getId());
+                SearchShardTarget searchShardTarget = searchPhaseResult.getSearchShardTarget();
+                if (searchShardTarget.getClusterAlias() != null) {
+                    o.writeString(
+                        RemoteClusterAware.buildRemoteIndexName(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId())
+                    );
+                } else {
+                    o.writeString(searchShardTarget.getNodeId());
+                }
+            });
+            return out.toBase64String(Base64.getUrlEncoder());
         } catch (IOException e) {
             assert false : e;
             throw new UncheckedIOException(e);
         }
-        final BytesRef bytesRef = bytesReference.toBytesRef();
-        return new String(bytesRef.bytes, bytesRef.offset, bytesRef.length, StandardCharsets.ISO_8859_1);
     }
 
     static ParsedScrollId parseScrollId(String scrollId) {

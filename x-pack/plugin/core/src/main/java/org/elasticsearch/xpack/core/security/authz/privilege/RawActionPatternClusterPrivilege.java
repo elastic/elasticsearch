@@ -25,11 +25,8 @@ final class RawActionPatternClusterPrivilege extends ActionClusterPrivilege {
         return text + "*";
     }
 
-    /**
-     * Serverless mode does not support specifying raw action patterns for privileges. Only builtin privileges are supported.
-     */
     @Override
-    public boolean isSupportedInServerlessMode() {
-        return false;
+    public SupportedMode getSupportedMode() {
+        return SupportedMode.CORE;
     }
 }

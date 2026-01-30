@@ -18,7 +18,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -350,7 +349,7 @@ public record StatelessCompoundCommit(
         Map<String, BlobLocation> referencedBlobFiles,
         Iterable<InternalFile> internalFiles,
         InternalFilesReplicatedRanges internalFilesReplicatedRanges,
-        PositionTrackingOutputStreamStreamOutput positionTracking,
+        StreamOutput positionTracking,
         boolean useInternalFilesReplicatedContent,
         Iterable<InternalFile> extraContent
     ) throws IOException {

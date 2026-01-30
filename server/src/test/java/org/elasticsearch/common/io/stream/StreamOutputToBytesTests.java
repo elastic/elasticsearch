@@ -135,6 +135,7 @@ public class StreamOutputToBytesTests extends ESTestCase {
                 assertEquals("recyclerBytesStream after " + writerIndex, countingStream.size(), recyclerBytesStream.position());
                 assertEquals("plainBytesStream after " + writerIndex, countingStream.size(), plainBytesStream.position());
                 assertEquals("bufferedStream after " + writerIndex, countingStream.size(), bufferedStream.position());
+                assertEquals("wrappedStream after " + writerIndex, countingStream.size(), wrappedStream.position());
             }
 
             isExpectedWriteSize.set(allOf(lessThanOrEqualTo(bufferLen), greaterThan(0))); // last write may be undersized

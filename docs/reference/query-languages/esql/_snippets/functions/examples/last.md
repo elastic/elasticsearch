@@ -3,15 +3,30 @@
 **Example**
 
 ```esql
-FROM k8s
-| STATS last_bytes_in = LAST(network.bytes_in, @timestamp) BY pod
-| SORT pod ASC
+ROW row = [
+  #       @timestamp        |  name   | number
+  "2025-11-25T00:00:00.000Z | alpha   | ",
+  "2025-11-25T00:00:01.000Z | alpha   | 2",
+  "2025-11-25T00:00:02.000Z | bravo   | ",
+  "2025-11-25T00:00:03.000Z | alpha   | 4",
+  "2025-11-25T00:00:04.000Z | bravo   | 5",
+  "2025-11-25T00:00:05.000Z | charlie | 6",
+  "2025-11-25T00:00:06.000Z | delta   | "
+]
+| MV_EXPAND row
+| DISSECT row """%{@timestamp} | %{name} | %{number}"""
+| KEEP @timestamp, name, number
+| EVAL @timestamp = TO_DATETIME(@timestamp),
+       name = TRIM(name),
+       number = TO_LONG(number)
+| STATS last_val = LAST(number, @timestamp) BY name
 ```
 
-| last_bytes_in:long | pod:keyword |
+| last_val:long | name:keyword |
 | --- | --- |
-| 206 | one |
-| 972 | three |
-| 812 | two |
+| 4 | alpha |
+| 5 | bravo |
+| 6 | charlie |
+| null | delta |
 
 

@@ -862,8 +862,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            // TODO: Blockloaders can load from stored fields. If we synthetic source, we should still be able to use the docValuesBlock
-            // loader even if ignoreAbove is set.
             if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
                 return docValuesBlockLoader(blContext);
             }
@@ -925,7 +923,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     return new AllReader() {
                         @Override
                         public boolean canReuse(int startingDocID) {
-                            // TODO - emulate logic from BlockDocValuesReader#canReuse?
                             return false;
                         }
 

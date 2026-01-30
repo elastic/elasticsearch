@@ -11,7 +11,7 @@ This reference provides details about each setting, such as its purpose, default
 
 To learn how to update these settings on your cluster, including on ECH, ECE, ECK, and self-managed deployments, refer to [Elastic Stack settings](docs-content://deploy-manage/stack-settings.md).
 
-This section provides detailed **reference information** for Elasticsearch configuration. Refer to the [Deploy and manage](docs-content://deploy-manage/index.md) section to get started with deploying and configuring {{es}}, and to learn when and how to use some of these settings.
+This section provides detailed **reference information** for {{es}} configuration. Refer to the [Deploy and manage](docs-content://deploy-manage/index.md) section to get started with deploying and configuring {{es}}, and to learn when and how to use some of these settings.
 
 :::{admonition} Serverless manages these settings for you
 In {{serverless-full}}, cluster-level settings and node-level settings are not required by end users, and are fully managed by Elastic.

@@ -17,11 +17,13 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -158,14 +161,18 @@ public class ShutdownPrepareService {
         }
     }
 
-    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager) {
+    private void awaitTasksComplete(TimeValue timeout, String taskName, TaskManager taskManager, @Nullable Consumer<Task> taskNotifier) {
         long millisWaited = 0;
         while (true) {
-            long tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).count();
-            if (tasksRemaining == 0) {
+            List<Task> tasksRemaining = taskManager.getTasks().values().stream().filter(task -> taskName.equals(task.getAction())).toList();
+            if (tasksRemaining.isEmpty()) {
                 logger.debug("all " + taskName + " tasks complete");
                 return;
             } else {
+                // First, notify all remaining tasks that a shutdown is happening, if a notifier is provided.
+                if (taskNotifier != null) {
+                    tasksRemaining.forEach(taskNotifier);
+                }
                 // Let the system work on those tasks for a while. We're on a dedicated thread to manage app shutdown, so we
                 // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
                 // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
@@ -196,36 +203,35 @@ public class ShutdownPrepareService {
     }
 
     private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout, TaskManager taskManager) {
-        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager);
+        awaitTasksComplete(asyncSearchTimeout, TransportSearchAction.NAME, taskManager, null);
     }
 
     private void relocateReindexTasksAndAwaitComplete(TimeValue asyncReindexTimeout, TaskManager taskManager) {
-        markBulkByScrollTasksAsRequiringRelocation(taskManager);
-        awaitTasksComplete(asyncReindexTimeout, ReindexAction.NAME, taskManager);
+        awaitTasksComplete(
+            asyncReindexTimeout,
+            ReindexAction.NAME,
+            taskManager,
+            ShutdownPrepareService::maybeRequestRelocationForBulkByScroll
+        );
     }
 
-    // package-private for testing
-    static void markBulkByScrollTasksAsRequiringRelocation(TaskManager taskManager) {
-        taskManager.getTasks()
-            .values()
-            .stream()
-            .filter(BulkByScrollTask.class::isInstance)
-            .map(BulkByScrollTask.class::cast)
-            .forEach(ShutdownPrepareService::maybeRequestRelocationForBulkByScroll);
-    }
-
-    private static void maybeRequestRelocationForBulkByScroll(BulkByScrollTask bulkByScrollTask) {
-        if (bulkByScrollTask.isEligibleForRelocationOnShutdown()) {
-            if (bulkByScrollTask.isLeader()) {
-                logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
-            } else {
-                logger.debug(
-                    "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
-                    bulkByScrollTask.getId(),
-                    bulkByScrollTask.getParentTaskId()
-                );
+    // package-private for tests
+    static void maybeRequestRelocationForBulkByScroll(Task task) {
+        if (task instanceof BulkByScrollTask bulkByScrollTask) {
+            if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
+                if (bulkByScrollTask.isLeader()) {
+                    logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
+                } else {
+                    logger.debug(
+                        "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
+                        bulkByScrollTask.getId(),
+                        bulkByScrollTask.getParentTaskId()
+                    );
+                }
+                bulkByScrollTask.requestRelocation();
             }
-            bulkByScrollTask.requestRelocation();
+        } else {
+            logger.warn("Requested relocation task for non-bulk-by-scroll task {}", task);
         }
     }
 }

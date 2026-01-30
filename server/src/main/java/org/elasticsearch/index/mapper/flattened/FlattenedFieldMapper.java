@@ -34,7 +34,6 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -68,14 +67,11 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MappingParserContext;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -85,9 +81,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -101,6 +97,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 
@@ -280,7 +277,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 dimensions.get(),
                 new IgnoreAbove(ignoreAbove.getValue(), indexMode, indexCreatedVersion),
                 usesBinaryDocValues,
-                nullValue.get()
+                nullValue.get(),
+                context.isSourceSynthetic()
             );
             return new FlattenedFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -800,8 +798,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
         private final boolean isDimension;
         private final IgnoreAbove ignoreAbove;
         private final boolean usesBinaryDocValues;
-
         private final String nullValue;
+        private final boolean isSyntheticSourceEnabled;
 
         RootFlattenedFieldType(
             String name,
@@ -811,7 +809,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean eagerGlobalOrdinals,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             this(
                 name,
@@ -822,7 +821,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 Collections.emptyList(),
                 ignoreAbove,
                 usesBinaryDocValues,
-                nullValue
+                nullValue,
+                isSyntheticSourceEnabled
             );
         }
 
@@ -835,7 +835,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
             List<String> dimensions,
             IgnoreAbove ignoreAbove,
             boolean usesBinaryDocValues,
-            String nullValue
+            String nullValue,
+            boolean isSyntheticSourceEnabled
         ) {
             super(
                 name,
@@ -851,6 +852,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             this.ignoreAbove = ignoreAbove;
             this.usesBinaryDocValues = usesBinaryDocValues;
             this.nullValue = nullValue;
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
         }
 
         @Override
@@ -862,7 +864,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             // TODO: Blockloaders can load from stored fields. If we synthetic source, we should still be able to use the docValuesBlock
             // loader even if ignoreAbove is set.
-            if (hasDocValues() && ignoreAbove.valuesPotentiallyIgnored() == false) {
+            if (hasDocValues() && (ignoreAbove.valuesPotentiallyIgnored() == false || isSyntheticSourceEnabled)) {
                 return docValuesBlockLoader(blContext);
             }
 
@@ -886,45 +888,74 @@ public final class FlattenedFieldMapper extends FieldMapper {
         }
 
         private BlockLoader docValuesBlockLoader(BlockLoaderContext blContext) {
-            SourceLoader.SyntheticFieldLoader fieldLoader = new FlattenedDocValuesSyntheticFieldLoader(
+            FlattenedDocValuesSyntheticFieldLoader fieldLoader = new FlattenedDocValuesSyntheticFieldLoader(
                 name(),
                 name() + KEYED_FIELD_SUFFIX,
+                ignoreAbove.valuesPotentiallyIgnored() ? name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
                 null,
-                name(),
                 usesBinaryDocValues
-            ) {
+            );
+            var storedFieldLoaders = fieldLoader.storedFieldLoaders().toList();
+            return new BlockLoader() {
                 @Override
-                public void write(XContentBuilder b) throws IOException {
-                    if (docValues.count() == 0) {
-                        return;
+                public StoredFieldsSpec rowStrideStoredFieldSpec() {
+                    if (ignoreAbove.valuesPotentiallyIgnored()) {
+                        return new StoredFieldsSpec(
+                            false,
+                            false,
+                            fieldLoader.storedFieldLoaders().map(Map.Entry::getKey).collect(Collectors.toSet())
+                        );
+                    } else {
+                        return StoredFieldsSpec.NO_REQUIREMENTS;
                     }
-                    FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
-                    var writer = new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
-                    b.startObject();
-                    writer.write(b);
-                    b.endObject();
                 }
-            };
-            return new BlockDocValuesReader.DocValuesBlockLoader() {
+
                 @Override
+                public boolean supportsOrdinals() {
+                    return false;
+                }
+
+                @Override
+                public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
+                    return null;
+                }
+
                 public AllReader reader(LeafReaderContext context) throws IOException {
                     var reader = fieldLoader.docValuesLoader(context.reader(), null);
-                    // TODO: null is evil
-                    return new BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary(null) {
+                    return new AllReader() {
                         @Override
+                        public boolean canReuse(int startingDocID) {
+                            // TODO - emulate logic from BlockDocValuesReader#canReuse?
+                            return false;
+                        }
+
+                        @Override
+                        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+                            for (var loaderEntry : storedFieldLoaders) {
+                                var values = storedFields.storedFields().get(loaderEntry.getKey());
+                                if (values != null) {
+                                    loaderEntry.getValue().load(values);
+                                }
+                            }
+                            read(docId, (BytesRefBuilder) builder);
+                        }
+
+                        @Override
+                        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+                            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
+                                for (int i = offset; i < docs.count(); i++) {
+                                    int doc = docs.get(i);
+                                    read(doc, builder);
+                                }
+                                return builder.build();
+                            }
+                        }
+
                         public void read(int docId, BytesRefBuilder builder) throws IOException {
-                            if (reader == null) {
-                                builder.appendNull();
-                                return;
+                            if (reader != null) {
+                                reader.advanceToDoc(docId);
                             }
-                            var hasValues = reader.advanceToDoc(docId);
-                            if (hasValues == false) {
-                                builder.appendNull();
-                                return;
-                            }
-                            var jsonBuilder = XContentFactory.jsonBuilder();
-                            fieldLoader.write(jsonBuilder);
-                            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+                            fieldLoader.writeToBlock(builder);
                         }
 
                         @Override
@@ -937,6 +968,21 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 @Override
                 public Builder builder(BlockFactory factory, int expectedCount) {
                     return factory.bytesRefs(expectedCount);
+                }
+
+                @Override
+                public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+                    // stored fields aren't supported when reading column-at-a-time
+                    if (ignoreAbove.valuesPotentiallyIgnored()) {
+                        return null;
+                    }
+
+                    return reader(context);
+                }
+
+                @Override
+                public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+                    return reader(context);
                 }
             };
         }

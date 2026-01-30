@@ -13,11 +13,14 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -107,12 +110,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return docValues.count() > 0 || ignoredValues.isEmpty() == false;
     }
 
-    @Override
-    public void write(XContentBuilder b) throws IOException {
-        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
-            return;
-        }
-
+    private FlattenedFieldSyntheticWriterHelper getWriter() {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         if (ignoredValues.isEmpty() == false) {
             var ignoredValuesSet = new TreeSet<BytesRef>();
@@ -122,11 +120,37 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             ignoredValues = List.of();
             sortedKeyedValues = new DocValuesWithIgnoredSortedKeyedValues(sortedKeyedValues, ignoredValuesSet);
         }
-        var writer = new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues);
+    }
+
+    @Override
+    public void write(XContentBuilder b) throws IOException {
+        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+            return;
+        }
+
+        var writer = getWriter();
 
         b.startObject(leafName);
         writer.write(b);
         b.endObject();
+    }
+
+    // TODO: split into subclass?
+    public void writeToBlock(BlockLoader.BytesRefBuilder builder) throws IOException {
+        if (docValues.count() == 0 && ignoredValues.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+
+        var writer = getWriter();
+
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        jsonBuilder.startObject();
+        writer.write(jsonBuilder);
+        jsonBuilder.endObject();
+
+        builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
     }
 
     @Override

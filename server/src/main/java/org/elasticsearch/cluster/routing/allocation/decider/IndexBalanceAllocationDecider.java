@@ -163,7 +163,7 @@ public class IndexBalanceAllocationDecider extends AllocationDecider {
             return allocation.decision(Decision.YES, NAME, "There are no eligible nodes available.");
         }
         assert totalShards > 0;
-        final double idealAllocation = Math.ceil((double) totalShards / eligibleNodes);
+        final double idealAllocation = Math.ceilDiv(totalShards, eligibleNodes);
 
         // Adding the excess shards before division ensures that with tolerance 1 we get:
         // 2 shards, 2 nodes, allow 2 on each

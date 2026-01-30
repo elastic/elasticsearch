@@ -117,7 +117,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
             exception.getMessage(),
             is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
@@ -130,7 +130,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
     }
 
@@ -139,7 +139,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
             exception.getMessage(),
             is(Strings.format("The inference endpoint [%s] does not exist and cannot be updated", INFERENCE_ENTITY_ID_VALUE))
@@ -154,7 +154,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockServiceRegistryToReturnService(null);
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(Strings.format("Service [%s] not found", SERVICE_NAME_VALUE)));
     }
 
@@ -169,7 +169,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("current license is non-compliant for [inference]"));
     }
 
@@ -202,7 +202,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(
             exception.getMessage(),
             is("Could not complete inference endpoint creation as validation call to service threw an exception.")
@@ -230,7 +230,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var actualException = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(actualException, sameInstance(simulatedException));
     }
 
@@ -250,7 +250,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model"));
     }
 
@@ -271,7 +271,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is("Failed to update model, updated model not found"));
     }
 
@@ -297,7 +297,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
 
         var listener = callMasterOperationWithActionFuture();
 
-        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(TimeValue.timeValueSeconds(5)));
+        var exception = expectThrows(RuntimeException.class, () -> listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT));
         assertThat(exception.getMessage(), is(exceptionMessage));
     }
 
@@ -316,7 +316,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         mockParsePersistedConfigToReturnModel(model);
 
         var listener = callMasterOperationWithActionFuture();
-        var response = listener.actionGet(TimeValue.timeValueSeconds(5));
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(response.getModel(), is(model.getConfigurations()));
     }
 

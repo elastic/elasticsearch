@@ -88,7 +88,7 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
         var transformed = load ? load(plan, unresolvedLinkedSet) : nullify(plan, unresolvedLinkedSet);
 
-        return transformed.equals(plan) ? plan : refreshPlan(transformed, unresolved);
+        return transformed == plan ? plan : refreshPlan(transformed, unresolved);
     }
 
     /**

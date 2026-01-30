@@ -467,7 +467,6 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float maxScore
     ) {
         for (int j = limit; j < bulkSize; j++) {
-            // Load scalar values
             float ax = memorySegment.get(
                 ValueLayout.JAVA_FLOAT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN),
                 offset + (long) j * Float.BYTES
@@ -491,10 +490,6 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
             float qcDist = scores[j];
 
-            // ax * ay * dimensions
-            // + ay * lx * targetComponentSum
-            // + ax * ly * y1
-            // + lx * ly * qcDist
             float res = ax * ay * dimensions + lx * ay * targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
 
             if (similarityFunction == EUCLIDEAN) {

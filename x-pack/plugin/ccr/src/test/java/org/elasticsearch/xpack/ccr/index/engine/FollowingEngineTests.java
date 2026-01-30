@@ -78,7 +78,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.index.engine.EngineTestCase.getDocIds;
+import static org.elasticsearch.index.EngineTestUtils.getDocIds;
 import static org.elasticsearch.index.engine.EngineTestCase.getNumVersionLookups;
 import static org.elasticsearch.index.engine.EngineTestCase.getTranslog;
 import static org.hamcrest.Matchers.containsString;

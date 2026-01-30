@@ -27,7 +27,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ReplicationGroup;
@@ -250,8 +249,8 @@ public class PostWriteRefreshTests extends IndexShardTestCase {
         }
     }
 
-    private static void assertEngineContainsIdNoRefresh(IndexShard replica, String id) throws IOException {
-        List<DocIdSeqNoAndSource> docIds = EngineTestCase.getDocIds(replica.getEngineOrNull(), false);
+    private void assertEngineContainsIdNoRefresh(IndexShard replica, String id) throws IOException {
+        List<DocIdSeqNoAndSource> docIds = getDocIdAndSeqNos(replica, false);
         Set<String> ids = docIds.stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
         assertThat(ids, contains(id));
     }

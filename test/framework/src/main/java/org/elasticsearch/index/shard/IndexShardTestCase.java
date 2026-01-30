@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.CloseUtils;
+import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -1097,7 +1098,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
-        return shard.withEngineException(engine -> EngineTestCase.getDocIds(engine, true));
+        return getDocIdAndSeqNos(shard, true);
+    }
+
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
     }
 
     protected void assertDocCount(IndexShard shard, int docCount) throws IOException {

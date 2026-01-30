@@ -209,7 +209,6 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
             .setting("xpack.security.audit.enabled", "true")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
-            .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.http.ssl.enabled", String.valueOf(withSsl))
             .setting("xpack.security.transport.ssl.enabled", String.valueOf(withSsl))
             .setting("xpack.security.transport.ssl.keystore.path", "test-node.jks")

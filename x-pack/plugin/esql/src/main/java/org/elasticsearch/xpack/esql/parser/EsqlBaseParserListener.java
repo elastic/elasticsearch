@@ -796,16 +796,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitSetField(EsqlBaseParser.SetFieldContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
-   * @param ctx the parse tree
-   */
-  void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
-   * @param ctx the parse tree
-   */
-  void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
-  /**
    * Enter a parse tree produced by the {@code mmrQueryVectorParameter}
    * labeled alternative in {@link EsqlBaseParser#mmrQueryVectorParams}.
    * @param ctx the parse tree
@@ -830,15 +820,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
    * @param ctx the parse tree
    */
-  void enterMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  void enterMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#mmrCommand}.
    * @param ctx the parse tree
    */
-  void exitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
+  void exitMmrCommand(EsqlBaseParser.MmrCommandContext ctx);
   /**
    * Enter a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

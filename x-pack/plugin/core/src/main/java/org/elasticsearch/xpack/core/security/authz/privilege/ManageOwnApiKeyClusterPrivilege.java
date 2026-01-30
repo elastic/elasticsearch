@@ -48,6 +48,11 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
     }
 
     @Override
+    public SupportedMode getSupportedMode() {
+        return SupportedMode.ALL;
+    }
+
+    @Override
     public ClusterPermission.Builder buildPermission(ClusterPermission.Builder builder) {
         return builder.add(this, ManageOwnClusterPermissionCheck.INSTANCE);
     }

@@ -31,5 +31,9 @@ public interface NamedClusterPrivilege extends ClusterPrivilege {
     /**
      * Indicates if this privilege is available to customers in serverless mode.
      */
-    boolean isSupportedInServerlessMode();
+    default boolean isSupportedInServerlessMode() {
+        return getSupportedMode() == SupportedMode.SERVERLESS || getSupportedMode() == SupportedMode.ALL;
+    }
+
+    SupportedMode getSupportedMode();
 }

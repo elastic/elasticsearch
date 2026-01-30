@@ -221,17 +221,33 @@ public abstract class AbstractLogicalPlanOptimizerTests extends ESTestCase {
         );
 
         // Create a union index with conflicting types (keyword vs integer) for field 'id'
-        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
-        typesToIndices.put("keyword", Set.of("test1"));
-        typesToIndices.put("integer", Set.of("test2"));
-        EsField idField = new InvalidMappedField("id", typesToIndices);
-        EsField fooField = new EsField("foo", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
+        var typesToIndices_languages = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_languages.put("byte", Set.of("union_types_index"));
+        typesToIndices_languages.put("integer", Set.of("union_types_index_incompatible"));
+        EsField languages = new InvalidMappedField("languages", typesToIndices_languages);
+
+        var typesToIndices_lastName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_lastName.put("text", Set.of("union_types_index"));
+        typesToIndices_lastName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField lastName = new InvalidMappedField("last_name", typesToIndices_lastName);
+
+        var typesToIndices_salaryChange = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_salaryChange.put("float", Set.of("union_types_index"));
+        typesToIndices_salaryChange.put("double", Set.of("union_types_index_incompatible"));
+        EsField salaryChange = new InvalidMappedField("salary_change", typesToIndices_salaryChange);
+
+        var typesToIndices_firstName = new LinkedHashMap<String, Set<String>>();
+        typesToIndices_firstName.put("text", Set.of("union_types_index"));
+        typesToIndices_firstName.put("keyword", Set.of("union_types_index_incompatible"));
+        EsField firstName = new InvalidMappedField("first_name", typesToIndices_firstName);
+
+        EsField idField = new EsField("id", KEYWORD, emptyMap(), true, EsField.TimeSeriesFieldType.NONE);
         var unionIndex = new EsIndex(
-            "union_index*",
-            Map.of("id", idField, "foo", fooField),
-            Map.of("test1", IndexMode.STANDARD, "test2", IndexMode.STANDARD),
-            Map.of(),
-            Map.of(),
+            "union_types_index*",
+            Map.of("languages", languages, "last_name", lastName, "salary_change", salaryChange, "first_name", firstName, "id", idField),
+            Map.of("union_types_index", IndexMode.STANDARD, "union_types_index_incompatible", IndexMode.STANDARD),
+            Map.of("", List.of("union_types_index*")),
+            Map.of("", List.of("union_types_index_incompatible", "union_types_index")),
             Set.of()
         );
         unionIndexAnalyzer = new Analyzer(

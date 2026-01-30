@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
@@ -45,6 +46,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.containsIgnoringIds;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.releaseBuildForInlineStats;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests.aggFieldName;
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.DeduplicateAggsTests.aliased;
@@ -1292,7 +1295,6 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
         }
     }
 
-
     /*
      * https://github.com/elastic/elasticsearch/issues/138283
      *
@@ -1523,5 +1525,254 @@ public class PruneColumnsTests extends AbstractLogicalPlanOptimizerTests {
             Expressions.names(aggregateTop.aggregates()),
             is(List.of("languages2", "$$SUM$avg$0", "$$COUNT$avg$1", "languages", "gender"))
         );
+    }
+
+    /**
+     * Project[[!languages, $$languages$converted_to$long{f$}#12 AS x#6]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_EsRelation[union_types_index*][!first_name, id{f}#7, !languages, !last_name, !sala..]
+     */
+    public void testExplicitRetainOriginalFieldWithCast() {
+        LogicalPlan plan = planUnionIndex("""
+            FROM union_types_index*
+            | KEEP languages
+            | EVAL x = languages::long
+            """);
+
+        Project topProject = as(plan, Project.class);
+        var projections = topProject.projections();
+        assertThat(projections, hasSize(2));
+        assertThat(projections.get(0).name(), equalTo("languages"));
+        assertThat(projections.get(0).dataType(), equalTo(UNSUPPORTED));
+
+        Alias xAlias = as(projections.get(1), Alias.class);
+        assertThat(xAlias.name(), equalTo("x"));
+        assertThat(xAlias.dataType(), equalTo(LONG));
+        FieldAttribute syntheticFieldAttr = as(xAlias.child(), FieldAttribute.class);
+        assertThat(syntheticFieldAttr.name(), equalTo("$$languages$converted_to$long"));
+        ReferenceAttribute xRef = as(topProject.output().get(1), ReferenceAttribute.class);
+        assertThat(xRef, is(xAlias.toAttribute()));
+
+        Limit limit = asLimit(topProject.child(), 1000, false);
+        EsRelation relation = as(limit.child(), EsRelation.class);
+        assertCommonIncompatibleDataTypesEsRelation(relation);
+
+        var relationOutput = relation.output();
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+        assertThat(syntheticFieldAttr.id(), equalTo(syntheticField.id()));
+    }
+
+    /*
+     * Project[[id{f}#8]]
+     * \_Limit[10[INTEGER],false,false]
+     *   \_EsRelation[union_types_index*][!first_name, id{f}#8, !languages, !last_name, !sala..]
+     */
+    public void testPruneUnsupportedFieldsWithLimitCommand() {
+        var query = """
+            from union_types_index*
+            | eval x = languages::long
+            | limit 10
+            | keep id
+            """;
+
+        var plan = planUnionIndex(query);
+        Project project = as(plan, Project.class);
+
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("id"));
+        var limit = as(project.child(), Limit.class);
+        var relation = as(limit.child(), EsRelation.class);
+        var relationOutput = relation.output();
+        assertCommonIncompatibleDataTypesEsRelation(relation);
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+    }
+
+    /*
+     * Limit[10000[INTEGER],false,false]
+     * \_Project[[id{f}#7]]
+     *   \_Limit[10[INTEGER],false,false]
+     *     \_Project[[id{f}#7]]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#7, !languages, !last_name, !sala..]
+     */
+    public void testPruneColumnsInProject_WithLimit() {
+        var query = """
+            from union_types_index*
+            | eval x = languages::long
+            | limit 10
+            | keep id
+            """;
+
+        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+
+        // run through this rule only because this is the one which enables the project pruning in this case and it's
+        // how PruneColumns does its thing in case of Project prunning
+        var prunedEval = new ReplaceAliasingEvalWithProject().apply(analyzedPlan);
+        Limit topLimit = as(prunedEval, Limit.class);
+        Project topProject = as(topLimit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        Limit limit = as(topProject.child(), Limit.class);
+        Project project = as(limit.child(), Project.class);
+        assertThat(project.projections().size(), equalTo(7));
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("first_name", "id", "languages", "last_name", "salary_change", "$$languages$converted_to$long", "x")
+        );
+
+        var prunedProject = new PruneColumns().apply(prunedEval);
+
+        topLimit = as(prunedProject, Limit.class);
+        topProject = as(topLimit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        limit = as(topProject.child(), Limit.class);
+        project = as(limit.child(), Project.class);
+        assertThat(project.projections().size(), equalTo(1));
+        assertThat(Expressions.names(project.projections()), contains("id"));
+        EsRelation relation = as(project.child(), EsRelation.class);
+        assertCommonIncompatibleDataTypesEsRelation(relation);
+        var relationOutput = relation.output();
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[id{f}#11]]
+     *   \_LookupJoin[LEFT,[language_code{r}#5],[language_code{f}#13],false,null]
+     *     |_Project[[id{f}#11, $$languages$converted_to$long{f$}#15, $$languages$converted_to$long{f$}#15 AS language_code#5]]
+     *     | \_EsRelation[union_types_index*][!first_name, id{f}#11, !languages, !last_name, !sal..]
+     *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#13]
+     */
+    public void testPruneColumnsInProject_WithLookupJoin() {
+        var query = """
+            from union_types_index*
+            | eval language_code = languages::long
+            | lookup join languages_lookup on language_code
+            | keep id
+            """;
+
+        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+
+        // run through this rule only because this is the one which enables the project pruning in this case and it's
+        // how PruneColumns does its thing in case of Project prunning
+        var prunedEval = new ReplaceAliasingEvalWithProject().apply(analyzedPlan);
+        /*
+         * Limit[1000[INTEGER],false,false]
+         * \_Project[[id{f}#12]]
+         *   \_LookupJoin[LEFT,[language_code{r}#5],[language_code{f}#13],false,null]
+         *     |_Project[[!first_name, id{f}#12, !languages, !last_name, !salary_change, $$languages$converted_to$long{f$}#15, $$langua
+         * ges$converted_to$long{f$}#15 AS language_code#5]]
+         *     | \_EsRelation[union_types_index*][!first_name, id{f}#12, !languages, !last_name, !sal..]
+         *     \_EsRelation[languages_lookup][LOOKUP][language_code{f}#13, language_name{f}#14]
+         */
+        Limit limit = as(prunedEval, Limit.class);
+        Project topProject = as(limit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        LookupJoin lookupJoin = as(topProject.child(), LookupJoin.class);
+        Project project = as(lookupJoin.left(), Project.class);
+        assertThat(project.projections().size(), equalTo(7));
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("first_name", "id", "languages", "last_name", "salary_change", "$$languages$converted_to$long", "language_code")
+        );
+
+        var prunedProject = new PruneColumns().apply(prunedEval);
+
+        limit = as(prunedProject, Limit.class);
+        topProject = as(limit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        lookupJoin = as(topProject.child(), LookupJoin.class);
+        project = as(lookupJoin.left(), Project.class);
+        assertThat(project.projections().size(), equalTo(3));
+        assertThat(Expressions.names(project.projections()), contains("id", "$$languages$converted_to$long", "language_code"));
+        EsRelation relation = as(project.child(), EsRelation.class);
+        assertCommonIncompatibleDataTypesEsRelation(relation);
+        var relationOutput = relation.output();
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$long"));
+        assertThat(syntheticField.dataType(), equalTo(LONG));
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Project[[id{f}#12]]
+     *   \_Dissect[x{r}#5,Parser[pattern=%{foo}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@18e5d3b5],[foo{r}#6]]
+     *     \_Project[[id{f}#12, $$languages$converted_to$keyword{f$}#14, $$languages$converted_to$keyword{f$}#14 AS x#5]]
+     *       \_EsRelation[union_types_index*][!first_name, id{f}#12, !languages, !last_name, !sal..]
+     */
+    public void testPruneColumnsInProject_WithDissect() {
+        var query = """
+            from union_types_index*
+            | eval x = languages::string
+            | dissect x "%{foo}"
+            | keep id
+            """;
+
+        var analyzedPlan = unionIndexAnalyzer.analyze(parser.parseQuery(query));
+
+        // run through this rule only because this is the one which enables the project pruning in this case and it's
+        // how PruneColumns does its thing in case of Project prunning
+        var prunedEval = new ReplaceAliasingEvalWithProject().apply(analyzedPlan);
+
+        /*
+         * Limit[1000[INTEGER],false,false]
+         * \_Project[[id{f}#10]]
+         *   \_Dissect[x{r}#5,Parser[pattern=%{foo}, appendSeparator=, parser=org.elasticsearch.dissect.DissectParser@16d0b308],[foo{r}#6]]
+         *     \_Project[[!first_name, id{f}#10, !languages, !last_name, !salary_change, $$languages$converted_to$keyword{f$}#14, $$lan
+         * guages$converted_to$keyword{f$}#14 AS x#5]]
+         *       \_EsRelation[union_types_index*][!first_name, id{f}#10, !languages, !last_name, !sal..]
+         */
+        Limit topLimit = as(prunedEval, Limit.class);
+        Project topProject = as(topLimit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        Dissect dissect = as(topProject.child(), Dissect.class);
+        Project project = as(dissect.child(), Project.class);
+        assertThat(project.projections().size(), equalTo(7));
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("first_name", "id", "languages", "last_name", "salary_change", "$$languages$converted_to$keyword", "x")
+        );
+
+        var prunedProject = new PruneColumns().apply(prunedEval);
+
+        topLimit = as(prunedProject, Limit.class);
+        topProject = as(topLimit.child(), Project.class);
+        assertThat(topProject.projections().size(), equalTo(1));
+        assertThat(Expressions.names(topProject.projections()), contains("id"));
+        dissect = as(topProject.child(), Dissect.class);
+        project = as(dissect.child(), Project.class);
+        assertThat(project.projections().size(), equalTo(3));
+        assertThat(Expressions.names(project.projections()), contains("id", "$$languages$converted_to$keyword", "x"));
+        EsRelation relation = as(project.child(), EsRelation.class);
+        assertCommonIncompatibleDataTypesEsRelation(relation);
+        var relationOutput = relation.output();
+        var syntheticField = relationOutput.get(5);
+        assertThat(syntheticField.name(), equalTo("$$languages$converted_to$keyword"));
+        assertThat(syntheticField.dataType(), equalTo(KEYWORD));
+    }
+
+    public static void assertCommonIncompatibleDataTypesEsRelation(EsRelation relation) {
+        assertEquals("union_types_index*", relation.indexPattern());
+        var relationOutput = relation.output();
+        assertThat(relationOutput, hasSize(6));
+        assertThat(relationOutput.get(0).name(), equalTo("first_name"));
+        assertThat(relationOutput.get(0).dataType(), equalTo(UNSUPPORTED));
+        assertThat(relationOutput.get(1).name(), equalTo("id"));
+        assertThat(relationOutput.get(1).dataType(), equalTo(KEYWORD));
+        assertThat(relationOutput.get(2).name(), equalTo("languages"));
+        assertThat(relationOutput.get(2).dataType(), equalTo(UNSUPPORTED));
+        assertThat(relationOutput.get(3).name(), equalTo("last_name"));
+        assertThat(relationOutput.get(3).dataType(), equalTo(UNSUPPORTED));
+        assertThat(relationOutput.get(4).name(), equalTo("salary_change"));
+        assertThat(relationOutput.get(4).dataType(), equalTo(UNSUPPORTED));
     }
 }

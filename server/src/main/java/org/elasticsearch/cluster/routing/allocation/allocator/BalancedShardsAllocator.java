@@ -1091,6 +1091,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                             // But if remainDecision is NOT_PREFERRED, we will only accept a YES/THROTTLE
                             if (remainDecision.type() == Type.NO) {
                                 targetNode = target;
+                            } else {
+                                assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";
                             }
                         } else if (bestDecision == Type.THROTTLE) {
                             assert allocation.isSimulating() == false;

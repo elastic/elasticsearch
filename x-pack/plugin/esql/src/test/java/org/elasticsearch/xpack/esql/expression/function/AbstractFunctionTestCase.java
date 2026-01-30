@@ -649,6 +649,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             pageSize = randomIntBetween(1, 100);
         }
 
+        assert rowsCount == pages.stream().mapToInt(Page::getPositionCount).sum();
         return pages;
     }
 

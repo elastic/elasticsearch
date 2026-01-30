@@ -327,9 +327,6 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/141469
-- class: org.elasticsearch.xpack.security.authc.TokenServiceTests
-  method: testAttachAndGetToken
-  issue: https://github.com/elastic/elasticsearch/issues/141470
 - class: org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests
   method: testOptionalColumnAtATimeReader
   issue: https://github.com/elastic/elasticsearch/issues/141529

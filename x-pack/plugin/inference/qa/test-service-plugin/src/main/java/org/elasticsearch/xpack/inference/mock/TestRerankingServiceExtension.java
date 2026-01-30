@@ -45,7 +45,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.mock.AbstractTestInferenceService.random;
 
@@ -124,10 +123,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
-            if (Objects.equals(
-                ((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation(),
-                Boolean.TRUE
-            )) {
+            if (((TestRerankingServiceExtension.TestTaskSettings) model.getTaskSettings()).shouldFailValidation()) {
                 listener.onFailure(new RuntimeException("validation call intentionally failed based on task settings"));
                 return;
             }

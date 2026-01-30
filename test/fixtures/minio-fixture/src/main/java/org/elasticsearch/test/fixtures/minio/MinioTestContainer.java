@@ -71,22 +71,17 @@ public final class MinioTestContainer extends DockerEnvironmentAwareTestContaine
     @Override
     public void start() {
         if (enabled) {
-            try {
-                super.start();
-                execInContainer("mkdir -p /minio/data/" + bucketName);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+            super.start();
         }
     }
 
+    @Override
     public void stop() {
         if (enabled) {
             super.stop();
-            dataFolder.delete();
         }
+        // Always cleanup dataFolder since it's always created in constructor
+        dataFolder.delete();
     }
 
     public String getAddress() {

@@ -1087,9 +1087,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                                 break;
                             }
                         } else if (bestDecision == Type.NOT_PREFERRED) {
-                            // If we don't ever find a YES/THROTTLE decision, we'll settle for NOT_PREFERRED as preferable to NO.
-                            // But if remainDecision is NOT_PREFERRED, we will only accept a YES/THROTTLE
-                            if (remainDecision.type() == Type.NO) {
+                            // We will accept a NOT_PREFERRED allocation if canRemain = NO, but if canRemain = NOT_PREFERRED
+                            // we will wait for a YES/THROTTLE. Either way we update bestDecision so we can distinguish betweem
+                            // a NO and a NOT_PREFERRED in allocate-explain
+                            if (remainDecision.type() != Type.NOT_PREFERRED) {
                                 targetNode = target;
                             } else {
                                 assert targetNode == null : "If the best we've seen is NOT_PREFERRED, we should not have a targetNode yet";

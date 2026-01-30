@@ -91,7 +91,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                             }
                         };
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
                             for (int i = 0; i < result.getPositionCount(); i++) {
@@ -255,7 +255,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                             }
                         };
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());
                             boolean enclosedInSingleRange = false;

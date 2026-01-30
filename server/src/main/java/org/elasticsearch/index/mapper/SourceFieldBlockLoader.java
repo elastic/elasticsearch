@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public final class SourceFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
+    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 

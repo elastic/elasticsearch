@@ -16,6 +16,8 @@ import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.List;
+
 /**
  * Values for cluster level settings used in physical planning.
  */
@@ -93,6 +95,34 @@ public class PlannerSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * If we're loading more than this many fields at a time we discard column loaders after each
+     * page regardless of whether we can reuse them. They have significant per-field memory overhead
+     * so discarding them between pages allows some queries that would have OOMed to succeed. Usually
+     * the paths that need very high performance don't load more than a handful of fields at a time,
+     * so they <strong>do</strong> reuse fields.
+     */
+    public static final Setting<Integer> REUSE_COLUMN_LOADERS_THRESHOLD = Setting.intSetting(
+        "esql.reuse_column_loaders_threshold",
+        30,
+        0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static List<Setting<?>> settings() {
+        return List.of(
+            DEFAULT_DATA_PARTITIONING,
+            VALUES_LOADING_JUMBO_SIZE,
+            LUCENE_TOPN_LIMIT,
+            INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
+            REDUCTION_LATE_MATERIALIZATION,
+            PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
+            PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+            REUSE_COLUMN_LOADERS_THRESHOLD
+        );
+    }
+
     private volatile DataPartitioning defaultDataPartitioning;
     private volatile ByteSizeValue valuesLoadingJumboSize;
     private volatile int luceneTopNLimit;
@@ -100,6 +130,7 @@ public class PlannerSettings {
 
     private volatile int partialEmitKeysThreshold;
     private volatile double partialEmitUniquenessThreshold;
+    private volatile int reuseColumnLoadersThreshold;
 
     /**
      * Ctor for prod that listens for updates from the {@link ClusterService}.
@@ -112,6 +143,7 @@ public class PlannerSettings {
         clusterSettings.initializeAndWatch(INTERMEDIATE_LOCAL_RELATION_MAX_SIZE, v -> this.intermediateLocalRelationMaxSize = v);
         clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD, v -> this.partialEmitKeysThreshold = v);
         clusterSettings.initializeAndWatch(PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD, v -> this.partialEmitUniquenessThreshold = v);
+        clusterSettings.initializeAndWatch(REUSE_COLUMN_LOADERS_THRESHOLD, v -> this.reuseColumnLoadersThreshold = v);
     }
 
     /**
@@ -123,7 +155,8 @@ public class PlannerSettings {
         int luceneTopNLimit,
         ByteSizeValue intermediateLocalRelationMaxSize,
         int partialEmitKeysThreshold,
-        double partialEmitUniquenessThreshold
+        double partialEmitUniquenessThreshold,
+        int reuseColumnLoadersThreshold
     ) {
         this.defaultDataPartitioning = defaultDataPartitioning;
         this.valuesLoadingJumboSize = valuesLoadingJumboSize;
@@ -131,6 +164,7 @@ public class PlannerSettings {
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
     }
 
     public DataPartitioning defaultDataPartitioning() {
@@ -169,5 +203,16 @@ public class PlannerSettings {
 
     public double partialEmitUniquenessThreshold() {
         return partialEmitUniquenessThreshold;
+    }
+
+    /**
+     * If we're loading more than this many fields at a time we discard column loaders after each
+     * page regardless of whether we can reuse them. They have significant per-field memory overhead
+     * so discarding them between pages allows some queries that would have OOMed to succeed. Usually
+     * the paths that need very high performance don't load more than a handful of fields at a time,
+     * so they <strong>do</strong> reuse fields.
+     */
+    public int reuseColumnLoadersThreshold() {
+        return reuseColumnLoadersThreshold;
     }
 }

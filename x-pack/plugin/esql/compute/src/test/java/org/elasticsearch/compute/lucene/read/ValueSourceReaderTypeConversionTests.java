@@ -243,6 +243,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 return loaderAndConverter;
             })),
             new IndexedByShardIdFromList<>(shardContexts),
+            randomBoolean(),
             0
         );
     }
@@ -495,6 +496,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                 ByteSizeValue.ofGb(1),
                 List.of(testCase.info, fieldInfo(mapperService(indexKey).fieldType("key"), ElementType.INT)),
                 new IndexedByShardIdFromList<>(shardContexts),
+                randomBoolean(),
                 0
             ).get(driverContext)
         );
@@ -569,6 +571,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     fieldInfo(mapperService("index1").fieldType("indexKey"), ElementType.BYTES_REF)
                 ),
                 new IndexedByShardIdFromList<>(shardContexts),
+                randomBoolean(),
                 0
             ).get(driverContext)
         );
@@ -582,6 +585,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     ByteSizeValue.ofGb(1),
                     b.stream().map(i -> i.info).toList(),
                     new IndexedByShardIdFromList<>(shardContexts),
+                    randomBoolean(),
                     0
                 ).get(driverContext)
             );
@@ -692,6 +696,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     ByteSizeValue.ofGb(1),
                     List.of(i.info),
                     new IndexedByShardIdFromList<>(shardContexts),
+                    randomBoolean(),
                     0
                 ).get(driverContext)
             )
@@ -1382,6 +1387,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                             )
                         ),
                         new IndexedByShardIdFromList<>(shardContexts),
+                        randomBoolean(),
                         0
                     ).get(driverContext)
                 ),
@@ -1416,6 +1422,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
             new IndexedByShardIdFromSingleton<>(
                 new ValuesSourceReaderOperator.ShardContext(reader(indexKey), (sourcePaths) -> SourceLoader.FROM_STORED_SOURCE, 0.2)
             ),
+            randomBoolean(),
             0
         );
         assertThat(factory.describe(), equalTo("ValuesSourceReaderOperator[fields = [" + cases.size() + " fields]]"));
@@ -1466,6 +1473,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     return ValuesSourceReaderOperator.load(ft.blockLoader(blContext()));
                 })),
                 new IndexedByShardIdFromList<>(readerShardContexts),
+                randomBoolean(),
                 0
             );
             DriverContext driverContext = driverContext();

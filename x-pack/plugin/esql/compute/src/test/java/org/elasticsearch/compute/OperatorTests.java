@@ -190,6 +190,7 @@ public class OperatorTests extends MapperServiceTestCase {
                 new IndexedByShardIdFromSingleton<>(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                     throw new UnsupportedOperationException();
                 }, 0.8)),
+                randomBoolean(),
                 0
             );
             List<Page> pages = new ArrayList<>();

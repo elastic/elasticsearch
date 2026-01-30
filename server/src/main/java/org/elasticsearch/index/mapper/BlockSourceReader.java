@@ -17,6 +17,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
@@ -102,7 +103,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public final IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 

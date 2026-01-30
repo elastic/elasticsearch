@@ -324,7 +324,6 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         {
             String q = "FROM logs*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             try {
                 expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
                 setSkipUnavailable(REMOTE_CLUSTER_1, true);
@@ -430,14 +429,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            try {
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            } finally {
-                resetSkipUnavailableDefaults();
-            }
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - single remote cluster with wildcard index expression
@@ -450,14 +444,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch*,cluster-a:nomatch";
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            try {
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            } finally {
-                resetSkipUnavailableDefaults();
-            }
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
@@ -486,7 +475,6 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             String remote2IndexName = randomFrom(remote2Index, IDX_ALIAS, FILTERED_IDX_ALIAS);
             String q = Strings.format("FROM %s*,cluster-a:nomatch,%s:%s*", localIndexName, REMOTE_CLUSTER_2, remote2IndexName);
             String expectedError = "Unknown index [cluster-a:nomatch]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             try {
                 expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
                 setSkipUnavailable(REMOTE_CLUSTER_1, true);
@@ -548,7 +536,6 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
         {
             String q = "FROM logs*::failures,cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             try {
                 expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
                 setSkipUnavailable(REMOTE_CLUSTER_1, true);
@@ -669,14 +656,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
-            try {
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            } finally {
-                resetSkipUnavailableDefaults();
-            }
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // no error on wildcard non-matching remote index
@@ -689,14 +671,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
 
         // an error is thrown if there is a concrete index that does not match
         {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch*::failures,cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
-            try {
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            } finally {
-                resetSkipUnavailableDefaults();
-            }
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
 
         // an error is thrown if there are no matching indices at all - local with wildcard, remote with wildcard
@@ -707,14 +684,9 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
             }
         }
         {
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             String q = "FROM nomatch::failures,cluster-a:nomatch::failures";
             String expectedError = "Unknown index [cluster-a:nomatch::failures]; Unknown index [nomatch::failures]";
-            try {
-                expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
-            } finally {
-                resetSkipUnavailableDefaults();
-            }
+            expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
         }
         {
             String q = "FROM nomatch::failures,cluster-a:nomatch*::failures";
@@ -735,7 +707,6 @@ public class CrossClusterQueryDatastreamIT extends AbstractCrossClusterTestCase 
                 remote2IndexName
             );
             String expectedError = "Unknown index [cluster-a:nomatch::failures]";
-            setSkipUnavailable(REMOTE_CLUSTER_1, false);
             try {
                 expectVerificationExceptionForQuery(q, expectedError, requestIncludeMeta);
                 setSkipUnavailable(REMOTE_CLUSTER_1, true);

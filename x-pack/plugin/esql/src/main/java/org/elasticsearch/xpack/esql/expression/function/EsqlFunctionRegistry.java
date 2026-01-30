@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sample;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
@@ -382,7 +383,8 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent") },
+                def(Absent.class, uni(Absent::new), "absent"),
+                def(Sparkline.class, Sparkline::new, 0, "sparkline") },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),

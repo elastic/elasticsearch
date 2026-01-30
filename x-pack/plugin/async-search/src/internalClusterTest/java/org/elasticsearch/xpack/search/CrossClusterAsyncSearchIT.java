@@ -2071,7 +2071,8 @@ public class CrossClusterAsyncSearchIT extends AbstractMultiClustersTestCase {
     protected AsyncSearchResponse getAsyncSearch(String id, boolean returnPartialResponse) {
         return client(LOCAL_CLUSTER).execute(
             GetAsyncSearchAction.INSTANCE,
-            new GetAsyncResultRequest(id).setReturnPartialResults(returnPartialResponse).setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
+            new GetAsyncResultRequest(id).setReturnPartialResults(returnPartialResponse)
+                .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(1))
         ).actionGet();
     }
 

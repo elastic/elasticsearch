@@ -1,0 +1,12 @@
+Simple MMR diversification
+required_capability: mmr
+
+FROM mmr_text_vector_keyword
+| MMR ON text_vector LIMIT 3
+;
+
+keyword_field:keyword | text_body:text | text_vector:dense_vector     
+test1                 | first text     | [0.4, 0.2, 0.4, 0.4]
+test6                 | sixth text     | [0.05, 0.05, 0.05, 0.05]
+test9                 | ninth text     | [0.2, 0.05, 0.2, 0.05]
+;

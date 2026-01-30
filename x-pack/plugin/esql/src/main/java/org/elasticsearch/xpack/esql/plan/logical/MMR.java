@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
@@ -19,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -30,6 +33,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordinator, PostAnalysisVerificationAware {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Mmr", MMR::new);
     public static final String LAMBDA_OPTION_NAME = "lambda";
     private static final List<String> VALID_MMR_OPTION_NAMES = List.of(LAMBDA_OPTION_NAME);
 
@@ -37,7 +41,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
     private final Expression limit;
     private final Expression queryVector;
     private final Expression options;
-    private final Float lambdaValue;
 
     public MMR(
         Source source,
@@ -52,7 +55,14 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
         this.limit = limit;
         this.queryVector = queryVector;
         this.options = options;
-        this.lambdaValue = tryExtractLambdaFromOptions(options);
+    }
+
+    public MMR(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
+        this.diversifyField = in.readNamedWriteable(Attribute.class);
+        this.limit = in.readNamedWriteable(Expression.class);
+        this.queryVector = in.readOptionalNamedWriteable(Expression.class);
+        this.options = in.readOptionalNamedWriteable(Expression.class);
     }
 
     public Attribute diversifyField() {
@@ -69,10 +79,6 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     public Expression options() {
         return options;
-    }
-
-    public Float lambdaValue() {
-        return lambdaValue;
     }
 
     @Override
@@ -92,12 +98,17 @@ public class MMR extends UnaryPlan implements TelemetryAware, ExecutesOn.Coordin
 
     @Override
     public String getWriteableName() {
-        throw new UnsupportedOperationException("not serialized");
+        return ENTRY.name;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("not serialized");
+        source().writeTo(out);
+        out.writeNamedWriteable(child());
+        out.writeNamedWriteable(diversifyField);
+        out.writeNamedWriteable(limit);
+        out.writeOptionalNamedWriteable(queryVector);
+        out.writeOptionalNamedWriteable(options);
     }
 
     @Override

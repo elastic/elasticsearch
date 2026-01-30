@@ -140,12 +140,10 @@ public class Mapper {
             mappedChild = addExchangeForFragment(topN, mappedChild);
             var topNExec = new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
 
-            // If the topN is receiving data from a data node, it means that data has already being sorted so we can avoid re-sorting in
-            // the coordinator
             if (mappedChild instanceof ExchangeExec exchangeExec) {
-                // TODO This is temporary, remove it
-                assert exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
-                return topNExec.withSortedInput();
+                // If the data nodes run a TopN, the TopN in the coordinator will receive already sorted data
+                boolean sortedInput = exchangeExec.child() instanceof FragmentExec fragmentExec && fragmentExec.fragment() instanceof TopN;
+                return sortedInput ? topNExec.withSortedInput() : topNExec;
             }
 
             return topNExec;

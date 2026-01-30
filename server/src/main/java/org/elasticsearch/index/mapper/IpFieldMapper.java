@@ -354,10 +354,18 @@ public class IpFieldMapper extends FieldMapper {
                 }
             }
             if (hasPoints) {
+                if (hasDocValues()) {
+                    return convertToIndexOrDocValuesQuery(query);
+                }
                 return query;
             } else {
                 return convertToDocValuesQuery(query);
             }
+        }
+
+        static Query convertToIndexOrDocValuesQuery(Query query) {
+            assert query instanceof PointRangeQuery;
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
         }
 
         static Query convertToDocValuesQuery(Query query) {

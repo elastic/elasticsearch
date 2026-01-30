@@ -340,26 +340,12 @@ public class LocalExecutionPlanner {
 
         if (fuse.fuseConfig() instanceof RrfConfig rrfConfig) {
             return source.with(
-                new RrfScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    rrfConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new RrfScoreEvalOperator.Factory(discriminatorPosition, scorePosition, rrfConfig, fuse.source()),
                 source.layout
             );
         } else if (fuse.fuseConfig() instanceof LinearConfig linearConfig) {
             return source.with(
-                new LinearScoreEvalOperator.Factory(
-                    discriminatorPosition,
-                    scorePosition,
-                    linearConfig,
-                    fuse.sourceText(),
-                    fuse.sourceLocation().getLineNumber(),
-                    fuse.sourceLocation().getColumnNumber()
-                ),
+                new LinearScoreEvalOperator.Factory(discriminatorPosition, scorePosition, linearConfig, fuse.source()),
                 source.layout
             );
         }
@@ -913,15 +899,7 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planChangePoint(ChangePointExec changePoint, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(changePoint.child(), context);
         Layout layout = source.layout.builder().append(changePoint.targetType()).append(changePoint.targetPvalue()).build();
-        return source.with(
-            new ChangePointOperator.Factory(
-                layout.get(changePoint.value().id()).channel(),
-                changePoint.sourceText(),
-                changePoint.sourceLocation().getLineNumber(),
-                changePoint.sourceLocation().getColumnNumber()
-            ),
-            layout
-        );
+        return source.with(new ChangePointOperator.Factory(layout.get(changePoint.value().id()).channel(), changePoint.source()), layout);
     }
 
     private PhysicalOperation planSample(SampleExec rsx, LocalExecutionPlannerContext context) {

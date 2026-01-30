@@ -322,7 +322,16 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
                 }
             }
             if (timeseries.size() < 2) {
-                return null;
+                if ((deltaAgg.equals(DeltaAgg.RATE) || deltaAgg.equals(DeltaAgg.INCREASE))
+                    && timeseries.size() == 1
+                    && timeseries.getFirst().v2().v1().toEpochMilli() % (secondsInWindow * 1000L) == 0
+                    && offset > 0) {
+                    // Value at lower boundary is present, check if there's one in the previous window to use.
+                    addLastTupleFromLowerWindow(timeseries, allTimeseries.get(offset - 1), secondsInWindow);
+                }
+                if (timeseries.size() < 2) {
+                    return null;
+                }
             }
             var firstTs = timeseries.getFirst().v2().v1();
             var lastTs = timeseries.getLast().v2().v1();
@@ -452,6 +461,35 @@ public class RandomizedTimeSeriesIT extends AbstractEsqlIntegTestCase {
             return true;
         }
         return false;
+    }
+
+    private static void addLastTupleFromLowerWindow(
+        List<Tuple<String, Tuple<Instant, Double>>> timeseries,
+        Collection<List<Tuple<String, Tuple<Instant, Double>>>> lowerWindow,
+        int secondsInWindow
+    ) {
+        String timeseriesId = timeseries.getFirst().v1();
+        var referenceTuple = timeseries.getFirst().v2();
+        Tuple<String, Tuple<Instant, Double>> lowerTuple = null;
+        long lowerTimestamp = 0;
+        for (var doc : lowerWindow) {
+            for (var tuple : doc) {
+                if (instantsInAdjacentWindows(tuple.v2().v1(), referenceTuple.v1(), secondsInWindow) == false) {
+                    return;
+                }
+                String id = tuple.v1();
+                if (timeseriesId.equals(id)) {
+                    long timestamp = tuple.v2().v1().toEpochMilli();
+                    if (lowerTuple == null || (timestamp > lowerTimestamp)) {
+                        lowerTimestamp = timestamp;
+                        lowerTuple = tuple;
+                    }
+                }
+            }
+        }
+        if (lowerTuple != null) {
+            timeseries.addFirst(lowerTuple);
+        }
     }
 
     private static boolean instantsInAdjacentWindows(Instant first, Instant second, int secondsInWindow) {

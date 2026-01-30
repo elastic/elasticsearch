@@ -1,0 +1,6 @@
+area: Infra/Core
+issues: []
+pr: 141539
+summary: Reindexing older indices with percolator fields clears migration assistant
+  errors
+type: bug

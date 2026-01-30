@@ -1423,7 +1423,7 @@ setup:
   - match:  { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 22 }
 
 ---
-"Get source with _source_includes=_inference_fields":
+"Get _inference_fields via _source_includes":
   - requires:
       cluster_features: "semantic_text.inference_metadata_fields.enabled_by_default"
       reason: Test requires the inference metadata fields format

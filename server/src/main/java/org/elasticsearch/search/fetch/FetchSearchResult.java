@@ -19,6 +19,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.TopHits;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.transport.LeakTracker;
@@ -31,7 +32,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private SearchHits hits;
 
-    private final List<InternalAggregation> aggragations = new LinkedList<>();
+    private final List<TopHits> aggregations = new LinkedList<>();
 
     private transient long searchHitsSizeBytes = 0L;
 
@@ -144,8 +145,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
             hits.decRef();
             hits = null;
         }
-        aggragations.forEach(agg -> { agg.close(); });
-        aggragations.clear();
+        aggregations.forEach(topHits -> { topHits.decRef(); });
+        aggregations.clear();
     }
 
     @Override
@@ -153,7 +154,8 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return refCounted.hasReferences();
     }
 
-    public void addAggregation(InternalAggregation internalAggregation) {
-        aggragations.add(internalAggregation);
+    public void addAggregation(TopHits topHits) {
+        topHits.incRef();
+        aggregations.add(topHits);
     }
 }

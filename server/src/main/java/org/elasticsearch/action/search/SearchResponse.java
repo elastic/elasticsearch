@@ -246,7 +246,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         if (refCounted.decRef()) {
             hits.decRef();
             if (aggregations != null) {
-                aggregations.forEach(agg -> { agg.close(); });
+                aggregations.close();
             }
             return true;
         }

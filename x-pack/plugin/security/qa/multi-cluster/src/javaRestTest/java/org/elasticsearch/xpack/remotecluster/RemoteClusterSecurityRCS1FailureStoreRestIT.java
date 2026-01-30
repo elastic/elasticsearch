@@ -90,7 +90,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
           "indices": [
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["manage_failure_store", "read_failure_store"]
+              "privileges": ["manage_failure_store", "read", "read_failure_store"]
             }
           ]
         }""", ALL_ACCESS, """
@@ -168,7 +168,7 @@ public class RemoteClusterSecurityRCS1FailureStoreRestIT extends AbstractRemoteC
             },
             {
               "names": ["test*", "non-existing-index"],
-              "privileges": ["manage_failure_store", "read_failure_store"]
+              "privileges": ["manage_failure_store", "read", "read_failure_store"]
             }
           ]
         }""", ALL_ACCESS, """
